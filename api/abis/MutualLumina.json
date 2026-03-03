@@ -1,0 +1,8 @@
+[
+  "function createPool(string _description, string _evidenceSource, uint256 _coverageAmount, uint256 _premiumRate, uint256 _deadline) external returns (uint256)",
+  "function resolvePool(uint256 _poolId, bool _claimApproved) external",
+  "function getPool(uint256 _poolId) external view returns (string description, string evidenceSource, uint256 coverageAmount, uint256 premiumRate, uint256 deadline, uint256 depositDeadline, address insured, uint256 premiumPaid, uint256 totalCollateral, uint8 status, bool claimApproved, uint256 participantCount)",
+  "function oracle() external view returns (address)",
+  "function nextPoolId() external view returns (uint256)",
+  "event PoolCreated(uint256 indexed poolId, address indexed insured, string description, uint256 coverageAmount, uint256 premiumRate, uint256 deadline, uint256 depositDeadline)"
+]

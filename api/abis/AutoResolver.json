@@ -1,0 +1,9 @@
+[
+  "function trackPool(uint256 _poolId) external",
+  "function trackPools(uint256[] calldata _poolIds) external",
+  "function untrackPool(uint256 _poolId) external",
+  "function isExecutable(uint256 _poolId) external view returns (bool)",
+  "function getTrackedPools() external view returns (uint256[])",
+  "function trackedPoolCount() external view returns (uint256)",
+  "function isStale() external view returns (bool)"
+]

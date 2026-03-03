@@ -1,0 +1,23 @@
+{
+  "name": "lumina-api",
+  "version": "2.0.0",
+  "description": "Lumina Protocol - M2M Parametric Insurance REST API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "tsc",
+    "lint": "eslint src/ --ext .ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "dotenv": "^16.6.1",
+    "ethers": "^6.16.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3"
+  }
+}

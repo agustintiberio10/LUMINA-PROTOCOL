@@ -1,0 +1,9 @@
+node_modules/
+dist/
+cache/
+artifacts/
+*.db
+*.db-shm
+*.db-wal
+.env
+files.zip
