@@ -42,16 +42,19 @@ Returns all 8 insurance products with pricing parameters and Chainlink feed addr
   "products": [
     {
       "id": "LIQSHIELD-001",
+      "triggerMode": "instant",
       "name": "Liquidation Shield",
       "triggerType": "PRICE_DROP_PCT",
-      "thresholdOptions": [1000, 1500, 2000, 2500, 3000],
-      "sustainedPeriod": 1800,
+      "thresholdOptions": [1500, 2000, 2500, 3000],
+      "sustainedPeriod": 0,
       "waitingPeriod": 86400,
       "deductibleBps": 500,
-      "premiumRange": { "min": 250, "max": 700 },
+      "variableDeductible": { "1500": 800, "2000": 600, "2500": 500, "3000": 500 },
+      "premiumRange": { "min": 250, "max": 1200 },
       "durationRange": { "min": 7, "max": 90 },
       "chainlinkFeed": "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
-      "assets": ["ETH", "BTC"]
+      "assets": ["ETH", "BTC"],
+      "autoRenewal": true
     },
     {
       "id": "DEPEG-USDC-001",
@@ -213,7 +216,7 @@ Get a premium quote for a specific product configuration.
   "premiumBps": 460,
   "maxPayout": 9500,
   "deductible": "5%",
-  "trigger": "ETH/USD drops >20% for 30+ min (Chainlink)",
+  "trigger": "ETH/USD drops >20% (instant Chainlink reading)",
   "termsHash": "0xabc123def456...",
   "expiresIn": "15 minutes",
   "expiresAt": "2026-03-04T19:00:00Z"
@@ -247,7 +250,7 @@ Confirm a policy purchase after completing the on-chain transaction.
   "coverage": 10000,
   "premium": 460,
   "maxPayout": 9500,
-  "trigger": "ETH/USD drops >20% for 30+ min",
+  "trigger": "ETH/USD drops >20% (instant Chainlink reading)",
   "expiresAt": "2026-04-03T00:00:00Z",
   "txHash": "0x...",
   "baseScanUrl": "https://basescan.org/tx/0x..."
@@ -270,7 +273,7 @@ Check status of a specific policy.
   "coverage": 10000,
   "premium": 460,
   "maxPayout": 9500,
-  "trigger": "ETH/USD drops >20% for 30+ min",
+  "trigger": "ETH/USD drops >20% (instant Chainlink reading)",
   "currentPrice": 3245.67,
   "triggerPrice": 2596.54,
   "distanceToTrigger": "20.0%",
