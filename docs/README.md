@@ -76,7 +76,7 @@ Monitor dashboard              AutoResolver reads Chainlink continuously
 
 | ID | Name | Trigger | Premium | Duration |
 |---|---|---|---|---|
-| LIQSHIELD-001 | Liquidation Shield | Price drop % | 2.5-7% | 7-90d |
+| LIQSHIELD-001 | Liquidation Shield | Price drop % (instant) | 2.5-12% | 7-90d |
 | DEPEG-USDC-001 | USDC Depeg Cover | Price below $ | 1.3-6% | 14-365d |
 | DEPEG-USDT-001 | USDT Depeg Cover | Price below $ | 1.7-7.8% | 14-365d |
 | DEPEG-DAI-001 | DAI Depeg Cover | Price below $ | 1.6-7.2% | 14-365d |
