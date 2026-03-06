@@ -252,15 +252,16 @@ Returns: all policies, status, coverage amounts, premiums paid, payouts received
 ## The 8 Products — Complete Reference
 
 ### 1. LIQUIDATION SHIELD (LIQSHIELD-001)
-**Protects:** Leveraged positions against price crashes  
-**Trigger:** `PRICE_DROP_PCT` via Chainlink ETH/USD or BTC/USD  
-**Threshold options:** 10%, 15%, 20%, 25%, 30%  
-**Sustained period:** 30 minutes continuous  
+**Protects:** Against sudden ETH or BTC price crashes  
+**Trigger:** `PRICE_DROP_PCT` — single Chainlink reading below threshold (instant, no sustained period)  
+**Threshold options:** 15%, 20%, 25%, 30%  
+**Sustained period:** None — instant trigger. Chainlink aggregates multiple exchanges; single-exchange wicks don't trigger.  
 **Waiting period:** 24 hours  
-**Deductible:** 5%  
-**Premium range:** 2.5% – 7%  
+**Deductible:** 5%–8% (8% for 15% threshold, 6% for 20%, 5% for 25-30%)  
+**Premium range:** 2.5% – 12%  
 **Duration:** 7–90 days  
-**Use case:** Agent has $50K in Aave. ETH drops 25%. Without insurance → liquidated. With Lumina → receives compensation.
+**Auto-renewal:** Yes. New policy enters Pending state until pool is funded. No coverage during gap. Agent and human owner are notified. Can cancel and recover premium if pool doesn't fill.  
+**Use case:** Agent has $50K in Aave. ETH drops 22%. Chainlink confirms instantly. Agent receives compensation automatically within 24h.
 
 ### 2. USDC DEPEG COVER (DEPEG-USDC-001)
 **Protects:** Against USDC losing dollar peg  
@@ -327,28 +328,29 @@ All premiums follow: `premium = coverageAmount × premiumRate / 10,000`
 
 ### LIQSHIELD
 ```
-premiumRate = 200 + (thresholdRisk × durationAdj × amountAdj)
-
+premiumRate = 250 + (thresholdRisk × durationAdj × amountAdj)
 thresholdRisk:
-  30% (3000 bps) → 50
-  25% (2500 bps) → 100
-  20% (2000 bps) → 150
-  15% (1500 bps) → 300
-  10% (1000 bps) → 500
-
+30% (3000 bps) → 80
+25% (2500 bps) → 160
+20% (2000 bps) → 300
+15% (1500 bps) → 550
 durationAdj:
-  7–14 days  → 1.0
-  15–30 days → 1.3
-  31–60 days → 1.6
-  61–90 days → 2.0
-
+7–14 days  → 1.0
+15–30 days → 1.3
+31–60 days → 1.6
+61–90 days → 2.0
 amountAdj:
-  < $1,000    → 1.0
-  $1K–$10K    → 1.1
-  $10K–$50K   → 1.2
-  > $50K      → 1.4
-```
+< $1,000    → 1.0
+$1K–$10K    → 1.1
+$10K–$50K   → 1.2
 
+$50K      → 1.4
+
+deductible (variable by threshold):
+15% threshold → 8%
+20% threshold → 6%
+25-30% threshold → 5%
+```
 ### DEPEG (USDC/USDT/DAI)
 ```
 premiumRate = 100 + (thresholdRisk × durationAdj × stablecoinRisk)
