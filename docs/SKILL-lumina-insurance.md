@@ -329,28 +329,31 @@ All premiums follow: `premium = coverageAmount × premiumRate / 10,000`
 ### LIQSHIELD
 ```
 premiumRate = 250 + (thresholdRisk × durationAdj × amountAdj)
-thresholdRisk:
-30% (3000 bps) → 80
-25% (2500 bps) → 160
-20% (2000 bps) → 300
-15% (1500 bps) → 550
-durationAdj:
-7–14 days  → 1.0
-15–30 days → 1.3
-31–60 days → 1.6
-61–90 days → 2.0
-amountAdj:
-< $1,000    → 1.0
-$1K–$10K    → 1.1
-$10K–$50K   → 1.2
 
-$50K      → 1.4
+thresholdRisk:
+  30% (3000 bps) → 80
+  25% (2500 bps) → 160
+  20% (2000 bps) → 300
+  15% (1500 bps) → 550
+
+durationAdj:
+  7–14 days  → 1.0
+  15–30 days → 1.3
+  31–60 days → 1.6
+  61–90 days → 2.0
+
+amountAdj:
+  < $1,000    → 1.0
+  $1K–$10K    → 1.1
+  $10K–$50K   → 1.2
+  > $50K      → 1.4
 
 deductible (variable by threshold):
-15% threshold → 8%
-20% threshold → 6%
-25-30% threshold → 5%
+  15% threshold → 8%
+  20% threshold → 6%
+  25-30% threshold → 5%
 ```
+
 ### DEPEG (USDC/USDT/DAI)
 ```
 premiumRate = 100 + (thresholdRisk × durationAdj × stablecoinRisk)
