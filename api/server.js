@@ -24,6 +24,7 @@ const policyRouter = require("./routes/policy");
 const agentRouter = require("./routes/agent");
 
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3000;
 
 // ── Middleware global ──
