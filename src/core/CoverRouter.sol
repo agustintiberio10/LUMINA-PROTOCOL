@@ -68,6 +68,15 @@ contract CoverRouter is
     /// @notice NEW: tracks which vault backs each policy (needed for payout/cleanup)
     mapping(bytes32 => mapping(uint256 => address)) private _policyVault;
 
+    /// @notice Protocol fee in basis points (300 = 3%).
+    /// @dev Adapted from MutualLumina V1. Fee charged on BOTH:
+    ///   - purchasePolicy: 3% of premium → feeReceiver, 97% → vault
+    ///   - triggerPayout: 3% of payout → feeReceiver, 97% → agent
+    uint16 private _protocolFeeBps;
+
+    /// @notice Address that receives protocol fees.
+    address private _feeReceiver;
+
     // ═══════════════════════════════════════════════════════════
     //  EVENTS (additional, not in interface)
     // ═══════════════════════════════════════════════════════════
@@ -75,6 +84,9 @@ contract CoverRouter is
     event UsdyTokenUpdated(address indexed oldToken, address indexed newToken);
     event PolicyManagerUpdated(address indexed oldManager, address indexed newManager);
     event TestnetModeChanged(bool isTestnet);
+    event FeeCollected(bytes32 indexed productId, uint256 indexed policyId, uint256 feeAmount, string feeType);
+    event ProtocolFeeUpdated(uint16 oldFeeBps, uint16 newFeeBps);
+    event FeeReceiverUpdated(address indexed oldReceiver, address indexed newReceiver);
 
     // ═══════════════════════════════════════════════════════════
     //  ERRORS (additional)
@@ -84,6 +96,8 @@ contract CoverRouter is
     error ProductAlreadyRegistered(bytes32 productId);
     error InvalidAllocationBps(uint16 bps);
     error USDYConversionNotImplemented();
+    error InvalidFeeBps(uint16 feeBps);
+    error ZeroFeeReceiver();
 
     // ═══════════════════════════════════════════════════════════
     //  EIP-712
@@ -121,13 +135,17 @@ contract CoverRouter is
         address phalaVerifier_,
         address policyManager_,
         address usdyToken_,
-        bool isTestnet_
+        bool isTestnet_,
+        address feeReceiver_,
+        uint16 feeBps_
     ) external initializer {
         if (owner_ == address(0)) revert ZeroAddress("owner");
         if (oracle_ == address(0)) revert ZeroAddress("oracle");
         if (phalaVerifier_ == address(0)) revert ZeroAddress("phalaVerifier");
         if (policyManager_ == address(0)) revert ZeroAddress("policyManager");
         if (usdyToken_ == address(0)) revert ZeroAddress("usdyToken");
+        if (feeReceiver_ == address(0)) revert ZeroFeeReceiver();
+        if (feeBps_ > 1000) revert InvalidFeeBps(feeBps_);
 
         __Ownable_init(owner_);
         __UUPSUpgradeable_init();
@@ -138,6 +156,8 @@ contract CoverRouter is
         _policyManager = policyManager_;
         _usdyToken = usdyToken_;
         _isTestnet = isTestnet_;
+        _feeReceiver = feeReceiver_;
+        _protocolFeeBps = feeBps_;
 
         _cachedChainId = block.chainid;
         _cachedDomainSeparator = _computeDomainSeparator();
@@ -207,12 +227,25 @@ contract CoverRouter is
         // 3. Store policy → vault mapping (needed for payout/cleanup)
         _policyVault[quote.productId][policyId] = vault;
 
-        // 4. Transfer premium to the SPECIFIC vault that backs this policy
+        // 4. Transfer premium: split between protocol fee and vault
         uint256 usdyPremium = _convertToUSDY(quote.premiumAmount);
         IERC20(_usdyToken).safeTransferFrom(msg.sender, address(this), usdyPremium);
-        IERC20(_usdyToken).forceApprove(vault, usdyPremium);
-        IVault(vault).receivePremium(usdyPremium, quote.productId, policyId);
-        IERC20(_usdyToken).forceApprove(vault, 0); // Clear residual allowance
+
+        // Protocol fee: 3% of premium → feeReceiver
+        uint256 premiumFee = 0;
+        if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
+            premiumFee = (usdyPremium * _protocolFeeBps) / 10000;
+            if (premiumFee > 0) {
+                IERC20(_usdyToken).safeTransfer(_feeReceiver, premiumFee);
+                emit FeeCollected(quote.productId, policyId, premiumFee, "PREMIUM");
+            }
+        }
+
+        // Remaining premium → vault (risk premium)
+        uint256 vaultPremium = usdyPremium - premiumFee;
+        IERC20(_usdyToken).forceApprove(vault, vaultPremium);
+        IVault(vault).receivePremium(vaultPremium, quote.productId, policyId);
+        IERC20(_usdyToken).forceApprove(vault, 0);
 
         // 5. Build result
         IShield.PolicyInfo memory info = IShield(shield).getPolicyInfo(policyId);
@@ -264,10 +297,27 @@ contract CoverRouter is
         if (vault == address(0)) revert InvalidPolicyForPayout(policyId);
         IPolicyManager(_policyManager).releaseAllocation(productId, policyId, info.coverageAmount, vault);
 
-        // 5. Execute payout from the SPECIFIC vault
+        // 5. Execute payout: split between protocol fee and agent
         uint256 usdyPayout = _convertToUSDYSafe(pr.payoutAmount);
         if (usdyPayout > 0) {
-            IVault(vault).executePayout(pr.recipient, usdyPayout, productId, policyId);
+            // Vault sends full payout to Router first
+            IVault(vault).executePayout(address(this), usdyPayout, productId, policyId);
+
+            // Protocol fee: 3% of payout → feeReceiver
+            uint256 payoutFee = 0;
+            if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
+                payoutFee = (usdyPayout * _protocolFeeBps) / 10000;
+                if (payoutFee > 0) {
+                    IERC20(_usdyToken).safeTransfer(_feeReceiver, payoutFee);
+                    emit FeeCollected(productId, policyId, payoutFee, "CLAIM");
+                }
+            }
+
+            // Net payout → agent (97% of calculated payout)
+            uint256 netPayout = usdyPayout - payoutFee;
+            if (netPayout > 0) {
+                IERC20(_usdyToken).safeTransfer(pr.recipient, netPayout);
+            }
         }
 
         emit PayoutTriggered(policyId, productId, pr.recipient, pr.payoutAmount);
@@ -363,6 +413,20 @@ contract CoverRouter is
         emit ProtocolPausedChanged(paused_);
     }
 
+    function setProtocolFee(uint16 newFeeBps) external onlyOwner {
+        if (newFeeBps > 1000) revert InvalidFeeBps(newFeeBps);
+        uint16 old = _protocolFeeBps;
+        _protocolFeeBps = newFeeBps;
+        emit ProtocolFeeUpdated(old, newFeeBps);
+    }
+
+    function setFeeReceiver(address newReceiver) external onlyOwner {
+        if (newReceiver == address(0)) revert ZeroFeeReceiver();
+        address old = _feeReceiver;
+        _feeReceiver = newReceiver;
+        emit FeeReceiverUpdated(old, newReceiver);
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  VIEWS
     // ═══════════════════════════════════════════════════════════
@@ -382,6 +446,9 @@ contract CoverRouter is
     function getPolicyVault(bytes32 productId, uint256 policyId) external view returns (address) {
         return _policyVault[productId][policyId];
     }
+
+    function protocolFeeBps() external view returns (uint16) { return _protocolFeeBps; }
+    function feeReceiver() external view returns (address) { return _feeReceiver; }
 
     function isNonceUsed(uint256 nonce) external view returns (bool) { return _usedNonces[nonce]; }
     function isPaused() external view returns (bool) { return _paused; }

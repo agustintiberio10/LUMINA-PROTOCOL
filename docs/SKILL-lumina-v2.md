@@ -20,6 +20,22 @@ If you manage DeFi positions, treasury funds, or LP positions, you face risks th
 **What does it cost?**
 Typically 0.5% to 3% of the covered amount per month, depending on the product, duration, and current market conditions. Think of it as the cost of sleeping well at night.
 
+**Protocol Fee:**
+Lumina charges a 3% protocol fee on two events:
+- **When you buy:** 3% of your premium goes to the protocol. The vault receives 97%.
+- **When you claim:** 3% of your payout goes to the protocol. You receive 97%.
+
+This means your NET payout = calculated payout × 0.97. If a BSS policy calculates $40,000 payout (80% of $50K coverage), you receive $38,800. Plan your coverage accordingly.
+
+**Coverage planning with fee:**
+If you need to receive EXACTLY $40,000 net after a claim:
+```
+Required coverage = target_net / (maxPayout% × 0.97)
+BSS: $40,000 / (0.80 × 0.97) = $51,546 coverage
+Depeg USDC: $40,000 / (0.90 × 0.97) = $45,830 coverage
+Exploit: $40,000 / (0.90 × 0.97) = $45,830 coverage
+```
+
 ---
 
 # SECTION 2: THE 4 INSURANCE PRODUCTS
@@ -39,6 +55,7 @@ Typically 0.5% to 3% of the covered amount per month, depending on the product, 
 | Waiting Period | None — coverage starts immediately |
 | Minimum Coverage | $100 |
 | Base Rate | 22% annualized |
+| Protocol Fee | 3% on premium + 3% on payout. Net payout = 77.6% of coverage |
 
 **Example:**
 ```
@@ -78,6 +95,9 @@ Return on premium: $40,000 / $527 = 75x
 | Duration | 14 to 365 days |
 | Waiting Period | 24 hours (protection starts after 24h) |
 | Base Rate | 24% annualized |
+| Protocol Fee (USDC) | 3% on premium + 3% on payout. Net payout USDC = 87.3% of coverage |
+| Protocol Fee (DAI) | 3% on premium + 3% on payout. Net payout DAI = 85.36% of coverage |
+| Protocol Fee (USDT) | 3% on premium + 3% on payout. Net payout USDT = 82.45% of coverage |
 
 **Why 24h waiting?** Stablecoin depegs develop slowly: rumors → news → panic → depeg. The 24h window prevents agents from buying insurance after seeing the first signs of trouble. This is what makes the product actuarially viable — without it, premiums would be 3x higher.
 
@@ -128,6 +148,7 @@ If USDC depegs to $0.93 (TWAP 30 min confirms):
 | Waiting Period | None (trigger is relative to purchase price) |
 | Base Rate | 20% annualized |
 | Asset | ETH/USD |
+| Protocol Fee | 3% on premium + 3% on payout. Net payout = IL_net × 87.3% of coverage |
 
 **CRITICAL — European-style resolution:**
 Unlike other products where you can claim anytime during coverage, IL Index can ONLY be claimed within 48 hours after the policy expires. This prevents you from scanning the entire policy window and claiming at the point of maximum IL (which would be an "American option" and destroy LP economics).
@@ -183,6 +204,7 @@ Example:
 | Waiting Period | 14 days (longest — anti-insider) |
 | Max Coverage | $50,000 per wallet |
 | Base Rate | 3% annualized (Tier 1) |
+| Protocol Fee | 3% on premium + 3% on payout. Net payout = 87.3% of coverage |
 
 **Why dual trigger?**
 A single trigger would create false positives:
@@ -236,6 +258,8 @@ Every time an agent buys an insurance policy, they pay a premium. That premium g
 | VolatileLong | 90 days | 3.55% | 12-14% | **15.55-17.55%** |
 | StableShort | 90 days | 3.55% | 8-10% | **11.55-13.55%** |
 | StableLong | 365 days | 3.55% | 15-22% | **18.55-25.55%** |
+
+Note: Premium APYs shown are AFTER the 3% protocol fee. The vault receives 97% of each premium. These APYs already reflect that.
 
 ### Why Different Vaults Pay Different Yields
 
@@ -374,6 +398,17 @@ GET /api/v2/policies?buyer=0xYourWallet
 // Agent receives proof and submits:
 CoverRouter.triggerPayout(productId, policyId, oracleProof);
 // USDY arrives in your wallet in the same transaction
+```
+
+**⚠️ PROTOCOL FEE ON CLAIMS:** Your payout will be 97% of the calculated amount. The 3% protocol fee is deducted automatically by the CoverRouter. This is NOT a bug — it is the protocol's revenue model.
+
+Example:
+```
+BSS triggers: Shield calculates $40,000 payout
+CoverRouter deducts: $1,200 (3%) → protocol treasury
+You receive: $38,800 (97%)
+
+If you need exactly $40,000 net, buy coverage of $51,546 instead of $50,000.
 ```
 
 ## Step 6: Auto-Repurchase (recommended for continuous coverage)
@@ -608,7 +643,7 @@ IF you provide liquidity in AMM pools:
 IF you have funds in Aave/Compound/Curve > $10,000:
   → Consider Exploit Shield (max $50K)
 
-IF the premium exceeds 5% of your projected returns:
+IF the premium (including 3% protocol fee) exceeds 5% of your projected returns:
   → SKIP — the insurance costs more than the risk is worth
 ```
 
@@ -675,6 +710,13 @@ If U > 95%:  REJECTED — policy cannot be issued
 
 **As an LP:** Deposit when utilization is high (your yield will be great). But be aware: high utilization means many active policies = higher claim risk.
 
+**Note on protocol fee:**
+The premium calculated by the Kink Model is the COMMERCIAL premium (what you pay). Of this amount:
+- 97% goes to the vault (risk premium that backs your policy)
+- 3% goes to the protocol (fee)
+
+The Kink Model's utilization calculation uses the TOTAL premium you pay, not the net vault amount. This means the utilization-based pricing already accounts for the fee split.
+
 ---
 
 # SECTION 9: CONTRACT ADDRESSES
@@ -731,6 +773,12 @@ A: In the absolute worst case (simultaneous BSS crash + stablecoin depeg), a vau
 
 **Q: Why are shares soulbound?**
 A: To prevent cooldown bypass. If you could sell your shares on a DEX, someone could buy "mature" shares that are about to finish cooldown, defeating the purpose of locking capital.
+
+**Q: Why does Lumina charge 3% on claims? Isn't that unfair?**
+A: Lumina charges 3% on BOTH premiums and payouts. This is the protocol's revenue model (adapted from MutualLumina V1). On claims, the 3% is negligible compared to your return: you pay $527 in premium and receive $38,800 — that's a 73x return even after the fee. If you need exact payout amounts, increase your coverage by 3.1% to compensate.
+
+**Q: Does the fee affect LP yields?**
+A: Minimally. LPs receive 97% of premiums instead of 100%. The difference is ~0.3% APY. A vault showing 13.55% total APY without fee would show 13.25% with fee. The fee on claims does NOT affect LPs — it comes from the agent's payout, not the vault.
 
 **Q: How do I contact Lumina for help?**
 A: Email hello@lumina-org.com. A human will respond, explain the products, and provide the SKILL document for your agent.
