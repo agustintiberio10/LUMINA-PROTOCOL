@@ -376,18 +376,43 @@ CoverRouter.triggerPayout(productId, policyId, oracleProof);
 // USDY arrives in your wallet in the same transaction
 ```
 
-## Step 6: Auto-Renewal (recommended)
+## Step 6: Auto-Repurchase (recommended for continuous coverage)
 
-Configure your agent to check expiry and renew:
+Insurance policies EXPIRE. They do not renew automatically. If you want continuous coverage, your agent must buy a new policy before the current one expires.
+
+**Timing rules to avoid coverage gaps:**
+
+| Product | Waiting Period | When to repurchase | Gap if late? |
+|---------|---------------|-------------------|-------------|
+| BSS | 0 | Any time before expiry | No gap (immediate coverage) |
+| IL Index | 0 | Any time before expiry | No gap |
+| Depeg | 24h | At least 24h before expiry | YES — 24h without coverage |
+| Exploit | 14 days | At least 14 days before expiry | YES — 14 days without coverage |
+
+**Agent configuration:**
 ```json
 {
-  "autoRenewal": true,
+  "autoRepurchase": true,
   "maxPremiumIncrease": 0.30,
   "preferredDuration": 14,
   "fallbackDuration": 7,
   "minCoverage": 25000
 }
 ```
+
+**Repurchase flow:**
+```
+1. Check: policy expires in < (waitingPeriod + 24h buffer)?
+2. If yes: request new quote at CURRENT price
+3. Compare: new premium vs last premium
+4. If increase ≤ maxPremiumIncrease (30%): BUY immediately
+5. If increase > 30%: try fallbackDuration (shorter = cheaper)
+6. If still too expensive: NOTIFY human owner
+   "BSS policy expiring in 22h. New premium is 45% higher ($7.25 vs $5.00).
+    Utilization rose from 30% to 75%. Do you want me to buy anyway?"
+```
+
+**IMPORTANT:** The new policy is a COMPLETELY NEW purchase at the CURRENT market price. The old premium is irrelevant — it was already paid and consumed. You are buying fresh coverage at today's utilization rate.
 
 24h before expiry, request a new quote. If premium is within maxPremiumIncrease, purchase. If not, try fallbackDuration. If still too expensive, notify your human owner.
 
@@ -444,17 +469,62 @@ ABIs are published at: `https://github.com/agustintiberio10/LUMINA-PROTOCOL/tree
 
 # SECTION 6: HOW TO OPERATE (FOR LP AGENTS)
 
+## Understanding the Vaults (CRITICAL — read before depositing)
+
+**All 4 vaults work identically.** Same smart contract, same mechanics. The ONLY differences are:
+
+| What changes | VolatileShort | VolatileLong | StableShort | StableLong |
+|-------------|---------------|--------------|-------------|------------|
+| Cooldown (exit notice) | 30 days | 90 days | 90 days | 365 days |
+| Products backed | BSS + IL short | IL long + BSS overflow | Depeg short | Depeg long + Exploit |
+| Risk type | VOLATILE | VOLATILE | STABLE | STABLE |
+| Claim frequency | Higher | Higher | Low | Very low |
+| APY (USDY + premiums) | 12-15% | 15-18% | 11-14% | 18-26% |
+
+**What is a cooldown? It is NOT a lock period. It is an EXIT NOTICE.**
+
+```
+WRONG understanding:  "I deposit for 30 days, then I get my money back"
+RIGHT understanding:  "I deposit INDEFINITELY. When I want to leave, I give 30 days notice."
+
+Think of it like renting an apartment:
+  - You sign the lease (deposit USDY)
+  - You live there as long as you want (earn yield indefinitely)
+  - One day you decide to move out (requestWithdrawal)
+  - You give 30 days notice (cooldown period)
+  - After 30 days, you leave and get your deposit back (completeWithdrawal + yield)
+```
+
+**Why does the cooldown exist?**
+Because your money is BACKING insurance policies. If you could withdraw instantly and a crash happens 5 minutes later, the policies you were backing would have no collateral. The cooldown ensures your capital stays until existing policies expire or are settled.
+
+**Why does longer cooldown = higher APY?**
+- 30-day cooldown: you can exit relatively quickly, so you earn less
+- 365-day cooldown: you're committed for a year when you decide to exit, so you earn the highest yield
+- Longer commitment = backs longer (more expensive) policies = more premium income
+
+**Your money keeps earning DURING the cooldown:**
+When you request withdrawal, your capital still backs existing policies and earns premiums from them. The only change is that the PolicyManager stops assigning NEW policies to your capital.
+
 ## Step 1: Choose a Vault
 
 Evaluate each vault based on:
-- **Current APY** (USDY base + premiums)
+- **Current APY** (USDY base 3.55% + premium yield — check real-time)
 - **Current utilization** (higher util = higher yield BUT higher claim risk)
-- **Cooldown** (how long until you can withdraw)
-- **Products backed** (what risks are you exposed to)
+- **Cooldown** (how long is the exit notice when you want to leave)
+- **Products backed** (what claim risks are you exposed to)
 
 ```
 GET /api/v2/vaults
 // Returns all 4 vaults with: TVL, utilization, APY, cooldown, products
+```
+
+**Decision guide:**
+```
+Want maximum yield and OK with 1-year exit notice?    → StableLong (18-26%)
+Want moderate yield with 90-day exit notice?           → VolatileLong or StableShort (11-18%)
+Want quick exit (30-day notice) and accept BSS risk?   → VolatileShort (12-15%)
+Unsure? Start with VolatileShort (shortest commitment) → move to longer vaults later
 ```
 
 ## Step 2: Deposit USDY
@@ -465,6 +535,10 @@ IVault(VAULT_ADDRESS).deposit(depositAmount, receiverAddress);
 // Returns: shares (soulbound ERC-4626 — cannot be transferred or sold)
 ```
 
+**After depositing:** Your capital is IN the vault generating yield. There is nothing else to do. No renewal, no management, no rebalancing. Just hold.
+
+**Your shares are SOULBOUND.** You cannot transfer or sell them on a DEX. This prevents cooldown bypass via secondary markets.
+
 ## Step 3: Monitor Yield
 
 ```
@@ -472,29 +546,48 @@ GET /api/v2/vaults/{address}/position?holder=0xYourWallet
 // Returns: shares, currentValue, depositedValue, yieldEarned, APY
 ```
 
-**Important:** Your shares are SOULBOUND. You cannot transfer or sell them. This prevents cooldown bypass via secondary markets.
+The share price increases over time as premiums flow into the vault. Your yield = (currentValue - depositedValue). Check periodically but there is no action required.
 
-## Step 4: Withdraw
+**APY WILL FLUCTUATE.** The yield depends on:
+- How many policies are sold (more policies = more premiums = higher APY)
+- Current utilization (higher util = Kink Model charges more = higher APY)
+- Claims (if a claim is paid, the vault shrinks temporarily = lower APY until premiums rebuild)
 
-Withdrawal is a 3-step process:
+This is a DYNAMIC market, not a fixed-rate product.
+
+## Step 4: Withdraw (when you decide to leave)
+
+This is a 3-step process. You choose WHEN to start it — there is no automatic expiry.
 
 ```solidity
-// Step 4a: Request withdrawal (starts cooldown)
+// Step 4a: REQUEST withdrawal (starts the cooldown timer)
 IVault(VAULT_ADDRESS).requestWithdrawal(sharesToWithdraw);
+// From this moment: cooldown clock starts (30/90/90/365 days depending on vault)
+// Your capital still earns yield during cooldown
 
-// Step 4b: Wait for cooldown to complete
+// Step 4b: WAIT for cooldown to complete
+// Nothing to do. Just wait.
 // VolatileShort: 30 days, VolatileLong: 90 days
 // StableShort: 90 days, StableLong: 365 days
 
-// Step 4c: Complete withdrawal (after cooldown)
+// Step 4c: COMPLETE withdrawal (after cooldown ends)
 IVault(VAULT_ADDRESS).completeWithdrawal();
-// Principal + yield arrives in your wallet
+// Principal + ALL accumulated yield arrives in your wallet
 
-// Optional: Cancel withdrawal (returns to full availability)
+// OPTIONAL: Cancel withdrawal (changed your mind?)
 IVault(VAULT_ADDRESS).cancelWithdrawal();
+// Cooldown resets, capital goes back to full availability
 ```
 
-**During cooldown:** Your capital still backs EXISTING policies (earns yield from them) but the PolicyManager will NOT assign NEW policies to your capital.
+## Moving Between Vaults
+
+If you want to switch from VolatileShort to StableLong (better APY):
+```
+1. requestWithdrawal() from VolatileShort → wait 30 days
+2. completeWithdrawal() → USDY back in your wallet
+3. deposit() into StableLong → done
+```
+There is no direct transfer between vaults. You must withdraw and re-deposit.
 
 ---
 
