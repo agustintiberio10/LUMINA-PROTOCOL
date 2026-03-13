@@ -156,26 +156,10 @@ contract DeployUUPS is Script {
         console.log("4 vaults registered in PolicyManager");
 
         // ═══════════════════════════════════════════
-        // 8. Seed liquidity — $2,500 USDY per vault = $10K total
+        // 8. Seed liquidity — SKIPPED
+        //    BaseVault.MIN_DEPOSIT = 1e15 is too high for 6-decimal USDY
+        //    Will fix MIN_DEPOSIT and seed separately
         // ═══════════════════════════════════════════
-        MockUSDY mockUsdy = MockUSDY(usdy);
-        mockUsdy.mint(deployer, 100_000e6); // extra mint for safety
-
-        mockUsdy.approve(address(vsProxy), 2_500e6);
-        VolatileShortVault(address(vsProxy)).deposit(2_500e6, deployer);
-        console.log("Seeded VolatileShort: 2500 USDY");
-
-        mockUsdy.approve(address(vlProxy), 2_500e6);
-        VolatileLongVault(address(vlProxy)).deposit(2_500e6, deployer);
-        console.log("Seeded VolatileLong: 2500 USDY");
-
-        mockUsdy.approve(address(ssProxy), 2_500e6);
-        StableShortVault(address(ssProxy)).deposit(2_500e6, deployer);
-        console.log("Seeded StableShort: 2500 USDY");
-
-        mockUsdy.approve(address(slProxy), 2_500e6);
-        StableLongVault(address(slProxy)).deposit(2_500e6, deployer);
-        console.log("Seeded StableLong: 2500 USDY");
 
         // ═══════════════════════════════════════════
         // 9. Log all addresses
@@ -191,7 +175,7 @@ contract DeployUUPS is Script {
         console.log("DepegShield:", address(depeg));
         console.log("ILIndexCover:", address(il));
         console.log("ExploitShield:", address(exploit));
-        console.log("Seed: $10K USDY ($2.5K per vault)");
+        console.log("NOTE: Seed liquidity skipped - MIN_DEPOSIT too high for 6-decimal USDY");
 
         vm.stopBroadcast();
     }

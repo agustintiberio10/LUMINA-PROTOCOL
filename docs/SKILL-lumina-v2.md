@@ -723,21 +723,25 @@ The Kink Model's utilization calculation uses the TOTAL premium you pay, not the
 
 ## Base L2 (Chain 8453)
 
+Deployed on Base Mainnet (chain 8453). Verified on BaseScan.
+
+Note: Currently using MockUSDY for testing. Will be replaced with real Ondo USDY before production launch.
+
 | Contract | Address | Notes |
 |----------|---------|-------|
-| USDY Token | TBD (deploy pending) | Ondo Finance yield-bearing stablecoin |
-| CoverRouter | TBD | Main entry point for all operations |
-| PolicyManager | TBD | Vault selection + allocation |
-| LuminaOracle | TBD | Chainlink price feeds + signature verification |
-| LuminaPhalaVerifier | TBD | Phala TEE attestation (Exploit Shield only) |
-| VolatileShortVault | TBD | 30-day cooldown |
-| VolatileLongVault | TBD | 90-day cooldown |
-| StableShortVault | TBD | 90-day cooldown |
-| StableLongVault | TBD | 365-day cooldown |
-| BlackSwanShield | TBD | BSS product |
-| DepegShield | TBD | Depeg product |
-| ILIndexCover | TBD | IL product |
-| ExploitShield | TBD | Exploit product |
+| USDY Token (Mock) | `0x12cc5bd1ab02A50285834eaF6eBdc2d95FB42cC9` | MockUSDY for testing (6 decimals) |
+| CoverRouter | `0x8407afBa100812bFb5f9f188b44379E4268eff94` | Main entry point for all operations |
+| PolicyManager | `0x615e9c32c70350192fCa9BAC06Ba8ebA9dC4fEF4` | Vault selection + allocation |
+| LuminaOracle | `0x2f9d3DA66FCB84f47851636d9e0921373ede2176` | Chainlink price feeds + signature verification |
+| LuminaPhalaVerifier | `0xa2d461f4A7eC7089A7e414986d9d9b43514a82EC` | Phala TEE attestation (Exploit Shield only) |
+| VolatileShortVault | `0x2D7D735f71638730cbe9A143227A00Fa64E94E88` | 30-day cooldown |
+| VolatileLongVault | `0xDf30548d46e77015A4dDA82D3c263e81a60B075c` | 90-day cooldown |
+| StableShortVault | `0x8F6e6a4Ee6aeD70757c16382eA7156AD4b33c078` | 90-day cooldown |
+| StableLongVault | `0x3e8dF8746c42Aa4B0CDb089174aBbBaf2C3aD46c` | 365-day cooldown |
+| BlackSwanShield | `0xC01ED8eF52506B29545f08BBf9aAe5Fe59b15CF7` | BSS product |
+| DepegShield | `0xCdA417909d43F252f63034346db9121441BfE70F` | Depeg product |
+| ILIndexCover | `0x73fB5CB9Aa0BeBAf74a3a4b6Cfb09d3Fd66C9FB6` | IL product |
+| ExploitShield | `0x05170F9Ca56026001064F5242c6F9F7f181c6baA` | Exploit product |
 
 **Chainlink Price Feeds (Base L2):**
 

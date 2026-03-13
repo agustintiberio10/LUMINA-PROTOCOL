@@ -59,7 +59,7 @@ abstract contract BaseVault is
 
     uint256 internal constant BPS = 10_000;
     uint256 internal constant MAX_UTILIZATION_BPS = 9_500;
-    uint256 internal constant MIN_DEPOSIT = 1e15; // 0.001 USDY (anti-DoS)
+    uint256 internal constant MIN_DEPOSIT = 100e6; // $100 USDY (anti-DoS, 6 decimals)
 
     // ═══════════════════════════════════════════════════════════
     //  INITIALIZER
