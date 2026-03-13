@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 import {MockUSDY} from "../src/mocks/MockUSDY.sol";
 import {LuminaOracle} from "../src/oracles/LuminaOracle.sol";
 import {LuminaPhalaVerifier} from "../src/oracles/LuminaPhalaVerifier.sol";
-
-// Import proxies for UUPS
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract DeployLumina is Script {
 
@@ -38,10 +35,6 @@ contract DeployLumina is Script {
         );
         console.log("LuminaOracle:", address(oracle));
 
-        // Register Chainlink feeds (Base Sepolia)
-        // Note: Base Sepolia may not have all feeds. Use address(0) and skip for now.
-        // We'll register real feeds after verifying availability.
-
         // ═══════════════════════════════════════════
         // 3. PhalaVerifier (non-upgradeable)
         // ═══════════════════════════════════════════
@@ -60,8 +53,7 @@ contract DeployLumina is Script {
         console.log("Oracle:", address(oracle));
         console.log("PhalaVerifier:", address(phala));
         console.log("---");
-        console.log("NEXT: Deploy UUPS proxies for CoverRouter, PolicyManager, and Vaults");
-        console.log("These require the above addresses as constructor args");
+        console.log("NEXT: Run DeployUUPS.s.sol with these addresses as env vars");
 
         vm.stopBroadcast();
     }
