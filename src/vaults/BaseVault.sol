@@ -53,6 +53,10 @@ abstract contract BaseVault is
     ///         This prevents drift when share price changes between request and withdrawal.
     uint256 internal _pendingWithdrawalShares;
 
+    // ═══ V2: Multi-withdrawal queue ═══
+    mapping(address => WithdrawalRequest[]) internal _withdrawalQueue;
+    uint256 internal _pendingQueueShares;
+
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -206,6 +210,84 @@ abstract contract BaseVault is
         super.redeem(shares, receiver, msg.sender);
 
         emit WithdrawalCompleted(msg.sender, assets, shares);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  V2: MULTI-WITHDRAWAL QUEUE
+    // ═══════════════════════════════════════════════════════════
+
+    function requestWithdrawalV2(uint256 shares) external nonReentrant {
+        if (shares == 0) revert ZeroAmount();
+        if (_withdrawalQueue[msg.sender].length >= 10) revert TooManyWithdrawalRequests(msg.sender);
+        if (balanceOf(msg.sender) < shares) revert InsufficientShares(shares, balanceOf(msg.sender));
+
+        uint256 totalPending = _getPendingShares(msg.sender);
+        if (totalPending + shares > balanceOf(msg.sender))
+            revert InsufficientShares(shares, balanceOf(msg.sender) - totalPending);
+
+        uint256 cooldownEnd = block.timestamp + _cooldownDuration;
+        _withdrawalQueue[msg.sender].push(WithdrawalRequest({ shares: shares, cooldownEnd: cooldownEnd }));
+        _pendingQueueShares += shares;
+
+        emit WithdrawalRequested(msg.sender, shares, cooldownEnd);
+    }
+
+    function completeWithdrawalV2(address receiver) external nonReentrant returns (uint256 assets) {
+        WithdrawalRequest[] storage queue = _withdrawalQueue[msg.sender];
+        if (queue.length == 0) revert NoActiveWithdrawalRequest(msg.sender);
+
+        uint256 idx = type(uint256).max;
+        for (uint256 i = 0; i < queue.length; i++) {
+            if (block.timestamp >= queue[i].cooldownEnd) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx == type(uint256).max) revert CooldownNotExpired(msg.sender, queue[0].cooldownEnd, block.timestamp);
+
+        uint256 shares = queue[idx].shares;
+        if (balanceOf(msg.sender) < shares) revert InsufficientShares(shares, balanceOf(msg.sender));
+
+        assets = convertToAssets(shares);
+        uint256 nonAllocated = totalAssets() > _allocatedAssets ? totalAssets() - _allocatedAssets : 0;
+        if (assets > nonAllocated) revert InsufficientLiquidity(assets, nonAllocated);
+
+        _pendingQueueShares -= shares;
+
+        queue[idx] = queue[queue.length - 1];
+        queue.pop();
+
+        super.redeem(shares, receiver, msg.sender);
+        emit WithdrawalCompleted(msg.sender, assets, shares);
+    }
+
+    function cancelWithdrawalV2(uint256 index) external nonReentrant {
+        WithdrawalRequest[] storage queue = _withdrawalQueue[msg.sender];
+        if (index >= queue.length) revert NoActiveWithdrawalRequest(msg.sender);
+
+        uint256 shares = queue[index].shares;
+        _pendingQueueShares -= shares;
+
+        queue[index] = queue[queue.length - 1];
+        queue.pop();
+
+        emit WithdrawalCancelled(msg.sender, shares);
+    }
+
+    /// @inheritdoc IVault
+    function getWithdrawalQueue(address lp) external view returns (WithdrawalRequest[] memory) {
+        return _withdrawalQueue[lp];
+    }
+
+    function _getPendingShares(address lp) internal view returns (uint256 total) {
+        // V1 pending
+        if (_withdrawalRequests[lp].cooldownEnd != 0) {
+            total += _withdrawalRequests[lp].shares;
+        }
+        // V2 pending
+        for (uint256 i = 0; i < _withdrawalQueue[lp].length; i++) {
+            total += _withdrawalQueue[lp][i].shares;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════

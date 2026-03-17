@@ -72,6 +72,7 @@ interface IVault {
     error ZeroAmount();
     error ZeroAddress();
     error SharesNotTransferable();
+    error TooManyWithdrawalRequests(address lp);
 
     // ═══════════════════════════════════════════════════════════
     //  LP OPERATIONS
@@ -130,5 +131,6 @@ interface IVault {
     function utilizationBps() external view returns (uint256 bps);
     function cooldownDuration() external view returns (uint32);
     function getWithdrawalRequest(address lp) external view returns (WithdrawalRequest memory);
+    function getWithdrawalQueue(address lp) external view returns (WithdrawalRequest[] memory);
     function availableCapacity(uint256 policyDurationSeconds) external view returns (uint256);
 }

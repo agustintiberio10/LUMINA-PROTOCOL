@@ -13,7 +13,7 @@ app.use(express.json());
 // ═══════════════════════════════════════════════════════════
 
 const PORT = process.env.PORT || 3001;
-const RPC_URL = process.env.RPC_URL || "https://mainnet.base.org";
+const RPC_URL = process.env.RPC_URL || "https://base-mainnet.g.alchemy.com/v2/dm1oJK0wwWGvliEVxc2Bh";
 const CHAIN_ID = 8453;
 
 const COVER_ROUTER = process.env.COVER_ROUTER || "0x8407afBa100812bFb5f9f188b44379E4268eff94";
@@ -154,6 +154,101 @@ const SHIELD_ABI = [
   "function totalActiveCoverage() view returns (uint256)",
   "function getPolicyInfo(uint256 policyId) view returns (tuple(uint256 policyId, address insuredAgent, uint256 coverageAmount, uint256 premiumPaid, uint256 maxPayout, uint256 startTimestamp, uint256 waitingEndsAt, uint256 expiresAt, uint256 cleanupAt, uint8 status))",
 ];
+
+// ═══════════════════════════════════════════════════════════
+//  CACHE LAYER — refreshes on-chain data every 60 seconds
+// ═══════════════════════════════════════════════════════════
+
+let cachedData = {
+  vaults: [],
+  policies: [],
+  lastUpdated: 0,
+};
+
+const CACHE_VAULT_ABI = [
+  "function totalAssets() view returns (uint256)",
+  "function totalSupply() view returns (uint256)",
+  "function allocatedAssets() view returns (uint256)",
+  "function utilizationBps() view returns (uint256)",
+];
+
+const CACHE_SHIELD_ABI = [
+  "function totalPolicies() view returns (uint256)",
+  "function getPolicyInfo(uint256) view returns (uint256,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
+];
+
+async function refreshCache() {
+  try {
+    console.log("[Cache] Refreshing on-chain data...");
+
+    // Read vaults
+    const vaults = [];
+    for (const [name, address] of Object.entries(VAULTS)) {
+      try {
+        const contract = new ethers.Contract(address, CACHE_VAULT_ABI, provider);
+        const totalAssets = await contract.totalAssets();
+        await new Promise(r => setTimeout(r, 300));
+        const totalSupply = await contract.totalSupply();
+        await new Promise(r => setTimeout(r, 300));
+        const allocated = await contract.allocatedAssets();
+        await new Promise(r => setTimeout(r, 300));
+        const utilBps = await contract.utilizationBps();
+        vaults.push({
+          name,
+          address,
+          totalAssets: totalAssets.toString(),
+          totalSupply: totalSupply.toString(),
+          allocatedAssets: allocated.toString(),
+          utilizationBps: Number(utilBps),
+        });
+      } catch (e) {
+        console.error(`[Cache] Error reading vault ${name}:`, e.message);
+        vaults.push({ name, address, error: true });
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // Read policies from all shields
+    const policies = [];
+    for (const [name, address] of Object.entries(SHIELDS)) {
+      try {
+        const contract = new ethers.Contract(address, CACHE_SHIELD_ABI, provider);
+        const count = await contract.totalPolicies();
+
+        for (let id = 1; id <= Number(count); id++) {
+          try {
+            const info = await contract.getPolicyInfo(id);
+            policies.push({
+              policyId: Number(info[0]),
+              insuredAgent: info[1],
+              coverageAmount: info[2].toString(),
+              premiumPaid: info[3].toString(),
+              maxPayout: info[4].toString(),
+              startTimestamp: Number(info[5]),
+              expiresAt: Number(info[7]),
+              status: Number(info[9]),
+              shieldName: name,
+              shieldAddress: address,
+            });
+          } catch { break; }
+          await new Promise(r => setTimeout(r, 500));
+        }
+      } catch (e) {
+        console.error(`[Cache] Error reading shield ${name}:`, e.message);
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    cachedData = { vaults, policies, lastUpdated: Date.now() };
+    console.log(`[Cache] Done: ${vaults.length} vaults, ${policies.length} policies`);
+  } catch (e) {
+    console.error("[Cache] Refresh failed:", e.message);
+  }
+}
+
+// Refresh every 60 seconds
+refreshCache();
+setInterval(refreshCache, 60000);
 
 // ═══════════════════════════════════════════════════════════
 //  EIP-712 SIGNING
@@ -350,6 +445,12 @@ app.post("/api/v2/quote", async (req, res) => {
     const signer = new ethers.Wallet(privateKey);
     const signature = await signer.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteValues);
 
+    // Serialize signedQuote with BigInt→string for JSON
+    const signedQuoteSerialized = {};
+    for (const [k, v] of Object.entries(quoteValues)) {
+      signedQuoteSerialized[k] = typeof v === "bigint" ? v.toString() : v;
+    }
+
     res.json({
       quote: {
         productId: product.productId,
@@ -366,7 +467,7 @@ app.post("/api/v2/quote", async (req, res) => {
         utilizationAtQuote: Math.round(utilization * 10000) / 100,
       },
       signature,
-      signedQuote: quoteValues,
+      signedQuote: signedQuoteSerialized,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -424,6 +525,22 @@ app.get("/api/v2/policies", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET /api/v2/dashboard — cached data, instant response
+app.get("/api/v2/dashboard", (req, res) => {
+  const wallet = (req.query.wallet || "").toLowerCase();
+
+  const userPolicies = wallet
+    ? cachedData.policies.filter(p => p.insuredAgent.toLowerCase() === wallet)
+    : cachedData.policies;
+
+  res.json({
+    vaults: cachedData.vaults,
+    policies: userPolicies,
+    lastUpdated: cachedData.lastUpdated,
+    cacheAge: Date.now() - cachedData.lastUpdated,
+  });
 });
 
 // ═══════════════════════════════════════════════════════════
