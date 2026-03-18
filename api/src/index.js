@@ -42,6 +42,44 @@ const PRODUCT_IDS = {
 };
 
 // ═══════════════════════════════════════════════════════════
+//  API KEY SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+const API_KEY_SALT = crypto.randomBytes(16).toString("hex");
+const apiKeys = new Map();           // hash → { wallet, createdAt, label }
+const walletToKeys = new Map();      // wallet → [hashes]
+const purchaseNonces = new Map();    // wallet → boolean (processing)
+const purchaseRateLimits = new Map(); // wallet → [timestamps]
+
+function hashApiKey(key) {
+  return crypto.createHash("sha256").update(key + API_KEY_SALT).digest("hex");
+}
+
+function generateApiKey() {
+  return "lum_" + crypto.randomBytes(24).toString("hex");
+}
+
+function authenticateApiKey(req, res, next) {
+  const apiKey = req.headers["x-api-key"] || req.query.apiKey;
+  if (!apiKey) return res.status(401).json({ error: "API key required. Pass via X-API-Key header." });
+
+  const hashedKey = hashApiKey(apiKey);
+  const keyData = apiKeys.get(hashedKey);
+  if (!keyData) return res.status(401).json({ error: "Invalid API key" });
+
+  // Rate limiting: max 5 purchases per minute
+  const now = Date.now();
+  const recentPurchases = (purchaseRateLimits.get(keyData.wallet) || []).filter(t => now - t < 60000);
+  if (recentPurchases.length >= 5) {
+    return res.status(429).json({ error: "Rate limit: max 5 purchases per minute" });
+  }
+
+  req.walletAddress = keyData.wallet;
+  req.apiKeyHash = hashedKey;
+  next();
+}
+
+// ═══════════════════════════════════════════════════════════
 //  PRODUCTS CONFIG
 // ═══════════════════════════════════════════════════════════
 
@@ -104,6 +142,14 @@ const PRODUCTS = [
   },
 ];
 
+// Short-ID → config for /purchase endpoint
+const PRODUCT_CONFIG = {
+  "BSS":     { name: "Black Swan Shield", fullId: "BLACKSWAN-001",    vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "ETH",  shield: SHIELDS.BSS },
+  "DEPEG":   { name: "Depeg Shield",      fullId: "DEPEG-STABLE-001", vault: VAULTS.STABLE_SHORT,   riskType: "STABLE",   asset: "USDC", shield: SHIELDS.DEPEG },
+  "IL":      { name: "IL Index Cover",     fullId: "ILPROT-001",      vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "ETH",  shield: SHIELDS.IL_INDEX },
+  "EXPLOIT": { name: "Exploit Shield",     fullId: "EXPLOIT-001",     vault: VAULTS.STABLE_SHORT,   riskType: "STABLE",   asset: "ETH",  shield: SHIELDS.EXPLOIT },
+};
+
 // ═══════════════════════════════════════════════════════════
 //  KINK MODEL — Premium Calculation
 // ═══════════════════════════════════════════════════════════
@@ -133,10 +179,24 @@ function calculatePremium(coverageAmount, durationSeconds, utilization, riskType
 }
 
 // ═══════════════════════════════════════════════════════════
-//  PROVIDER & ABIs
+//  PROVIDER & RELAYER
 // ═══════════════════════════════════════════════════════════
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
+const relayerWallet = new ethers.Wallet(process.env.RELAYER_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY, provider);
+console.log(`[Relayer] Address: ${relayerWallet.address}`);
+
+// ═══════════════════════════════════════════════════════════
+//  COVER ROUTER ABI (for purchase)
+// ═══════════════════════════════════════════════════════════
+
+const COVER_ROUTER_ABI = [
+  "function purchasePolicy(tuple(bytes32 productId, uint256 coverageAmount, uint256 premiumAmount, uint32 durationSeconds, bytes32 asset, bytes32 stablecoin, address protocol, address buyer, uint256 deadline, uint256 nonce) quote, bytes signature) external returns (tuple(uint256 policyId, bytes32 productId, address vault, uint256 coverageAmount, uint256 premiumPaid, uint256 startsAt))",
+];
+
+// ═══════════════════════════════════════════════════════════
+//  VAULT & SHIELD ABIs
+// ═══════════════════════════════════════════════════════════
 
 const VAULT_ABI = [
   "function totalAssets() view returns (uint256)",
@@ -283,6 +343,241 @@ function toBytes32(str) {
 // ═══════════════════════════════════════════════════════════
 //  ENDPOINTS
 // ═══════════════════════════════════════════════════════════
+
+// POST /api/v2/keys/create — Create a new API key
+app.post("/api/v2/keys/create", (req, res) => {
+  const { wallet, label } = req.body;
+  if (!wallet || !ethers.isAddress(wallet)) {
+    return res.status(400).json({ error: "Valid wallet address required" });
+  }
+
+  const existingKeys = walletToKeys.get(wallet.toLowerCase()) || [];
+  if (existingKeys.length >= 3) {
+    return res.status(400).json({ error: "Maximum 3 API keys per wallet" });
+  }
+
+  const rawKey = generateApiKey();
+  const hashedKey = hashApiKey(rawKey);
+
+  apiKeys.set(hashedKey, {
+    wallet: wallet.toLowerCase(),
+    label: label || "default",
+    createdAt: Date.now(),
+  });
+
+  existingKeys.push(hashedKey);
+  walletToKeys.set(wallet.toLowerCase(), existingKeys);
+
+  res.status(201).json({
+    apiKey: rawKey,
+    wallet: wallet.toLowerCase(),
+    label: label || "default",
+    warning: "Save this key securely. It cannot be retrieved again.",
+  });
+});
+
+// GET /api/v2/keys/list — List keys for a wallet (without showing raw keys)
+app.get("/api/v2/keys/list", (req, res) => {
+  const wallet = (req.query.wallet || "").toLowerCase();
+  if (!wallet) return res.status(400).json({ error: "wallet required" });
+
+  const hashes = walletToKeys.get(wallet) || [];
+  const keys = hashes.map(h => {
+    const data = apiKeys.get(h);
+    return data ? { label: data.label, createdAt: data.createdAt } : null;
+  }).filter(Boolean);
+
+  res.json({ wallet, keys });
+});
+
+// DELETE /api/v2/keys/revoke — Revoke an API key
+app.delete("/api/v2/keys/revoke", (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey) return res.status(400).json({ error: "apiKey required" });
+
+  const hashedKey = hashApiKey(apiKey);
+  const keyData = apiKeys.get(hashedKey);
+  if (!keyData) return res.status(404).json({ error: "API key not found" });
+
+  apiKeys.delete(hashedKey);
+  const walletKeys = walletToKeys.get(keyData.wallet) || [];
+  walletToKeys.set(keyData.wallet, walletKeys.filter(h => h !== hashedKey));
+
+  res.json({ revoked: true, wallet: keyData.wallet });
+});
+
+// POST /api/v2/purchase — Buy a policy with API Key
+// NOTE: CoverRouter requires buyer == msg.sender, so the buyer's wallet
+// must submit the tx. The API returns a signed quote + calldata for the agent to send.
+app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
+  const wallet = req.walletAddress;
+
+  // Nonce lock: 1 tx at a time per wallet
+  if (purchaseNonces.get(wallet)) {
+    return res.status(409).json({ error: "Another purchase is being processed for this wallet. Wait a moment." });
+  }
+  purchaseNonces.set(wallet, true);
+
+  try {
+    const { productId, coverageAmount, durationSeconds } = req.body;
+
+    // Validate inputs
+    if (!productId || !coverageAmount || !durationSeconds) {
+      return res.status(400).json({ error: "Required: productId, coverageAmount, durationSeconds" });
+    }
+
+    const product = PRODUCT_CONFIG[productId];
+    if (!product) {
+      return res.status(400).json({ error: "Unknown productId. Valid: " + Object.keys(PRODUCT_CONFIG).join(", ") });
+    }
+
+    // Resolve full product entry for keccak256 productId
+    const productEntry = PRODUCTS.find(p => p.id === product.fullId);
+    if (!productEntry) {
+      return res.status(400).json({ error: "Product not configured: " + product.fullId });
+    }
+
+    if (coverageAmount < 100000000 || coverageAmount > 100000000000) {
+      return res.status(400).json({ error: "Coverage between $100 and $100,000 (6 decimals). Example: 1000000000 = $1,000" });
+    }
+
+    if (durationSeconds < 604800 || durationSeconds > 31536000) {
+      return res.status(400).json({ error: "Duration between 7 and 365 days (in seconds). Example: 1209600 = 14 days" });
+    }
+
+    // Check USDY balance and allowance BEFORE spending gas
+    const usdyAddress = process.env.USDY_ADDRESS || "0x12cc5bd1ab02A50285834eaF6eBdc2d95FB42cC9";
+    const coverRouterAddress = process.env.COVER_ROUTER || COVER_ROUTER;
+    const usdyContract = new ethers.Contract(usdyAddress, [
+      "function allowance(address,address) view returns (uint256)",
+      "function balanceOf(address) view returns (uint256)",
+    ], provider);
+
+    // Get vault utilization for premium calculation
+    const vaultContract = new ethers.Contract(product.vault, [
+      "function totalAssets() view returns (uint256)",
+      "function allocatedAssets() view returns (uint256)",
+    ], provider);
+
+    const [balance, allowance, totalAssets, allocatedAssets] = await Promise.all([
+      usdyContract.balanceOf(wallet),
+      usdyContract.allowance(wallet, coverRouterAddress),
+      vaultContract.totalAssets(),
+      vaultContract.allocatedAssets(),
+    ]);
+
+    // Calculate premium with Kink Model
+    const utilization = Number(totalAssets) > 0 ? Number(allocatedAssets) / Number(totalAssets) : 0;
+    const annualRate = calculatePremiumRate(utilization, product.riskType);
+    const durationYears = durationSeconds / 31536000;
+    const premium = Math.ceil(coverageAmount * annualRate * durationYears);
+
+    // Check balance and allowance
+    if (Number(balance) < premium) {
+      return res.status(400).json({
+        error: "Insufficient USDY balance",
+        required: premium.toString(),
+        balance: balance.toString(),
+        wallet,
+      });
+    }
+
+    if (Number(allowance) < premium) {
+      return res.status(400).json({
+        error: "Insufficient USDY allowance. Approve the CoverRouter from your wallet first.",
+        required: premium.toString(),
+        allowance: allowance.toString(),
+        coverRouter: coverRouterAddress,
+        wallet,
+      });
+    }
+
+    // Generate and sign quote — SAME logic as /quote endpoint
+    const deadline = Math.floor(Date.now() / 1000) + 300;
+    const nonce = BigInt("0x" + crypto.randomBytes(32).toString("hex"));
+
+    const quoteData = {
+      productId: productEntry.productId,        // keccak256 hash, NOT encodeBytes32String
+      coverageAmount: BigInt(coverageAmount),
+      premiumAmount: BigInt(premium),            // premiumAmount, NOT premium
+      durationSeconds: Number(durationSeconds),
+      asset: toBytes32(product.asset),
+      stablecoin: toBytes32("USDC"),
+      protocol: ethers.ZeroAddress,              // required field
+      buyer: wallet,
+      deadline: BigInt(deadline),                // deadline, NOT expiry
+      nonce: nonce,                              // required field
+    };
+
+    const oracleWallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY);
+    const signature = await oracleWallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteData);
+
+    // Build the quote struct for the contract call
+    const quoteStruct = {
+      productId: quoteData.productId,
+      coverageAmount: quoteData.coverageAmount,
+      premiumAmount: quoteData.premiumAmount,
+      durationSeconds: quoteData.durationSeconds,
+      asset: quoteData.asset,
+      stablecoin: quoteData.stablecoin,
+      protocol: quoteData.protocol,
+      buyer: quoteData.buyer,
+      deadline: quoteData.deadline,
+      nonce: quoteData.nonce,
+    };
+
+    // Encode calldata for the agent to send directly
+    const routerInterface = new ethers.Interface(COVER_ROUTER_ABI);
+    const calldata = routerInterface.encodeFunctionData("purchasePolicy", [quoteStruct, signature]);
+
+    console.log(`[Purchase] ${wallet} → ${product.name}: $${coverageAmount / 1e6} coverage, ${durationSeconds / 86400}d, premium $${premium / 1e6}`);
+
+    // Record rate limit
+    const timestamps = purchaseRateLimits.get(wallet) || [];
+    timestamps.push(Date.now());
+    purchaseRateLimits.set(wallet, timestamps);
+
+    // Return signed quote + calldata for the agent to submit
+    // (CoverRouter requires buyer == msg.sender, so agent must send the tx)
+    res.status(200).json({
+      success: true,
+      product: product.name,
+      productId: productId,
+      coverage: coverageAmount.toString(),
+      premium: premium.toString(),
+      premiumUSD: (premium / 1e6).toFixed(2),
+      durationDays: durationSeconds / 86400,
+      wallet,
+      // Signed quote for on-chain submission
+      quote: {
+        productId: quoteData.productId,
+        coverageAmount: quoteData.coverageAmount.toString(),
+        premiumAmount: quoteData.premiumAmount.toString(),
+        durationSeconds: quoteData.durationSeconds,
+        asset: quoteData.asset,
+        stablecoin: quoteData.stablecoin,
+        protocol: quoteData.protocol,
+        buyer: quoteData.buyer,
+        deadline: Number(quoteData.deadline),
+        nonce: quoteData.nonce.toString(),
+      },
+      signature,
+      // Ready-to-send transaction
+      tx: {
+        to: coverRouterAddress,
+        data: calldata,
+        chainId: CHAIN_ID,
+      },
+      message: "Quote signed. Send the tx from your wallet (buyer must be msg.sender).",
+    });
+
+  } catch (e) {
+    console.error(`[Purchase] Error:`, e.message);
+    res.status(500).json({ error: "Purchase failed: " + e.message });
+  } finally {
+    purchaseNonces.delete(wallet);
+  }
+});
 
 // GET /api/v2/health
 app.get("/api/v2/health", (_req, res) => {
@@ -558,5 +853,15 @@ app.listen(PORT, () => {
   console.log(`    GET  /api/v2/vaults`);
   console.log(`    GET  /api/v2/vaults/:address`);
   console.log(`    POST /api/v2/quote`);
+  console.log(`    POST /api/v2/purchase  [API Key required]`);
   console.log(`    GET  /api/v2/policies?buyer=0x...`);
+  console.log(`    POST /api/v2/keys/create`);
+  console.log(`    GET  /api/v2/keys/list`);
+  console.log(`    DELETE /api/v2/keys/revoke`);
+
+  // Log relayer balance
+  provider.getBalance(relayerWallet.address).then(bal => {
+    console.log(`[Relayer] Address: ${relayerWallet.address}`);
+    console.log(`[Relayer] ETH Balance: ${ethers.formatEther(bal)} ETH`);
+  }).catch(() => {});
 });

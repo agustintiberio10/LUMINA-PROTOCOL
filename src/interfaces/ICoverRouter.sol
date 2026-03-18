@@ -65,6 +65,7 @@ interface ICoverRouter {
 
     // ── Agent Operations ──
     function purchasePolicy(SignedQuote calldata quote, bytes calldata signature) external returns (PurchaseResult memory result);
+    function purchasePolicyFor(SignedQuote calldata quote, bytes calldata signature) external returns (PurchaseResult memory result);
     function triggerPayout(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external;
     function cleanupExpiredPolicy(bytes32 productId, uint256 policyId) external;
 
@@ -73,6 +74,7 @@ interface ICoverRouter {
     function setOracle(address newOracle) external;
     function setPhalaVerifier(address newVerifier) external;
     function setPaused(bool paused) external;
+    function setRelayer(address relayer, bool authorized) external;
 
     // ── Views ──
     function oracle() external view returns (address);

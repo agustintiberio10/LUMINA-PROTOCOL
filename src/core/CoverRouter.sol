@@ -77,6 +77,9 @@ contract CoverRouter is
     /// @notice Address that receives protocol fees.
     address private _feeReceiver;
 
+    // ═══ V2: Relayer authorization ═══
+    mapping(address => bool) public authorizedRelayers;
+
     // ═══════════════════════════════════════════════════════════
     //  EVENTS (additional, not in interface)
     // ═══════════════════════════════════════════════════════════
@@ -98,6 +101,9 @@ contract CoverRouter is
     error USDYConversionNotImplemented();
     error InvalidFeeBps(uint16 feeBps);
     error ZeroFeeReceiver();
+    error UnauthorizedRelayer(address caller);
+
+    event RelayerAuthorized(address indexed relayer, bool authorized);
 
     // ═══════════════════════════════════════════════════════════
     //  EIP-712
@@ -425,6 +431,109 @@ contract CoverRouter is
         address old = _feeReceiver;
         _feeReceiver = newReceiver;
         emit FeeReceiverUpdated(old, newReceiver);
+    }
+
+    function setRelayer(address relayer, bool authorized) external onlyOwner {
+        if (relayer == address(0)) revert ZeroAddress("relayer");
+        authorizedRelayers[relayer] = authorized;
+        emit RelayerAuthorized(relayer, authorized);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  RELAYER OPERATIONS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * @notice Purchase a policy on behalf of the buyer via an authorized relayer.
+     * @dev Identical to purchasePolicy except: replaces buyer==msg.sender check
+     *      with authorizedRelayers[msg.sender] check. Premium is still transferFrom(buyer).
+     */
+    function purchasePolicyFor(
+        SignedQuote calldata quote,
+        bytes calldata signature
+    ) external nonReentrant whenNotPaused returns (PurchaseResult memory result) {
+
+        // ── CHECKS ──
+        if (!authorizedRelayers[msg.sender]) revert UnauthorizedRelayer(msg.sender);
+        if (block.timestamp > quote.deadline) revert QuoteExpired(quote.deadline, block.timestamp);
+        if (_usedNonces[quote.nonce]) revert NonceAlreadyUsed(quote.nonce);
+
+        // Mark nonce BEFORE external calls
+        _usedNonces[quote.nonce] = true;
+
+        address shield = _products[quote.productId];
+        if (shield == address(0) || !_productActive[quote.productId])
+            revert ProductNotAvailable(quote.productId);
+
+        // Verify EIP-712 signature
+        bytes32 structHash = _hashQuote(quote);
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator(), structHash));
+        address signer = IOracle(_oracle).verifySignature(digest, signature);
+        if (signer != IOracle(_oracle).oracleKey()) revert InvalidQuoteSignature();
+
+        // ── INTERACTIONS ──
+
+        // 1. Create policy in Shield (to get policyId)
+        IShield.CreatePolicyParams memory params = IShield.CreatePolicyParams({
+            buyer: quote.buyer,
+            coverageAmount: quote.coverageAmount,
+            premiumAmount: quote.premiumAmount,
+            durationSeconds: quote.durationSeconds,
+            asset: quote.asset,
+            stablecoin: quote.stablecoin,
+            protocol: quote.protocol,
+            extraData: ""
+        });
+        uint256 policyId = IShield(shield).createPolicy(params);
+
+        // 2. PolicyManager selects vault via waterfall + locks collateral
+        IPolicyManager pm = IPolicyManager(_policyManager);
+        address vault = pm.recordAllocation(
+            quote.productId,
+            policyId,
+            quote.coverageAmount,
+            quote.durationSeconds
+        );
+
+        // 3. Store policy → vault mapping (needed for payout/cleanup)
+        _policyVault[quote.productId][policyId] = vault;
+
+        // 4. Transfer premium FROM THE BUYER (not msg.sender/relayer)
+        uint256 usdyPremium = _convertToUSDY(quote.premiumAmount);
+        IERC20(_usdyToken).safeTransferFrom(quote.buyer, address(this), usdyPremium);
+
+        // Protocol fee: 3% of premium → feeReceiver
+        uint256 premiumFee = 0;
+        if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
+            premiumFee = (usdyPremium * _protocolFeeBps) / 10000;
+            if (premiumFee > 0) {
+                IERC20(_usdyToken).safeTransfer(_feeReceiver, premiumFee);
+                emit FeeCollected(quote.productId, policyId, premiumFee, "PREMIUM");
+            }
+        }
+
+        // Remaining premium → vault (risk premium)
+        uint256 vaultPremium = usdyPremium - premiumFee;
+        IERC20(_usdyToken).forceApprove(vault, vaultPremium);
+        IVault(vault).receivePremium(vaultPremium, quote.productId, policyId);
+        IERC20(_usdyToken).forceApprove(vault, 0);
+
+        // 5. Build result
+        IShield.PolicyInfo memory info = IShield(shield).getPolicyInfo(policyId);
+        result = PurchaseResult({
+            policyId: policyId,
+            productId: quote.productId,
+            vault: vault,
+            coverageAmount: quote.coverageAmount,
+            premiumPaid: quote.premiumAmount,
+            startsAt: info.waitingEndsAt,
+            expiresAt: info.expiresAt
+        });
+
+        emit PolicyPurchased(
+            policyId, quote.productId, quote.buyer, vault,
+            quote.coverageAmount, quote.premiumAmount, quote.durationSeconds
+        );
     }
 
     // ═══════════════════════════════════════════════════════════
