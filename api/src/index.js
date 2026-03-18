@@ -191,7 +191,7 @@ console.log(`[Relayer] Address: ${relayerWallet.address}`);
 // ═══════════════════════════════════════════════════════════
 
 const COVER_ROUTER_ABI = [
-  "function purchasePolicy(tuple(bytes32 productId, uint256 coverageAmount, uint256 premiumAmount, uint32 durationSeconds, bytes32 asset, bytes32 stablecoin, address protocol, address buyer, uint256 deadline, uint256 nonce) quote, bytes signature) external returns (tuple(uint256 policyId, bytes32 productId, address vault, uint256 coverageAmount, uint256 premiumPaid, uint256 startsAt))",
+  "function purchasePolicyFor(tuple(bytes32 productId, uint256 coverageAmount, uint256 premiumAmount, uint32 durationSeconds, bytes32 asset, bytes32 stablecoin, address protocol, address buyer, uint256 deadline, uint256 nonce) quote, bytes signature) external returns (tuple(uint256 policyId, bytes32 productId, address vault, uint256 coverageAmount, uint256 premiumPaid, uint256 startsAt, uint256 expiresAt))",
 ];
 
 // ═══════════════════════════════════════════════════════════
@@ -526,21 +526,32 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       nonce: quoteData.nonce,
     };
 
-    // Encode calldata for the agent to send directly
-    const routerInterface = new ethers.Interface(COVER_ROUTER_ABI);
-    const calldata = routerInterface.encodeFunctionData("purchasePolicy", [quoteStruct, signature]);
+    // Execute via Relayer using purchasePolicyFor
+    const routerContract = new ethers.Contract(coverRouterAddress, COVER_ROUTER_ABI, relayerWallet);
 
-    console.log(`[Purchase] ${wallet} → ${product.name}: $${coverageAmount / 1e6} coverage, ${durationSeconds / 86400}d, premium $${premium / 1e6}`);
+    console.log(`[Purchase] Executing for ${wallet}: ${product.name}, $${coverageAmount / 1e6} coverage, ${durationSeconds / 86400}d, premium $${premium / 1e6}`);
+
+    // Static call first to catch reverts without spending gas
+    try {
+      await routerContract.purchasePolicyFor.staticCall(quoteStruct, signature);
+    } catch (staticErr) {
+      console.error(`[Purchase] Static call failed:`, staticErr.message);
+      return res.status(400).json({ error: "Transaction would fail: " + staticErr.message });
+    }
+
+    const tx = await routerContract.purchasePolicyFor(quoteStruct, signature);
+    const receipt = await tx.wait();
 
     // Record rate limit
     const timestamps = purchaseRateLimits.get(wallet) || [];
     timestamps.push(Date.now());
     purchaseRateLimits.set(wallet, timestamps);
 
-    // Return signed quote + calldata for the agent to submit
-    // (CoverRouter requires buyer == msg.sender, so agent must send the tx)
-    res.status(200).json({
+    console.log(`[Purchase] Success: tx ${receipt.hash}`);
+
+    res.status(201).json({
       success: true,
+      txHash: receipt.hash,
       product: product.name,
       productId: productId,
       coverage: coverageAmount.toString(),
@@ -548,27 +559,8 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       premiumUSD: (premium / 1e6).toFixed(2),
       durationDays: durationSeconds / 86400,
       wallet,
-      // Signed quote for on-chain submission
-      quote: {
-        productId: quoteData.productId,
-        coverageAmount: quoteData.coverageAmount.toString(),
-        premiumAmount: quoteData.premiumAmount.toString(),
-        durationSeconds: quoteData.durationSeconds,
-        asset: quoteData.asset,
-        stablecoin: quoteData.stablecoin,
-        protocol: quoteData.protocol,
-        buyer: quoteData.buyer,
-        deadline: Number(quoteData.deadline),
-        nonce: quoteData.nonce.toString(),
-      },
-      signature,
-      // Ready-to-send transaction
-      tx: {
-        to: coverRouterAddress,
-        data: calldata,
-        chainId: CHAIN_ID,
-      },
-      message: "Quote signed. Send the tx from your wallet (buyer must be msg.sender).",
+      explorer: "https://basescan.org/tx/" + receipt.hash,
+      message: "Policy purchased successfully.",
     });
 
   } catch (e) {
