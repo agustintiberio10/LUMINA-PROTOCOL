@@ -196,7 +196,7 @@ library PremiumMath {
      *      We allow a ±1% tolerance (100 bps) to account for:
      *        - Rounding differences between JS and Solidity
      *        - Utilization changes between quote and purchase (up to 5 min deadline)
-     *        - USDY price fluctuation during the deadline window
+     *        - USDC price fluctuation during the deadline window
      *
      * @param premiumPaid     Premium the agent actually paid (6 decimals)
      * @param expectedPremium Premium calculated on-chain (6 decimals)

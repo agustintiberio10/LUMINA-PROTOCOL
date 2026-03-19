@@ -14,6 +14,6 @@ contract VolatileLongVault is BaseVault {
     function initialize(
         address owner_, address asset_, address router_, address policyManager_
     ) external initializer {
-        __BaseVault_init(owner_, asset_, "Lumina Volatile Long", "lvlUSDY", router_, policyManager_, 90 days);
+        __BaseVault_init(owner_, asset_, "Lumina Volatile Long", "lvlUSDC", router_, policyManager_, 90 days);
     }
 }

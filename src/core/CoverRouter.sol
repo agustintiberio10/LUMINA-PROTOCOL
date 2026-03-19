@@ -34,7 +34,7 @@ import {IVault} from "../interfaces/IVault.sol";
  *   - Payout=0 guard, nonce before external calls, ceiling allowance clear
  *   - triggerPayout/cleanup NOT paused (agents must always collect)
  *   - EIP-712 with fork detection
- *   - _isTestnet guard for _convertToUSDY
+ *   - _isTestnet guard for _convertToUSDC
  */
 contract CoverRouter is
     ICoverRouter,
@@ -51,7 +51,7 @@ contract CoverRouter is
     address private _oracle;
     address private _phalaVerifier;
     address private _policyManager;
-    address private _usdyToken;
+    address private _usdcToken;
     bool private _paused;
 
     mapping(uint256 => bool) private _usedNonces;
@@ -84,7 +84,7 @@ contract CoverRouter is
     //  EVENTS (additional, not in interface)
     // ═══════════════════════════════════════════════════════════
 
-    event UsdyTokenUpdated(address indexed oldToken, address indexed newToken);
+    event UsdcTokenUpdated(address indexed oldToken, address indexed newToken);
     event PolicyManagerUpdated(address indexed oldManager, address indexed newManager);
     event TestnetModeChanged(bool isTestnet);
     event FeeCollected(bytes32 indexed productId, uint256 indexed policyId, uint256 feeAmount, string feeType);
@@ -98,7 +98,7 @@ contract CoverRouter is
     error ZeroAddress(string param);
     error ProductAlreadyRegistered(bytes32 productId);
     error InvalidAllocationBps(uint16 bps);
-    error USDYConversionNotImplemented();
+    error USDCConversionNotImplemented();
     error InvalidFeeBps(uint16 feeBps);
     error ZeroFeeReceiver();
     error UnauthorizedRelayer(address caller);
@@ -140,7 +140,7 @@ contract CoverRouter is
         address oracle_,
         address phalaVerifier_,
         address policyManager_,
-        address usdyToken_,
+        address usdcToken_,
         bool isTestnet_,
         address feeReceiver_,
         uint16 feeBps_
@@ -149,7 +149,7 @@ contract CoverRouter is
         if (oracle_ == address(0)) revert ZeroAddress("oracle");
         if (phalaVerifier_ == address(0)) revert ZeroAddress("phalaVerifier");
         if (policyManager_ == address(0)) revert ZeroAddress("policyManager");
-        if (usdyToken_ == address(0)) revert ZeroAddress("usdyToken");
+        if (usdcToken_ == address(0)) revert ZeroAddress("usdcToken");
         if (feeReceiver_ == address(0)) revert ZeroFeeReceiver();
         if (feeBps_ > 1000) revert InvalidFeeBps(feeBps_);
 
@@ -160,7 +160,7 @@ contract CoverRouter is
         _oracle = oracle_;
         _phalaVerifier = phalaVerifier_;
         _policyManager = policyManager_;
-        _usdyToken = usdyToken_;
+        _usdcToken = usdcToken_;
         _isTestnet = isTestnet_;
         _feeReceiver = feeReceiver_;
         _protocolFeeBps = feeBps_;
@@ -234,24 +234,24 @@ contract CoverRouter is
         _policyVault[quote.productId][policyId] = vault;
 
         // 4. Transfer premium: split between protocol fee and vault
-        uint256 usdyPremium = _convertToUSDY(quote.premiumAmount);
-        IERC20(_usdyToken).safeTransferFrom(msg.sender, address(this), usdyPremium);
+        uint256 usdcPremium = _convertToUSDC(quote.premiumAmount);
+        IERC20(_usdcToken).safeTransferFrom(msg.sender, address(this), usdcPremium);
 
         // Protocol fee: 3% of premium → feeReceiver
         uint256 premiumFee = 0;
         if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
-            premiumFee = (usdyPremium * _protocolFeeBps) / 10000;
+            premiumFee = (usdcPremium * _protocolFeeBps) / 10000;
             if (premiumFee > 0) {
-                IERC20(_usdyToken).safeTransfer(_feeReceiver, premiumFee);
+                IERC20(_usdcToken).safeTransfer(_feeReceiver, premiumFee);
                 emit FeeCollected(quote.productId, policyId, premiumFee, "PREMIUM");
             }
         }
 
         // Remaining premium → vault (risk premium)
-        uint256 vaultPremium = usdyPremium - premiumFee;
-        IERC20(_usdyToken).forceApprove(vault, vaultPremium);
+        uint256 vaultPremium = usdcPremium - premiumFee;
+        IERC20(_usdcToken).forceApprove(vault, vaultPremium);
         IVault(vault).receivePremium(vaultPremium, quote.productId, policyId);
-        IERC20(_usdyToken).forceApprove(vault, 0);
+        IERC20(_usdcToken).forceApprove(vault, 0);
 
         // 5. Build result
         IShield.PolicyInfo memory info = IShield(shield).getPolicyInfo(policyId);
@@ -304,25 +304,25 @@ contract CoverRouter is
         IPolicyManager(_policyManager).releaseAllocation(productId, policyId, info.coverageAmount, vault);
 
         // 5. Execute payout: split between protocol fee and agent
-        uint256 usdyPayout = _convertToUSDYSafe(pr.payoutAmount);
-        if (usdyPayout > 0) {
+        uint256 usdcPayout = _convertToUSDCSafe(pr.payoutAmount);
+        if (usdcPayout > 0) {
             // Vault sends full payout to Router first
-            IVault(vault).executePayout(address(this), usdyPayout, productId, policyId);
+            IVault(vault).executePayout(address(this), usdcPayout, productId, policyId);
 
             // Protocol fee: 3% of payout → feeReceiver
             uint256 payoutFee = 0;
             if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
-                payoutFee = (usdyPayout * _protocolFeeBps) / 10000;
+                payoutFee = (usdcPayout * _protocolFeeBps) / 10000;
                 if (payoutFee > 0) {
-                    IERC20(_usdyToken).safeTransfer(_feeReceiver, payoutFee);
+                    IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
                     emit FeeCollected(productId, policyId, payoutFee, "CLAIM");
                 }
             }
 
             // Net payout → agent (97% of calculated payout)
-            uint256 netPayout = usdyPayout - payoutFee;
+            uint256 netPayout = usdcPayout - payoutFee;
             if (netPayout > 0) {
-                IERC20(_usdyToken).safeTransfer(pr.recipient, netPayout);
+                IERC20(_usdcToken).safeTransfer(pr.recipient, netPayout);
             }
         }
 
@@ -395,11 +395,11 @@ contract CoverRouter is
         emit PhalaVerifierUpdated(old, newVerifier);
     }
 
-    function setUsdyToken(address newUsdyToken) external onlyOwner {
-        if (newUsdyToken == address(0)) revert ZeroAddress("usdyToken");
-        address old = _usdyToken;
-        _usdyToken = newUsdyToken;
-        emit UsdyTokenUpdated(old, newUsdyToken);
+    function setUsdcToken(address newUsdcToken) external onlyOwner {
+        if (newUsdcToken == address(0)) revert ZeroAddress("usdcToken");
+        address old = _usdcToken;
+        _usdcToken = newUsdcToken;
+        emit UsdcTokenUpdated(old, newUsdcToken);
     }
 
     function setPolicyManager(address newPolicyManager) external onlyOwner {
@@ -499,24 +499,24 @@ contract CoverRouter is
         _policyVault[quote.productId][policyId] = vault;
 
         // 4. Transfer premium FROM THE BUYER (not msg.sender/relayer)
-        uint256 usdyPremium = _convertToUSDY(quote.premiumAmount);
-        IERC20(_usdyToken).safeTransferFrom(quote.buyer, address(this), usdyPremium);
+        uint256 usdcPremium = _convertToUSDC(quote.premiumAmount);
+        IERC20(_usdcToken).safeTransferFrom(quote.buyer, address(this), usdcPremium);
 
         // Protocol fee: 3% of premium → feeReceiver
         uint256 premiumFee = 0;
         if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
-            premiumFee = (usdyPremium * _protocolFeeBps) / 10000;
+            premiumFee = (usdcPremium * _protocolFeeBps) / 10000;
             if (premiumFee > 0) {
-                IERC20(_usdyToken).safeTransfer(_feeReceiver, premiumFee);
+                IERC20(_usdcToken).safeTransfer(_feeReceiver, premiumFee);
                 emit FeeCollected(quote.productId, policyId, premiumFee, "PREMIUM");
             }
         }
 
         // Remaining premium → vault (risk premium)
-        uint256 vaultPremium = usdyPremium - premiumFee;
-        IERC20(_usdyToken).forceApprove(vault, vaultPremium);
+        uint256 vaultPremium = usdcPremium - premiumFee;
+        IERC20(_usdcToken).forceApprove(vault, vaultPremium);
         IVault(vault).receivePremium(vaultPremium, quote.productId, policyId);
-        IERC20(_usdyToken).forceApprove(vault, 0);
+        IERC20(_usdcToken).forceApprove(vault, 0);
 
         // 5. Build result
         IShield.PolicyInfo memory info = IShield(shield).getPolicyInfo(policyId);
@@ -585,12 +585,12 @@ contract CoverRouter is
         ));
     }
 
-    function _convertToUSDY(uint256 usdAmount) internal view returns (uint256) {
-        if (!_isTestnet) revert USDYConversionNotImplemented();
+    function _convertToUSDC(uint256 usdAmount) internal view returns (uint256) {
+        if (!_isTestnet) revert USDCConversionNotImplemented();
         return usdAmount;
     }
 
-    function _convertToUSDYSafe(uint256 usdAmount) internal view returns (uint256) {
+    function _convertToUSDCSafe(uint256 usdAmount) internal view returns (uint256) {
         if (_isTestnet) return usdAmount;
         // Mainnet: try oracle, fallback to 1:1
         return usdAmount; // Placeholder until oracle implemented

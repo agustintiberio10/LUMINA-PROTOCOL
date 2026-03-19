@@ -63,7 +63,7 @@ abstract contract BaseVault is
 
     uint256 internal constant BPS = 10_000;
     uint256 internal constant MAX_UTILIZATION_BPS = 9_500;
-    uint256 internal constant MIN_DEPOSIT = 100e6; // $100 USDY (anti-DoS, 6 decimals)
+    uint256 internal constant MIN_DEPOSIT = 100e6; // $100 USDC (anti-DoS, 6 decimals)
 
     // ═══════════════════════════════════════════════════════════
     //  INITIALIZER
@@ -189,7 +189,7 @@ abstract contract BaseVault is
 
         assets = convertToAssets(shares);
 
-        // Check: enough non-allocated USDY to pay this withdrawal?
+        // Check: enough non-allocated USDC to pay this withdrawal?
         // We use totalAssets - _allocatedAssets (NOT _freeAssets) because
         // _freeAssets also subtracts pending withdrawals — including THIS LP's own.
         // That would make it impossible for the LP to withdraw their own capital.
@@ -344,7 +344,7 @@ abstract contract BaseVault is
 
     /**
      * @inheritdoc IVault
-     * @dev [CC-2] ONLY transfers USDY. Does NOT touch _allocatedAssets.
+     * @dev [CC-2] ONLY transfers USDC. Does NOT touch _allocatedAssets.
      *      Allocation accounting is handled by unlockCollateral (called by PolicyManager
      *      via releaseAllocation BEFORE this function).
      */

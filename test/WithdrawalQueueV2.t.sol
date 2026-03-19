@@ -4,38 +4,38 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {VolatileShortVault} from "../src/vaults/VolatileShortVault.sol";
-import {MockUSDY} from "../src/mocks/MockUSDY.sol";
+import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
 
 contract WithdrawalQueueV2Test is Test {
     VolatileShortVault vault;
-    MockUSDY usdy;
+    MockERC20 usdc;
 
     address owner = address(0xA);
     address user = address(0xB);
     address router = address(0xC);
     address policyManager = address(0xD);
 
-    uint256 constant USDY_DECIMALS = 1e6;
+    uint256 constant USDC_DECIMALS = 1e6;
     uint32 constant COOLDOWN = 30 days;
 
     function setUp() public {
-        usdy = new MockUSDY();
+        usdc = new MockERC20("USD Coin", "USDC", 6);
 
         // Deploy vault via proxy
         VolatileShortVault impl = new VolatileShortVault();
         bytes memory initData = abi.encodeCall(
-            VolatileShortVault.initialize, (owner, address(usdy), router, policyManager)
+            VolatileShortVault.initialize, (owner, address(usdc), router, policyManager)
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         vault = VolatileShortVault(address(proxy));
     }
 
     function _depositAs(address who, uint256 usdAmount) internal {
-        uint256 amount = usdAmount * USDY_DECIMALS;
-        usdy.mint(who, amount);
+        uint256 amount = usdAmount * USDC_DECIMALS;
+        usdc.mint(who, amount);
         vm.startPrank(who);
-        usdy.approve(address(vault), amount);
+        usdc.approve(address(vault), amount);
         vault.depositAssets(amount, who);
         vm.stopPrank();
     }
@@ -47,7 +47,7 @@ contract WithdrawalQueueV2Test is Test {
     function testRequestWithdrawalV2_basic() public {
         _depositAs(user, 1000);
 
-        uint256 shares = vault.convertToShares(500 * USDY_DECIMALS);
+        uint256 shares = vault.convertToShares(500 * USDC_DECIMALS);
 
         vm.prank(user);
         vault.requestWithdrawalV2(shares);
@@ -65,9 +65,9 @@ contract WithdrawalQueueV2Test is Test {
     function testRequestWithdrawalV2_multiple() public {
         _depositAs(user, 2000);
 
-        uint256 s500 = vault.convertToShares(500 * USDY_DECIMALS);
-        uint256 s300 = vault.convertToShares(300 * USDY_DECIMALS);
-        uint256 s200 = vault.convertToShares(200 * USDY_DECIMALS);
+        uint256 s500 = vault.convertToShares(500 * USDC_DECIMALS);
+        uint256 s300 = vault.convertToShares(300 * USDC_DECIMALS);
+        uint256 s200 = vault.convertToShares(200 * USDC_DECIMALS);
 
         vm.startPrank(user);
         vault.requestWithdrawalV2(s500);
@@ -89,7 +89,7 @@ contract WithdrawalQueueV2Test is Test {
     function testRequestWithdrawalV2_maxLimit() public {
         _depositAs(user, 5000);
 
-        uint256 s100 = vault.convertToShares(100 * USDY_DECIMALS);
+        uint256 s100 = vault.convertToShares(100 * USDC_DECIMALS);
 
         vm.startPrank(user);
         for (uint256 i = 0; i < 10; i++) {
@@ -109,7 +109,7 @@ contract WithdrawalQueueV2Test is Test {
     function testRequestWithdrawalV2_insufficientBalance() public {
         _depositAs(user, 500);
 
-        uint256 s600 = vault.convertToShares(600 * USDY_DECIMALS);
+        uint256 s600 = vault.convertToShares(600 * USDC_DECIMALS);
 
         vm.prank(user);
         vm.expectRevert(); // InsufficientShares — $600 > $500 balance
@@ -123,8 +123,8 @@ contract WithdrawalQueueV2Test is Test {
     function testRequestWithdrawalV2_pendingExceedsBalance() public {
         _depositAs(user, 1000);
 
-        uint256 s600 = vault.convertToShares(600 * USDY_DECIMALS);
-        uint256 s500 = vault.convertToShares(500 * USDY_DECIMALS);
+        uint256 s600 = vault.convertToShares(600 * USDC_DECIMALS);
+        uint256 s500 = vault.convertToShares(500 * USDC_DECIMALS);
 
         vm.startPrank(user);
         vault.requestWithdrawalV2(s600);
@@ -142,7 +142,7 @@ contract WithdrawalQueueV2Test is Test {
     function testCompleteWithdrawalV2_basic() public {
         _depositAs(user, 1000);
 
-        uint256 s500 = vault.convertToShares(500 * USDY_DECIMALS);
+        uint256 s500 = vault.convertToShares(500 * USDC_DECIMALS);
 
         vm.prank(user);
         vault.requestWithdrawalV2(s500);
@@ -150,14 +150,14 @@ contract WithdrawalQueueV2Test is Test {
         // Warp past cooldown
         vm.warp(block.timestamp + COOLDOWN + 1);
 
-        uint256 usdyBefore = usdy.balanceOf(user);
+        uint256 usdcBefore = usdc.balanceOf(user);
 
         vm.prank(user);
         uint256 assets = vault.completeWithdrawalV2(user);
 
-        uint256 usdyAfter = usdy.balanceOf(user);
+        uint256 usdcAfter = usdc.balanceOf(user);
         assertGt(assets, 0);
-        assertEq(usdyAfter - usdyBefore, assets);
+        assertEq(usdcAfter - usdcBefore, assets);
 
         // Queue should be empty
         IVault.WithdrawalRequest[] memory queue = vault.getWithdrawalQueue(user);
@@ -171,7 +171,7 @@ contract WithdrawalQueueV2Test is Test {
     function testCompleteWithdrawalV2_cooldownNotExpired() public {
         _depositAs(user, 1000);
 
-        uint256 s500 = vault.convertToShares(500 * USDY_DECIMALS);
+        uint256 s500 = vault.convertToShares(500 * USDC_DECIMALS);
 
         vm.prank(user);
         vault.requestWithdrawalV2(s500);
@@ -189,7 +189,7 @@ contract WithdrawalQueueV2Test is Test {
     function testCancelWithdrawalV2_basic() public {
         _depositAs(user, 1000);
 
-        uint256 s500 = vault.convertToShares(500 * USDY_DECIMALS);
+        uint256 s500 = vault.convertToShares(500 * USDC_DECIMALS);
 
         vm.prank(user);
         vault.requestWithdrawalV2(s500);
@@ -208,8 +208,8 @@ contract WithdrawalQueueV2Test is Test {
     function testV1andV2_coexistence() public {
         _depositAs(user, 1000);
 
-        uint256 s300 = vault.convertToShares(300 * USDY_DECIMALS);
-        uint256 s200 = vault.convertToShares(200 * USDY_DECIMALS);
+        uint256 s300 = vault.convertToShares(300 * USDC_DECIMALS);
+        uint256 s200 = vault.convertToShares(200 * USDC_DECIMALS);
         uint256 balance = vault.balanceOf(user);
 
         // V1 request for $300
@@ -231,13 +231,13 @@ contract WithdrawalQueueV2Test is Test {
 
         // Try to request more than remaining free balance ($1000 - $300 - $200 = $500 free)
         // Requesting $600 should fail
-        uint256 s600 = vault.convertToShares(600 * USDY_DECIMALS);
+        uint256 s600 = vault.convertToShares(600 * USDC_DECIMALS);
         vm.prank(user);
         vm.expectRevert(); // InsufficientShares — pending V1+V2 ($500) + $600 > $1000
         vault.requestWithdrawalV2(s600);
 
         // But requesting $400 should work (total pending = $300 + $200 + $400 = $900 < $1000)
-        uint256 s400 = vault.convertToShares(400 * USDY_DECIMALS);
+        uint256 s400 = vault.convertToShares(400 * USDC_DECIMALS);
         vm.prank(user);
         vault.requestWithdrawalV2(s400);
 

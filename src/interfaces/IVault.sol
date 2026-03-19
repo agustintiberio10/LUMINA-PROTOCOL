@@ -36,7 +36,7 @@ interface IVault {
 
     /// @notice Vault state snapshot
     struct VaultState {
-        uint256 totalAssets;        // Total USDY in vault (USD value)
+        uint256 totalAssets;        // Total USDC in vault (USD value)
         uint256 allocatedAssets;    // Locked backing active policies
         uint256 freeAssets;         // Available for new policies or withdrawals
         uint256 totalShares;        // Total shares outstanding
@@ -79,8 +79,8 @@ interface IVault {
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * @notice Deposit USDY into the vault. Capital stays indefinitely until withdrawal requested.
-     * @param assets Amount of USDY to deposit
+     * @notice Deposit USDC into the vault. Capital stays indefinitely until withdrawal requested.
+     * @param assets Amount of USDC to deposit
      * @param receiver Address that receives the soulbound shares
      * @return shares Amount of shares minted
      */
@@ -101,9 +101,9 @@ interface IVault {
     function cancelWithdrawal() external;
 
     /**
-     * @notice Complete withdrawal after cooldown expires. Burns shares, returns USDY.
-     * @param receiver Address that receives the USDY
-     * @return assets Amount of USDY returned (principal + yield)
+     * @notice Complete withdrawal after cooldown expires. Burns shares, returns USDC.
+     * @param receiver Address that receives the USDC
+     * @return assets Amount of USDC returned (principal + yield)
      */
     function completeWithdrawal(address receiver) external returns (uint256 assets);
 

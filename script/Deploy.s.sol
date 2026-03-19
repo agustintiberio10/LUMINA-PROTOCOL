@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {MockUSDY} from "../src/mocks/MockUSDY.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LuminaOracle} from "../src/oracles/LuminaOracle.sol";
 import {LuminaPhalaVerifier} from "../src/oracles/LuminaPhalaVerifier.sol";
 
@@ -19,11 +19,12 @@ contract DeployLumina is Script {
         vm.startBroadcast(deployerKey);
 
         // ═══════════════════════════════════════════
-        // 1. MockUSDY (testnet only)
+        // 1. USDC token reference (native USDC on Base)
         // ═══════════════════════════════════════════
-        MockUSDY usdy = new MockUSDY();
-        usdy.mint(deployer, 1_000_000e6); // 1M USDY for testing
-        console.log("MockUSDY:", address(usdy));
+        // NOTE: On mainnet, use the actual USDC contract address on Base
+        // For testnet, deploy a mock ERC20 separately
+        address usdc = vm.envAddress("USDC_ADDRESS");
+        console.log("USDC:", usdc);
 
         // ═══════════════════════════════════════════
         // 2. Oracle (non-upgradeable)
@@ -49,7 +50,7 @@ contract DeployLumina is Script {
         // ═══════════════════════════════════════════
         console.log("--- DEPLOYMENT COMPLETE ---");
         console.log("Deployer:", deployer);
-        console.log("MockUSDY:", address(usdy));
+        console.log("USDC:", usdc);
         console.log("Oracle:", address(oracle));
         console.log("PhalaVerifier:", address(phala));
         console.log("---");

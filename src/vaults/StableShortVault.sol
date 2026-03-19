@@ -15,6 +15,6 @@ contract StableShortVault is BaseVault {
     function initialize(
         address owner_, address asset_, address router_, address policyManager_
     ) external initializer {
-        __BaseVault_init(owner_, asset_, "Lumina Stable Short", "lssUSDY", router_, policyManager_, 90 days);
+        __BaseVault_init(owner_, asset_, "Lumina Stable Short", "lssUSDC", router_, policyManager_, 90 days);
     }
 }

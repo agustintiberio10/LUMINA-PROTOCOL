@@ -16,7 +16,7 @@ import {BlackSwanShield} from "../src/products/BlackSwanShield.sol";
 import {DepegShield} from "../src/products/DepegShield.sol";
 import {ILIndexCover} from "../src/products/ILIndexCover.sol";
 import {ExploitShield} from "../src/products/ExploitShield.sol";
-import {MockUSDY} from "../src/mocks/MockUSDY.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract DeployUUPS is Script {
 
@@ -25,7 +25,7 @@ contract DeployUUPS is Script {
         address deployer = vm.addr(deployerKey);
 
         // Addresses from first deploy (Deploy.s.sol)
-        address usdy = vm.envAddress("USDY_ADDRESS");
+        address usdc = vm.envAddress("USDC_ADDRESS");
         address oracle = vm.envAddress("ORACLE_ADDRESS");
         address phala = vm.envAddress("PHALA_ADDRESS");
 
@@ -59,7 +59,7 @@ contract DeployUUPS is Script {
         CoverRouter routerImpl = new CoverRouter();
         bytes memory routerData = abi.encodeCall(
             CoverRouter.initialize,
-            (deployer, oracle, phala, address(pmProxy), usdy, true, feeReceiver, feeBps)
+            (deployer, oracle, phala, address(pmProxy), usdc, true, feeReceiver, feeBps)
         );
         ERC1967Proxy routerProxy = new ERC1967Proxy(address(routerImpl), routerData);
         console.log("CoverRouter proxy:", address(routerProxy));
@@ -79,7 +79,7 @@ contract DeployUUPS is Script {
         VolatileShortVault vsImpl = new VolatileShortVault();
         bytes memory vsData = abi.encodeCall(
             VolatileShortVault.initialize,
-            (deployer, usdy, address(routerProxy), address(pmProxy))
+            (deployer, usdc, address(routerProxy), address(pmProxy))
         );
         ERC1967Proxy vsProxy = new ERC1967Proxy(address(vsImpl), vsData);
         console.log("VolatileShort proxy:", address(vsProxy));
@@ -88,7 +88,7 @@ contract DeployUUPS is Script {
         VolatileLongVault vlImpl = new VolatileLongVault();
         bytes memory vlData = abi.encodeCall(
             VolatileLongVault.initialize,
-            (deployer, usdy, address(routerProxy), address(pmProxy))
+            (deployer, usdc, address(routerProxy), address(pmProxy))
         );
         ERC1967Proxy vlProxy = new ERC1967Proxy(address(vlImpl), vlData);
         console.log("VolatileLong proxy:", address(vlProxy));
@@ -97,7 +97,7 @@ contract DeployUUPS is Script {
         StableShortVault ssImpl = new StableShortVault();
         bytes memory ssData = abi.encodeCall(
             StableShortVault.initialize,
-            (deployer, usdy, address(routerProxy), address(pmProxy))
+            (deployer, usdc, address(routerProxy), address(pmProxy))
         );
         ERC1967Proxy ssProxy = new ERC1967Proxy(address(ssImpl), ssData);
         console.log("StableShort proxy:", address(ssProxy));
@@ -106,7 +106,7 @@ contract DeployUUPS is Script {
         StableLongVault slImpl = new StableLongVault();
         bytes memory slData = abi.encodeCall(
             StableLongVault.initialize,
-            (deployer, usdy, address(routerProxy), address(pmProxy))
+            (deployer, usdc, address(routerProxy), address(pmProxy))
         );
         ERC1967Proxy slProxy = new ERC1967Proxy(address(slImpl), slData);
         console.log("StableLong proxy:", address(slProxy));
@@ -157,7 +157,7 @@ contract DeployUUPS is Script {
 
         // ═══════════════════════════════════════════
         // 8. Seed liquidity — SKIPPED
-        //    BaseVault.MIN_DEPOSIT = 1e15 is too high for 6-decimal USDY
+        //    BaseVault.MIN_DEPOSIT = 1e15 is too high for 6-decimal USDC
         //    Will fix MIN_DEPOSIT and seed separately
         // ═══════════════════════════════════════════
 
@@ -175,7 +175,7 @@ contract DeployUUPS is Script {
         console.log("DepegShield:", address(depeg));
         console.log("ILIndexCover:", address(il));
         console.log("ExploitShield:", address(exploit));
-        console.log("NOTE: Seed liquidity skipped - MIN_DEPOSIT too high for 6-decimal USDY");
+        console.log("NOTE: Seed liquidity skipped - MIN_DEPOSIT too high for 6-decimal USDC");
 
         vm.stopBroadcast();
     }

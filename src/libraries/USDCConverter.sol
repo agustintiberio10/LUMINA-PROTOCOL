@@ -4,20 +4,20 @@ pragma solidity ^0.8.20;
 import {IOracle} from "../interfaces/IOracle.sol";
 
 /**
- * @title USDYConverter
+ * @title USDCConverter
  * @author Lumina Protocol
  * @notice Conversion library between USD amounts (6 decimals, USDC format)
- *         and USDY tokens (Ondo Finance, accumulating RWA token).
+ *         and USDC tokens (Circle, native stablecoin on Base).
  *
- * USDY BEHAVIOR:
- *   USDY is an accumulating token — its USD value increases over time (~3.55% APY)
+ * USDC BEHAVIOR:
+ *   USDC is an accumulating token — its USD value increases over time (~3.55% APY)
  *   as the underlying US Treasury yields accrue. This means:
- *     - 1 USDY ≈ $1.04 today (and rising)
- *     - To pay $100 worth, you need ~96.15 USDY tokens
- *     - To receive $100 worth, you get ~96.15 USDY tokens
+ *     - 1 USDC ≈ $1.04 today (and rising)
+ *     - To pay $100 worth, you need ~96.15 USDC tokens
+ *     - To receive $100 worth, you get ~96.15 USDC tokens
  *
  * ORACLE:
- *   USDY/USD price comes from Chainlink via LuminaOracle (8 decimals).
+ *   USDC/USD price comes from Chainlink via LuminaOracle (8 decimals).
  *   The converter reads the oracle and applies sanity checks:
  *     - Price must be between $0.95 and $1.50 (rejects garbage data)
  *
@@ -27,29 +27,29 @@ import {IOracle} from "../interfaces/IOracle.sol";
  *
  * DECIMALS:
  *   - USD amounts: 6 decimals (USDC standard)
- *   - USDY tokens: 18 decimals (ERC-20 standard)
+ *   - USDC tokens: 18 decimals (ERC-20 standard)
  *   - Oracle price: 8 decimals (Chainlink standard)
  */
-library USDYConverter {
+library USDCConverter {
 
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
 
-    uint256 internal constant USDY_DECIMALS = 1e18;
+    uint256 internal constant USDC_DECIMALS = 1e18;
     uint256 internal constant USD_DECIMALS = 1e6;
     uint256 internal constant ORACLE_DECIMALS = 1e8;
 
-    uint256 internal constant MIN_USDY_PRICE = 95_000_000;  // $0.95 in 8 decimals
-    uint256 internal constant MAX_USDY_PRICE = 150_000_000; // $1.50 in 8 decimals
+    uint256 internal constant MIN_USDC_PRICE = 95_000_000;  // $0.95 in 8 decimals
+    uint256 internal constant MAX_USDC_PRICE = 150_000_000; // $1.50 in 8 decimals
     uint256 internal constant FALLBACK_PRICE = 100_000_000; // $1.00 in 8 decimals
 
     // ═══════════════════════════════════════════════════════════
     //  ERRORS
     // ═══════════════════════════════════════════════════════════
 
-    error USDYPriceOutOfRange(uint256 price, uint256 min, uint256 max);
-    error USDYFeedNotSet();
+    error USDCPriceOutOfRange(uint256 price, uint256 min, uint256 max);
+    error USDCFeedNotSet();
     error ZeroAmount();
 
     // ═══════════════════════════════════════════════════════════
@@ -57,55 +57,55 @@ library USDYConverter {
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * @notice Convert USD amount to USDY tokens (strict mode)
+     * @notice Convert USD amount to USDC tokens (strict mode)
      * @param usdAmount   Amount in USD (6 decimals)
      * @param oracle      IOracle instance
-     * @param usdyAsset   Asset identifier for USDY feed (e.g., "USDY")
-     * @return usdyAmount Amount in USDY tokens (18 decimals)
+     * @param usdcAsset   Asset identifier for USDC feed (e.g., "USDC")
+     * @return usdcAmount Amount in USDC tokens (18 decimals)
      */
-    function usdToUSDYStrict(
+    function usdToUSDCStrict(
         uint256 usdAmount,
         IOracle oracle,
-        bytes32 usdyAsset
-    ) internal view returns (uint256 usdyAmount) {
+        bytes32 usdcAsset
+    ) internal view returns (uint256 usdcAmount) {
         if (usdAmount == 0) revert ZeroAmount();
-        if (usdyAsset == bytes32(0)) revert USDYFeedNotSet();
+        if (usdcAsset == bytes32(0)) revert USDCFeedNotSet();
 
-        int256 rawPrice = oracle.getLatestPrice(usdyAsset);
+        int256 rawPrice = oracle.getLatestPrice(usdcAsset);
         uint256 price = uint256(rawPrice);
 
-        if (price < MIN_USDY_PRICE || price > MAX_USDY_PRICE) {
-            revert USDYPriceOutOfRange(price, MIN_USDY_PRICE, MAX_USDY_PRICE);
+        if (price < MIN_USDC_PRICE || price > MAX_USDC_PRICE) {
+            revert USDCPriceOutOfRange(price, MIN_USDC_PRICE, MAX_USDC_PRICE);
         }
 
         // Ceiling division: protocol rounds UP when charging
         uint256 numerator = usdAmount * 1e20;
-        usdyAmount = (numerator + price - 1) / price;
+        usdcAmount = (numerator + price - 1) / price;
     }
 
     /**
-     * @notice Convert USDY tokens to USD amount (strict mode)
-     * @param usdyAmount  Amount in USDY tokens (18 decimals)
+     * @notice Convert USDC tokens to USD amount (strict mode)
+     * @param usdcAmount  Amount in USDC tokens (18 decimals)
      * @param oracle      IOracle instance
-     * @param usdyAsset   Asset identifier for USDY feed
+     * @param usdcAsset   Asset identifier for USDC feed
      * @return usdAmount  Amount in USD (6 decimals)
      */
-    function usdyToUSDStrict(
-        uint256 usdyAmount,
+    function usdcToUSDStrict(
+        uint256 usdcAmount,
         IOracle oracle,
-        bytes32 usdyAsset
+        bytes32 usdcAsset
     ) internal view returns (uint256 usdAmount) {
-        if (usdyAmount == 0) revert ZeroAmount();
-        if (usdyAsset == bytes32(0)) revert USDYFeedNotSet();
+        if (usdcAmount == 0) revert ZeroAmount();
+        if (usdcAsset == bytes32(0)) revert USDCFeedNotSet();
 
-        int256 rawPrice = oracle.getLatestPrice(usdyAsset);
+        int256 rawPrice = oracle.getLatestPrice(usdcAsset);
         uint256 price = uint256(rawPrice);
 
-        if (price < MIN_USDY_PRICE || price > MAX_USDY_PRICE) {
-            revert USDYPriceOutOfRange(price, MIN_USDY_PRICE, MAX_USDY_PRICE);
+        if (price < MIN_USDC_PRICE || price > MAX_USDC_PRICE) {
+            revert USDCPriceOutOfRange(price, MIN_USDC_PRICE, MAX_USDC_PRICE);
         }
 
-        usdAmount = (usdyAmount * price) / 1e20;
+        usdAmount = (usdcAmount * price) / 1e20;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -113,27 +113,27 @@ library USDYConverter {
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * @notice Convert USD amount to USDY tokens (safe mode with fallback)
+     * @notice Convert USD amount to USDC tokens (safe mode with fallback)
      * @param usdAmount   Amount in USD (6 decimals)
      * @param oracle      IOracle instance
-     * @param usdyAsset   Asset identifier for USDY feed
-     * @return usdyAmount Amount in USDY tokens (18 decimals)
+     * @param usdcAsset   Asset identifier for USDC feed
+     * @return usdcAmount Amount in USDC tokens (18 decimals)
      * @return usedFallback True if fallback price was used
      */
-    function usdToUSDYSafe(
+    function usdToUSDCSafe(
         uint256 usdAmount,
         IOracle oracle,
-        bytes32 usdyAsset
-    ) internal view returns (uint256 usdyAmount, bool usedFallback) {
+        bytes32 usdcAsset
+    ) internal view returns (uint256 usdcAmount, bool usedFallback) {
         if (usdAmount == 0) return (0, false);
 
         uint256 price = FALLBACK_PRICE;
         usedFallback = true;
 
-        if (usdyAsset != bytes32(0)) {
-            try oracle.getLatestPrice(usdyAsset) returns (int256 rawPrice) {
+        if (usdcAsset != bytes32(0)) {
+            try oracle.getLatestPrice(usdcAsset) returns (int256 rawPrice) {
                 uint256 p = uint256(rawPrice);
-                if (p >= MIN_USDY_PRICE && p <= MAX_USDY_PRICE) {
+                if (p >= MIN_USDC_PRICE && p <= MAX_USDC_PRICE) {
                     price = p;
                     usedFallback = false;
                 }
@@ -142,7 +142,7 @@ library USDYConverter {
             }
         }
 
-        usdyAmount = (usdAmount * 1e20) / price;
+        usdcAmount = (usdAmount * 1e20) / price;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -150,26 +150,26 @@ library USDYConverter {
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * @notice Calculate how much USDY vault assets are worth in USD
-     * @param usdyAmount USDY token balance (18 decimals)
-     * @param usdyPrice  Current USDY price (8 decimals)
+     * @notice Calculate how much USDC vault assets are worth in USD
+     * @param usdcAmount USDC token balance (18 decimals)
+     * @param usdcPrice  Current USDC price (8 decimals)
      * @return usdValue  USD value (6 decimals)
      */
-    function usdyValueInUSD(
-        uint256 usdyAmount,
-        uint256 usdyPrice
+    function usdcValueInUSD(
+        uint256 usdcAmount,
+        uint256 usdcPrice
     ) internal pure returns (uint256 usdValue) {
-        usdValue = (usdyAmount * usdyPrice) / 1e20;
+        usdValue = (usdcAmount * usdcPrice) / 1e20;
     }
 
     /**
-     * @notice Check if USDY price is within acceptable circuit breaker bounds
-     * @param currentPrice  Current USDY price (8 decimals)
-     * @param previousPrice USDY price 24h ago (8 decimals)
+     * @notice Check if USDC price is within acceptable circuit breaker bounds
+     * @param currentPrice  Current USDC price (8 decimals)
+     * @param previousPrice USDC price 24h ago (8 decimals)
      * @return safe         True if price change is within bounds
      * @return dropBps      Drop in basis points (0 if no drop)
      */
-    function isUSDYPriceSafe(
+    function isUSDCPriceSafe(
         uint256 currentPrice,
         uint256 previousPrice
     ) internal pure returns (bool safe, uint256 dropBps) {

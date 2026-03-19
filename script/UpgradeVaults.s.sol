@@ -7,7 +7,7 @@ import {VolatileShortVault} from "../src/vaults/VolatileShortVault.sol";
 import {VolatileLongVault} from "../src/vaults/VolatileLongVault.sol";
 import {StableShortVault} from "../src/vaults/StableShortVault.sol";
 import {StableLongVault} from "../src/vaults/StableLongVault.sol";
-import {MockUSDY} from "../src/mocks/MockUSDY.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract UpgradeVaults is Script {
 
@@ -17,8 +17,8 @@ contract UpgradeVaults is Script {
     address constant SS_PROXY = 0x8F6e6a4Ee6aeD70757c16382eA7156AD4b33c078;
     address constant SL_PROXY = 0x3e8dF8746c42Aa4B0CDb089174aBbBaf2C3aD46c;
 
-    // MockUSDY address from Deploy
-    address constant USDY = 0x12cc5bd1ab02A50285834eaF6eBdc2d95FB42cC9;
+    // USDC address from Deploy
+    address constant USDC = 0x12cc5bd1ab02A50285834eaF6eBdc2d95FB42cC9;
 
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
@@ -57,27 +57,26 @@ contract UpgradeVaults is Script {
         console.log("StableLong upgraded");
 
         // ═══════════════════════════════════════════
-        // 3. Seed liquidity - $2,500 USDY per vault = $10K total
+        // 3. Seed liquidity - $2,500 USDC per vault = $10K total
         // ═══════════════════════════════════════════
-        MockUSDY usdy = MockUSDY(USDY);
-        usdy.mint(deployer, 10_000e6);
-        console.log("Minted 10K MockUSDY");
+        IERC20 usdc = IERC20(USDC);
+        console.log("Using USDC for seeding");
 
-        usdy.approve(VS_PROXY, 2_500e6);
+        usdc.approve(VS_PROXY, 2_500e6);
         VolatileShortVault(VS_PROXY).deposit(2_500e6, deployer);
-        console.log("Seeded VolatileShort: 2500 USDY");
+        console.log("Seeded VolatileShort: 2500 USDC");
 
-        usdy.approve(VL_PROXY, 2_500e6);
+        usdc.approve(VL_PROXY, 2_500e6);
         VolatileLongVault(VL_PROXY).deposit(2_500e6, deployer);
-        console.log("Seeded VolatileLong: 2500 USDY");
+        console.log("Seeded VolatileLong: 2500 USDC");
 
-        usdy.approve(SS_PROXY, 2_500e6);
+        usdc.approve(SS_PROXY, 2_500e6);
         StableShortVault(SS_PROXY).deposit(2_500e6, deployer);
-        console.log("Seeded StableShort: 2500 USDY");
+        console.log("Seeded StableShort: 2500 USDC");
 
-        usdy.approve(SL_PROXY, 2_500e6);
+        usdc.approve(SL_PROXY, 2_500e6);
         StableLongVault(SL_PROXY).deposit(2_500e6, deployer);
-        console.log("Seeded StableLong: 2500 USDY");
+        console.log("Seeded StableLong: 2500 USDC");
 
         console.log("--- UPGRADE + SEED COMPLETE ---");
 

@@ -530,7 +530,7 @@ contract PolicyManager is
             if (capacity < amount) continue;
 
             // [FIX] Pre-check 95% utilization BEFORE calling lockCollateral.
-            // Without this, _findVault would pick a vault with enough free USDY
+            // Without this, _findVault would pick a vault with enough free USDC
             // but lockCollateral would revert because util > 95%.
             // The revert kills the whole TX instead of spilling to the next vault.
             IVault.VaultState memory state = v.getVaultState();
