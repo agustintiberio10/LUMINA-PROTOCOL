@@ -5,6 +5,8 @@
 ## Chain: Base L2 (8453) | Settlement: USDC | Vault Asset: USDY (Ondo Finance)
 ## Modelo: M2M (Machine-to-Machine) — operado exclusivamente por Agentes de IA
 
+**CALIBRATION UPDATE (March 2026):** All pBase values recalibrated from V1 additive formula to market-aligned rates for V2 multiplicative Kink Model. Benchmarked against Nexus Mutual, InsurAce, Etherisc. New values: BSS 650 bps (6.5%, was 2200), DEPEG 250 bps (2.5%, was 2400), IL 850 bps (8.5%, was 2000), EXPLOIT 400 bps (4.0%, was 300). Premium tables in individual specs reflect original V1 calculations and should be recalculated with new pBase values.
+
 ---
 
 ## 1. Arquitectura General
@@ -120,7 +122,7 @@ Si el 90% de los LPs van al Stable Yield Vault (porque es "más seguro"):
 | Payout | Binario: 80% del coverage |
 | Deducible | 20% |
 | Duración | 7 a 30 días |
-| P_base | 0.22 (22% anualizado) |
+| P_base | 0.065 (6.5% anualizado) |
 | Waiting period | Ninguno (trigger relativo a precio de compra) |
 | Volatility circuit breaker | >5% move en 1h → P_base ×1.5. >10% → halt. Verificar 3+ exchanges. |
 | Renovación | 24h antes de expiración → oferta al agente |
@@ -158,7 +160,7 @@ Margen: ~38%
 | Max Payout | USDC 90%, DAI 88%, USDT 85% |
 | Duración | 14 a 365 días |
 | Duration Discount | 1.0x (14-90d), 0.90x (91-180d), 0.80x (181-365d) |
-| P_base | 0.24 (24% anualizado) |
+| P_base | 0.025 (2.5% anualizado) |
 | Waiting period | 24 horas |
 | Circuit breaker | >1% debajo de $1 en 1h → prima ×2. >2% → halt. |
 | Risk multipliers dinámicos | USDT oscila $0.990-$1.010 → mult sube de 1.4x a 1.8x |
@@ -197,7 +199,7 @@ Margen: ~62%
 | Cap | Coverage × 13% × 0.90 = 11.7% del coverage |
 | Resolución | Solo al vencimiento (estilo opción europea). Ventana 48h post-expiración. |
 | Duración | 14 a 90 días |
-| P_base | 0.20 (20% anualizado) |
+| P_base | 0.085 (8.5% anualizado) |
 | Waiting period | Ninguno (trigger relativo a precio de compra) |
 | Circuit breaker | >5% move en 1h → P_base ×1.5. >10% → halt. |
 | Dirección | Ambas (IL ocurre si ETH sube O baja) |
@@ -249,7 +251,7 @@ Margen: ~74%
 | Deducible | 10% |
 | Duración | 90 a 365 días (mínimo 90 — waiting de 14d hace pólizas cortas ineficientes) |
 | Duration Discount | 1.0x (90d), 0.90x (91-180d), 0.80x (181-365d) |
-| P_base Tier 1 | 0.03 (3%) — Aave, Compound, Uniswap, MakerDAO |
+| P_base Tier 1 | 0.04 (4.0%) — Aave, Compound, Uniswap, MakerDAO |
 | P_base Tier 2 | 0.045 (4.5%) Curve / 0.054 (5.4%) Morpho |
 | Max Coverage por wallet | $50,000 |
 | Waiting period | 14 días |

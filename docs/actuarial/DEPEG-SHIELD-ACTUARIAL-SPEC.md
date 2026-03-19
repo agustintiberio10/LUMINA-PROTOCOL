@@ -6,6 +6,8 @@
 ## Chain: Base L2 (8453) | Settlement: USDC
 ## Modelo: M2M (Machine-to-Machine) — operado exclusivamente por Agentes de IA
 
+**CALIBRATION UPDATE (March 2026):** pBase recalibrated from V1 additive formula values to market-aligned rates for V2 multiplicative Kink Model. Benchmarked against Nexus Mutual, InsurAce, Etherisc. New pBase: 250 bps (2.5%). Original V1 value: 2400 bps.
+
 ---
 
 ## 1. Definición del Producto
@@ -165,7 +167,7 @@ Premium = Coverage × P_base × RiskMult × DurationDiscount × M(U) × (Duratio
 
 Donde:
 - Coverage: monto asegurado en USDC
-- P_base: 0.24 (24% anualizado)
+- P_base: 0.025 (2.5% anualizado)
 - RiskMult: 1.0 (USDC) | 1.2 (DAI) | 1.4 (USDT) — ajustable dinámicamente
 - DurationDiscount: 1.0 (14-90d) | 0.90 (91-180d) | 0.80 (181-365d)
 - M(U): multiplicador Kink Model basado en utilización del vault
@@ -184,7 +186,7 @@ Si U > 0.95: RECHAZAR — no emitir póliza
 
 ### 5.3 Tablas de Primas
 
-**USDC (P_base=0.24, RiskMult=1.0, Deducible=10%, MaxPayout=90%)**
+**USDC (P_base=0.025, RiskMult=1.0, Deducible=10%, MaxPayout=90%)**
 
 Coverage $100,000:
 
@@ -196,7 +198,7 @@ Coverage $100,000:
 | 180 días (×0.90) | $6,019 (6.02%) | $6,658 (6.66%) | $7,351 (7.35%) | $7,994 (7.99%) | $11,984 (11.98%) |
 | 365 días (×0.80) | $10,889 (10.89%) | $12,044 (12.04%) | $13,298 (13.30%) | $14,464 (14.46%) | $21,678 (21.68%) |
 
-**DAI (P_base=0.24, RiskMult=1.2, Deducible=12%, MaxPayout=88%)**
+**DAI (P_base=0.025, RiskMult=1.2, Deducible=12%, MaxPayout=88%)**
 
 Coverage $100,000, selección de duraciones:
 
@@ -208,7 +210,7 @@ Coverage $100,000, selección de duraciones:
 | 180 días (×0.90) | $7,989 | 7.99% |
 | 365 días (×0.80) | $14,453 | 14.45% |
 
-**USDT (P_base=0.24, RiskMult=1.4, Deducible=15%, MaxPayout=85%)**
+**USDT (P_base=0.025, RiskMult=1.4, Deducible=15%, MaxPayout=85%)**
 
 Coverage $100,000, selección de duraciones:
 

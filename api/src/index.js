@@ -91,7 +91,7 @@ const PRODUCTS = [
     shield: SHIELDS.BSS,
     riskType: "VOLATILE",
     vaults: [VAULTS.VOLATILE_SHORT, VAULTS.VOLATILE_LONG],
-    pBase: 2200,          // 22% base premium (BPS) — per actuarial spec
+    pBase: 650,           // 6.5% — market-calibrated for V2 Kink Model (March 2026)
     minDuration: 7 * 86400,
     maxDuration: 30 * 86400,
     deductible: 3000,     // 30% drop trigger
@@ -105,7 +105,7 @@ const PRODUCTS = [
     shield: SHIELDS.DEPEG,
     riskType: "STABLE",
     vaults: [VAULTS.STABLE_SHORT, VAULTS.STABLE_LONG],
-    pBase: 2400,          // 24% base premium — per actuarial spec
+    pBase: 250,           // 2.5% — market-calibrated for V2 Kink Model (March 2026)
     minDuration: 30 * 86400,
     maxDuration: 365 * 86400,
     deductible: 500,      // 5% depeg trigger
@@ -119,7 +119,7 @@ const PRODUCTS = [
     shield: SHIELDS.IL_INDEX,
     riskType: "VOLATILE",
     vaults: [VAULTS.VOLATILE_SHORT, VAULTS.VOLATILE_LONG],
-    pBase: 2000,          // 20% base premium — per actuarial spec
+    pBase: 850,           // 8.5% — market-calibrated for V2 Kink Model (March 2026)
     minDuration: 30 * 86400,
     maxDuration: 90 * 86400,
     deductible: 200,      // 2% IL trigger
@@ -133,7 +133,7 @@ const PRODUCTS = [
     shield: SHIELDS.EXPLOIT,
     riskType: "STABLE",
     vaults: [VAULTS.STABLE_SHORT, VAULTS.STABLE_LONG],
-    pBase: 300,           // 3.00% base premium
+    pBase: 400,           // 4.0% — market-calibrated for V2 Kink Model (March 2026)
     minDuration: 30 * 86400,
     maxDuration: 365 * 86400,
     deductible: 0,

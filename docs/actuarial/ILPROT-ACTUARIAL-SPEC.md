@@ -6,6 +6,8 @@
 ## Chain: Base L2 (8453) | Settlement: USDC
 ## Modelo: M2M (Machine-to-Machine) — operado exclusivamente por Agentes de IA
 
+**CALIBRATION UPDATE (March 2026):** pBase recalibrated from V1 additive formula values to market-aligned rates for V2 multiplicative Kink Model. Benchmarked against Nexus Mutual, InsurAce, Etherisc. New pBase: 850 bps (8.5%). Original V1 value: 2000 bps.
+
 ---
 
 ## 1. Definición del Producto
@@ -40,7 +42,7 @@ ETH/USD (cualquier pool que contenga ETH como uno de los pares). BTC/USD como ex
 | Deducible | 10% |
 | Payout factor | 90% |
 | Duración | 14 a 90 días (continuo, elige el comprador) |
-| P_base | 0.25 (25% anualizado) |
+| P_base | 0.085 (8.5% anualizado) |
 | MaxAllocationPerProduct | 20% del Mega Pool (a evaluar en Paso 3) |
 | Colateralización | 1:1 estricta |
 | Waiting period | No (trigger relativo a precio de compra) |
@@ -137,7 +139,7 @@ El trigger es relativo al precio de COMPRA de la póliza. Un agente que compra d
 ```
 Premium = Coverage × P_base × M(U) × (Duration_seconds / 31,536,000)
 
-P_base = 0.25 (25% anualizado)
+P_base = 0.085 (8.5% anualizado)
 M(U) = Kink Model estándar
 ```
 

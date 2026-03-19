@@ -6,6 +6,8 @@
 ## Chain: Base L2 (8453) | Settlement: USDC
 ## Modelo: M2M (Machine-to-Machine) — operado exclusivamente por Agentes de IA
 
+**CALIBRATION UPDATE (March 2026):** pBase recalibrated from V1 additive formula values to market-aligned rates for V2 multiplicative Kink Model. Benchmarked against Nexus Mutual, InsurAce, Etherisc. New pBase: 650 bps (6.5%). Original V1 value: 2200 bps.
+
 ---
 
 ## 1. Definición del Producto
@@ -30,7 +32,7 @@ Solo LONG (protección contra caída de precio). Short puede agregarse en versi�
 | Duración | 7 a 30 días (continuo, elige el comprador) |
 | Deducible | 20% fijo |
 | Max Payout | 80% del Coverage Amount |
-| P_base (prima base anualizada) | 0.22 (22%) |
+| P_base (prima base anualizada) | 0.065 (6.5%) |
 | Coverage mínimo | $100 USDC |
 | Coverage máximo | Limitado por liquidez disponible del vault |
 | MaxAllocationPerProduct | 20% del Mega Pool |
@@ -102,7 +104,7 @@ Premium_final = Coverage × P_base × M(U) × (Duration_seconds / 31,536,000)
 
 Donde:
 - Coverage: monto asegurado en USDC
-- P_base: 0.22 (22% anualizado)
+- P_base: 0.065 (6.5% anualizado)
 - M(U): multiplicador dinámico basado en utilización del vault
 - Duration_seconds: duración de la póliza en segundos
 - 31,536,000: segundos en un año
