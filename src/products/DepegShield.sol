@@ -76,6 +76,7 @@ contract DepegShield is BaseShield {
     error InvalidOracleProof();
     error ProofTooOld(uint256 verifiedAt, uint256 currentTime);
     error StablecoinMismatch(bytes32 policyStablecoin, bytes32 proofStablecoin);
+    error ExcludedStablecoin(bytes32 stablecoin);
 
     // ═══════════════════════════════════════════════════════════
     //  CONSTRUCTOR
@@ -100,10 +101,16 @@ contract DepegShield is BaseShield {
     //  PRODUCT-SPECIFIC LOGIC
     // ═══════════════════════════════════════════════════════════
 
+    // USDC excluded: settlement token cannot be insured against its own depeg
+    address public constant EXCLUDED_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+
     function _doCreatePolicy(
         uint256 policyId,
         CreatePolicyParams calldata params
     ) internal override {
+        // USDC excluded: settlement token cannot be insured against its own depeg
+        if (params.stablecoin == USDC) revert ExcludedStablecoin(params.stablecoin);
+
         uint16 deductible = _getDeductible(params.stablecoin);
 
         _depegData[policyId] = DepegData({
