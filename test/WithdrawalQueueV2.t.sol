@@ -15,17 +15,20 @@ contract WithdrawalQueueV2Test is Test {
     address user = address(0xB);
     address router = address(0xC);
     address policyManager = address(0xD);
+    address aavePool = address(0xE);
+    MockERC20 aToken;
 
     uint256 constant USDC_DECIMALS = 1e6;
     uint32 constant COOLDOWN = 30 days;
 
     function setUp() public {
         usdc = new MockERC20("USD Coin", "USDC", 6);
+        aToken = new MockERC20("Aave Base USDC", "aBasUSDC", 6);
 
         // Deploy vault via proxy
         VolatileShortVault impl = new VolatileShortVault();
         bytes memory initData = abi.encodeCall(
-            VolatileShortVault.initialize, (owner, address(usdc), router, policyManager)
+            VolatileShortVault.initialize, (owner, address(usdc), router, policyManager, aavePool, address(aToken))
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         vault = VolatileShortVault(address(proxy));

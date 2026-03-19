@@ -8,6 +8,8 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IAavePool} from "../interfaces/IAavePool.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {IVault} from "../interfaces/IVault.sol";
 
@@ -16,7 +18,7 @@ import {IVault} from "../interfaces/IVault.sol";
  * @author Lumina Protocol
  * @notice ERC-4626 Vault with Cooldown withdrawal and Soulbound shares.
  *         Inherited by VolatileShort, VolatileLong, StableShort, StableLong.
- * 
+ *
  * @dev FINAL VERSION — All audit findings from Claude Code + Gemini fixed:
  *
  *   [CC-1] CRITICAL: redeem() overridden → blocks cooldown bypass
@@ -33,7 +35,8 @@ abstract contract BaseVault is
     ERC4626Upgradeable,
     UUPSUpgradeable,
     OwnableUpgradeable,
-    ReentrancyGuardUpgradeable
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable
 {
     using SafeERC20 for IERC20;
 
@@ -57,6 +60,32 @@ abstract contract BaseVault is
     mapping(address => WithdrawalRequest[]) internal _withdrawalQueue;
     uint256 internal _pendingQueueShares;
 
+    // ═══ Aave V3 integration ═══
+    IAavePool public aavePool;
+    IERC20 public aToken; // aBasUSDC
+
+    // ═══ Pending queues (Aave liquidity fallback) ═══
+    mapping(address => uint256) public pendingPayouts;
+    mapping(address => uint256) public pendingWithdrawals;
+
+    // ═══ Security controls ═══
+    bool public depositsPaused;
+    bool public withdrawalsPaused;
+    uint256 public maxTotalDeposit;
+    uint256 public maxDepositPerUser;
+    mapping(address => uint256) public userDeposits;
+    uint256 public maxPayoutPerTx;
+    uint256 public dailyWithdrawLimit; // basis points of TVL
+    uint256 public dailyWithdrawn;
+    uint256 public lastWithdrawReset;
+
+    // ═══ Events ═══
+    event PayoutQueued(address indexed beneficiary, uint256 amount);
+    event WithdrawalQueued(address indexed user, uint256 amount);
+    event PendingPayoutClaimed(address indexed beneficiary, uint256 amount);
+    event PendingWithdrawalClaimed(address indexed user, uint256 amount);
+    event EmergencyWithdraw(uint256 amount);
+
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -79,22 +108,29 @@ abstract contract BaseVault is
         string memory symbol_,
         address router_,
         address policyManager_,
-        uint32 cooldownDuration_
+        uint32 cooldownDuration_,
+        address aavePool_,
+        address aToken_
     ) internal onlyInitializing {
         if (owner_ == address(0)) revert ZeroAddress();
         if (asset_ == address(0)) revert ZeroAddress();
         if (router_ == address(0)) revert ZeroAddress();
         if (policyManager_ == address(0)) revert ZeroAddress();
+        if (aavePool_ == address(0)) revert ZeroAddress();
+        if (aToken_ == address(0)) revert ZeroAddress();
 
         __ERC20_init(name_, symbol_);
         __ERC4626_init(IERC20(asset_));
         __Ownable_init(owner_);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
+        __Pausable_init();
 
         _router = router_;
         _policyManager = policyManager_;
         _cooldownDuration = cooldownDuration_;
+        aavePool = IAavePool(aavePool_);
+        aToken = IERC20(aToken_);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -180,6 +216,8 @@ abstract contract BaseVault is
 
     /// @inheritdoc IVault
     function completeWithdrawal(address receiver) external nonReentrant returns (uint256 assets) {
+        require(!withdrawalsPaused, "Withdrawals paused");
+
         WithdrawalRequest storage req = _withdrawalRequests[msg.sender];
         if (req.cooldownEnd == 0) revert NoActiveWithdrawalRequest(msg.sender);
         if (block.timestamp < req.cooldownEnd) revert CooldownNotExpired(msg.sender, req.cooldownEnd, block.timestamp);
@@ -200,11 +238,30 @@ abstract contract BaseVault is
             : 0;
         if (assets > nonAllocated) revert InsufficientLiquidity(assets, nonAllocated);
 
+        // Daily withdraw limit
+        if (dailyWithdrawLimit > 0) {
+            if (block.timestamp > lastWithdrawReset + 1 days) {
+                dailyWithdrawn = 0;
+                lastWithdrawReset = block.timestamp;
+            }
+            require(dailyWithdrawn + assets <= (totalAssets() * dailyWithdrawLimit) / 10000, "Daily limit reached");
+            dailyWithdrawn += assets;
+        }
+
         // [GM-1] Reduce pending shares counter
         _pendingWithdrawalShares -= shares;
 
         // Clear request BEFORE external calls (CEI)
         delete _withdrawalRequests[msg.sender];
+
+        // Withdraw from Aave
+        try aavePool.withdraw(asset(), assets, address(this)) {} catch {
+            pendingWithdrawals[receiver] += assets;
+            _pendingWithdrawalShares -= shares;
+            delete _withdrawalRequests[msg.sender];
+            emit WithdrawalQueued(receiver, assets);
+            return assets;
+        }
 
         // [CC-1] Use super.redeem() to bypass our override that blocks direct redeem()
         super.redeem(shares, receiver, msg.sender);
@@ -353,11 +410,17 @@ abstract contract BaseVault is
         uint256 amount,
         bytes32 productId,
         uint256 policyId
-    ) external onlyRouter nonReentrant returns (bool) {
+    ) external onlyRouter nonReentrant whenNotPaused returns (bool) {
         if (amount == 0) return true;
         if (recipient == address(0)) revert ZeroAddress();
+        require(maxPayoutPerTx == 0 || amount <= maxPayoutPerTx, "Payout exceeds max");
 
-        IERC20(asset()).safeTransfer(recipient, amount);
+        try aavePool.withdraw(asset(), amount, address(this)) {
+            IERC20(asset()).safeTransfer(recipient, amount);
+        } catch {
+            pendingPayouts[recipient] += amount;
+            emit PayoutQueued(recipient, amount);
+        }
 
         emit PayoutExecuted(recipient, amount, productId, policyId);
         return true;
@@ -373,6 +436,11 @@ abstract contract BaseVault is
 
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
 
+        if (_aaveHealthCheck()) {
+            IERC20(asset()).approve(address(aavePool), amount);
+            aavePool.supply(asset(), amount, address(this), 0);
+        }
+
         emit PremiumReceived(amount, productId, policyId);
         return true;
     }
@@ -380,6 +448,10 @@ abstract contract BaseVault is
     // ═══════════════════════════════════════════════════════════
     //  VIEWS
     // ═══════════════════════════════════════════════════════════
+
+    function totalAssets() public view override returns (uint256) {
+        return aToken.balanceOf(address(this)) + IERC20(asset()).balanceOf(address(this));
+    }
 
     /// @inheritdoc IVault
     function getVaultState() external view returns (VaultState memory) {
@@ -441,6 +513,26 @@ abstract contract BaseVault is
         _policyManager = newPolicyManager;
     }
 
+    // ═══ Security Admin ═══
+    function pause() external onlyOwner { _pause(); }
+    function unpause() external onlyOwner { _unpause(); }
+    function pauseDeposits() external onlyOwner { depositsPaused = true; }
+    function unpauseDeposits() external onlyOwner { depositsPaused = false; }
+    function pauseWithdrawals() external onlyOwner { withdrawalsPaused = true; }
+    function unpauseWithdrawals() external onlyOwner { withdrawalsPaused = false; }
+    function setMaxTotalDeposit(uint256 _max) external onlyOwner { maxTotalDeposit = _max; }
+    function setMaxDepositPerUser(uint256 _max) external onlyOwner { maxDepositPerUser = _max; }
+    function setMaxPayoutPerTx(uint256 _max) external onlyOwner { maxPayoutPerTx = _max; }
+    function setDailyWithdrawLimit(uint256 _bps) external onlyOwner { dailyWithdrawLimit = _bps; }
+
+    function emergencyWithdrawFromAave() external onlyOwner nonReentrant {
+        uint256 aBalance = aToken.balanceOf(address(this));
+        if (aBalance > 0) {
+            aavePool.withdraw(asset(), type(uint256).max, address(this));
+        }
+        emit EmergencyWithdraw(aBalance);
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  INTERNAL
     // ═══════════════════════════════════════════════════════════
@@ -461,6 +553,36 @@ abstract contract BaseVault is
 
     function _authorizeUpgrade(address /* newImplementation */) internal override onlyOwner {}
 
+    function _aaveHealthCheck() internal view returns (bool) {
+        try aToken.balanceOf(address(this)) returns (uint256) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  CLAIM PENDING
+    // ═══════════════════════════════════════════════════════════
+
+    function claimPendingPayout() external nonReentrant {
+        uint256 amount = pendingPayouts[msg.sender];
+        require(amount > 0, "No pending payout");
+        pendingPayouts[msg.sender] = 0;
+        aavePool.withdraw(asset(), amount, address(this));
+        IERC20(asset()).safeTransfer(msg.sender, amount);
+        emit PendingPayoutClaimed(msg.sender, amount);
+    }
+
+    function claimPendingWithdrawal() external nonReentrant {
+        uint256 amount = pendingWithdrawals[msg.sender];
+        require(amount > 0, "No pending withdrawal");
+        pendingWithdrawals[msg.sender] = 0;
+        aavePool.withdraw(asset(), amount, address(this));
+        IERC20(asset()).safeTransfer(msg.sender, amount);
+        emit PendingWithdrawalClaimed(msg.sender, amount);
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  ERC-4626 OVERRIDES — Lock down all direct entry/exit
     // ═══════════════════════════════════════════════════════════
@@ -470,9 +592,22 @@ abstract contract BaseVault is
      * @dev No nonReentrant here — depositAssets() already has it.
      *      Direct callers also get MIN_DEPOSIT protection.
      */
-    function deposit(uint256 assets, address receiver) public override returns (uint256) {
+    function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
         if (assets < MIN_DEPOSIT) revert ZeroAmount();
-        return super.deposit(assets, receiver);
+        require(!depositsPaused, "Deposits paused");
+        require(totalAssets() + assets <= maxTotalDeposit || maxTotalDeposit == 0, "Vault cap reached");
+        require(userDeposits[receiver] + assets <= maxDepositPerUser || maxDepositPerUser == 0, "User cap reached");
+
+        userDeposits[receiver] += assets;
+        uint256 shares = super.deposit(assets, receiver);
+
+        // Supply to Aave if healthy
+        if (_aaveHealthCheck()) {
+            IERC20(asset()).approve(address(aavePool), assets);
+            aavePool.supply(asset(), assets, address(this), 0);
+        }
+
+        return shares;
     }
 
     /// @notice Disable standard withdraw

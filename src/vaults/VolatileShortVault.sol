@@ -12,8 +12,9 @@ import {BaseVault} from "./BaseVault.sol";
  */
 contract VolatileShortVault is BaseVault {
     function initialize(
-        address owner_, address asset_, address router_, address policyManager_
+        address owner_, address asset_, address router_, address policyManager_,
+        address aavePool_, address aToken_
     ) external initializer {
-        __BaseVault_init(owner_, asset_, "Lumina Volatile Short", "lvsUSDC", router_, policyManager_, 30 days);
+        __BaseVault_init(owner_, asset_, "Lumina Volatile Short", "lvsUSDC", router_, policyManager_, 30 days, aavePool_, aToken_);
     }
 }

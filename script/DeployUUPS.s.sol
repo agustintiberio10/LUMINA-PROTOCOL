@@ -28,6 +28,8 @@ contract DeployUUPS is Script {
         address usdc = vm.envAddress("USDC_ADDRESS");
         address oracle = vm.envAddress("ORACLE_ADDRESS");
         address phala = vm.envAddress("PHALA_ADDRESS");
+        address aavePool = vm.envAddress("AAVE_POOL");
+        address aBasUsdc = vm.envAddress("A_BAS_USDC");
 
         // Fee config
         address feeReceiver = 0x2b4D825417f568231e809E31B9332ED146760337;
@@ -79,7 +81,7 @@ contract DeployUUPS is Script {
         VolatileShortVault vsImpl = new VolatileShortVault();
         bytes memory vsData = abi.encodeCall(
             VolatileShortVault.initialize,
-            (deployer, usdc, address(routerProxy), address(pmProxy))
+            (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
         );
         ERC1967Proxy vsProxy = new ERC1967Proxy(address(vsImpl), vsData);
         console.log("VolatileShort proxy:", address(vsProxy));
@@ -88,7 +90,7 @@ contract DeployUUPS is Script {
         VolatileLongVault vlImpl = new VolatileLongVault();
         bytes memory vlData = abi.encodeCall(
             VolatileLongVault.initialize,
-            (deployer, usdc, address(routerProxy), address(pmProxy))
+            (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
         );
         ERC1967Proxy vlProxy = new ERC1967Proxy(address(vlImpl), vlData);
         console.log("VolatileLong proxy:", address(vlProxy));
@@ -97,7 +99,7 @@ contract DeployUUPS is Script {
         StableShortVault ssImpl = new StableShortVault();
         bytes memory ssData = abi.encodeCall(
             StableShortVault.initialize,
-            (deployer, usdc, address(routerProxy), address(pmProxy))
+            (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
         );
         ERC1967Proxy ssProxy = new ERC1967Proxy(address(ssImpl), ssData);
         console.log("StableShort proxy:", address(ssProxy));
@@ -106,7 +108,7 @@ contract DeployUUPS is Script {
         StableLongVault slImpl = new StableLongVault();
         bytes memory slData = abi.encodeCall(
             StableLongVault.initialize,
-            (deployer, usdc, address(routerProxy), address(pmProxy))
+            (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
         );
         ERC1967Proxy slProxy = new ERC1967Proxy(address(slImpl), slData);
         console.log("StableLong proxy:", address(slProxy));
