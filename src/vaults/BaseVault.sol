@@ -314,6 +314,13 @@ abstract contract BaseVault is
         queue[idx] = queue[queue.length - 1];
         queue.pop();
 
+        // Withdraw from Aave before redeeming
+        try aavePool.withdraw(asset(), assets, address(this)) {} catch {
+            pendingWithdrawals[receiver] += assets;
+            emit WithdrawalQueued(receiver, assets);
+            return assets;
+        }
+
         super.redeem(shares, receiver, msg.sender);
         emit WithdrawalCompleted(msg.sender, assets, shares);
     }

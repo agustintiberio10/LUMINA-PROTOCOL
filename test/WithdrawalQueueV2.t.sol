@@ -5,18 +5,19 @@ import "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {VolatileShortVault} from "../src/vaults/VolatileShortVault.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
+import {MockAavePool} from "../src/mocks/MockAavePool.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
 
 contract WithdrawalQueueV2Test is Test {
     VolatileShortVault vault;
     MockERC20 usdc;
+    MockERC20 aToken;
+    MockAavePool aavePool;
 
     address owner = address(0xA);
     address user = address(0xB);
     address router = address(0xC);
     address policyManager = address(0xD);
-    address aavePool = address(0xE);
-    MockERC20 aToken;
 
     uint256 constant USDC_DECIMALS = 1e6;
     uint32 constant COOLDOWN = 30 days;
@@ -24,11 +25,15 @@ contract WithdrawalQueueV2Test is Test {
     function setUp() public {
         usdc = new MockERC20("USD Coin", "USDC", 6);
         aToken = new MockERC20("Aave Base USDC", "aBasUSDC", 6);
+        aavePool = new MockAavePool(address(aToken));
+
+        // Fund aave pool with USDC for withdrawals
+        usdc.mint(address(aavePool), 1_000_000e6);
 
         // Deploy vault via proxy
         VolatileShortVault impl = new VolatileShortVault();
         bytes memory initData = abi.encodeCall(
-            VolatileShortVault.initialize, (owner, address(usdc), router, policyManager, aavePool, address(aToken))
+            VolatileShortVault.initialize, (owner, address(usdc), router, policyManager, address(aavePool), address(aToken))
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         vault = VolatileShortVault(address(proxy));
