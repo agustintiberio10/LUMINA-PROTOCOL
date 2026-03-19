@@ -12,7 +12,7 @@ src/
 ├── vaults/             BaseVault (ERC-4626, Cooldown, Soulbound) + 4 child vaults
 ├── products/           BaseShield + 4 Shield products (BSS, Depeg, IL Index, Exploit)
 ├── oracles/            LuminaOracle (Chainlink + L2 Sequencer) + LuminaPhalaVerifier (TEE)
-└── libraries/          PremiumMath (Kink Model) + ILMath (Babylonian sqrt) + USDYConverter
+└── libraries/          PremiumMath (Kink Model) + ILMath (Babylonian sqrt) + USDCConverter
 ```
 
 ## Products
@@ -73,7 +73,8 @@ forge test -vvv
 ## Chain
 
 - **Network**: Base L2 (chain 8453)
-- **Settlement**: USDY (Ondo Finance)
+- **Settlement**: USDC (Circle)
+- **Yield**: Aave V3 on Base
 - **Solidity**: 0.8.20
 
 ## License

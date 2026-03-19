@@ -1,7 +1,7 @@
 # SKILL: Lumina Protocol — Insurance & Yield for AI Agents
 
 ## Version: 2.0 (March 2026)
-## Chain: Base L2 (8453) | Settlement: USDY (Ondo Finance)
+## Chain: Base L2 (8453) | Settlement: USDC (Circle)
 ## Contact: hello@lumina-org.com
 ## Docs: https://lumina-org.com
 
@@ -242,22 +242,22 @@ Only a REAL exploit triggers BOTH conditions simultaneously.
 
 ## The Two Layers of Yield
 
-When you deposit USDY into a Lumina vault, you earn from TWO independent sources:
+When you deposit USDC into a Lumina vault, you earn from TWO independent sources:
 
-### Layer 1: USDY Base Yield (~3.55% APY)
-USDY is Ondo Finance's yield-bearing stablecoin, backed by US Treasuries. It generates ~3.55% APY automatically, regardless of what happens in Lumina. This is your "risk-free" floor.
+### Layer 1: Aave V3 Lending Yield (variable, ~3-5% APY)
+Idle USDC in Lumina vaults is deployed to Aave V3 on Base, earning variable lending yield automatically. This is your baseline yield floor, independent of Lumina policy activity.
 
 ### Layer 2: Insurance Premiums (8-22% APY depending on vault)
 Every time an agent buys an insurance policy, they pay a premium. That premium goes directly to the vault that backs the policy. The more policies sold, the more premiums flow to LPs.
 
 ### Combined Yield:
 
-| Vault | Cooldown | USDY Base | Premiums | TOTAL APY |
+| Vault | Cooldown | Aave V3 Base | Premiums | TOTAL APY |
 |-------|----------|-----------|----------|-----------|
-| VolatileShort | 30 days | 3.55% | 9-11% | **12.55-14.55%** |
-| VolatileLong | 90 days | 3.55% | 12-14% | **15.55-17.55%** |
-| StableShort | 90 days | 3.55% | 8-10% | **11.55-13.55%** |
-| StableLong | 365 days | 3.55% | 15-22% | **18.55-25.55%** |
+| VolatileShort | 30 days | 3-5% | 9-11% | **12-16%** |
+| VolatileLong | 90 days | 3-5% | 12-14% | **15-19%** |
+| StableShort | 90 days | 3-5% | 8-10% | **11-15%** |
+| StableLong | 365 days | 3-5% | 15-22% | **18-27%** |
 
 Note: Premium APYs shown are AFTER the 3% protocol fee. The vault receives 97% of each premium. These APYs already reflect that.
 
@@ -351,7 +351,7 @@ Lumina uses multiple layers to prevent gaming:
 GET /api/v2/quote
 {
   "productId": "BLACKSWAN-001",
-  "coverageAmount": 50000000000,    // $50,000 in 6 decimals (USDY)
+  "coverageAmount": 50000000000,    // $50,000 in 6 decimals (USDC)
   "durationSeconds": 1209600,       // 14 days
   "asset": "ETH",                   // For BSS and IL
   "stablecoin": "",                 // For Depeg: "USDC", "DAI", "USDT"
@@ -371,10 +371,10 @@ Response:
 
 **⚠️ DEADLINE:** The `deadline` timestamp is typically 5 minutes from quote generation. You MUST execute the `purchasePolicy` transaction on-chain BEFORE this deadline expires. If you request a quote and then perform other tasks, the quote will expire and the transaction will revert with `QuoteExpired`. **Best practice:** Request quote → approve → purchase in a single sequential flow, no interruptions.
 
-## Step 2: Approve USDY
+## Step 2: Approve USDC
 
 ```solidity
-IERC20(USDY_ADDRESS).approve(COVER_ROUTER, premiumAmount);
+IERC20(USDC_ADDRESS).approve(COVER_ROUTER, premiumAmount);
 ```
 
 ## Step 3: Purchase Policy
@@ -397,7 +397,7 @@ GET /api/v2/policies?buyer=0xYourWallet
 // Backend detects trigger → computes TWAP → signs proof
 // Agent receives proof and submits:
 CoverRouter.triggerPayout(productId, policyId, oracleProof);
-// USDY arrives in your wallet in the same transaction
+// USDC arrives in your wallet in the same transaction
 ```
 
 **⚠️ PROTOCOL FEE ON CLAIMS:** Your payout will be 97% of the calculated amount. The 3% protocol fee is deducted automatically by the CoverRouter. This is NOT a bug — it is the protocol's revenue model.
@@ -494,7 +494,7 @@ for attempt in range(MAX_RETRIES):
 ## ABIs
 
 To build transactions on-chain, use these ABIs:
-- **USDY approval:** Standard ERC20 ABI (`approve(address,uint256)`)
+- **USDC approval:** Standard ERC20 ABI (`approve(address,uint256)`)
 - **CoverRouter:** Use the CoverRouter ABI from the Lumina GitHub repo (`src/core/CoverRouter.sol`)
 - **Vaults:** Use the IVault ABI (`src/interfaces/IVault.sol`) for deposit/withdraw operations
 
@@ -514,7 +514,7 @@ ABIs are published at: `https://github.com/agustintiberio10/LUMINA-PROTOCOL/tree
 | Products backed | BSS + IL short | IL long + BSS overflow | Depeg short | Depeg long + Exploit |
 | Risk type | VOLATILE | VOLATILE | STABLE | STABLE |
 | Claim frequency | Higher | Higher | Low | Very low |
-| APY (USDY + premiums) | 12-15% | 15-18% | 11-14% | 18-26% |
+| APY (Aave V3 + premiums) | 12-16% | 15-19% | 11-15% | 18-27% |
 
 **What is a cooldown? It is NOT a lock period. It is an EXIT NOTICE.**
 
@@ -523,7 +523,7 @@ WRONG understanding:  "I deposit for 30 days, then I get my money back"
 RIGHT understanding:  "I deposit INDEFINITELY. When I want to leave, I give 30 days notice."
 
 Think of it like renting an apartment:
-  - You sign the lease (deposit USDY)
+  - You sign the lease (deposit USDC)
   - You live there as long as you want (earn yield indefinitely)
   - One day you decide to move out (requestWithdrawal)
   - You give 30 days notice (cooldown period)
@@ -544,7 +544,7 @@ When you request withdrawal, your capital still backs existing policies and earn
 ## Step 1: Choose a Vault
 
 Evaluate each vault based on:
-- **Current APY** (USDY base 3.55% + premium yield — check real-time)
+- **Current APY** (Aave V3 base 3-5% + premium yield -- check real-time)
 - **Current utilization** (higher util = higher yield BUT higher claim risk)
 - **Cooldown** (how long is the exit notice when you want to leave)
 - **Products backed** (what claim risks are you exposed to)
@@ -562,10 +562,10 @@ Want quick exit (30-day notice) and accept BSS risk?   → VolatileShort (12-15%
 Unsure? Start with VolatileShort (shortest commitment) → move to longer vaults later
 ```
 
-## Step 2: Deposit USDY
+## Step 2: Deposit USDC
 
 ```solidity
-IERC20(USDY_ADDRESS).approve(VAULT_ADDRESS, depositAmount);
+IERC20(USDC_ADDRESS).approve(VAULT_ADDRESS, depositAmount);
 IVault(VAULT_ADDRESS).deposit(depositAmount, receiverAddress);
 // Returns: shares (soulbound ERC-4626 — cannot be transferred or sold)
 ```
@@ -619,7 +619,7 @@ IVault(VAULT_ADDRESS).cancelWithdrawal();
 If you want to switch from VolatileShort to StableLong (better APY):
 ```
 1. requestWithdrawal() from VolatileShort → wait 30 days
-2. completeWithdrawal() → USDY back in your wallet
+2. completeWithdrawal() → USDC back in your wallet
 3. deposit() into StableLong → done
 ```
 There is no direct transfer between vaults. You must withdraw and re-deposit.
@@ -666,8 +666,8 @@ IF a vault's utilization is < 20%:
   → Yield will be low, but claims are also unlikely
   → Consider waiting for utilization to rise
 
-ALWAYS CHECK: Current APY = USDY base (3.55%) + premium yield
-The 3.55% USDY yield is guaranteed regardless of utilization.
+ALWAYS CHECK: Current APY = Aave V3 base (variable, ~3-5%) + premium yield
+The Aave V3 base yield is variable and depends on lending market conditions.
 ```
 
 ---
@@ -725,11 +725,11 @@ The Kink Model's utilization calculation uses the TOTAL premium you pay, not the
 
 Deployed on Base Mainnet (chain 8453). Verified on BaseScan.
 
-Note: Currently using MockUSDY for testing. Will be replaced with real Ondo USDY before production launch.
+Settlement token: USDC (Circle) on Base.
 
 | Contract | Address | Notes |
 |----------|---------|-------|
-| USDY Token (Mock) | `0x12cc5bd1ab02A50285834eaF6eBdc2d95FB42cC9` | MockUSDY for testing (6 decimals) |
+| USDC Token | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | Circle USDC on Base (6 decimals) |
 | CoverRouter | `0x8407afBa100812bFb5f9f188b44379E4268eff94` | Main entry point for all operations |
 | PolicyManager | `0x615e9c32c70350192fCa9BAC06Ba8ebA9dC4fEF4` | Vault selection + allocation |
 | LuminaOracle | `0x2f9d3DA66FCB84f47851636d9e0921373ede2176` | Chainlink price feeds + signature verification |
@@ -769,8 +769,8 @@ A: No. Policies are non-cancellable. The premium is paid upfront and non-refunda
 **Q: What if the L2 sequencer goes down during a crash?**
 A: The oracle blocks stale prices until 1 hour after sequencer recovery. You have 24h grace period to submit your claim after policy expiry. Even with sequencer downtime, you're protected.
 
-**Q: Is the USDY yield guaranteed?**
-A: The ~3.55% USDY base yield comes from Ondo Finance (US Treasuries). It's not guaranteed by Lumina — it's a property of the USDY asset itself. The premium yield on top depends on Lumina policy volume.
+**Q: Is the base yield guaranteed?**
+A: The Aave V3 lending yield (variable, ~3-5% APY) is not guaranteed by Lumina — it depends on Aave V3 lending market conditions on Base. The premium yield on top depends on Lumina policy volume.
 
 **Q: What's the maximum I can lose as an LP?**
 A: In the absolute worst case (simultaneous BSS crash + stablecoin depeg), a vault could lose ~38% of TVL. This is extremely rare (~2-3% annual probability). In normal years, premiums far exceed claims.
@@ -782,7 +782,7 @@ A: To prevent cooldown bypass. If you could sell your shares on a DEX, someone c
 A: Lumina charges 3% on BOTH premiums and payouts. This is the protocol's revenue model (adapted from MutualLumina V1). On claims, the 3% is negligible compared to your return: you pay $527 in premium and receive $38,800 — that's a 73x return even after the fee. If you need exact payout amounts, increase your coverage by 3.1% to compensate.
 
 **Q: Does the fee affect LP yields?**
-A: Minimally. LPs receive 97% of premiums instead of 100%. The difference is ~0.3% APY. A vault showing 13.55% total APY without fee would show 13.25% with fee. The fee on claims does NOT affect LPs — it comes from the agent's payout, not the vault.
+A: Minimally. LPs receive 97% of premiums instead of 100%. The difference is ~0.3% APY. A vault showing 14% total APY without fee would show 13.7% with fee. The fee on claims does NOT affect LPs -- it comes from the agent's payout, not the vault.
 
 **Q: How do I contact Lumina for help?**
 A: Email hello@lumina-org.com. A human will respond, explain the products, and provide the SKILL document for your agent.

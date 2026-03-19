@@ -69,6 +69,6 @@ LUMINA-PROTOCOL/
 │   ├── vaults/      (5)   BaseVault + 4 child vaults
 │   ├── products/    (5)   BaseShield + BSS + Depeg + IL + Exploit
 │   ├── oracles/     (2)   LuminaOracle, LuminaPhalaVerifier
-│   └── libraries/   (3)   PremiumMath, ILMath, USDYConverter
+│   └── libraries/   (3)   PremiumMath, ILMath, USDCConverter
 └── test/                   ← Fase 4 (próximo paso)
 ```

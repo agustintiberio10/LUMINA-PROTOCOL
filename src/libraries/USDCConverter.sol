@@ -10,8 +10,8 @@ import {IOracle} from "../interfaces/IOracle.sol";
  *         and USDC tokens (Circle, native stablecoin on Base).
  *
  * USDC BEHAVIOR:
- *   USDC is an accumulating token — its USD value increases over time (~3.55% APY)
- *   as the underlying US Treasury yields accrue. This means:
+ *   USDC is a standard stablecoin pegged 1:1 to USD. When deposited into Lumina
+ *   vaults, it earns variable APY from Aave V3 lending. This means:
  *     - 1 USDC ≈ $1.04 today (and rising)
  *     - To pay $100 worth, you need ~96.15 USDC tokens
  *     - To receive $100 worth, you get ~96.15 USDC tokens
