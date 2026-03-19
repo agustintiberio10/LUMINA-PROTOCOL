@@ -101,9 +101,6 @@ contract DepegShield is BaseShield {
     //  PRODUCT-SPECIFIC LOGIC
     // ═══════════════════════════════════════════════════════════
 
-    // USDC excluded: settlement token cannot be insured against its own depeg
-    address public constant EXCLUDED_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-
     function _doCreatePolicy(
         uint256 policyId,
         CreatePolicyParams calldata params
@@ -180,7 +177,8 @@ contract DepegShield is BaseShield {
     // ═══════════════════════════════════════════════════════════
 
     function _getDeductible(bytes32 stablecoin) internal pure returns (uint16) {
-        if (stablecoin == USDC) return USDC_DEDUCTIBLE_BPS;
+        // [M-4] USDC excluded: settlement token cannot be insured against its own depeg
+        if (stablecoin == USDC) revert ExcludedStablecoin(stablecoin);
         if (stablecoin == DAI)  return DAI_DEDUCTIBLE_BPS;
         if (stablecoin == USDT) return USDT_DEDUCTIBLE_BPS;
         revert InvalidStablecoin(stablecoin);

@@ -118,7 +118,7 @@ interface IVault {
     //  PAYOUT + PREMIUM (only CoverRouter)
     // ═══════════════════════════════════════════════════════════
 
-    function executePayout(address recipient, uint256 amount, bytes32 productId, uint256 policyId) external returns (bool);
+    function executePayout(address recipient, uint256 amount, bytes32 productId, uint256 policyId, address beneficiary) external returns (bool);
     function receivePremium(uint256 amount, bytes32 productId, uint256 policyId) external returns (bool);
 
     // ═══════════════════════════════════════════════════════════

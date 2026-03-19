@@ -170,7 +170,7 @@ contract AaveIntegrationTest is Test {
 
         // Execute payout as router
         vm.prank(router);
-        vault.executePayout(beneficiary, payoutAmount, productId, policyId);
+        vault.executePayout(beneficiary, payoutAmount, productId, policyId, beneficiary);
 
         // Beneficiary should have received USDC
         assertEq(usdc.balanceOf(beneficiary), payoutAmount, "Beneficiary should receive payout in USDC");

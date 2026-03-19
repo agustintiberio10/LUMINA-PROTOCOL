@@ -78,6 +78,10 @@ abstract contract BaseVault is
     uint256 public dailyWithdrawLimit; // basis points of TVL
     uint256 public dailyWithdrawn;
     uint256 public lastWithdrawReset;
+    uint256 public dailyWithdrawSnapshot; // [M-1] totalAssets at start of day
+
+    /// @dev Storage gap for future upgrades
+    uint256[50] private __gap;
 
     // ═══ Events ═══
     event PayoutQueued(address indexed beneficiary, uint256 amount);
@@ -85,6 +89,12 @@ abstract contract BaseVault is
     event PendingPayoutClaimed(address indexed beneficiary, uint256 amount);
     event PendingWithdrawalClaimed(address indexed user, uint256 amount);
     event EmergencyWithdraw(uint256 amount);
+    event DepositsPaused(bool paused);
+    event WithdrawalsPaused(bool paused);
+    event MaxTotalDepositUpdated(uint256 newMax);
+    event MaxDepositPerUserUpdated(uint256 newMax);
+    event MaxPayoutPerTxUpdated(uint256 newMax);
+    event DailyWithdrawLimitUpdated(uint256 newBps);
 
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
@@ -228,11 +238,6 @@ abstract contract BaseVault is
         assets = convertToAssets(shares);
 
         // Check: enough non-allocated USDC to pay this withdrawal?
-        // We use totalAssets - _allocatedAssets (NOT _freeAssets) because
-        // _freeAssets also subtracts pending withdrawals — including THIS LP's own.
-        // That would make it impossible for the LP to withdraw their own capital.
-        // _freeAssets() is for PolicyManager (policy allocation).
-        // This check is for LP withdrawals (different constraint).
         uint256 nonAllocated = totalAssets() > _allocatedAssets
             ? totalAssets() - _allocatedAssets
             : 0;
@@ -243,30 +248,27 @@ abstract contract BaseVault is
             if (block.timestamp > lastWithdrawReset + 1 days) {
                 dailyWithdrawn = 0;
                 lastWithdrawReset = block.timestamp;
+                dailyWithdrawSnapshot = totalAssets();
             }
-            require(dailyWithdrawn + assets <= (totalAssets() * dailyWithdrawLimit) / 10000, "Daily limit reached");
+            uint256 base = dailyWithdrawSnapshot > 0 ? dailyWithdrawSnapshot : totalAssets();
+            require(dailyWithdrawn + assets <= (base * dailyWithdrawLimit) / 10000, "Daily limit reached");
             dailyWithdrawn += assets;
         }
 
-        // [GM-1] Reduce pending shares counter
+        // [C-1/C-2 FIX] Burn shares FIRST to prevent double-withdrawal
         _pendingWithdrawalShares -= shares;
-
-        // Clear request BEFORE external calls (CEI)
         delete _withdrawalRequests[msg.sender];
+        _burn(msg.sender, shares);
 
-        // Withdraw from Aave
-        try aavePool.withdraw(asset(), assets, address(this)) {} catch {
+        // Try to withdraw from Aave and deliver USDC
+        try aavePool.withdraw(asset(), assets, address(this)) {
+            IERC20(asset()).safeTransfer(receiver, assets);
+            emit WithdrawalCompleted(msg.sender, assets, shares);
+        } catch {
+            // Shares already burned; queue USDC for later claim
             pendingWithdrawals[receiver] += assets;
-            _pendingWithdrawalShares -= shares;
-            delete _withdrawalRequests[msg.sender];
             emit WithdrawalQueued(receiver, assets);
-            return assets;
         }
-
-        // [CC-1] Use super.redeem() to bypass our override that blocks direct redeem()
-        super.redeem(shares, receiver, msg.sender);
-
-        emit WithdrawalCompleted(msg.sender, assets, shares);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -290,6 +292,8 @@ abstract contract BaseVault is
     }
 
     function completeWithdrawalV2(address receiver) external nonReentrant returns (uint256 assets) {
+        require(!withdrawalsPaused, "Withdrawals paused"); // [H-2]
+
         WithdrawalRequest[] storage queue = _withdrawalQueue[msg.sender];
         if (queue.length == 0) revert NoActiveWithdrawalRequest(msg.sender);
 
@@ -309,20 +313,21 @@ abstract contract BaseVault is
         uint256 nonAllocated = totalAssets() > _allocatedAssets ? totalAssets() - _allocatedAssets : 0;
         if (assets > nonAllocated) revert InsufficientLiquidity(assets, nonAllocated);
 
+        // [C-1/C-2 FIX] Burn shares FIRST to prevent double-withdrawal
         _pendingQueueShares -= shares;
-
         queue[idx] = queue[queue.length - 1];
         queue.pop();
+        _burn(msg.sender, shares);
 
-        // Withdraw from Aave before redeeming
-        try aavePool.withdraw(asset(), assets, address(this)) {} catch {
+        // Try to withdraw from Aave and deliver USDC
+        try aavePool.withdraw(asset(), assets, address(this)) {
+            IERC20(asset()).safeTransfer(receiver, assets);
+            emit WithdrawalCompleted(msg.sender, assets, shares);
+        } catch {
+            // Shares already burned; queue USDC for later claim
             pendingWithdrawals[receiver] += assets;
             emit WithdrawalQueued(receiver, assets);
-            return assets;
         }
-
-        super.redeem(shares, receiver, msg.sender);
-        emit WithdrawalCompleted(msg.sender, assets, shares);
     }
 
     function cancelWithdrawalV2(uint256 index) external nonReentrant {
@@ -412,21 +417,30 @@ abstract contract BaseVault is
      *      Allocation accounting is handled by unlockCollateral (called by PolicyManager
      *      via releaseAllocation BEFORE this function).
      */
+    /**
+     * @inheritdoc IVault
+     * @dev [C-3 FIX] Added beneficiary parameter. On success, USDC goes to recipient (Router
+     *      for fee split). On Aave failure, pendingPayouts is keyed by beneficiary (the actual
+     *      agent) so they can claim later via claimPendingPayout().
+     */
     function executePayout(
         address recipient,
         uint256 amount,
         bytes32 productId,
-        uint256 policyId
+        uint256 policyId,
+        address beneficiary
     ) external onlyRouter nonReentrant whenNotPaused returns (bool) {
         if (amount == 0) return true;
         if (recipient == address(0)) revert ZeroAddress();
+        if (beneficiary == address(0)) revert ZeroAddress();
         require(maxPayoutPerTx == 0 || amount <= maxPayoutPerTx, "Payout exceeds max");
 
         try aavePool.withdraw(asset(), amount, address(this)) {
             IERC20(asset()).safeTransfer(recipient, amount);
         } catch {
-            pendingPayouts[recipient] += amount;
-            emit PayoutQueued(recipient, amount);
+            // [C-3] Queue for the actual beneficiary, not the Router
+            pendingPayouts[beneficiary] += amount;
+            emit PayoutQueued(beneficiary, amount);
         }
 
         emit PayoutExecuted(recipient, amount, productId, policyId);
@@ -444,6 +458,7 @@ abstract contract BaseVault is
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
 
         if (_aaveHealthCheck()) {
+            IERC20(asset()).approve(address(aavePool), 0);
             IERC20(asset()).approve(address(aavePool), amount);
             aavePool.supply(asset(), amount, address(this), 0);
         }
@@ -523,14 +538,14 @@ abstract contract BaseVault is
     // ═══ Security Admin ═══
     function pause() external onlyOwner { _pause(); }
     function unpause() external onlyOwner { _unpause(); }
-    function pauseDeposits() external onlyOwner { depositsPaused = true; }
-    function unpauseDeposits() external onlyOwner { depositsPaused = false; }
-    function pauseWithdrawals() external onlyOwner { withdrawalsPaused = true; }
-    function unpauseWithdrawals() external onlyOwner { withdrawalsPaused = false; }
-    function setMaxTotalDeposit(uint256 _max) external onlyOwner { maxTotalDeposit = _max; }
-    function setMaxDepositPerUser(uint256 _max) external onlyOwner { maxDepositPerUser = _max; }
-    function setMaxPayoutPerTx(uint256 _max) external onlyOwner { maxPayoutPerTx = _max; }
-    function setDailyWithdrawLimit(uint256 _bps) external onlyOwner { dailyWithdrawLimit = _bps; }
+    function pauseDeposits() external onlyOwner { depositsPaused = true; emit DepositsPaused(true); }
+    function unpauseDeposits() external onlyOwner { depositsPaused = false; emit DepositsPaused(false); }
+    function pauseWithdrawals() external onlyOwner { withdrawalsPaused = true; emit WithdrawalsPaused(true); }
+    function unpauseWithdrawals() external onlyOwner { withdrawalsPaused = false; emit WithdrawalsPaused(false); }
+    function setMaxTotalDeposit(uint256 _max) external onlyOwner { maxTotalDeposit = _max; emit MaxTotalDepositUpdated(_max); }
+    function setMaxDepositPerUser(uint256 _max) external onlyOwner { maxDepositPerUser = _max; emit MaxDepositPerUserUpdated(_max); }
+    function setMaxPayoutPerTx(uint256 _max) external onlyOwner { maxPayoutPerTx = _max; emit MaxPayoutPerTxUpdated(_max); }
+    function setDailyWithdrawLimit(uint256 _bps) external onlyOwner { dailyWithdrawLimit = _bps; emit DailyWithdrawLimitUpdated(_bps); }
 
     function emergencyWithdrawFromAave() external onlyOwner nonReentrant {
         uint256 aBalance = aToken.balanceOf(address(this));
@@ -552,7 +567,7 @@ abstract contract BaseVault is
      */
     function _freeAssets() internal view returns (uint256) {
         uint256 total = totalAssets();
-        uint256 pendingAssets = convertToAssets(_pendingWithdrawalShares);
+        uint256 pendingAssets = convertToAssets(_pendingWithdrawalShares + _pendingQueueShares);
         uint256 unavailable = _allocatedAssets + pendingAssets;
         if (unavailable >= total) return 0;
         return total - unavailable;

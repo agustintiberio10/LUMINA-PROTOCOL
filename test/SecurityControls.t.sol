@@ -202,13 +202,13 @@ contract SecurityControlsTest is Test {
 
         // Small payout should work
         vm.prank(router);
-        vault.executePayout(address(0xBEEF), 500e6, productId, 1);
+        vault.executePayout(address(0xBEEF), 500e6, productId, 1, address(0xBEEF));
         assertEq(usdc.balanceOf(address(0xBEEF)), 500e6, "Small payout should succeed");
 
         // Large payout should revert
         vm.prank(router);
         vm.expectRevert("Payout exceeds max");
-        vault.executePayout(address(0xBEEF), 2000e6, productId, 2);
+        vault.executePayout(address(0xBEEF), 2000e6, productId, 2, address(0xBEEF));
     }
 
     // ═══════════════════════════════════════════════════════════

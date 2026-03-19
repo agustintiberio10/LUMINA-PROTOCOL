@@ -34,7 +34,7 @@ import {IVault} from "../interfaces/IVault.sol";
  *   - Payout=0 guard, nonce before external calls, ceiling allowance clear
  *   - triggerPayout/cleanup NOT paused (agents must always collect)
  *   - EIP-712 with fork detection
- *   - _isTestnet guard for _convertToUSDC
+ *   - USDC 1:1 USD conversion (both 6 decimals, no oracle needed)
  */
 contract CoverRouter is
     ICoverRouter,
@@ -307,7 +307,7 @@ contract CoverRouter is
         uint256 usdcPayout = _convertToUSDCSafe(pr.payoutAmount);
         if (usdcPayout > 0) {
             // Vault sends full payout to Router first
-            IVault(vault).executePayout(address(this), usdcPayout, productId, policyId);
+            IVault(vault).executePayout(address(this), usdcPayout, productId, policyId, pr.recipient);
 
             // Protocol fee: 3% of payout → feeReceiver
             uint256 payoutFee = 0;
@@ -330,7 +330,10 @@ contract CoverRouter is
     }
 
     /**
-     * @notice Cleanup expired policy — NOT paused
+     * @notice Cleanup expired policy — NOT paused.
+     * @dev [M-5] Anyone can call this to release collateral from expired policies.
+     *      This is by design: it incentivizes keepers/bots to free locked capital,
+     *      and there is no harm since the policy has already expired past its grace period.
      */
     function cleanupExpiredPolicy(bytes32 productId, uint256 policyId) external nonReentrant {
         if (_policyResolved[productId][policyId]) revert PolicyAlreadyResolved(productId, policyId);
@@ -447,6 +450,10 @@ contract CoverRouter is
      * @notice Purchase a policy on behalf of the buyer via an authorized relayer.
      * @dev Identical to purchasePolicy except: replaces buyer==msg.sender check
      *      with authorizedRelayers[msg.sender] check. Premium is still transferFrom(buyer).
+     *
+     * TODO [M-6]: Add buyer consent mechanism — require an on-chain opt-in or signed
+     * authorization from the buyer to prevent relayers from purchasing unwanted policies
+     * on behalf of users who have granted USDC allowances for other purposes.
      */
     function purchasePolicyFor(
         SignedQuote calldata quote,
@@ -585,15 +592,14 @@ contract CoverRouter is
         ));
     }
 
-    function _convertToUSDC(uint256 usdAmount) internal view returns (uint256) {
-        if (!_isTestnet) revert USDCConversionNotImplemented();
+    /// @dev [M-2/M-3] USDC is pegged 1:1 to USD, both 6 decimals. No conversion needed.
+    function _convertToUSDC(uint256 usdAmount) internal pure returns (uint256) {
         return usdAmount;
     }
 
-    function _convertToUSDCSafe(uint256 usdAmount) internal view returns (uint256) {
-        if (_isTestnet) return usdAmount;
-        // Mainnet: try oracle, fallback to 1:1
-        return usdAmount; // Placeholder until oracle implemented
+    /// @dev [M-2/M-3] USDC is pegged 1:1 to USD, both 6 decimals. No conversion needed.
+    function _convertToUSDCSafe(uint256 usdAmount) internal pure returns (uint256) {
+        return usdAmount;
     }
 
     function _authorizeUpgrade(address /* newImplementation */) internal override onlyOwner {}

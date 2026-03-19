@@ -61,7 +61,7 @@ contract PendingPayoutsTest is Test {
 
         // Execute payout as router — should NOT revert, should queue
         vm.prank(router);
-        vault.executePayout(beneficiary, payoutAmount, PRODUCT_ID, 1);
+        vault.executePayout(beneficiary, payoutAmount, PRODUCT_ID, 1, beneficiary);
 
         // Beneficiary should NOT have received USDC (Aave failed)
         assertEq(usdc.balanceOf(beneficiary), 0, "Beneficiary should not have USDC yet");
@@ -81,7 +81,7 @@ contract PendingPayoutsTest is Test {
         // Activate failure, do payout (gets queued)
         aavePool.setSimulateFailure(true);
         vm.prank(router);
-        vault.executePayout(beneficiary, 1000e6, PRODUCT_ID, 1);
+        vault.executePayout(beneficiary, 1000e6, PRODUCT_ID, 1, beneficiary);
 
         assertEq(vault.pendingPayouts(beneficiary), 1000e6, "Payout should be pending");
 
@@ -107,7 +107,7 @@ contract PendingPayoutsTest is Test {
         // Activate failure, do payout (gets queued)
         aavePool.setSimulateFailure(true);
         vm.prank(router);
-        vault.executePayout(beneficiary, 1000e6, PRODUCT_ID, 1);
+        vault.executePayout(beneficiary, 1000e6, PRODUCT_ID, 1, beneficiary);
 
         // Try to claim while Aave is still failing — should revert
         vm.prank(beneficiary);

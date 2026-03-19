@@ -10,11 +10,10 @@ import {IOracle} from "../interfaces/IOracle.sol";
  *         and USDC tokens (Circle, native stablecoin on Base).
  *
  * USDC BEHAVIOR:
- *   USDC is a standard stablecoin pegged 1:1 to USD. When deposited into Lumina
- *   vaults, it earns variable APY from Aave V3 lending. This means:
- *     - 1 USDC ≈ $1.04 today (and rising)
- *     - To pay $100 worth, you need ~96.15 USDC tokens
- *     - To receive $100 worth, you get ~96.15 USDC tokens
+ *   USDC is a standard stablecoin pegged 1:1 to USD. It does NOT accumulate
+ *   value like yield-bearing tokens. 1 USDC = $1.00 always.
+ *   When deposited into Lumina vaults, yield is earned via Aave V3 aTokens,
+ *   not via USDC price appreciation.
  *
  * ORACLE:
  *   USDC/USD price comes from Chainlink via LuminaOracle (8 decimals).
@@ -27,7 +26,7 @@ import {IOracle} from "../interfaces/IOracle.sol";
  *
  * DECIMALS:
  *   - USD amounts: 6 decimals (USDC standard)
- *   - USDC tokens: 18 decimals (ERC-20 standard)
+ *   - USDC tokens: 6 decimals (Circle USDC on Base)
  *   - Oracle price: 8 decimals (Chainlink standard)
  */
 library USDCConverter {
@@ -36,7 +35,7 @@ library USDCConverter {
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
 
-    uint256 internal constant USDC_DECIMALS = 1e18;
+    uint256 internal constant USDC_DECIMALS = 1e6;
     uint256 internal constant USD_DECIMALS = 1e6;
     uint256 internal constant ORACLE_DECIMALS = 1e8;
 
@@ -51,6 +50,7 @@ library USDCConverter {
     error USDCPriceOutOfRange(uint256 price, uint256 min, uint256 max);
     error USDCFeedNotSet();
     error ZeroAmount();
+    error NegativeOraclePrice();
 
     // ═══════════════════════════════════════════════════════════
     //  STRICT MODE (for purchases — reverts on any issue)
@@ -61,7 +61,7 @@ library USDCConverter {
      * @param usdAmount   Amount in USD (6 decimals)
      * @param oracle      IOracle instance
      * @param usdcAsset   Asset identifier for USDC feed (e.g., "USDC")
-     * @return usdcAmount Amount in USDC tokens (18 decimals)
+     * @return usdcAmount Amount in USDC tokens (6 decimals)
      */
     function usdToUSDCStrict(
         uint256 usdAmount,
@@ -72,6 +72,7 @@ library USDCConverter {
         if (usdcAsset == bytes32(0)) revert USDCFeedNotSet();
 
         int256 rawPrice = oracle.getLatestPrice(usdcAsset);
+        require(rawPrice > 0, "Negative oracle price"); // [H-3]
         uint256 price = uint256(rawPrice);
 
         if (price < MIN_USDC_PRICE || price > MAX_USDC_PRICE) {
@@ -85,7 +86,7 @@ library USDCConverter {
 
     /**
      * @notice Convert USDC tokens to USD amount (strict mode)
-     * @param usdcAmount  Amount in USDC tokens (18 decimals)
+     * @param usdcAmount  Amount in USDC tokens (6 decimals)
      * @param oracle      IOracle instance
      * @param usdcAsset   Asset identifier for USDC feed
      * @return usdAmount  Amount in USD (6 decimals)
@@ -99,6 +100,7 @@ library USDCConverter {
         if (usdcAsset == bytes32(0)) revert USDCFeedNotSet();
 
         int256 rawPrice = oracle.getLatestPrice(usdcAsset);
+        require(rawPrice > 0, "Negative oracle price"); // [H-3]
         uint256 price = uint256(rawPrice);
 
         if (price < MIN_USDC_PRICE || price > MAX_USDC_PRICE) {
@@ -117,7 +119,7 @@ library USDCConverter {
      * @param usdAmount   Amount in USD (6 decimals)
      * @param oracle      IOracle instance
      * @param usdcAsset   Asset identifier for USDC feed
-     * @return usdcAmount Amount in USDC tokens (18 decimals)
+     * @return usdcAmount Amount in USDC tokens (6 decimals)
      * @return usedFallback True if fallback price was used
      */
     function usdToUSDCSafe(
@@ -132,10 +134,13 @@ library USDCConverter {
 
         if (usdcAsset != bytes32(0)) {
             try oracle.getLatestPrice(usdcAsset) returns (int256 rawPrice) {
-                uint256 p = uint256(rawPrice);
-                if (p >= MIN_USDC_PRICE && p <= MAX_USDC_PRICE) {
-                    price = p;
-                    usedFallback = false;
+                // [H-3] Negative price → use fallback instead of unsafe cast
+                if (rawPrice > 0) {
+                    uint256 p = uint256(rawPrice);
+                    if (p >= MIN_USDC_PRICE && p <= MAX_USDC_PRICE) {
+                        price = p;
+                        usedFallback = false;
+                    }
                 }
             } catch {
                 // Oracle call failed — use fallback
@@ -151,7 +156,7 @@ library USDCConverter {
 
     /**
      * @notice Calculate how much USDC vault assets are worth in USD
-     * @param usdcAmount USDC token balance (18 decimals)
+     * @param usdcAmount USDC token balance (6 decimals)
      * @param usdcPrice  Current USDC price (8 decimals)
      * @return usdValue  USD value (6 decimals)
      */

@@ -372,6 +372,10 @@ abstract contract BaseShield is IShield {
     ///                              waitingEndsAt    expiresAt    cleanupAt
     ///
     ///      IL Index overrides: requires SETTLEMENT status (48h window replaces grace).
+    /// @dev [H-5] The dual check (status == ACTIVE && timestamp < cleanupAt) is intentional.
+    ///      _computeStatus returns ACTIVE for expired-but-not-finalized policies (for Router
+    ///      compatibility), so the cleanupAt check is the actual temporal boundary.
+    ///      Both checks are needed: status prevents finalized policies, cleanupAt prevents stale claims.
     function _validateStatusForTrigger(uint256 policyId, PolicyStatus current) internal view virtual {
         if (current != PolicyStatus.ACTIVE) {
             revert InvalidPolicyStatus(policyId, current, PolicyStatus.ACTIVE);
