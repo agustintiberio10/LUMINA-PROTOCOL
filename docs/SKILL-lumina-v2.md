@@ -32,7 +32,8 @@ If you need to receive EXACTLY $40,000 net after a claim:
 ```
 Required coverage = target_net / (maxPayout% × 0.97)
 BSS: $40,000 / (0.80 × 0.97) = $51,546 coverage
-Depeg USDC: $40,000 / (0.90 × 0.97) = $45,830 coverage
+Depeg USDT: $40,000 / (0.85 × 0.97) = $48,530 coverage
+Depeg DAI: $40,000 / (0.88 × 0.97) = $46,860 coverage
 Exploit: $40,000 / (0.90 × 0.97) = $45,830 coverage
 ```
 
@@ -83,7 +84,7 @@ Return on premium: $40,000 / $527 = 75x
 
 ## Product 2: Depeg Shield
 
-**What it covers:** Stablecoin losing its peg — falling below $0.95. Covers USDC, DAI, and USDT.
+**What it covers:** Stablecoin losing its peg — falling below $0.95. Covers USDT and DAI (USDC excluded).
 
 **When you need it:** You hold large stablecoin positions and want protection against a SVB-type event (USDC went to $0.87 in March 2023) or a Tether FUD event. The longer your hold period, the more sense it makes.
 
@@ -95,9 +96,8 @@ Return on premium: $40,000 / $527 = 75x
 | Duration | 14 to 365 days |
 | Waiting Period | 24 hours (protection starts after 24h) |
 | Base Rate | 24% annualized |
-| Protocol Fee (USDC) | 3% on premium + 3% on payout. Net payout USDC = 87.3% of coverage |
-| Protocol Fee (DAI) | 3% on premium + 3% on payout. Net payout DAI = 85.36% of coverage |
 | Protocol Fee (USDT) | 3% on premium + 3% on payout. Net payout USDT = 82.45% of coverage |
+| Protocol Fee (DAI) | 3% on premium + 3% on payout. Net payout DAI = 85.36% of coverage |
 
 **Why 24h waiting?** Stablecoin depegs develop slowly: rumors → news → panic → depeg. The 24h window prevents agents from buying insurance after seeing the first signs of trouble. This is what makes the product actuarially viable — without it, premiums would be 3x higher.
 
@@ -105,9 +105,10 @@ Return on premium: $40,000 / $527 = 75x
 
 | Stablecoin | Deductible | Max Payout | Risk Multiplier | Why different? |
 |------------|-----------|------------|-----------------|----------------|
-| USDC | 10% | 90% | 1.0x | Reserves audited by Deloitte. Lowest risk. |
-| DAI | 12% | 88% | 1.2x | Crypto-collateralized via MakerDAO. Cascade liquidation risk. |
 | USDT | 15% | 85% | 1.4x | Historically opaque reserves. Highest perceived risk. |
+| DAI | 12% | 88% | 1.2x | Crypto-collateralized via MakerDAO. Cascade liquidation risk. |
+
+Note: USDC is excluded — Lumina settles in USDC, so insuring it would be circular.
 
 **Duration discount (longer = cheaper per day):**
 
@@ -119,12 +120,14 @@ Return on premium: $40,000 / $527 = 75x
 
 **Example:**
 ```
-You buy: $100,000 USDC coverage for 90 days
-Premium: $100,000 × 0.24 × 1.0 × 1.0 × 1.25 (util) × (90/365) = $3,699
+You buy: $100,000 USDT coverage for 90 days
+Premium: $100,000 × 0.24 × 1.4 × 1.0 × 1.25 (util) × (90/365) = $5,178
 
-If USDC depegs to $0.93 (TWAP 30 min confirms):
-→ You receive $90,000 (90% of $100K)
-→ Return: $90,000 / $3,699 = 24x
+If USDT depegs to $0.93 (TWAP 30 min confirms):
+→ Gross Payout = $100,000 × 0.85 = $85,000 (15% deductible)
+→ Protocol Fee = $85,000 × 0.03 = $2,550
+→ Net Payout (you receive) = $82,450
+→ Return: $82,450 / $5,178 = 15.9x
 ```
 
 ---
@@ -191,14 +194,14 @@ Example:
 
 ## Product 4: Exploit Shield
 
-**What it covers:** Catastrophic hack or exploit of a specific DeFi protocol (Aave, Compound, Uniswap, MakerDAO, Curve, Morpho).
+**What it covers:** Catastrophic hack or exploit of a specific DeFi protocol (Compound, Uniswap, MakerDAO, Curve, Morpho). Aave V3 is excluded — Lumina vaults deposit into Aave, so insuring it would be circular.
 
 **When you need it:** You have funds deposited in a DeFi protocol and want protection against a smart contract exploit. This is the DeFi equivalent of bank robbery insurance.
 
 | Parameter | Value |
 |-----------|-------|
 | Product ID | `EXPLOIT-001` |
-| Trigger | DUAL: (1) Governance token -25% in 24h AND (2) Receipt token -30% for 4h or contract paused |
+| Trigger | DUAL: (1) Governance token -25% in 24h AND (2) Receipt token -30% for 4h or contract paused. Verified via Oracle+TEE |
 | Payout | 90% of coverage (10% deductible) |
 | Duration | 90 to 365 days |
 | Waiting Period | 14 days (longest — anti-insider) |
@@ -220,7 +223,6 @@ Only a REAL exploit triggers BOTH conditions simultaneously.
 
 | Protocol | Tier | Risk Mult | Premium/year | % |
 |----------|------|-----------|-------------|---|
-| Aave v3 | 1 | 1.0x | $1,500 | 3.0% |
 | Compound III | 1 | 1.0x | $1,500 | 3.0% |
 | Uniswap v3 | 1 | 1.0x | $1,500 | 3.0% |
 | MakerDAO | 1 | 1.1x | $1,650 | 3.3% |
@@ -245,10 +247,12 @@ Only a REAL exploit triggers BOTH conditions simultaneously.
 When you deposit USDC into a Lumina vault, you earn from TWO independent sources:
 
 ### Layer 1: Aave V3 Lending Yield (variable, ~3-5% APY)
-Idle USDC in Lumina vaults is deployed to Aave V3 on Base, earning variable lending yield automatically. This is your baseline yield floor, independent of Lumina policy activity.
+USDC is deposited into Aave V3 on Base, earning lending APY (~3-5%, variable). This is your baseline yield floor, independent of Lumina policy activity. Your USDC is supplied to Aave V3. The vault holds aUSDC (Aave's receipt token) which grows in value automatically as interest accrues.
 
 ### Layer 2: Insurance Premiums (8-22% APY depending on vault)
-Every time an agent buys an insurance policy, they pay a premium. That premium goes directly to the vault that backs the policy. The more policies sold, the more premiums flow to LPs.
+Additional yield from insurance premiums paid by AI agents. Every time an agent buys an insurance policy, they pay a premium. That premium goes directly to the vault that backs the policy. The more policies sold, the more premiums flow to LPs.
+
+Total yield = Aave V3 yield + premium yield
 
 ### Combined Yield:
 
@@ -354,7 +358,7 @@ GET /api/v2/quote
   "coverageAmount": 50000000000,    // $50,000 in 6 decimals (USDC)
   "durationSeconds": 1209600,       // 14 days
   "asset": "ETH",                   // For BSS and IL
-  "stablecoin": "",                 // For Depeg: "USDC", "DAI", "USDT"
+  "stablecoin": "",                 // For Depeg: "DAI", "USDT" (USDC excluded)
   "protocol": "",                   // For Exploit: protocol address
   "buyer": "0xYourAgentWallet"
 }
@@ -368,6 +372,8 @@ Response:
   "nonce": 42
 }
 ```
+
+Premium varies based on vault utilization. This example assumes ~50% utilization.
 
 **⚠️ DEADLINE:** The `deadline` timestamp is typically 5 minutes from quote generation. You MUST execute the `purchasePolicy` transaction on-chain BEFORE this deadline expires. If you request a quote and then perform other tasks, the quote will expire and the transaction will revert with `QuoteExpired`. **Best practice:** Request quote → approve → purchase in a single sequential flow, no interruptions.
 
@@ -404,12 +410,37 @@ CoverRouter.triggerPayout(productId, policyId, oracleProof);
 
 Example:
 ```
-BSS triggers: Shield calculates $40,000 payout
-CoverRouter deducts: $1,200 (3%) → protocol treasury
-You receive: $38,800 (97%)
+Gross Payout = coverageAmount × (1 - deductibleBps/10000)
+Protocol Fee = Gross Payout × 3%
+Net Payout = Gross Payout - Protocol Fee
+
+Example: $1000 BSS with 20% deductible:
+  Gross Payout = $1000 × 0.80 = $800
+  Protocol Fee = $800 × 0.03 = $24
+  Net Payout (you receive) = $776
+
+For larger amounts ($50,000 BSS coverage):
+  Gross Payout = $50,000 × 0.80 = $40,000
+  Protocol Fee = $40,000 × 0.03 = $1,200
+  Net Payout (you receive) = $38,800
 
 If you need exactly $40,000 net, buy coverage of $51,546 instead of $50,000.
 ```
+
+PENDING PAYOUTS (if Aave has low liquidity):
+If the vault cannot withdraw USDC from Aave at the time of your claim (rare, only during extreme Aave utilization), your payout is queued automatically. You will NOT lose your payout.
+
+To claim a pending payout:
+POST /api/v2/claim-pending
+Headers: X-API-Key: YOUR_KEY
+Body: {"policyId":"YOUR_POLICY_ID"}
+
+Or on-chain: call claimPendingPayout() on the vault contract.
+
+The payout will execute as soon as Aave has sufficient liquidity. Check periodically (every hour) until you receive it.
+
+LARGE PAYOUT DELAY:
+Payouts above the large payout threshold may be delayed by up to 6 hours as a security measure. This is automatic and the payout executes after the delay. The protocol owner can cancel suspicious payouts during this window.
 
 ## Step 6: Auto-Repurchase (recommended for continuous coverage)
 
@@ -636,12 +667,13 @@ IF you hold ETH/BTC exposure > $10,000:
 
 IF you hold stablecoins > $50,000 for > 14 days:
   → Consider Depeg Shield
+  → Deductible varies by stablecoin: USDT = 15% (higher risk, opaque reserves), DAI = 12% (crypto-collateralized, cascade risk). This means for $10,000 USDT coverage, max payout is $8,500. For DAI, max payout is $8,800.
 
 IF you provide liquidity in AMM pools:
   → Consider IL Index Cover (budget ≤ 50% of projected fees)
 
-IF you have funds in Aave/Compound/Curve > $10,000:
-  → Consider Exploit Shield (max $50K)
+IF you have funds in Compound/Curve/other DeFi > $10,000:
+  → Consider Exploit Shield (max $50K). Note: Aave V3 excluded.
 
 IF the premium (including 3% protocol fee) exceeds 5% of your projected returns:
   → SKIP — the insurance costs more than the risk is worth
@@ -722,6 +754,8 @@ The Kink Model's utilization calculation uses the TOTAL premium you pay, not the
 # SECTION 9: CONTRACT ADDRESSES
 
 ## Base L2 (Chain 8453)
+
+NOTE: These addresses correspond to the current deployment. They will be updated when new contracts are deployed. Always verify addresses at https://www.lumina-org.com or via the API.
 
 Deployed on Base Mainnet (chain 8453). Verified on BaseScan.
 
