@@ -106,7 +106,7 @@ const PRODUCTS = [
     riskType: "STABLE",
     vaults: [VAULTS.STABLE_SHORT, VAULTS.STABLE_LONG],
     pBase: 250,           // 2.5% — market-calibrated for V2 Kink Model (March 2026)
-    minDuration: 30 * 86400,
+    minDuration: 14 * 86400,
     maxDuration: 365 * 86400,
     deductible: 500,      // 5% depeg trigger
     assets: ["USDC", "USDT", "DAI"],
@@ -151,30 +151,29 @@ const PRODUCT_CONFIG = {
 };
 
 // ═══════════════════════════════════════════════════════════
-//  KINK MODEL — Premium Calculation
+//  KINK MODEL — Premium Calculation (mirrors PremiumMath.sol)
 // ═══════════════════════════════════════════════════════════
 
-const KINK_PARAMS = {
-  VOLATILE: { kinkPoint: 0.70, slopeBelow: 0.02, slopeAbove: 0.15, baseRate: 0.01 },
-  STABLE:   { kinkPoint: 0.80, slopeBelow: 0.005, slopeAbove: 0.10, baseRate: 0.003 },
-};
+const U_KINK = 0.80;
+const SLOPE_BELOW = 0.5;
+const SLOPE_ABOVE = 3.0;
 
-function calculatePremiumRate(utilization, riskType) {
-  const params = KINK_PARAMS[riskType] || KINK_PARAMS.VOLATILE;
-  let rate;
-  if (utilization <= params.kinkPoint) {
-    rate = params.baseRate + params.slopeBelow * utilization;
+function calculatePremiumRate(utilization, pBase) {
+  // Mirror of PremiumMath.sol kink model
+  let multiplier;
+  if (utilization <= U_KINK) {
+    multiplier = 1 + (utilization / U_KINK) * SLOPE_BELOW;
   } else {
-    const rateAtKink = params.baseRate + params.slopeBelow * params.kinkPoint;
-    rate = rateAtKink + params.slopeAbove * (utilization - params.kinkPoint);
+    multiplier = 1 + SLOPE_BELOW + ((utilization - U_KINK) / (1 - U_KINK)) * SLOPE_ABOVE;
   }
-  return rate;
+
+  return (pBase / 10000) * multiplier;
 }
 
-function calculatePremium(coverageAmount, durationSeconds, utilization, riskType) {
-  const annualRate = calculatePremiumRate(utilization, riskType);
-  const durationYears = durationSeconds / (365 * 86400);
-  const premium = coverageAmount * annualRate * durationYears;
+function calculatePremium(coverageAmount, durationSeconds, utilization, pBase) {
+  const premiumRate = calculatePremiumRate(utilization, pBase);
+  const durationDays = durationSeconds / 86400;
+  const premium = coverageAmount * premiumRate * (durationDays / 365);
   return Math.ceil(premium); // Round up, 6 decimals
 }
 
@@ -466,11 +465,9 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       vaultContract.allocatedAssets(),
     ]);
 
-    // Calculate premium with Kink Model
+    // Calculate premium with Kink Model (mirrors PremiumMath.sol)
     const utilization = Number(totalAssets) > 0 ? Number(allocatedAssets) / Number(totalAssets) : 0;
-    const annualRate = calculatePremiumRate(utilization, product.riskType);
-    const durationYears = durationSeconds / 31536000;
-    const premium = Math.ceil(coverageAmount * annualRate * durationYears);
+    const premium = calculatePremium(coverageAmount, durationSeconds, utilization, productEntry.pBase);
 
     // Check balance and allowance
     if (Number(balance) < premium) {
@@ -612,7 +609,9 @@ app.get("/api/v2/vaults", async (_req, res) => {
 
       const utilization = totalAssets > 0 ? allocated / totalAssets : 0;
       const riskType = name.startsWith("STABLE") ? "STABLE" : "VOLATILE";
-      const premiumRate = calculatePremiumRate(utilization, riskType);
+      // Use average pBase for vault-level APY estimate (VOLATILE=750, STABLE=325)
+      const avgPBase = riskType === "VOLATILE" ? 750 : 325;
+      const premiumRate = calculatePremiumRate(utilization, avgPBase);
       const usdyBaseAPY = 0.0355; // 3.55%
       const estimatedAPY = usdyBaseAPY + premiumRate * utilization;
 
@@ -654,7 +653,9 @@ app.get("/api/v2/vaults/:address", async (req, res) => {
     const allocated = Number(state.allocatedAssets);
     const utilization = totalAssets > 0 ? allocated / totalAssets : 0;
     const riskType = name.startsWith("STABLE") ? "STABLE" : "VOLATILE";
-    const premiumRate = calculatePremiumRate(utilization, riskType);
+    // Use average pBase for vault-level APY estimate (VOLATILE=750, STABLE=325)
+    const avgPBase = riskType === "VOLATILE" ? 750 : 325;
+    const premiumRate = calculatePremiumRate(utilization, avgPBase);
     const estimatedAPY = 0.0355 + premiumRate * utilization;
 
     res.json({
@@ -702,7 +703,7 @@ app.post("/api/v2/quote", async (req, res) => {
       Number(coverageAmount),
       Number(durationSeconds),
       utilization,
-      product.riskType
+      product.pBase
     );
 
     // Generate nonce and deadline

@@ -230,6 +230,10 @@ contract CoverRouter is
         address signer = IOracle(_oracle).verifySignature(digest, signature);
         if (signer != IOracle(_oracle).oracleKey()) revert InvalidQuoteSignature();
 
+        // Premium sanity check — prevents oracle signing $0 premiums
+        require(quote.premiumAmount > 0, "Zero premium");
+        require(quote.premiumAmount >= quote.coverageAmount / 1000, "Premium below minimum");
+
         // ── INTERACTIONS ──
 
         // 1. Create policy in Shield (to get policyId)
@@ -578,6 +582,10 @@ contract CoverRouter is
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator(), structHash));
         address signer = IOracle(_oracle).verifySignature(digest, signature);
         if (signer != IOracle(_oracle).oracleKey()) revert InvalidQuoteSignature();
+
+        // Premium sanity check — prevents oracle signing $0 premiums
+        require(quote.premiumAmount > 0, "Zero premium");
+        require(quote.premiumAmount >= quote.coverageAmount / 1000, "Premium below minimum");
 
         // ── INTERACTIONS ──
 
