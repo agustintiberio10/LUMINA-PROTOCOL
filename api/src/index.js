@@ -16,21 +16,22 @@ const PORT = process.env.PORT || 3001;
 const RPC_URL = process.env.RPC_URL || "https://base-mainnet.g.alchemy.com/v2/dm1oJK0wwWGvliEVxc2Bh";
 const CHAIN_ID = 8453;
 
-const COVER_ROUTER = process.env.COVER_ROUTER || "0x8407afBa100812bFb5f9f188b44379E4268eff94";
-const POLICY_MANAGER = process.env.POLICY_MANAGER || "0x615e9c32c70350192fCa9BAC06Ba8ebA9dC4fEF4";
+// TEST DEPLOYMENT — March 2026. These addresses will change for production.
+const COVER_ROUTER = process.env.COVER_ROUTER || "0x5755af9cd293b9A0a798B7e2e816eAbE659750C0";
+const POLICY_MANAGER = process.env.POLICY_MANAGER || "0x5B337325b854a68Cd262aa2b6fE48EBe18073902";
 
 const VAULTS = {
-  VOLATILE_SHORT: "0x2D7D735f71638730cbe9A143227A00Fa64E94E88",
-  VOLATILE_LONG:  "0xDf30548d46e77015A4dDA82D3c263e81a60B075c",
-  STABLE_SHORT:   "0x8F6e6a4Ee6aeD70757c16382eA7156AD4b33c078",
-  STABLE_LONG:    "0x3e8dF8746c42Aa4B0CDb089174aBbBaf2C3aD46c",
+  VOLATILE_SHORT: "0xe74d19551cbB809AaDcAb568c0E150B6BF0e3354",
+  VOLATILE_LONG:  "0xc0016248E171b2A20Fb0C212AB917AB7fa07502a",
+  STABLE_SHORT:   "0xa682DC763e6A99607797989C5F44C8aA05a8511e",
+  STABLE_LONG:    "0xE5e3F6898eeecEa4245558429CBFaE9CE255C05e",
 };
 
 const SHIELDS = {
-  BSS:     "0xC01ED8eF52506B29545f08BBf9aAe5Fe59b15CF7",
-  DEPEG:   "0xCdA417909d43F252f63034346db9121441BfE70F",
-  IL_INDEX:"0x73fB5CB9Aa0BeBAf74a3a4b6Cfb09d3Fd66C9FB6",
-  EXPLOIT: "0x05170F9Ca56026001064F5242c6F9F7f181c6baA",
+  BSS:     "0x149e1d0474a7c212a5eAA78432863B01b98479d8",
+  DEPEG:   "0xaD1EB669b4a9DC6C9432B904F65B360962E1d381",
+  IL_INDEX:"0xc2262311eD02E9c937cBC33F34426D5D9134F6CF",
+  EXPLOIT: "0x931427cED326eB49a3E5268b9b3e713Eb2EC5440",
 };
 
 // Product IDs (keccak256 of product name)
@@ -444,10 +445,10 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       return res.status(400).json({ error: "Duration between 7 and 365 days (in seconds). Example: 1209600 = 14 days" });
     }
 
-    // Check USDY balance and allowance BEFORE spending gas
-    const usdyAddress = process.env.USDY_ADDRESS || "0x12cc5bd1ab02A50285834eaF6eBdc2d95FB42cC9";
+    // Check USDC balance and allowance BEFORE spending gas
+    const usdcAddress = process.env.USDC_ADDRESS || "0x8a342233cFC95F4AeB11c2855BFF1f441241E8d1";
     const coverRouterAddress = process.env.COVER_ROUTER || COVER_ROUTER;
-    const usdyContract = new ethers.Contract(usdyAddress, [
+    const usdcContract = new ethers.Contract(usdcAddress, [
       "function allowance(address,address) view returns (uint256)",
       "function balanceOf(address) view returns (uint256)",
     ], provider);
