@@ -80,6 +80,26 @@ contract CoverRouter is
     // ═══ V2: Relayer authorization ═══
     mapping(address => bool) public authorizedRelayers;
 
+    // ═══ Oracle Mitigations ═══
+    uint256 public largePayoutThreshold;
+    uint256 public largePayoutDelay;
+
+    struct ScheduledPayout {
+        address beneficiary;
+        uint256 amount;
+        uint256 executeAfter;
+        bool cancelled;
+        bool executed;
+        bytes32 productId;
+        uint256 policyId;
+        address vault;
+    }
+    mapping(bytes32 => ScheduledPayout) public scheduledPayouts;
+
+    uint256 public maxPayoutsPerDay;
+    uint256 public dailyPayoutCount;
+    uint256 public lastPayoutCountReset;
+
     // ═══════════════════════════════════════════════════════════
     //  EVENTS (additional, not in interface)
     // ═══════════════════════════════════════════════════════════
@@ -104,6 +124,11 @@ contract CoverRouter is
     error UnauthorizedRelayer(address caller);
 
     event RelayerAuthorized(address indexed relayer, bool authorized);
+
+    // ═══ Oracle Mitigation Events ═══
+    event PayoutScheduled(bytes32 indexed payoutId, address indexed beneficiary, uint256 amount, uint256 executeAfter);
+    event ScheduledPayoutExecuted(bytes32 indexed payoutId, address indexed beneficiary, uint256 amount);
+    event ScheduledPayoutCancelled(bytes32 indexed payoutId);
 
     // ═══════════════════════════════════════════════════════════
     //  EIP-712
@@ -280,6 +305,16 @@ contract CoverRouter is
         bytes calldata oracleProof
     ) external nonReentrant {
 
+        // ═══ Oracle Mitigation 3: Daily trigger rate limit ═══
+        if (maxPayoutsPerDay > 0) {
+            if (block.timestamp > lastPayoutCountReset + 1 days) {
+                dailyPayoutCount = 0;
+                lastPayoutCountReset = block.timestamp;
+            }
+            require(dailyPayoutCount < maxPayoutsPerDay, "Daily payout limit reached");
+            dailyPayoutCount++;
+        }
+
         if (_policyResolved[productId][policyId]) revert PolicyAlreadyResolved(productId, policyId);
 
         address shield = _products[productId];
@@ -306,6 +341,25 @@ contract CoverRouter is
         // 5. Execute payout: split between protocol fee and agent
         uint256 usdcPayout = _convertToUSDCSafe(pr.payoutAmount);
         if (usdcPayout > 0) {
+            // ═══ Oracle Mitigation 1: Large payout delay ═══
+            if (largePayoutThreshold > 0 && usdcPayout > largePayoutThreshold) {
+                bytes32 payoutId = keccak256(abi.encodePacked(productId, policyId, pr.recipient, usdcPayout, block.timestamp));
+                uint256 executeAfter = block.timestamp + largePayoutDelay;
+                scheduledPayouts[payoutId] = ScheduledPayout({
+                    beneficiary: pr.recipient,
+                    amount: usdcPayout,
+                    executeAfter: executeAfter,
+                    cancelled: false,
+                    executed: false,
+                    productId: productId,
+                    policyId: policyId,
+                    vault: vault
+                });
+                emit PayoutScheduled(payoutId, pr.recipient, usdcPayout, executeAfter);
+                emit PayoutTriggered(policyId, productId, pr.recipient, pr.payoutAmount);
+                return; // Skip immediate execution
+            }
+
             // Vault sends full payout to Router first
             IVault(vault).executePayout(address(this), usdcPayout, productId, policyId, pr.recipient);
 
@@ -440,6 +494,53 @@ contract CoverRouter is
         if (relayer == address(0)) revert ZeroAddress("relayer");
         authorizedRelayers[relayer] = authorized;
         emit RelayerAuthorized(relayer, authorized);
+    }
+
+    // ═══ Oracle Mitigation Setters ═══
+
+    function setLargePayoutThreshold(uint256 _threshold) external onlyOwner { largePayoutThreshold = _threshold; }
+    function setLargePayoutDelay(uint256 _delay) external onlyOwner { largePayoutDelay = _delay; }
+    function setMaxPayoutsPerDay(uint256 _max) external onlyOwner { maxPayoutsPerDay = _max; }
+
+    // ═══ Oracle Mitigation: Scheduled Payout Management ═══
+
+    function executeScheduledPayout(bytes32 payoutId) external nonReentrant {
+        ScheduledPayout storage sp = scheduledPayouts[payoutId];
+        require(sp.amount > 0, "Not found");
+        require(!sp.cancelled, "Cancelled");
+        require(!sp.executed, "Already executed");
+        require(block.timestamp >= sp.executeAfter, "Too early");
+
+        sp.executed = true;
+
+        // Execute the actual payout (same logic as triggerPayout's payout section)
+        IVault(sp.vault).executePayout(address(this), sp.amount, sp.productId, sp.policyId, sp.beneficiary);
+
+        // Protocol fee
+        uint256 payoutFee = 0;
+        if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
+            payoutFee = (sp.amount * _protocolFeeBps) / 10000;
+            if (payoutFee > 0) {
+                IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
+                emit FeeCollected(sp.productId, sp.policyId, payoutFee, "CLAIM");
+            }
+        }
+
+        // Net payout → beneficiary
+        uint256 netPayout = sp.amount - payoutFee;
+        if (netPayout > 0) {
+            IERC20(_usdcToken).safeTransfer(sp.beneficiary, netPayout);
+        }
+
+        emit ScheduledPayoutExecuted(payoutId, sp.beneficiary, sp.amount);
+    }
+
+    function cancelScheduledPayout(bytes32 payoutId) external onlyOwner {
+        ScheduledPayout storage sp = scheduledPayouts[payoutId];
+        require(sp.amount > 0, "Not found");
+        require(!sp.executed, "Already executed");
+        sp.cancelled = true;
+        emit ScheduledPayoutCancelled(payoutId);
     }
 
     // ═══════════════════════════════════════════════════════════

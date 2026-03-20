@@ -83,6 +83,9 @@ abstract contract BaseVault is
     /// @dev Storage gap for future upgrades
     uint256[50] private __gap;
 
+    // ═══ Oracle Mitigation: Payout-specific pause ═══
+    bool public payoutsPaused;
+
     // ═══ Events ═══
     event PayoutQueued(address indexed beneficiary, uint256 amount);
     event WithdrawalQueued(address indexed user, uint256 amount);
@@ -95,6 +98,8 @@ abstract contract BaseVault is
     event MaxDepositPerUserUpdated(uint256 newMax);
     event MaxPayoutPerTxUpdated(uint256 newMax);
     event DailyWithdrawLimitUpdated(uint256 newBps);
+    event PayoutsPaused(address indexed by);
+    event PayoutsUnpaused(address indexed by);
 
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
@@ -430,6 +435,7 @@ abstract contract BaseVault is
         uint256 policyId,
         address beneficiary
     ) external onlyRouter nonReentrant whenNotPaused returns (bool) {
+        require(!payoutsPaused, "Payouts paused");
         if (amount == 0) return true;
         if (recipient == address(0)) revert ZeroAddress();
         if (beneficiary == address(0)) revert ZeroAddress();
@@ -546,6 +552,8 @@ abstract contract BaseVault is
     function setMaxDepositPerUser(uint256 _max) external onlyOwner { maxDepositPerUser = _max; emit MaxDepositPerUserUpdated(_max); }
     function setMaxPayoutPerTx(uint256 _max) external onlyOwner { maxPayoutPerTx = _max; emit MaxPayoutPerTxUpdated(_max); }
     function setDailyWithdrawLimit(uint256 _bps) external onlyOwner { dailyWithdrawLimit = _bps; emit DailyWithdrawLimitUpdated(_bps); }
+    function pausePayouts() external onlyOwner { payoutsPaused = true; emit PayoutsPaused(msg.sender); }
+    function unpausePayouts() external onlyOwner { payoutsPaused = false; emit PayoutsUnpaused(msg.sender); }
 
     function emergencyWithdrawFromAave() external onlyOwner nonReentrant {
         uint256 aBalance = aToken.balanceOf(address(this));
