@@ -1,6 +1,7 @@
 # SKILL: Lumina Protocol — Insurance & Yield for AI Agents
 
-## Version: 2.0 (March 2026)
+## Version: 2.2 (March 2026)
+## Last updated: 2026-03-22
 ## Chain: Base L2 (8453) | Settlement: USDC (Circle)
 ## Contact: hello@lumina-org.com
 ## Docs: https://lumina-org.com
@@ -852,3 +853,73 @@ GET /api/v2/policies?buyer=0x...
 POST /api/v2/claim (requires X-API-Key header)
 Success: {"success":true,"payout":776000000,"txHash":"0x..."}
 Error: {"error":"Policy not claimable"}
+
+════════════════════════════════════════════════════════════
+14. AUTONOMOUS AGENT BLUEPRINT
+════════════════════════════════════════════════════════════
+
+Complete pseudocode for a fully autonomous Lumina agent:
+
+INITIALIZATION:
+  API_KEY = "lum_your_key"
+  BASE_URL = "https://lumina-protocol-production.up.railway.app"
+  WALLET = "0xYOUR_WALLET"
+  HEADERS = {"Content-Type": "application/json", "X-API-Key": API_KEY}
+
+MAIN LOOP (runs every 3600 seconds / 1 hour):
+
+  1. HEALTH CHECK
+     response = GET {BASE_URL}/api/v2/health
+     if response.status != "ok" → log error, sleep 300, retry
+
+  2. CHECK CLAIMABLE POLICIES (highest priority)
+     policies = GET {BASE_URL}/api/v2/policies?buyer={WALLET}
+     for each policy where claimable == true:
+       result = POST {BASE_URL}/api/v2/claim with {"policyId": policy.policyId}
+       log "CLAIMED: policy {policyId}, net payout {netPayoutUSD}"
+
+  3. CHECK EXPIRING POLICIES (auto-repurchase)
+     currentTime = now()
+     for each policy where status == "active":
+       timeLeft = policy.expiresAt - currentTime
+       window = getRepurchaseWindow(policy.product)
+       if timeLeft < window:
+         quote = GET {BASE_URL}/api/v2/quote (same product/coverage/duration)
+         if quote.premiumUSD is acceptable (kinkMultiplier < 2.0):
+           POST {BASE_URL}/api/v2/purchase
+           log "RENEWED: {product} for ${premiumUSD}"
+
+  4. ASSESS MARKET CONDITIONS (decide new purchases)
+     ethPrice = GET https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd
+     stablePrices = GET https://api.coingecko.com/api/v3/simple/price?ids=tether,dai&vs_currencies=usd
+     vaults = GET {BASE_URL}/api/v2/vaults
+
+     Decision rules:
+     - ETH stddev(24h) > 5% of price → consider buying BSS
+     - USDT or DAI price < 0.98 → consider buying DEPEG
+     - Providing liquidity in volatile AMM → consider buying IL
+     - Funds in unaudited protocol → consider buying EXPLOIT
+
+     For each consideration:
+       quote = GET /api/v2/quote
+       if quote.kinkMultiplier < 2.0 → POST /api/v2/purchase
+
+  5. LOG VAULT STATUS (optional: inform owner)
+     for each vault in vaults:
+       log "{vault.name}: APY {estimatedAPY}%, util {currentUtilizationPct}%"
+
+  6. SLEEP 3600 seconds → go to step 1
+
+ERROR HANDLING:
+  "Insufficient USDC balance" → alert owner, skip, continue loop
+  "Rate limit exceeded" → sleep 60, retry once
+  "Invalid API Key" → alert owner, STOP loop entirely
+  "Policy expired" → log warning, do not retry
+  Network error → sleep 10, retry up to 3 times
+  Any other error → log, continue loop (never crash)
+
+getRepurchaseWindow(product):
+  BSS     → 3600     (1 hour before expiry)
+  DEPEG   → 90000    (25 hours before expiry)
+  IL      → 3600     (1 hour before expiry)
+  EXPLOIT → 1296000  (15 days before expiry)
