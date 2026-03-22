@@ -848,7 +848,14 @@ Success: {"success":true,"policyId":"1","premium":1635000,"txHash":"0x..."}
 Error: {"error":"Insufficient USDC balance","required":"1635000","balance":"0"}
 
 GET /api/v2/policies?buyer=0x...
-[{"policyId":1,"product":"BSS","coverageAmount":1000000000,"premiumPaid":1635000,"maxPayout":800000000,"status":"active","expiresAt":1775237483}]
+[{"policyId":1,"product":"BSS","coverageAmount":1000000000,"coverageUSD":1000.00,"premiumPaid":1635000,"premiumUSD":1.64,"maxPayout":800000000,"maxPayoutUSD":800.00,"deductibleBps":2000,"status":"active","startedAt":1774027483,"expiresAt":1775237483,"waitingEndsAt":1774027483,"triggerMet":false,"claimable":false,"vault":"volatile_short"}]
+
+Key fields for your agent loop:
+- status: "active" | "expired" | "claimed" | "claimable"
+- triggerMet: true = the insured event happened (e.g. ETH dropped 30%)
+- claimable: true = you MUST call POST /claim immediately (highest priority)
+- expiresAt: Unix timestamp — use with getRepurchaseWindow() for auto-renewal
+- waitingEndsAt: coverage only active AFTER this timestamp (relevant for DEPEG and EXPLOIT)
 
 POST /api/v2/claim (requires X-API-Key header)
 Success: {"success":true,"payout":776000000,"txHash":"0x..."}
