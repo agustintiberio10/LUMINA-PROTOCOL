@@ -1,0 +1,13 @@
+{
+  "id": "lumina-agent-default",
+  "name": "Lumina Agent Safety Policy",
+  "version": 1,
+  "created_at": "2026-03-22T00:00:00Z",
+  "rules": [
+    { "type": "allowed_chains", "chain_ids": ["eip155:8453"] },
+    { "type": "expires_at", "timestamp": "2027-01-01T00:00:00Z" }
+  ],
+  "executable": null,
+  "config": null,
+  "action": "deny"
+}
