@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const { ethers } = require("ethers");
 const crypto = require("crypto");
+const owsSigner = require("./ows-signer");
 
 const app = express();
 app.use(cors());
@@ -185,6 +186,15 @@ function calculatePremium(coverageAmount, durationSeconds, utilization, pBase) {
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const relayerWallet = new ethers.Wallet(process.env.RELAYER_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY, provider);
 console.log(`[Relayer] Address: ${relayerWallet.address}`);
+
+// Initialize OWS (non-blocking, falls back to ethers)
+owsSigner.initOWS().then(ready => {
+  if (ready) {
+    console.log('[Lumina] OWS signing enabled — private key protected by policy engine');
+  } else {
+    console.log('[Lumina] Using ethers signing (OWS not configured)');
+  }
+});
 
 // ═══════════════════════════════════════════════════════════
 //  COVER ROUTER ABI (for purchase)
@@ -507,8 +517,12 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       nonce: nonce,                              // required field
     };
 
-    const oracleWallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY);
-    const signature = await oracleWallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteData);
+    // Sign quote — try OWS first, fallback to ethers
+    let signature = await owsSigner.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteData);
+    if (!signature) {
+      const oracleWallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY);
+      signature = await oracleWallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteData);
+    }
 
     // Build the quote struct for the contract call
     const quoteStruct = {
@@ -725,14 +739,16 @@ app.post("/api/v2/quote", async (req, res) => {
       nonce: nonce,
     };
 
-    // Sign with EIP-712
-    const privateKey = process.env.ORACLE_PRIVATE_KEY;
-    if (!privateKey) {
-      return res.status(500).json({ error: "ORACLE_PRIVATE_KEY not configured" });
+    // Sign with EIP-712 — try OWS first, fallback to ethers
+    let signature = await owsSigner.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteValues);
+    if (!signature) {
+      const privateKey = process.env.ORACLE_PRIVATE_KEY;
+      if (!privateKey) {
+        return res.status(500).json({ error: "ORACLE_PRIVATE_KEY not configured and OWS not available" });
+      }
+      const signer = new ethers.Wallet(privateKey);
+      signature = await signer.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteValues);
     }
-
-    const signer = new ethers.Wallet(privateKey);
-    const signature = await signer.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteValues);
 
     // Serialize signedQuote with BigInt→string for JSON
     const signedQuoteSerialized = {};
