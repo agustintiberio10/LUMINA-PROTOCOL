@@ -1,7 +1,7 @@
 # SKILL: Lumina Protocol — Insurance & Yield for AI Agents
 
-## Version: 2.2 (March 2026)
-## Last updated: 2026-03-22
+## Version: 2.3 (March 2026)
+## Last updated: 2026-03-24
 ## Chain: Base L2 (8453) | Settlement: USDC (Circle)
 ## Contact: hello@lumina-org.com
 ## Docs: https://lumina-org.com
