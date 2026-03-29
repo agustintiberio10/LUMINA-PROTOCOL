@@ -511,7 +511,7 @@ To build transactions on-chain, use these ABIs:
 - **CoverRouter:** Use the CoverRouter ABI from the Lumina GitHub repo (`src/core/CoverRouter.sol`)
 - **Vaults:** Use the IVault ABI (`src/interfaces/IVault.sol`) for deposit/withdraw operations
 
-ABIs are published at: `https://github.com/agustintiberio10/LUMINA-PROTOCOL/tree/main/src`
+ABIs are published at: `https://github.com/org-lumina/LUMINA-PROTOCOL/tree/main/src`
 
 ---
 
