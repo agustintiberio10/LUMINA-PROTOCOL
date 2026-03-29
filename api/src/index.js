@@ -470,8 +470,8 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
     ], provider);
 
     const [balance, allowance, totalAssets, allocatedAssets] = await Promise.all([
-      usdyContract.balanceOf(wallet),
-      usdyContract.allowance(wallet, coverRouterAddress),
+      usdcContract.balanceOf(wallet),
+      usdcContract.allowance(wallet, coverRouterAddress),
       vaultContract.totalAssets(),
       vaultContract.allocatedAssets(),
     ]);
@@ -483,7 +483,7 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
     // Check balance and allowance
     if (Number(balance) < premium) {
       return res.status(400).json({
-        error: "Insufficient USDY balance",
+        error: "Insufficient USDC balance",
         required: premium.toString(),
         balance: balance.toString(),
         wallet,
@@ -492,7 +492,7 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
 
     if (Number(allowance) < premium) {
       return res.status(400).json({
-        error: "Insufficient USDY allowance. Approve the CoverRouter from your wallet first.",
+        error: "Insufficient USDC allowance. Approve the CoverRouter from your wallet first.",
         required: premium.toString(),
         allowance: allowance.toString(),
         coverRouter: coverRouterAddress,
