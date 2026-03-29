@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import {IOracle} from "../interfaces/IOracle.sol";
 import {IAggregatorV3} from "../interfaces/IAggregatorV3.sol";
@@ -85,6 +86,11 @@ contract LuminaOracle is IOracle, Ownable {
     /// @notice [FIX] Chainlink L2 Sequencer Uptime Feed
     IAggregatorV3 private immutable _sequencerUptimeFeed;
 
+    // ── Multisig Oracle ──
+    mapping(address => bool) public authorizedSigners;
+    uint256 public requiredSignatures;
+    uint256 public totalSigners;
+
     // ═══════════════════════════════════════════════════════════
     //  EVENTS
     // ═══════════════════════════════════════════════════════════
@@ -93,6 +99,9 @@ contract LuminaOracle is IOracle, Ownable {
     event FeedRegistered(bytes32 indexed asset, address indexed feed, uint256 maxStaleness);
     event FeedUpdated(bytes32 indexed asset, address indexed feed, uint256 maxStaleness);
     event FeedRemoved(bytes32 indexed asset);
+    event SignerAdded(address indexed signer);
+    event SignerRemoved(address indexed signer);
+    event QuorumChanged(uint256 required);
 
     // ═══════════════════════════════════════════════════════════
     //  ERRORS
@@ -128,6 +137,11 @@ contract LuminaOracle is IOracle, Ownable {
         _oracleKey = oracleKey_;
         _sequencerUptimeFeed = IAggregatorV3(sequencerUptimeFeed_);
         emit OracleKeyRotated(address(0), oracleKey_);
+
+        // Initialize multisig with oracleKey as first signer (1-of-1)
+        authorizedSigners[oracleKey_] = true;
+        totalSigners = 1;
+        requiredSignatures = 1;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -178,18 +192,60 @@ contract LuminaOracle is IOracle, Ownable {
         bytes32 digest,
         bytes calldata signature
     ) external view returns (address signer) {
-        // Signature must be 65 bytes (r, s, v)
+        // Multisig mode: if >1 signatures required, verify packed multisig
+        if (requiredSignatures > 1) {
+            if (verifyPackedMultisig(digest, signature)) {
+                return _oracleKey; // Return oracleKey so BaseShield check passes
+            }
+            return address(0);
+        }
+
+        // Single signer mode (backwards compatible)
         if (signature.length != 65) revert InvalidSignatureLength();
 
-        // Recover signer using OpenZeppelin ECDSA
-        // Uses tryRecover to avoid revert on malformed signatures
         (address recovered, ECDSA.RecoverError err, ) = ECDSA.tryRecover(digest, signature);
 
         if (err != ECDSA.RecoverError.NoError) {
-            return address(0); // Invalid signature → return zero (caller checks against oracleKey)
+            return address(0);
         }
 
-        signer = recovered;
+        // Accept if authorized signer OR legacy oracleKey
+        if (authorizedSigners[recovered] || recovered == _oracleKey) {
+            return recovered;
+        }
+
+        return recovered;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  MULTISIG VERIFICATION
+    // ═══════════════════════════════════════════════════════════
+
+    /// @notice Verify N packed ECDSA signatures (each 65 bytes, ordered by signer address ascending)
+    function verifyPackedMultisig(
+        bytes32 dataHash,
+        bytes calldata packedSignatures
+    ) public view returns (bool) {
+        uint256 sigCount = packedSignatures.length / 65;
+        require(sigCount >= requiredSignatures, "Not enough signatures");
+        require(packedSignatures.length % 65 == 0, "Invalid signature length");
+
+        address lastSigner = address(0);
+
+        for (uint256 i = 0; i < sigCount; i++) {
+            bytes calldata sig = packedSignatures[i * 65:(i + 1) * 65];
+
+            address recovered = ECDSA.recover(
+                MessageHashUtils.toEthSignedMessageHash(dataHash),
+                sig
+            );
+
+            require(authorizedSigners[recovered], "Unauthorized signer");
+            require(uint160(recovered) > uint160(lastSigner), "Signatures not ordered or duplicate");
+            lastSigner = recovered;
+        }
+
+        return true;
     }
 
     /// @inheritdoc IOracle
@@ -218,6 +274,41 @@ contract LuminaOracle is IOracle, Ownable {
         address oldKey = _oracleKey;
         _oracleKey = newKey;
         emit OracleKeyRotated(oldKey, newKey);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ADMIN — MULTISIG SIGNER MANAGEMENT
+    // ═══════════════════════════════════════════════════════════
+
+    function addSigner(address _signer) external onlyOwner {
+        require(_signer != address(0), "Zero address");
+        require(!authorizedSigners[_signer], "Already a signer");
+        authorizedSigners[_signer] = true;
+        totalSigners++;
+        emit SignerAdded(_signer);
+    }
+
+    function removeSigner(address _signer) external onlyOwner {
+        require(authorizedSigners[_signer], "Not a signer");
+        require(totalSigners - 1 >= requiredSignatures, "Would break quorum");
+        authorizedSigners[_signer] = false;
+        totalSigners--;
+        emit SignerRemoved(_signer);
+    }
+
+    function setRequiredSignatures(uint256 _required) external onlyOwner {
+        require(_required > 0, "Must be > 0");
+        require(_required <= totalSigners, "Exceeds total signers");
+        requiredSignatures = _required;
+        emit QuorumChanged(_required);
+    }
+
+    function getSignerInfo() external view returns (uint256 _required, uint256 _total) {
+        return (requiredSignatures, totalSigners);
+    }
+
+    function isSigner(address _addr) external view returns (bool) {
+        return authorizedSigners[_addr];
     }
 
     // ═══════════════════════════════════════════════════════════
