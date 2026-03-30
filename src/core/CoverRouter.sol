@@ -80,6 +80,17 @@ contract CoverRouter is
     // ═══ V2: Relayer authorization ═══
     mapping(address => bool) public authorizedRelayers;
 
+    // ═══ V3: Session Approval (buyer consent for relayer purchases) ═══
+    struct RelayerSession {
+        uint256 maxAmount;      // max total USDC the relayer can spend on behalf of buyer
+        uint256 spent;          // total USDC spent so far in this session
+        uint256 deadline;       // session expires after this timestamp
+    }
+    // buyer → relayer → session
+    mapping(address => mapping(address => RelayerSession)) public relayerSessions;
+
+    event SessionApproved(address indexed buyer, address indexed relayer, uint256 maxAmount, uint256 deadline);
+
     // ═══ Oracle Mitigations ═══
     uint256 public largePayoutThreshold;
     uint256 public largePayoutDelay;
@@ -93,6 +104,7 @@ contract CoverRouter is
         bytes32 productId;
         uint256 policyId;
         address vault;
+        uint256 coverageAmount; // [FIX DRAIN-8.1] needed for deferred releaseAllocation
     }
     mapping(bytes32 => ScheduledPayout) public scheduledPayouts;
 
@@ -337,16 +349,16 @@ contract CoverRouter is
         // 3. Mark resolved BEFORE external calls
         _policyResolved[productId][policyId] = true;
 
-        // 4. Mark paid + release allocation from the SPECIFIC vault
+        // 4. Mark paid out + resolve vault reference
         IShield(shield).markPaidOut(policyId);
         address vault = _policyVault[productId][policyId];
         if (vault == address(0)) revert InvalidPolicyForPayout(policyId);
-        IPolicyManager(_policyManager).releaseAllocation(productId, policyId, info.coverageAmount, vault);
 
         // 5. Execute payout: split between protocol fee and agent
         uint256 usdcPayout = _convertToUSDCSafe(pr.payoutAmount);
         if (usdcPayout > 0) {
             // ═══ Oracle Mitigation 1: Large payout delay ═══
+            // [FIX DRAIN-8.1] Do NOT release allocation yet — collateral stays locked until execution
             if (largePayoutThreshold > 0 && usdcPayout > largePayoutThreshold) {
                 bytes32 payoutId = keccak256(abi.encodePacked(productId, policyId, pr.recipient, usdcPayout, block.timestamp));
                 uint256 executeAfter = block.timestamp + largePayoutDelay;
@@ -358,12 +370,16 @@ contract CoverRouter is
                     executed: false,
                     productId: productId,
                     policyId: policyId,
-                    vault: vault
+                    vault: vault,
+                    coverageAmount: info.coverageAmount
                 });
                 emit PayoutScheduled(payoutId, pr.recipient, usdcPayout, executeAfter);
                 emit PayoutTriggered(policyId, productId, pr.recipient, pr.payoutAmount);
-                return; // Skip immediate execution
+                return; // Collateral remains locked until executeScheduledPayout
             }
+
+            // Immediate payout: release allocation NOW (before vault transfer)
+            IPolicyManager(_policyManager).releaseAllocation(productId, policyId, info.coverageAmount, vault);
 
             // Vault sends full payout to Router first
             IVault(vault).executePayout(address(this), usdcPayout, productId, policyId, pr.recipient);
@@ -521,6 +537,9 @@ contract CoverRouter is
 
         sp.executed = true;
 
+        // [FIX DRAIN-8.1] Release allocation NOW (collateral was kept locked since scheduling)
+        IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
+
         // Execute the actual payout (same logic as triggerPayout's payout section)
         IVault(sp.vault).executePayout(address(this), sp.amount, sp.productId, sp.policyId, sp.beneficiary);
 
@@ -552,17 +571,39 @@ contract CoverRouter is
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  SESSION APPROVAL (buyer consent for relayer purchases)
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * @notice Buyer approves a relayer to spend up to maxAmount USDC on their behalf.
+     * @dev Called directly by the buyer (msg.sender = buyer). No signature needed —
+     *      the buyer is calling from their own wallet.
+     * @param relayer Address of the authorized relayer
+     * @param maxAmount Maximum total USDC (6 decimals) the relayer can spend
+     * @param deadline Session expires after this timestamp
+     */
+    function approveSession(address relayer, uint256 maxAmount, uint256 deadline) external {
+        require(relayer != address(0), "Zero relayer");
+        require(maxAmount > 0, "Zero amount");
+        require(deadline > block.timestamp, "Deadline in past");
+
+        relayerSessions[msg.sender][relayer] = RelayerSession({
+            maxAmount: maxAmount,
+            spent: 0,
+            deadline: deadline
+        });
+
+        emit SessionApproved(msg.sender, relayer, maxAmount, deadline);
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  RELAYER OPERATIONS
     // ═══════════════════════════════════════════════════════════
 
     /**
      * @notice Purchase a policy on behalf of the buyer via an authorized relayer.
-     * @dev Identical to purchasePolicy except: replaces buyer==msg.sender check
-     *      with authorizedRelayers[msg.sender] check. Premium is still transferFrom(buyer).
-     *
-     * TODO [M-6]: Add buyer consent mechanism — require an on-chain opt-in or signed
-     * authorization from the buyer to prevent relayers from purchasing unwanted policies
-     * on behalf of users who have granted USDC allowances for other purposes.
+     * @dev [FIX ACCESS-2.1] Requires buyer to have an active session for this relayer.
+     *      Session limits max spending and has a deadline. Buyer calls approveSession() first.
      */
     function purchasePolicyFor(
         SignedQuote calldata quote,
@@ -591,6 +632,16 @@ contract CoverRouter is
         require(quote.coverageAmount > 0, "Zero coverage");
         require(quote.premiumAmount > 0, "Zero premium");
         require(quote.premiumAmount >= quote.coverageAmount / 1000, "Premium below minimum");
+
+        // [FIX ACCESS-2.1] Verify buyer session — relayer must have active session from buyer
+        {
+            RelayerSession storage session = relayerSessions[quote.buyer][msg.sender];
+            require(session.maxAmount > 0, "No session: buyer must call approveSession first");
+            require(block.timestamp <= session.deadline, "Session expired");
+            uint256 usdcCost = _convertToUSDC(quote.premiumAmount);
+            require(session.spent + usdcCost <= session.maxAmount, "Session spending limit exceeded");
+            session.spent += usdcCost;
+        }
 
         // ── INTERACTIONS ──
 

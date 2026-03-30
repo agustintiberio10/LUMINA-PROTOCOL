@@ -253,7 +253,8 @@ contract OracleMitigationsTest is Test {
             bool executed,
             bytes32 productId,
             uint256 policyId,
-            address vaultAddr
+            address vaultAddr,
+            uint256 coverageAmount
         ) = router.scheduledPayouts(unknownId);
 
         assertEq(beneficiary, address(0), "Default beneficiary should be zero");
