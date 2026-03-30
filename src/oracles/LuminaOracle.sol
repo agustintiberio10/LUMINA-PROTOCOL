@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import {IOracle} from "../interfaces/IOracle.sol";
 import {IAggregatorV3} from "../interfaces/IAggregatorV3.sol";
@@ -214,7 +213,7 @@ contract LuminaOracle is IOracle, Ownable {
             return recovered;
         }
 
-        return recovered;
+        return address(0);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -235,10 +234,7 @@ contract LuminaOracle is IOracle, Ownable {
         for (uint256 i = 0; i < sigCount; i++) {
             bytes calldata sig = packedSignatures[i * 65:(i + 1) * 65];
 
-            address recovered = ECDSA.recover(
-                MessageHashUtils.toEthSignedMessageHash(dataHash),
-                sig
-            );
+            address recovered = ECDSA.recover(dataHash, sig);
 
             require(authorizedSigners[recovered], "Unauthorized signer");
             require(uint160(recovered) > uint160(lastSigner), "Signatures not ordered or duplicate");

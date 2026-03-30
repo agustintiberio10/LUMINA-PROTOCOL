@@ -230,7 +230,8 @@ contract CoverRouter is
         address signer = IOracle(_oracle).verifySignature(digest, signature);
         if (signer != IOracle(_oracle).oracleKey()) revert InvalidQuoteSignature();
 
-        // Premium sanity check — prevents oracle signing $0 premiums
+        // Coverage and premium sanity checks
+        require(quote.coverageAmount > 0, "Zero coverage");
         require(quote.premiumAmount > 0, "Zero premium");
         require(quote.premiumAmount >= quote.coverageAmount / 1000, "Premium below minimum");
 
@@ -503,7 +504,10 @@ contract CoverRouter is
     // ═══ Oracle Mitigation Setters ═══
 
     function setLargePayoutThreshold(uint256 _threshold) external onlyOwner { largePayoutThreshold = _threshold; }
-    function setLargePayoutDelay(uint256 _delay) external onlyOwner { largePayoutDelay = _delay; }
+    function setLargePayoutDelay(uint256 _delay) external onlyOwner {
+        require(_delay >= 1 hours || _delay == 0, "Delay too short");
+        largePayoutDelay = _delay;
+    }
     function setMaxPayoutsPerDay(uint256 _max) external onlyOwner { maxPayoutsPerDay = _max; }
 
     // ═══ Oracle Mitigation: Scheduled Payout Management ═══
@@ -583,7 +587,8 @@ contract CoverRouter is
         address signer = IOracle(_oracle).verifySignature(digest, signature);
         if (signer != IOracle(_oracle).oracleKey()) revert InvalidQuoteSignature();
 
-        // Premium sanity check — prevents oracle signing $0 premiums
+        // Coverage and premium sanity checks
+        require(quote.coverageAmount > 0, "Zero coverage");
         require(quote.premiumAmount > 0, "Zero premium");
         require(quote.premiumAmount >= quote.coverageAmount / 1000, "Premium below minimum");
 

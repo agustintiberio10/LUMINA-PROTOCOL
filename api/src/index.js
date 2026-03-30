@@ -1,20 +1,65 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const { ethers } = require("ethers");
 const crypto = require("crypto");
 const owsSigner = require("./ows-signer");
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// Security headers
+app.use(helmet());
+
+// CORS — restrict to known origins
+app.use(cors({
+  origin: [
+    "https://www.lumina-org.com",
+    "https://lumina-org.com",
+    "https://lumina-app-965484649316.us-central1.run.app",
+    "http://localhost:3000",
+    "http://localhost:3001"
+  ],
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "X-API-Key"]
+}));
+
+// Body size limit
+app.use(express.json({ limit: "1mb" }));
+
+// General rate limit: 100 req / 15 min per IP
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: "Too many requests, try again later" }
+}));
+
+// Key creation: 5 per hour per IP
+app.use("/api/v2/keys", rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { error: "Too many key creation requests" }
+}));
+
+// Purchase: 30 per minute per API key
+app.use("/api/v2/purchase", rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => req.headers["x-api-key"] || req.ip,
+  message: { error: "Purchase rate limit exceeded" }
+}));
 
 // ═══════════════════════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════════════════════
 
 const PORT = process.env.PORT || 3001;
-const RPC_URL = process.env.RPC_URL || "https://base-mainnet.g.alchemy.com/v2/dm1oJK0wwWGvliEVxc2Bh";
+const RPC_URL = process.env.RPC_URL;
+if (!RPC_URL) {
+  console.error("FATAL: RPC_URL environment variable not set");
+  process.exit(1);
+}
 const CHAIN_ID = 8453;
 
 // TEST DEPLOYMENT — March 2026. These addresses will change for production.
@@ -47,7 +92,10 @@ const PRODUCT_IDS = {
 //  API KEY SYSTEM
 // ═══════════════════════════════════════════════════════════
 
-const API_KEY_SALT = crypto.randomBytes(16).toString("hex");
+const API_KEY_SALT = process.env.HMAC_SALT || crypto.randomBytes(16).toString("hex");
+if (!process.env.HMAC_SALT) {
+  console.warn("WARNING: HMAC_SALT not set — API keys will be invalidated on restart. Set HMAC_SALT env var for persistence.");
+}
 const apiKeys = new Map();           // hash → { wallet, createdAt, label }
 const walletToKeys = new Map();      // wallet → [hashes]
 const purchaseNonces = new Map();    // wallet → boolean (processing)
@@ -184,8 +232,9 @@ function calculatePremium(coverageAmount, durationSeconds, utilization, pBase) {
 // ═══════════════════════════════════════════════════════════
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-const relayerWallet = new ethers.Wallet(process.env.RELAYER_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY, provider);
-console.log(`[Relayer] Address: ${relayerWallet.address}`);
+const baseWallet = new ethers.Wallet(process.env.RELAYER_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY, provider);
+const relayerWallet = new ethers.NonceManager(baseWallet);
+console.log(`[Relayer] Address: ${baseWallet.address}`);
 
 // Initialize OWS (non-blocking, falls back to ethers)
 owsSigner.initOWS().then(ready => {
@@ -577,7 +626,8 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
 
   } catch (e) {
     console.error(`[Purchase] Error:`, e.message);
-    res.status(500).json({ error: "Purchase failed: " + e.message });
+    console.error("Purchase failed:", e);
+    res.status(500).json({ error: "Purchase failed. Please try again." });
   } finally {
     purchaseNonces.delete(wallet);
   }
@@ -645,7 +695,8 @@ app.get("/api/v2/vaults", async (_req, res) => {
     }
     res.json({ vaults: results });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Internal error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -686,7 +737,8 @@ app.get("/api/v2/vaults/:address", async (req, res) => {
       estimatedAPY: Math.round(estimatedAPY * 10000) / 100,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Internal error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -775,7 +827,8 @@ app.post("/api/v2/quote", async (req, res) => {
       signedQuote: signedQuoteSerialized,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Internal error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -828,7 +881,8 @@ app.get("/api/v2/policies", async (req, res) => {
 
     res.json({ buyer, policies, count: policies.length });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Internal error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -855,7 +909,7 @@ app.get("/api/v2/dashboard", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Lumina API V2 running on port ${PORT}`);
   console.log(`  Chain: Base Mainnet (${CHAIN_ID})`);
-  console.log(`  RPC: ${RPC_URL}`);
+  console.log(`  RPC: ${RPC_URL.replace(/\/v2\/.*$/, "/v2/***")}`);
   console.log(`  CoverRouter: ${COVER_ROUTER}`);
   console.log(`  Endpoints:`);
   console.log(`    GET  /api/v2/health`);

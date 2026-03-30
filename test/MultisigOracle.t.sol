@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {LuminaOracle} from "../src/oracles/LuminaOracle.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract MultisigOracleTest is Test {
     event SignerAdded(address indexed signer);
@@ -144,7 +143,7 @@ contract MultisigOracleTest is Test {
         oracle.setRequiredSignatures(3);
 
         bytes32 hash = keccak256("trigger data");
-        bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        bytes32 ethHash = hash;
 
         // Get 3 signatures, sorted by signer address ascending
         address[] memory signers = _sortSigners3(signer1, signer2, signer3);
@@ -169,7 +168,7 @@ contract MultisigOracleTest is Test {
         oracle.setRequiredSignatures(3);
 
         bytes32 hash = keccak256("trigger data");
-        bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        bytes32 ethHash = hash;
 
         // Only 2 signatures
         address[] memory signers = _sortSigners2(signer1, signer2);
@@ -191,7 +190,7 @@ contract MultisigOracleTest is Test {
         oracle.setRequiredSignatures(3);
 
         bytes32 hash = keccak256("trigger data");
-        bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        bytes32 ethHash = hash;
 
         // Same key signs 3 times
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(key1, ethHash);
@@ -208,7 +207,7 @@ contract MultisigOracleTest is Test {
         oracle.setRequiredSignatures(3);
 
         bytes32 hash = keccak256("trigger data");
-        bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        bytes32 ethHash = hash;
 
         // Rogue key (not authorized)
         uint256 rogueKey = 0xDEAD;
@@ -231,7 +230,7 @@ contract MultisigOracleTest is Test {
         oracle.setRequiredSignatures(3);
 
         bytes32 hash = keccak256("data");
-        bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        bytes32 ethHash = hash;
 
         // 3 sorted signatures
         address[] memory signers = _sortSigners3(signer1, signer2, signer3);
