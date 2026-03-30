@@ -41,7 +41,7 @@ El protocolo ofrece **4 productos de seguro** (Black Swan Shield, Depeg Shield, 
 
 Cada flujo de interaccion comienza de la misma forma: **el humano, a traves de su agente de IA**, instruye la operacion deseada. El agente ejecuta la transaccion on-chain de forma autonoma, interactuando con la API de Lumina y los contratos del protocolo sin intervencion manual.
 
-El modelo de negocio es simple y transparente: una comision del 3% sobre la prima pagada por el asegurado y un 3% sobre el pago de siniestro. No se cobra comision alguna a los proveedores de liquidez al retirar fondos de los vaults.
+El modelo de negocio es simple y transparente: una comision del 3% sobre la prima pagada por el asegurado, un 3% sobre el pago de siniestro, y un 3% de performance fee sobre el rendimiento positivo (ganancia) cuando los proveedores de liquidez retiran fondos de los vaults.
 
 ---
 
@@ -155,7 +155,7 @@ El humano, a traves de su agente de IA, deposita USDC en uno de los cuatro vault
 5. Las shares acumulan yield de dos fuentes: tasa base de Aave V3 (3-5% APY) + primas de seguro
 6. Para retirar, el LP inicia un periodo de **cooldown** (30 a 365 dias segun el vault)
 7. Tras el cooldown, el LP puede ejecutar `withdraw()` y recibir sus USDC + yield acumulado
-8. **No se cobra ninguna comision al retirar fondos del vault**
+8. **Se cobra un 3% de performance fee sobre el rendimiento positivo (ganancia) al retirar**
 
 ### 3.4 Tabla de Arquitectura de Contratos
 
@@ -459,7 +459,7 @@ Lumina Protocol genera ingresos a traves de un modelo de comision dual, simple y
 |-------------------------------|----------|------------------------------------------------------|
 | Compra de poliza (premium)    | 3%       | El 3% de la prima va al protocolo, el 97% al vault  |
 | Pago de siniestro (payout)    | 3%       | El 3% del payout va al protocolo, el 97% al agente  |
-| Retiro de vault (withdrawal)  | **0%**   | No se cobra fee a los LPs al retirar                |
+| Retiro de vault (withdrawal)  | **3% performance** | Sobre el rendimiento positivo (ganancia sobre el deposito original) |
 
 ### 7.2 Fee Receiver
 
@@ -471,9 +471,13 @@ Protocol Fee Receiver: 0x2b4D825417f568231e809E31B9332ED146760337
 
 Esta direccion es controlada por el TimelockController con un delay de 48 horas, lo que asegura transparencia y capacidad de auditoria.
 
-### 7.3 Sin Fee en Retiros de Vault
+### 7.3 Performance Fee en Retiros de Vault
 
-No se cobra fee a los LPs al retirar fondos de los vaults. El codigo de BaseVault.sol no contiene logica de fee en withdrawal. Esta decision de diseno incentiva la participacion de LPs al garantizar que el 100% de su capital + yield acumulado les sera devuelto al completar el periodo de cooldown.
+Se cobra un 3% de performance fee unicamente sobre el rendimiento positivo (ganancia) al retirar fondos de los vaults. El fee se calcula sobre la diferencia entre el monto retirado y el cost basis (deposito original). Si no hay ganancia, no se cobra fee alguno.
+
+**Ejemplo:** Un LP deposita $10,000 USDC. Tras acumular yield, retira $10,500 USDC. La ganancia es $500 ($10,500 - $10,000). El performance fee es 3% x $500 = $15. El LP recibe neto $10,485.
+
+Esta estructura alinea los incentivos del protocolo con los de los LPs: Lumina solo cobra cuando el LP efectivamente gana dinero.
 
 ### 7.4 Escalabilidad del Modelo
 
@@ -813,7 +817,7 @@ Lumina Protocol representa la primera infraestructura de seguro parametrico dise
 - **Colateral 1:1:** Cada poliza esta respaldada al 100% por USDC real bloqueado en el vault. Sin riesgo de subcapitalizacion.
 - **Yield real:** Los LPs ganan yield compuesto de Aave V3 + primas de seguro, con APYs estimados del 11-27%.
 - **Seguridad en capas:** Solidity 0.8.20, ReentrancyGuard, CEI, TimelockController 48h, Gnosis Safe 2-of-3, TWAP, sequencer check.
-- **Modelo de negocio transparente:** 3% premium + 3% payout. Sin fees ocultos. Sin fee en retiros de vault.
+- **Modelo de negocio transparente:** 3% premium + 3% payout. Sin fees ocultos. Performance fee del 3% sobre rendimiento positivo en retiros de vault.
 
 **Vision:**
 

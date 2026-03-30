@@ -86,7 +86,13 @@ abstract contract BaseVault is
     // ═══ Oracle Mitigation: Payout-specific pause ═══
     bool public payoutsPaused;
 
+    // ═══ Performance Fee (3% on positive yield at withdrawal) ═══
+    uint16 public performanceFeeBps;         // 300 = 3%
+    address public feeReceiver;
+    mapping(address => uint256) public userCostBasisPerShare; // WAD precision (1e18)
+
     // ═══ Events ═══
+    event PerformanceFeeCollected(address indexed user, uint256 fee, uint256 profit);
     event PayoutQueued(address indexed beneficiary, uint256 amount);
     event WithdrawalQueued(address indexed user, uint256 amount);
     event PendingPayoutClaimed(address indexed beneficiary, uint256 amount);
@@ -146,6 +152,10 @@ abstract contract BaseVault is
         _cooldownDuration = cooldownDuration_;
         aavePool = IAavePool(aavePool_);
         aToken = IERC20(aToken_);
+
+        // Performance fee: 3% on positive yield at withdrawal
+        performanceFeeBps = 300;
+        feeReceiver = owner_;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -265,8 +275,29 @@ abstract contract BaseVault is
         delete _withdrawalRequests[msg.sender];
         _burn(msg.sender, shares);
 
+        // ═══ Performance Fee: 3% on positive yield ═══
+        uint256 perfFee = 0;
+        if (performanceFeeBps > 0 && feeReceiver != address(0) && userCostBasisPerShare[msg.sender] > 0) {
+            uint256 costBasis = (shares * userCostBasisPerShare[msg.sender]) / 1e18;
+            if (assets > costBasis) {
+                uint256 profit = assets - costBasis;
+                perfFee = (profit * performanceFeeBps) / BPS;
+                emit PerformanceFeeCollected(msg.sender, perfFee, profit);
+            }
+        }
+        // Update cost basis if user still has shares
+        if (balanceOf(msg.sender) == 0) {
+            delete userCostBasisPerShare[msg.sender];
+        }
+
+        uint256 grossAssets = assets;
+        assets = assets - perfFee; // return net amount
+
         // Try to withdraw from Aave and deliver USDC
-        try aavePool.withdraw(asset(), assets, address(this)) {
+        try aavePool.withdraw(asset(), grossAssets, address(this)) {
+            if (perfFee > 0) {
+                IERC20(asset()).safeTransfer(feeReceiver, perfFee);
+            }
             IERC20(asset()).safeTransfer(receiver, assets);
             emit WithdrawalCompleted(msg.sender, assets, shares);
         } catch {
@@ -324,12 +355,32 @@ abstract contract BaseVault is
         queue.pop();
         _burn(msg.sender, shares);
 
+        // ═══ Performance Fee: 3% on positive yield ═══
+        uint256 perfFee = 0;
+        if (performanceFeeBps > 0 && feeReceiver != address(0) && userCostBasisPerShare[msg.sender] > 0) {
+            uint256 costBasis = (shares * userCostBasisPerShare[msg.sender]) / 1e18;
+            if (assets > costBasis) {
+                uint256 profit = assets - costBasis;
+                perfFee = (profit * performanceFeeBps) / BPS;
+                emit PerformanceFeeCollected(msg.sender, perfFee, profit);
+            }
+        }
+        if (balanceOf(msg.sender) == 0) {
+            delete userCostBasisPerShare[msg.sender];
+        }
+
+        uint256 grossAssets = assets;
+        assets = assets - perfFee; // return net amount
+
         // Try to withdraw from Aave and deliver USDC
-        try aavePool.withdraw(asset(), assets, address(this)) {
+        try aavePool.withdraw(asset(), grossAssets, address(this)) {
+            if (perfFee > 0) {
+                IERC20(asset()).safeTransfer(feeReceiver, perfFee);
+            }
             IERC20(asset()).safeTransfer(receiver, assets);
             emit WithdrawalCompleted(msg.sender, assets, shares);
         } catch {
-            // Shares already burned; queue USDC for later claim
+            // Shares already burned; queue USDC for later claim (net of fee)
             pendingWithdrawals[receiver] += assets;
             emit WithdrawalQueued(receiver, assets);
         }
@@ -552,6 +603,8 @@ abstract contract BaseVault is
     function setMaxDepositPerUser(uint256 _max) external onlyOwner { maxDepositPerUser = _max; emit MaxDepositPerUserUpdated(_max); }
     function setMaxPayoutPerTx(uint256 _max) external onlyOwner { maxPayoutPerTx = _max; emit MaxPayoutPerTxUpdated(_max); }
     function setDailyWithdrawLimit(uint256 _bps) external onlyOwner { dailyWithdrawLimit = _bps; emit DailyWithdrawLimitUpdated(_bps); }
+    function setPerformanceFee(uint16 _bps) external onlyOwner { require(_bps <= 1000, "Max 10%"); performanceFeeBps = _bps; }
+    function setFeeReceiver(address _receiver) external onlyOwner { require(_receiver != address(0), "Zero address"); feeReceiver = _receiver; }
     function pausePayouts() external onlyOwner { payoutsPaused = true; emit PayoutsPaused(msg.sender); }
     function unpausePayouts() external onlyOwner { payoutsPaused = false; emit PayoutsUnpaused(msg.sender); }
 
@@ -629,7 +682,20 @@ abstract contract BaseVault is
         require(userDeposits[receiver] + assets <= maxDepositPerUser || maxDepositPerUser == 0, "User cap reached");
 
         userDeposits[receiver] += assets;
+
+        // Track cost basis for performance fee (weighted average price per share)
+        uint256 existingShares = balanceOf(receiver);
         uint256 shares = super.deposit(assets, receiver);
+        uint256 newShares = shares;
+        if (existingShares == 0) {
+            // First deposit: cost basis = assets per share (WAD precision)
+            userCostBasisPerShare[receiver] = (assets * 1e18) / newShares;
+        } else {
+            // Weighted average: (oldBasis * oldShares + newAssets * 1e18) / totalShares
+            uint256 oldValue = userCostBasisPerShare[receiver] * existingShares;
+            uint256 newValue = assets * 1e18;
+            userCostBasisPerShare[receiver] = (oldValue + newValue) / (existingShares + newShares);
+        }
 
         // Supply to Aave if healthy
         if (_aaveHealthCheck()) {
