@@ -907,7 +907,7 @@ app.post("/api/v2/renew", async (req, res) => {
 
     // Find the last active policy for this wallet + product
     const wallet = keyData.wallet;
-    const product = PRODUCT_ENTRIES[productId];
+    const product = PRODUCT_CONFIG[productId];
     if (!product) return res.status(400).json({ error: "Unknown productId" });
 
     const shield = new ethers.Contract(product.shield, SHIELD_ABI, provider);
@@ -1011,7 +1011,7 @@ app.listen(PORT, () => {
     try {
       console.log("[Keeper] Scanning for expired policies...");
       // Check each product's shield for expired policies
-      for (const [key, entry] of Object.entries(PRODUCT_ENTRIES)) {
+      for (const [key, entry] of Object.entries(PRODUCT_CONFIG)) {
         try {
           const shieldContract = new ethers.Contract(entry.shield, [
             "function totalPolicies() view returns (uint256)",
