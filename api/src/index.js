@@ -751,10 +751,14 @@ app.post("/api/v2/quote", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields: productId, coverageAmount, durationSeconds, buyer" });
     }
 
+    // Alias map: short IDs (BSS, DEPEG, IL, EXPLOIT) → full IDs (BLACKSWAN-001, etc.)
+    const PRODUCT_ALIASES = { "BSS": "BLACKSWAN-001", "DEPEG": "DEPEG-STABLE-001", "IL": "ILPROT-001", "EXPLOIT": "EXPLOIT-001" };
+    const resolvedId = PRODUCT_ALIASES[productId] || productId;
+
     // Find product config
-    const product = PRODUCTS.find((p) => p.id === productId || p.productId === productId);
+    const product = PRODUCTS.find((p) => p.id === resolvedId || p.productId === resolvedId || p.id === productId || p.productId === productId);
     if (!product) {
-      return res.status(400).json({ error: `Unknown product: ${productId}` });
+      return res.status(400).json({ error: `Unknown product: ${productId}. Valid: BSS, DEPEG, IL, EXPLOIT (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001)` });
     }
 
     // Read current utilization from the first vault for this product
