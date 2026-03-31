@@ -751,6 +751,19 @@ app.post("/api/v2/quote", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields: productId, coverageAmount, durationSeconds, buyer" });
     }
 
+    // Input validation — reject invalid values with 400, not 500
+    const covNum = Number(coverageAmount);
+    const durNum = Number(durationSeconds);
+    if (!Number.isFinite(covNum) || covNum <= 0) {
+      return res.status(400).json({ error: "coverageAmount must be a positive number (USDC 6 decimals, e.g. 1000000000 = $1,000)" });
+    }
+    if (!Number.isFinite(durNum) || durNum <= 0) {
+      return res.status(400).json({ error: "durationSeconds must be a positive number (e.g. 604800 = 7 days)" });
+    }
+    if (durNum > 31536000) {
+      return res.status(400).json({ error: "durationSeconds cannot exceed 31536000 (365 days)" });
+    }
+
     // Alias map: short IDs (BSS, DEPEG, IL, EXPLOIT) → full IDs (BLACKSWAN-001, etc.)
     const PRODUCT_ALIASES = { "BSS": "BLACKSWAN-001", "DEPEG": "DEPEG-STABLE-001", "IL": "ILPROT-001", "EXPLOIT": "EXPLOIT-001" };
     const resolvedId = PRODUCT_ALIASES[productId] || productId;
