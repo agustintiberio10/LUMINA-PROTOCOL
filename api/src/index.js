@@ -747,7 +747,7 @@ app.post("/api/v2/quote", async (req, res) => {
   try {
     const { productId, coverageAmount, durationSeconds, asset, stablecoin, protocol, buyer } = req.body;
 
-    if (!productId || !coverageAmount || !durationSeconds || !buyer) {
+    if (!productId || coverageAmount === undefined || coverageAmount === null || durationSeconds === undefined || durationSeconds === null || !buyer) {
       return res.status(400).json({ error: "Missing required fields: productId, coverageAmount, durationSeconds, buyer" });
     }
 
