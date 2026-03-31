@@ -567,6 +567,10 @@ contract CoverRouter is
         require(sp.amount > 0, "Not found");
         require(!sp.executed, "Already executed");
         sp.cancelled = true;
+
+        // [FIX G7] Release collateral that was kept locked during scheduling
+        IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
+
         emit ScheduledPayoutCancelled(payoutId);
     }
 

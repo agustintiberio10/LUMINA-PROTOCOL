@@ -879,7 +879,75 @@ app.get("/api/v2/policies", async (req, res) => {
       }
     }
 
-    res.json({ buyer, policies, count: policies.length });
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const offset = (page - 1) * limit;
+    const total = policies.length;
+    const paginated = policies.slice(offset, offset + limit);
+
+    res.json({ buyer, policies: paginated, count: paginated.length, total, page, limit, hasMore: offset + limit < total });
+  } catch (err) {
+    console.error("Internal error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/v2/renew — convenience endpoint for policy renewal
+app.post("/api/v2/renew", async (req, res) => {
+  try {
+    const apiKey = req.headers["x-api-key"];
+    if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+    const keyHash = hashApiKey(apiKey);
+    const keyData = apiKeys.get(keyHash);
+    if (!keyData) return res.status(401).json({ error: "Invalid API key" });
+
+    const { productId, durationSeconds } = req.body;
+    if (!productId) return res.status(400).json({ error: "Missing productId (e.g. BSS, DEPEG, IL, EXPLOIT)" });
+
+    // Find the last active policy for this wallet + product
+    const wallet = keyData.wallet;
+    const product = PRODUCT_ENTRIES[productId];
+    if (!product) return res.status(400).json({ error: "Unknown productId" });
+
+    const shield = new ethers.Contract(product.shield, SHIELD_ABI, provider);
+    let lastPolicy = null;
+    const totalPolicies = Number(await shield.totalPolicies());
+
+    for (let i = totalPolicies; i >= 1; i--) {
+      try {
+        const info = await shield.getPolicyInfo(i);
+        if (info.insuredAgent.toLowerCase() === wallet.toLowerCase()) {
+          lastPolicy = info;
+          break;
+        }
+      } catch { continue; }
+    }
+
+    if (!lastPolicy) {
+      return res.status(404).json({ error: "No existing policy found for this wallet and product. Use /purchase instead." });
+    }
+
+    // Renew = purchase same product with same coverage, optionally new duration
+    const coverageAmount = Number(lastPolicy.coverageAmount);
+    const duration = durationSeconds || (Number(lastPolicy.expiresAt) - Number(lastPolicy.startTimestamp));
+
+    // Forward to purchase logic
+    res.json({
+      message: "Use POST /api/v2/purchase with these parameters to renew:",
+      suggestedParams: {
+        productId,
+        coverageAmount,
+        durationSeconds: duration,
+      },
+      note: "Premium will be recalculated based on current vault utilization (Kink Model).",
+      previousPolicy: {
+        policyId: Number(lastPolicy.policyId),
+        coverageAmount: lastPolicy.coverageAmount.toString(),
+        expiresAt: Number(lastPolicy.expiresAt),
+        status: ["NONEXISTENT", "WAITING", "ACTIVE", "EXPIRED", "SETTLEMENT", "PAID_OUT", "CANCELLED"][Number(lastPolicy.status)] || "UNKNOWN",
+      }
+    });
   } catch (err) {
     console.error("Internal error:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -924,8 +992,62 @@ app.listen(PORT, () => {
   console.log(`    DELETE /api/v2/keys/revoke`);
 
   // Log relayer balance
-  provider.getBalance(relayerWallet.address).then(bal => {
-    console.log(`[Relayer] Address: ${relayerWallet.address}`);
+  provider.getBalance(baseWallet.address).then(bal => {
+    console.log(`[Relayer] Address: ${baseWallet.address}`);
     console.log(`[Relayer] ETH Balance: ${ethers.formatEther(bal)} ETH`);
   }).catch(() => {});
+
+  // ═══ KEEPER: Auto-cleanup expired policies every 10 minutes ═══
+  const KEEPER_INTERVAL = 10 * 60 * 1000; // 10 minutes
+  const coverRouterKeeper = new ethers.Contract(
+    process.env.COVER_ROUTER || COVER_ROUTER,
+    [
+      "function cleanupExpiredPolicy(bytes32 productId, uint256 policyId) external",
+    ],
+    relayerWallet
+  );
+
+  async function runKeeper() {
+    try {
+      console.log("[Keeper] Scanning for expired policies...");
+      // Check each product's shield for expired policies
+      for (const [key, entry] of Object.entries(PRODUCT_ENTRIES)) {
+        try {
+          const shieldContract = new ethers.Contract(entry.shield, [
+            "function totalPolicies() view returns (uint256)",
+            "function getPolicyInfo(uint256) view returns (tuple(uint256 policyId, address insuredAgent, uint256 coverageAmount, uint256 premiumPaid, uint256 maxPayout, uint256 startTimestamp, uint256 waitingEndsAt, uint256 expiresAt, uint256 cleanupAt, uint8 status))",
+          ], provider);
+
+          const total = await shieldContract.totalPolicies();
+          const now = Math.floor(Date.now() / 1000);
+
+          for (let i = 1; i <= Number(total); i++) {
+            try {
+              const info = await shieldContract.getPolicyInfo(i);
+              // Status 2 = ACTIVE, cleanupAt passed
+              if (Number(info.status) <= 2 && Number(info.cleanupAt) > 0 && now > Number(info.cleanupAt)) {
+                console.log(`[Keeper] Cleaning up policy ${i} of ${key}`);
+                const productId = PRODUCT_IDS[entry.fullId];
+                const tx = await coverRouterKeeper.cleanupExpiredPolicy(productId, i);
+                await tx.wait();
+                console.log(`[Keeper] Policy ${i} cleaned: ${tx.hash}`);
+              }
+            } catch (e) {
+              // Skip individual policy errors
+            }
+          }
+        } catch (e) {
+          // Skip product errors
+        }
+      }
+      console.log("[Keeper] Scan complete.");
+    } catch (err) {
+      console.error("[Keeper] Error:", err.message);
+    }
+  }
+
+  // Run keeper after startup, then every 10 minutes
+  setTimeout(runKeeper, 60 * 1000);
+  setInterval(runKeeper, KEEPER_INTERVAL);
+  console.log("[Keeper] Started — scanning every 10 minutes");
 });
