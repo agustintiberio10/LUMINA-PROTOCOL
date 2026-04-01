@@ -750,6 +750,497 @@ The Kink Model's utilization calculation uses the TOTAL premium you pay, not the
 
 ---
 
+# SECTION 8.1: DYNAMIC PRICING — HOW TO THINK ABOUT LUMINA
+
+## CRITICAL: Prices and yields are NOT fixed
+
+Every number in this SKILL — premiums, APYs, costs — changes in real time based on vault utilization (U). The Kink model means:
+
+- When U is LOW (0-30%): premiums are cheap, LP yields are low
+- When U is MEDIUM (30-60%): premiums are moderate, LP yields are decent
+- When U is HIGH (60-80%): premiums increase, LP yields become very attractive
+- When U is KINK ZONE (80-95%): premiums SURGE (2x-3.6x base), LP yields are exceptional
+- When U > 95%: NO new policies accepted (vault full)
+
+## Correct M(U) Multiplier Table (from PremiumMath.sol)
+
+These are the EXACT values computed by the on-chain Kink model:
+
+```
+U%   │ M(U)   │ Zone        │ Premium vs baseline
+─────┼────────┼─────────────┼────────────────────
+ 0%  │ 1.000  │ Minimum     │ 1.00x (cheapest)
+ 5%  │ 1.031  │ Low         │ 1.03x
+10%  │ 1.063  │ Low         │ 1.06x
+15%  │ 1.094  │ Low         │ 1.09x
+20%  │ 1.125  │ Normal      │ 1.13x
+25%  │ 1.156  │ Normal      │ 1.16x
+30%  │ 1.188  │ Normal      │ 1.19x
+35%  │ 1.219  │ Normal      │ 1.22x
+40%  │ 1.250  │ Normal      │ 1.25x
+45%  │ 1.281  │ Moderate    │ 1.28x
+50%  │ 1.313  │ Moderate    │ 1.31x
+55%  │ 1.344  │ Moderate    │ 1.34x
+60%  │ 1.375  │ Busy        │ 1.38x
+65%  │ 1.406  │ Busy        │ 1.41x
+70%  │ 1.438  │ Busy        │ 1.44x
+75%  │ 1.469  │ Busy        │ 1.47x
+80%  │ 1.500  │ ★ KINK ★    │ 1.50x — inflection point
+82%  │ 1.800  │ Post-kink   │ 1.80x — steep jump begins
+84%  │ 2.100  │ Post-kink   │ 2.10x
+86%  │ 2.400  │ Post-kink   │ 2.40x
+88%  │ 2.700  │ Stress      │ 2.70x
+90%  │ 3.000  │ Stress      │ 3.00x — triple baseline
+92%  │ 3.300  │ Critical    │ 3.30x
+94%  │ 3.600  │ Critical    │ 3.60x — near maximum
+>95% │ REJECT │ Full        │ Policy rejected
+```
+
+Formula (from `src/libraries/PremiumMath.sol`):
+```
+U ≤ 80%:  M(U) = 1.0 + (U / 0.80) × 0.5
+U > 80%:  M(U) = 1.0 + 0.5 + ((U − 0.80) / 0.20) × 3.0
+U > 95%:  REVERTED — no policy issued
+```
+
+## AS A POLICY BUYER — Real-Time Premium Tables
+
+Current on-chain parameters (verified against live API):
+```
+Product     │ pBase (annual) │ riskMult │ Used by vaults
+────────────┼────────────────┼──────────┼──────────────────────
+BSS         │ 6.50%  (650bp) │ 1.0x     │ VolatileShort, VolatileLong
+IL Index    │ 8.50%  (850bp) │ 1.0x     │ VolatileShort, VolatileLong
+Depeg       │ 2.50%  (250bp) │ 1.0x     │ StableShort, StableLong
+Exploit     │ 4.00%  (400bp) │ 1.0x     │ StableShort, StableLong
+```
+
+### TABLE 1 — BSS Premium ($10,000 coverage, 14 days)
+
+Formula: Premium = $10,000 × 0.065 × M(U) × (14/365)
+
+```
+U%   │ M(U)  │ Premium  │ % of coverage │ Verdict
+─────┼───────┼──────────┼───────────────┼─────────────────────────
+ 0%  │ 1.000 │   $24.93 │ 0.25%         │ ✦ VERY CHEAP — buy aggressively
+10%  │ 1.063 │   $26.49 │ 0.26%         │ ✦ VERY CHEAP
+20%  │ 1.125 │   $28.05 │ 0.28%         │ ✦ CHEAP
+30%  │ 1.188 │   $29.60 │ 0.30%         │ ● FAIR — good value
+40%  │ 1.250 │   $31.16 │ 0.31%         │ ● FAIR
+50%  │ 1.313 │   $32.72 │ 0.33%         │ ● FAIR
+60%  │ 1.375 │   $34.28 │ 0.34%         │ ▲ MODERATE
+70%  │ 1.438 │   $35.84 │ 0.36%         │ ▲ MODERATE
+80%  │ 1.500 │   $37.39 │ 0.37%         │ ▲ KINK — still reasonable
+82%  │ 1.800 │   $44.87 │ 0.45%         │ ▼ EXPENSIVE — buy only if needed
+84%  │ 2.100 │   $52.35 │ 0.52%         │ ▼ EXPENSIVE
+86%  │ 2.400 │   $59.83 │ 0.60%         │ ▼ VERY EXPENSIVE
+88%  │ 2.700 │   $67.31 │ 0.67%         │ ▼ VERY EXPENSIVE
+90%  │ 3.000 │   $74.78 │ 0.75%         │ ✗ PROHIBITIVE — market pricing in danger
+92%  │ 3.300 │   $82.26 │ 0.82%         │ ✗ PROHIBITIVE
+94%  │ 3.600 │   $89.74 │ 0.90%         │ ✗ PROHIBITIVE
+```
+
+Scaling: For $50K coverage multiply by 5, for $100K by 10.
+Duration scaling: For 7 days divide by 2, for 30 days multiply by 2.14.
+
+### TABLE 2 — Depeg Shield Premium ($10,000 coverage, 14 days, USDT)
+
+Formula: Premium = $10,000 × 0.025 × M(U) × (14/365)
+
+```
+U%   │ M(U)  │ Premium │ % of coverage │ Verdict
+─────┼───────┼─────────┼───────────────┼────────────────────
+ 0%  │ 1.000 │   $9.59 │ 0.10%         │ ✦ EXTREMELY CHEAP
+20%  │ 1.125 │  $10.79 │ 0.11%         │ ✦ VERY CHEAP
+40%  │ 1.250 │  $11.99 │ 0.12%         │ ✦ CHEAP
+60%  │ 1.375 │  $13.19 │ 0.13%         │ ● FAIR
+80%  │ 1.500 │  $14.38 │ 0.14%         │ ● FAIR — still very affordable
+86%  │ 2.400 │  $23.01 │ 0.23%         │ ▲ MODERATE
+90%  │ 3.000 │  $28.77 │ 0.29%         │ ▼ EXPENSIVE
+94%  │ 3.600 │  $34.52 │ 0.35%         │ ▼ EXPENSIVE
+```
+
+Depeg Shield is the cheapest product. Even at U=94%, the premium is only 0.35% for 14 days.
+For 90-day coverage: multiply by 6.43. For 365-day coverage: multiply by 26.07.
+
+### TABLE 3 — IL Index Premium ($10,000 coverage, 30 days)
+
+Formula: Premium = $10,000 × 0.085 × M(U) × (30/365)
+
+```
+U%   │ M(U)  │ Premium  │ % of coverage │ Verdict
+─────┼───────┼──────────┼───────────────┼────────────────────
+ 0%  │ 1.000 │   $69.86 │ 0.70%         │ ● FAIR
+20%  │ 1.125 │   $78.60 │ 0.79%         │ ● FAIR
+40%  │ 1.250 │   $87.33 │ 0.87%         │ ▲ MODERATE
+60%  │ 1.375 │   $96.06 │ 0.96%         │ ▲ MODERATE
+80%  │ 1.500 │  $104.79 │ 1.05%         │ ▼ GETTING EXPENSIVE
+86%  │ 2.400 │  $167.67 │ 1.68%         │ ▼ EXPENSIVE
+90%  │ 3.000 │  $209.59 │ 2.10%         │ ✗ PROHIBITIVE
+94%  │ 3.600 │  $251.51 │ 2.52%         │ ✗ PROHIBITIVE
+```
+
+IL Index is the most expensive product per day. Budget ≤50% of projected pool fees.
+
+### TABLE 4 — Exploit Shield Premium ($10,000 coverage, 90 days)
+
+Formula: Premium = $10,000 × 0.040 × M(U) × (90/365)
+
+```
+U%   │ M(U)  │ Premium  │ % of coverage │ Verdict
+─────┼───────┼──────────┼───────────────┼────────────────────
+ 0%  │ 1.000 │   $98.63 │ 0.99%         │ ● FAIR
+20%  │ 1.125 │  $110.96 │ 1.11%         │ ● FAIR
+40%  │ 1.250 │  $123.29 │ 1.23%         │ ● FAIR
+60%  │ 1.375 │  $135.62 │ 1.36%         │ ▲ MODERATE
+80%  │ 1.500 │  $147.95 │ 1.48%         │ ▲ MODERATE
+86%  │ 2.400 │  $236.71 │ 2.37%         │ ▼ EXPENSIVE
+90%  │ 3.000 │  $295.89 │ 2.96%         │ ▼ EXPENSIVE
+94%  │ 3.600 │  $355.07 │ 3.55%         │ ✗ PROHIBITIVE
+```
+
+For 365-day coverage: multiply by 4.06.
+
+### BUYER DECISION MATRIX
+
+```
+STEP 1: GET /api/v2/vaults → check utilizationBps for the relevant vault
+
+STEP 2: Use this matrix:
+
+  U < 30%    → CHEAP ZONE
+               All products are near minimum price.
+               BUY AGGRESSIVELY if you need protection.
+               This is the best time — few agents are buying, market feels safe.
+               
+  U = 30-60% → FAIR ZONE
+               Prices are 1.2-1.4x baseline. Normal operating range.
+               BUY if you need protection — prices are reasonable.
+               
+  U = 60-80% → BUSY ZONE
+               Prices are 1.4-1.5x baseline. The market is active.
+               BUY if you have high conviction you need the coverage.
+               Consider shorter duration to reduce cost.
+               
+  U = 80-90% → KINK ZONE
+               Prices are 1.5-3.0x baseline. SURGE pricing.
+               BUY ONLY if you believe a crash is imminent.
+               The market is already pricing in elevated risk.
+               
+  U = 90-95% → STRESS ZONE
+               Prices are 3.0-3.6x baseline. Emergency pricing.
+               Most agents should WAIT for utilization to drop.
+               Only buy for critical, irreplaceable coverage.
+               
+  U > 95%    → FULL
+               No new policies. Wait for existing policies to expire.
+```
+
+KEY INSIGHT: When premiums are cheap (low U), few agents are buying protection. This is often BEFORE a crash, when protection is most valuable. When premiums are expensive (high U), many agents are already protected — the market is pricing in danger.
+
+STRATEGY: The smartest time to buy BSS is when U is LOW and the market feels safe. That's when protection is cheapest and most likely to pay off.
+
+## AS A VAULT DEPOSITOR (LP) — Real-Time Yield Tables
+
+LP yield = Aave V3 base yield + Premium yield from insurance policies
+
+Premium yield = U × blended_pBase × M(U) × 0.97 (after 3% protocol fee)
+
+### TABLE 5 — VolatileShort LP Yield (BSS + IL blend, pBase_avg ≈ 7.3%)
+
+Assuming Aave V3 base yield = 3.5% (variable — check current rate)
+
+```
+U%   │ M(U)  │ Premium yield │ + Aave 3.5% │ TOTAL APY │ Beats?
+─────┼───────┼───────────────┼─────────────┼───────────┼──────────────────
+ 0%  │ 1.000 │     0.00%     │    3.50%    │   3.50%   │ Aave only
+10%  │ 1.063 │     0.75%     │    3.50%    │   4.25%   │ > Aave
+20%  │ 1.125 │     1.59%     │    3.50%    │   5.09%   │ > most staking
+30%  │ 1.188 │     2.52%     │    3.50%    │   6.02%   │
+40%  │ 1.250 │     3.54%     │    3.50%    │   7.04%   │
+50%  │ 1.313 │     4.65%     │    3.50%    │   8.15%   │ ≈ Pendle (8%)
+60%  │ 1.375 │     5.84%     │    3.50%    │   9.34%   │ > Pendle
+70%  │ 1.438 │     7.12%     │    3.50%    │  10.62%   │
+80%  │ 1.500 │     8.50%     │    3.50%    │  12.00%   │
+85%  │ 2.250 │    13.54%     │    3.50%    │  17.04%   │ > Ethena (15%)
+90%  │ 3.000 │    19.11%     │    3.50%    │  22.61%   │ > most DeFi
+94%  │ 3.600 │    23.96%     │    3.50%    │  27.46%   │ exceptional
+```
+
+### TABLE 6 — VolatileLong LP Yield (BSS overflow + IL, pBase_avg ≈ 8.0%)
+
+```
+U%   │ Premium yield │ + Aave 3.5% │ TOTAL APY
+─────┼───────────────┼─────────────┼───────────
+10%  │     0.78%     │    3.50%    │   4.28%
+20%  │     1.74%     │    3.50%    │   5.24%
+30%  │     2.77%     │    3.50%    │   6.27%
+40%  │     3.88%     │    3.50%    │   7.38%
+50%  │     5.09%     │    3.50%    │   8.59%
+60%  │     6.40%     │    3.50%    │   9.90%
+70%  │     7.81%     │    3.50%    │  11.31%
+80%  │     9.31%     │    3.50%    │  12.81%
+85%  │    14.85%     │    3.50%    │  18.35%
+90%  │    20.95%     │    3.50%    │  24.45%
+94%  │    26.26%     │    3.50%    │  29.76%
+```
+
+### TABLE 7 — StableShort LP Yield (Depeg only, pBase = 2.5%)
+
+```
+U%   │ Premium yield │ + Aave 3.5% │ TOTAL APY
+─────┼───────────────┼─────────────┼───────────
+10%  │     0.26%     │    3.50%    │   3.76%
+20%  │     0.55%     │    3.50%    │   4.05%
+30%  │     0.87%     │    3.50%    │   4.37%
+40%  │     1.21%     │    3.50%    │   4.71%
+50%  │     1.59%     │    3.50%    │   5.09%
+60%  │     2.00%     │    3.50%    │   5.50%
+70%  │     2.44%     │    3.50%    │   5.94%
+80%  │     2.91%     │    3.50%    │   6.41%
+85%  │     4.64%     │    3.50%    │   8.14%
+90%  │     6.55%     │    3.50%    │  10.05%
+94%  │     8.21%     │    3.50%    │  11.71%
+```
+
+### TABLE 8 — StableLong LP Yield (Depeg + Exploit blend, pBase_avg ≈ 3.0%)
+
+```
+U%   │ Premium yield │ + Aave 3.5% │ TOTAL APY
+─────┼───────────────┼─────────────┼───────────
+10%  │     0.31%     │    3.50%    │   3.81%
+20%  │     0.66%     │    3.50%    │   4.16%
+30%  │     1.04%     │    3.50%    │   4.54%
+40%  │     1.46%     │    3.50%    │   4.96%
+50%  │     1.91%     │    3.50%    │   5.41%
+60%  │     2.40%     │    3.50%    │   5.90%
+70%  │     2.93%     │    3.50%    │   6.43%
+80%  │     3.49%     │    3.50%    │   6.99%
+85%  │     5.57%     │    3.50%    │   9.07%
+90%  │     7.86%     │    3.50%    │  11.36%
+94%  │     9.85%     │    3.50%    │  13.35%
+```
+
+Note: Aave yield is ESTIMATED at 3.5%. Check current Aave V3 USDC rate on Base for real-time base yield.
+
+### TABLE 9 — Competitive Breakpoints (at what U% does each vault beat alternatives?)
+
+```
+                       │ VolShort │ VolLong │ StbShort │ StbLong
+                       │ (7.3%pb) │ (8.0%pb)│ (2.5%pb) │ (3.0%pb)
+───────────────────────┼──────────┼─────────┼──────────┼─────────
+Beats Aave only (3.5%) │   U>0%   │  U>0%   │   U>0%   │  U>0%
+Beats 5% staking       │   U≈13%  │  U≈12%  │  U≈40%   │  U≈35%
+Beats Pendle (8%)      │   U≈49%  │  U≈45%  │  U≈85%   │  U≈80%
+Beats Ethena (15%)     │   U≈84%  │  U≈82%  │  never   │  U≈92%
+Beats 20%              │   U≈88%  │  U≈86%  │  never   │  never
+Beats 25%              │   U≈92%  │  U≈90%  │  never   │  never
+```
+
+KEY TAKEAWAY: Volatile vaults beat Ethena/Pendle in the Kink zone (U>82-85%). Stable vaults need extreme utilization to compete with high-yield protocols but offer much lower claim risk.
+
+### LP DECISION MATRIX
+
+```
+STEP 1: GET /api/v2/vaults → check utilizationBps and estimatedAPY
+
+STEP 2: Use this matrix:
+
+  U < 15%    → LOW YIELD ZONE
+               Yield barely above Aave. Vault has excess capital.
+               WAIT for utilization to rise, or choose a different vault.
+               Exception: deposit if you expect demand surge (bear market coming).
+               
+  U = 15-40% → GROWING ZONE
+               Yield 5-7% (Volatile) or 4-5% (Stable).
+               DEPOSIT if you believe demand will grow.
+               Your deposit will temporarily lower U and your own APY.
+               
+  U = 40-70% → SWEET SPOT
+               Yield 7-11% (Volatile) or 5-6% (Stable).
+               DEPOSIT — this is the optimal entry point.
+               Good yield without excessive claim risk.
+               
+  U = 70-85% → HIGH YIELD ZONE
+               Yield 11-17% (Volatile) or 6-8% (Stable).
+               DEPOSIT for high yield, but be aware of elevated claim risk.
+               Kink zone premiums attract rapid LP deposits → U may drop.
+               
+  U > 85%    → EXCEPTIONAL BUT RISKY
+               Yield 17-28% (Volatile) or 8-13% (Stable).
+               HIGH claim risk — the market expects trouble.
+               DEPOSIT only with capital you can afford to lose 18-26% of.
+```
+
+## THE KINK CYCLE — How the market self-balances
+
+The Kink model creates a natural 4-phase cycle:
+
+### PHASE 1 — LOW UTILIZATION (U < 30%)
+```
+Premiums: Cheap (1.0-1.2x baseline)
+LP yield: Low (3.5-6%)
+What happens:
+  → Agents buy lots of cheap insurance
+  → U increases → premiums increase → yields increase
+  → Some LPs withdraw (yield too low) → U increases faster
+Duration: Weeks to months (bull market can extend this phase)
+```
+
+### PHASE 2 — GROWING DEMAND (U = 30-60%)
+```
+Premiums: Moderate (1.2-1.4x baseline)
+LP yield: Decent (6-9% Volatile, 4-6% Stable)
+What happens:
+  → More LPs attracted by rising yields → deposit
+  → More capital → U decreases slightly → equilibrium
+  → Steady state: new deposits ≈ new policies
+Duration: This is the normal equilibrium zone
+```
+
+### PHASE 3 — HIGH DEMAND (U = 60-80%)
+```
+Premiums: Getting expensive (1.4-1.5x baseline)
+LP yield: Strong (9-12% Volatile, 6-6.5% Stable)
+What happens:
+  → Some agents stop buying (too expensive)
+  → New LPs rush in for the high yield
+  → U stabilizes near kink point
+  → Maximum capital efficiency
+Duration: Days to weeks (market stress can push into Phase 4)
+```
+
+### PHASE 4 — KINK ZONE (U = 80-95%)
+```
+Premiums: SURGE (1.5-3.6x baseline)
+LP yield: Exceptional (12-28% Volatile, 6.5-13% Stable)
+What happens:
+  → Only agents with high conviction buy
+  → LPs earn massive yields
+  → Eventually U drops as policies expire
+  → Cycle restarts at Phase 1
+Duration: Rare and brief — strong LP response compresses this phase
+```
+
+THIS IS NOT A BUG — IT IS THE CORE FEATURE. The protocol naturally oscillates between these phases. Smart agents and LPs position themselves accordingly.
+
+## BEAR MARKET DYNAMICS
+
+In a bear market (ETH declining):
+```
+→ Every agent wants BSS protection (crash insurance)
+→ Demand explodes → U skyrockets toward 80-95%
+→ Premiums become very expensive (2-3.6x baseline)
+→ LP yields become EXCEPTIONAL (15-28% for Volatile vaults)
+→ Lumina is one of the ONLY protocols paying high yield in a bear market
+→ More LPs deposit, attracted by the yield
+→ More capacity for agents to buy protection
+→ The protocol THRIVES when everything else suffers
+```
+
+This is counter-cyclical by design. When traditional DeFi yields collapse to 0-2% in bear markets, Lumina vault yields surge because demand for protection explodes.
+
+## BULL MARKET DYNAMICS
+
+In a bull market (ETH rising):
+```
+→ Few agents need BSS protection
+→ U drops toward 10-20%
+→ Premiums are cheap
+→ LP yields are low (4-5%, mostly Aave)
+→ Smart agents buy cheap protection for the inevitable correction
+→ LPs with low yield tolerance withdraw
+→ The protocol scales down naturally — this is healthy
+```
+
+## HOW TO CHECK CURRENT STATE
+
+Before any operation, ALWAYS check:
+
+```
+1. GET /api/v2/vaults
+   → Look at utilizationBps for each vault
+   → Calculate U% = utilizationBps / 100
+   → This tells you what phase the market is in
+
+2. GET /api/v2/quote with your desired parameters
+   → The returned premiumAmount reflects current utilization
+   → Compare with Tables 1-4 above to know if it's cheap or expensive
+   → If utilizationAtQuote is returned, use it to verify your M(U) calculation
+
+3. Look at estimatedAPY in the vault response
+   → This is the CURRENT yield including Aave + premiums
+   → Compare with Tables 5-8 to confirm and with Table 9 for context
+```
+
+NEVER make decisions based on fixed numbers alone. ALWAYS query the API for current state first. The tables in this section tell you HOW TO INTERPRET the current state.
+
+## OPPORTUNITY DETECTION
+
+As an autonomous agent, monitor for these opportunities:
+
+### BUYING OPPORTUNITIES (for policy buyers):
+```
+Signal: Vault utilization drops below 20%
+Action: Buy protection — it's at its cheapest
+Why: Low U = M(U) ≈ 1.13 = premiums near minimum
+Example: BSS $10K/14d costs only $28 at U=20% vs $75 at U=90%
+
+Signal: ETH volatility rising BUT utilization still low
+Action: Buy BSS immediately — cheap protection before the crowd arrives
+Why: Demand will push U up → your renewal will be more expensive
+```
+
+### LP DEPOSIT OPPORTUNITIES (for vault depositors):
+```
+Signal: Vault utilization rises above 70%
+Action: Deposit USDC — yields are surging
+Why: High U = high premiums flowing to LPs
+Example: VolatileShort pays 10.6% at U=70% vs 5.1% at U=20%
+
+Signal: Bear market begins, utilization climbing rapidly
+Action: Deposit into Volatile vaults — yields will keep rising
+Why: Counter-cyclical: fear drives demand for protection → LP yield surges
+```
+
+### EXIT SIGNALS (for LPs):
+```
+Signal: Utilization drops below 15% for more than 2 weeks
+Action: Consider requesting withdrawal
+Why: Yield barely above Aave (4.2%), capital better used elsewhere
+
+Signal: Bull market euphoria, no agents buying protection
+Action: Request withdrawal — yield won't improve until sentiment shifts
+Why: Low demand = low utilization = low premium yield
+```
+
+### RENEWAL OPTIMIZATION (for policy buyers):
+```
+Signal: Your policy expires soon AND utilization dropped since purchase
+Action: Renew immediately — you'll get a cheaper premium
+Why: Lower U = lower M(U) = cheaper renewal
+
+Signal: Your policy expires soon AND utilization rose significantly
+Action: Renew for SHORTER duration to reduce cost, then reassess
+Why: Higher U = higher premium per day — minimize exposure to peak pricing
+```
+
+## VERIFICATION
+
+You can verify any table value using the on-chain formula:
+
+```
+Premium = Coverage × (pBase / 10000) × (riskMult / 10000) × M(U) × (duration_seconds / 31536000)
+
+Then apply ceiling division: premium = (raw_premium + 9999) / 10000
+
+LP yield (annualized) = U × (pBase / 10000) × M(U) × 0.97 + Aave_rate
+```
+
+Cross-check with `GET /api/v2/quote` — the API premium should match within rounding.
+
+---
+
 # SECTION 9: CONTRACT ADDRESSES
 
 ## Base L2 (Chain 8453)
