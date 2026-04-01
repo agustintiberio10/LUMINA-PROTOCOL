@@ -360,7 +360,131 @@ Session approval: Buyers must authorize relayers before purchases can be made on
 NEVER share your private key with anyone — not even Lumina. The API only needs your wallet address and API key.
 
 ════════════════════════════════════════════════════════════
-11. CONTRACT ADDRESSES (Production — Base L2, Chain 8453)
+11. DEVELOPER INTEGRATION EXAMPLES
+════════════════════════════════════════════════════════════
+
+PYTHON (requests):
+
+import requests
+
+API = "https://lumina-protocol-production.up.railway.app/api/v2"
+
+# 1. Create API key
+key = requests.post(f"{API}/keys/create", json={
+    "wallet": "0xYourAgentWallet",
+    "label": "my-agent"
+}).json()
+api_key = key["apiKey"]  # Save this! Shown only once
+
+# 2. Get quote
+quote = requests.post(f"{API}/quote", json={
+    "productId": "BSS",
+    "coverageAmount": 10000000000,  # $10,000 (6 decimals)
+    "durationSeconds": 1209600,     # 14 days
+    "buyer": "0xYourAgentWallet"
+}).json()
+print(f"Premium: {quote['quote']['premiumAmount']}")
+
+# 3. Purchase policy
+policy = requests.post(f"{API}/purchase",
+    headers={"X-API-Key": api_key},
+    json={
+        "productId": "BSS",
+        "coverageAmount": 10000000000,
+        "durationSeconds": 1209600
+    }
+).json()
+print(f"TX: {policy.get('txHash', policy.get('error'))}")
+
+# 4. Check policies
+policies = requests.get(f"{API}/policies", params={
+    "buyer": "0xYourAgentWallet"
+}).json()
+
+
+JAVASCRIPT (Node.js / fetch):
+
+const API = "https://lumina-protocol-production.up.railway.app/api/v2";
+
+// 1. Create API key
+const keyRes = await fetch(`${API}/keys/create`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ wallet: "0xYourWallet", label: "my-agent" })
+});
+const { apiKey } = await keyRes.json();
+
+// 2. Get quote
+const quoteRes = await fetch(`${API}/quote`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    productId: "BSS",
+    coverageAmount: 10000000000,
+    durationSeconds: 1209600,
+    buyer: "0xYourWallet"
+  })
+});
+const quote = await quoteRes.json();
+
+// 3. Purchase
+const purchaseRes = await fetch(`${API}/purchase`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+  body: JSON.stringify({ productId: "BSS", coverageAmount: 10000000000, durationSeconds: 1209600 })
+});
+const policy = await purchaseRes.json();
+
+
+VAULT INTERACTION (ethers.js — on-chain, not API):
+
+const { ethers } = require("ethers");
+
+const VAULT_ABI = [
+  "function deposit(uint256 assets, address receiver) returns (uint256 shares)",
+  "function requestWithdrawal(uint256 shares)",
+  "function completeWithdrawal(address receiver) returns (uint256 assets)",
+  "function balanceOf(address) view returns (uint256)",
+  "function totalAssets() view returns (uint256)",
+  "function convertToAssets(uint256 shares) view returns (uint256)"
+];
+
+const USDC_ABI = [
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)"
+];
+
+// Vault addresses (Base L2 production)
+const VAULTS = {
+  VolatileShort: "0xbd44547581b92805aAECc40EB2809352b9b2880d",
+  VolatileLong:  "0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904",
+  StableShort:   "0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC",
+  StableLong:    "0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c"
+};
+const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
+const signer = new ethers.Wallet("YOUR_PRIVATE_KEY", provider);
+
+// Step 1: Approve USDC for vault
+const usdc = new ethers.Contract(USDC, USDC_ABI, signer);
+await usdc.approve(VAULTS.VolatileShort, ethers.parseUnits("10000", 6));
+
+// Step 2: Deposit $10,000
+const vault = new ethers.Contract(VAULTS.VolatileShort, VAULT_ABI, signer);
+const shares = await vault.deposit(ethers.parseUnits("10000", 6), signer.address);
+
+// Step 3: Request withdrawal (after earning yield)
+await vault.requestWithdrawal(shares);
+
+// Step 4: Complete withdrawal (after cooldown: 30 days for VolatileShort)
+// Wait 30 days...
+const assets = await vault.completeWithdrawal(signer.address);
+
+NOTE: Vault function signatures verified from BaseVault.sol source code.
+
+════════════════════════════════════════════════════════════
+12. CONTRACT ADDRESSES (Production — Base L2, Chain 8453)
 ════════════════════════════════════════════════════════════
 
 Core:
@@ -392,7 +516,7 @@ External:
 All contracts verified on BaseScan. Verify at https://basescan.org/address/[ADDRESS]
 
 ════════════════════════════════════════════════════════════
-12. CONTACT & SUPPORT
+13. CONTACT & SUPPORT
 ════════════════════════════════════════════════════════════
 
 Website: https://www.lumina-org.com
