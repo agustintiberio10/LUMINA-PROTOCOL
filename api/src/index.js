@@ -504,6 +504,23 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       return res.status(400).json({ error: "Duration between 7 and 365 days (in seconds). Example: 1209600 = 14 days" });
     }
 
+    // Per-product duration limits
+    const PURCHASE_DUR_LIMITS = {
+      "BSS": { min: 7 * 86400, max: 30 * 86400 },
+      "DEPEG": { min: 14 * 86400, max: 365 * 86400 },
+      "IL": { min: 14 * 86400, max: 90 * 86400 },
+      "EXPLOIT": { min: 90 * 86400, max: 365 * 86400 }
+    };
+    const pLimits = PURCHASE_DUR_LIMITS[productId];
+    if (pLimits) {
+      if (durationSeconds < pLimits.min) {
+        return res.status(400).json({ error: `Duration too short for ${productId}. Minimum: ${pLimits.min / 86400} days` });
+      }
+      if (durationSeconds > pLimits.max) {
+        return res.status(400).json({ error: `Duration too long for ${productId}. Maximum: ${pLimits.max / 86400} days` });
+      }
+    }
+
     // Check USDC balance and allowance BEFORE spending gas
     const usdcAddress = process.env.USDC_ADDRESS || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
     const coverRouterAddress = process.env.COVER_ROUTER || COVER_ROUTER;
@@ -762,6 +779,29 @@ app.post("/api/v2/quote", async (req, res) => {
     }
     if (durNum > 31536000) {
       return res.status(400).json({ error: "durationSeconds cannot exceed 31536000 (365 days)" });
+    }
+
+    // Min coverage: $100 (100e6 in USDC 6 decimals)
+    const MIN_COVERAGE = 100000000;
+    if (covNum < MIN_COVERAGE) {
+      return res.status(400).json({ error: `Minimum coverage is $100 (${MIN_COVERAGE} in USDC 6 decimals)` });
+    }
+
+    // Per-product duration limits
+    const DURATION_LIMITS = {
+      "BSS": { min: 7 * 86400, max: 30 * 86400 },
+      "DEPEG": { min: 14 * 86400, max: 365 * 86400 },
+      "IL": { min: 14 * 86400, max: 90 * 86400 },
+      "EXPLOIT": { min: 90 * 86400, max: 365 * 86400 }
+    };
+    const durLimits = DURATION_LIMITS[productId];
+    if (durLimits) {
+      if (durNum < durLimits.min) {
+        return res.status(400).json({ error: `Duration too short for ${productId}. Minimum: ${durLimits.min / 86400} days (${durLimits.min} seconds)` });
+      }
+      if (durNum > durLimits.max) {
+        return res.status(400).json({ error: `Duration too long for ${productId}. Maximum: ${durLimits.max / 86400} days (${durLimits.max} seconds)` });
+      }
     }
 
     // Alias map: short IDs (BSS, DEPEG, IL, EXPLOIT) → full IDs (BLACKSWAN-001, etc.)
