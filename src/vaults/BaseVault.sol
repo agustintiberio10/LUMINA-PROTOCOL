@@ -304,6 +304,11 @@ abstract contract BaseVault is
             // Shares already burned; queue USDC for later claim
             pendingWithdrawals[receiver] += assets;
             emit WithdrawalQueued(receiver, assets);
+            // [FIX QA-5] Queue performance fee so it's not lost
+            if (perfFee > 0) {
+                pendingWithdrawals[feeReceiver] += perfFee;
+                emit WithdrawalQueued(feeReceiver, perfFee);
+            }
         }
     }
 
@@ -383,6 +388,11 @@ abstract contract BaseVault is
             // Shares already burned; queue USDC for later claim (net of fee)
             pendingWithdrawals[receiver] += assets;
             emit WithdrawalQueued(receiver, assets);
+            // [FIX QA-5] Queue performance fee so it's not lost
+            if (perfFee > 0) {
+                pendingWithdrawals[feeReceiver] += perfFee;
+                emit WithdrawalQueued(feeReceiver, perfFee);
+            }
         }
     }
 
