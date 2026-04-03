@@ -602,6 +602,13 @@ abstract contract BaseVault is
         _policyManager = newPolicyManager;
     }
 
+    /// @notice Update cooldown duration (actuarial adjustment)
+    /// @dev Only callable by owner (TimelockController). Cannot set below 7 days.
+    function setCooldownDuration(uint32 newCooldown) external onlyOwner {
+        require(newCooldown >= 7 days, "Cooldown too short");
+        _cooldownDuration = newCooldown;
+    }
+
     // ═══ Security Admin ═══
     function pause() external onlyOwner { _pause(); }
     function unpause() external onlyOwner { _unpause(); }
