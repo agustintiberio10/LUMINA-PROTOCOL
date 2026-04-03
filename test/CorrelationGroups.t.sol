@@ -86,9 +86,9 @@ contract CorrelationGroupsTest is Test {
         pm.registerProduct(EXPLOIT_ID, address(0x4), STABLE, 5000); // 50% individual cap
 
         // Register vaults
-        pm.registerVault(address(volatileShort), VOLATILE, 30 days, 1);
-        pm.registerVault(address(volatileLong), VOLATILE, 90 days, 2);
-        pm.registerVault(address(stableShort), STABLE, 90 days, 1);
+        pm.registerVault(address(volatileShort), VOLATILE, 37 days, 1);
+        pm.registerVault(address(volatileLong), VOLATILE, 97 days, 2);
+        pm.registerVault(address(stableShort), STABLE, 97 days, 1);
 
         // Create correlation group: BSS + IL capped at 70% combined
         pm.createCorrelationGroup(GROUP_ETH_CRASH, 7000);

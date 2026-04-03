@@ -20,7 +20,7 @@ contract WithdrawalQueueV2Test is Test {
     address policyManager = address(0xD);
 
     uint256 constant USDC_DECIMALS = 1e6;
-    uint32 constant COOLDOWN = 30 days;
+    uint32 constant COOLDOWN = 37 days;
 
     function setUp() public {
         usdc = new MockERC20("USD Coin", "USDC", 6);

@@ -22,7 +22,7 @@ contract AaveIntegrationTest is Test {
     address policyManager = address(0xE);
     address beneficiary = address(0xF);
 
-    uint32 constant COOLDOWN = 30 days;
+    uint32 constant COOLDOWN = 37 days;
 
     function setUp() public {
         usdc = new MockERC20("USD Coin", "USDC", 6);

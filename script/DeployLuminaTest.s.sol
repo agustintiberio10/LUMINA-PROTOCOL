@@ -267,17 +267,17 @@ contract DeployLuminaTest is Script {
 
         PolicyManager pm = PolicyManager(policyManagerAddr);
 
-        pm.registerVault(volatileShortAddr, keccak256("VOLATILE"), 30 days,  1);
-        console.log("Registered vault: VolatileShort (VOLATILE, 30d, priority 1)");
+        pm.registerVault(volatileShortAddr, keccak256("VOLATILE"), 37 days,  1);
+        console.log("Registered vault: VolatileShort (VOLATILE, 37d, priority 1)");
 
-        pm.registerVault(volatileLongAddr,  keccak256("VOLATILE"), 90 days,  2);
-        console.log("Registered vault: VolatileLong (VOLATILE, 90d, priority 2)");
+        pm.registerVault(volatileLongAddr,  keccak256("VOLATILE"), 97 days,  2);
+        console.log("Registered vault: VolatileLong (VOLATILE, 97d, priority 2)");
 
-        pm.registerVault(stableShortAddr,   keccak256("STABLE"),   90 days,  1);
-        console.log("Registered vault: StableShort (STABLE, 90d, priority 1)");
+        pm.registerVault(stableShortAddr,   keccak256("STABLE"),   97 days,  1);
+        console.log("Registered vault: StableShort (STABLE, 97d, priority 1)");
 
-        pm.registerVault(stableLongAddr,    keccak256("STABLE"),   365 days, 2);
-        console.log("Registered vault: StableLong (STABLE, 365d, priority 2)");
+        pm.registerVault(stableLongAddr,    keccak256("STABLE"),   372 days, 2);
+        console.log("Registered vault: StableLong (STABLE, 372d, priority 2)");
 
         // ═══════════════════════════════════════════════════════════
         //  11. CORRELATION GROUPS — Actuarial risk mitigation

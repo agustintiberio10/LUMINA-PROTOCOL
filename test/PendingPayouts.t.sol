@@ -21,7 +21,7 @@ contract PendingPayoutsTest is Test {
     address policyManager = address(0xE);
     address beneficiary = address(0xF);
 
-    uint32 constant COOLDOWN = 30 days;
+    uint32 constant COOLDOWN = 37 days;
     bytes32 constant PRODUCT_ID = keccak256("TEST-PRODUCT");
 
     function setUp() public {

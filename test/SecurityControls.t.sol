@@ -22,7 +22,7 @@ contract SecurityControlsTest is Test {
     address policyManager = address(0xE);
     address attacker = address(0x666);
 
-    uint32 constant COOLDOWN = 30 days;
+    uint32 constant COOLDOWN = 37 days;
 
     function setUp() public {
         usdc = new MockERC20("USD Coin", "USDC", 6);

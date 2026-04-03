@@ -120,10 +120,10 @@ contract DeployProduction is Script {
         // ═══ 9. REGISTER VAULTS ═══
         PolicyManager pm = PolicyManager(pmAddr);
 
-        pm.registerVault(vsAddr, keccak256("VOLATILE"), 30 days, 1);
-        pm.registerVault(vlAddr, keccak256("VOLATILE"), 90 days, 2);
-        pm.registerVault(ssAddr, keccak256("STABLE"), 90 days, 1);
-        pm.registerVault(slAddr, keccak256("STABLE"), 365 days, 2);
+        pm.registerVault(vsAddr, keccak256("VOLATILE"), 37 days, 1);
+        pm.registerVault(vlAddr, keccak256("VOLATILE"), 97 days, 2);
+        pm.registerVault(ssAddr, keccak256("STABLE"), 97 days, 1);
+        pm.registerVault(slAddr, keccak256("STABLE"), 372 days, 2);
         console.log("Vaults registered");
 
         // ═══ 10. CORRELATION GROUPS — Actuarial risk mitigation ═══

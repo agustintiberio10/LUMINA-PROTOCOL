@@ -28,7 +28,7 @@ contract OracleMitigationsTest is Test {
     address phalaVerifier = address(0x1002);
     address feeReceiver = address(0x1003);
 
-    uint32 constant COOLDOWN = 30 days;
+    uint32 constant COOLDOWN = 37 days;
 
     function setUp() public {
         // --- Deploy mock tokens and Aave ---
