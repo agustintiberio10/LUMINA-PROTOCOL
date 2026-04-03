@@ -11,10 +11,10 @@
 - LuminaPhalaVerifier: `0x468b9D2E9043c80467B610bC290b698ae23adb9B`
 
 ## Vaults
-- VolatileShort (30d cooldown): `0xbd44547581b92805aAECc40EB2809352b9b2880d`
-- VolatileLong (90d cooldown): `0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904`
-- StableShort (90d cooldown): `0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC`
-- StableLong (365d cooldown): `0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`
+- VolatileShort (37d cooldown): `0xbd44547581b92805aAECc40EB2809352b9b2880d`
+- VolatileLong (97d cooldown): `0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904`
+- StableShort (97d cooldown): `0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC`
+- StableLong (372d cooldown): `0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`
 
 ## Shields
 - BlackSwanShield (BSS): `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e`
