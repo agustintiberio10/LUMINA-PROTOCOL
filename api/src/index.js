@@ -267,6 +267,12 @@ const VAULT_ABI = [
   "function getVaultState() view returns (tuple(uint256 totalAssets, uint256 allocatedAssets, uint256 freeAssets, uint256 totalShares, uint256 utilizationBps, uint32 cooldownDuration))",
 ];
 
+const POLICY_MANAGER_ABI = [
+  "function canAllocate(bytes32 productId, uint256 amount, uint32 policyDurationSeconds) view returns (bool allowed, address vault, bytes32 reason)",
+  "function getCorrelationGroup(bytes32 groupId) view returns (tuple(bytes32 groupId, uint16 maxAllocationBps, uint256 currentAllocated, bytes32[] productIds))",
+  "function getAllocationState(bytes32 productId) view returns (tuple(bytes32 productId, uint256 allocated, uint256 maxAllowed, uint256 available, uint16 utilizationBps))",
+];
+
 const SHIELD_ABI = [
   "function totalPolicies() view returns (uint256)",
   "function activePolicies() view returns (uint256)",
@@ -821,6 +827,27 @@ app.post("/api/v2/quote", async (req, res) => {
     const totalAssets = Number(state.totalAssets);
     const allocated = Number(state.allocatedAssets);
     const utilization = totalAssets > 0 ? allocated / totalAssets : 0;
+
+    // Check PolicyManager canAllocate (enforces correlation group caps)
+    try {
+      const pmContract = new ethers.Contract(POLICY_MANAGER, POLICY_MANAGER_ABI, provider);
+      const [allowed, , reason] = await pmContract.canAllocate(
+        product.productId,
+        BigInt(coverageAmount),
+        Number(durationSeconds)
+      );
+      if (!allowed) {
+        const reasonStr = ethers.decodeBytes32String(reason).replace(/\0/g, "");
+        return res.status(400).json({
+          error: `Capacity check failed: ${reasonStr}`,
+          detail: reasonStr === "GROUP_CAP_EXCEEDED"
+            ? "BSS and IL Protection share a combined 70% allocation cap per vault. The combined usage would exceed this limit."
+            : undefined,
+        });
+      }
+    } catch (err) {
+      console.warn("[Quote] canAllocate check failed (non-blocking):", err.message);
+    }
 
     // Calculate premium (coverageAmount in 6 decimals)
     const premiumAmount = calculatePremium(

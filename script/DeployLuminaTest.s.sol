@@ -279,6 +279,23 @@ contract DeployLuminaTest is Script {
         pm.registerVault(stableLongAddr,    keccak256("STABLE"),   365 days, 2);
         console.log("Registered vault: StableLong (STABLE, 365d, priority 2)");
 
+        // ═══════════════════════════════════════════════════════════
+        //  11. CORRELATION GROUPS — Actuarial risk mitigation
+        //      BSS + IL share VolatileShort and are correlated (ETH crash
+        //      triggers both). Combined cap of 70% limits worst-case LP loss
+        //      from ~66% to ~45%.
+        // ═══════════════════════════════════════════════════════════
+
+        bytes32 groupEthCrash = keccak256("GROUP_ETH_CRASH");
+        pm.createCorrelationGroup(groupEthCrash, 7000); // 70% combined cap
+        console.log("Created correlation group: GROUP_ETH_CRASH (70% cap)");
+
+        pm.addProductToGroup(keccak256("BLACKSWAN-001"), groupEthCrash);
+        console.log("Added BSS to GROUP_ETH_CRASH");
+
+        pm.addProductToGroup(keccak256("ILPROT-001"), groupEthCrash);
+        console.log("Added IL to GROUP_ETH_CRASH");
+
         vm.stopBroadcast();
 
         // ═══════════════════════════════════════════════════════════

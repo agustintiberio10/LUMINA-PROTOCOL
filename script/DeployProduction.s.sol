@@ -126,7 +126,16 @@ contract DeployProduction is Script {
         pm.registerVault(slAddr, keccak256("STABLE"), 365 days, 2);
         console.log("Vaults registered");
 
-        // ═══ 10. AUTHORIZE RELAYER ═══
+        // ═══ 10. CORRELATION GROUPS — Actuarial risk mitigation ═══
+        // BSS + IL share VolatileShort and are correlated (ETH crash triggers both).
+        // Combined cap of 70% limits worst-case LP loss from ~66% to ~45%.
+        bytes32 groupEthCrash = keccak256("GROUP_ETH_CRASH");
+        pm.createCorrelationGroup(groupEthCrash, 7000); // 70% combined cap
+        pm.addProductToGroup(keccak256("BLACKSWAN-001"), groupEthCrash);
+        pm.addProductToGroup(keccak256("ILPROT-001"), groupEthCrash);
+        console.log("Correlation group GROUP_ETH_CRASH created (BSS+IL, 70% cap)");
+
+        // ═══ 11. AUTHORIZE RELAYER ═══
         router.setRelayer(RELAYER, true);
         console.log("Relayer authorized:", RELAYER);
 
