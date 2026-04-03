@@ -12,6 +12,7 @@ import {IAavePool} from "../interfaces/IAavePool.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {IVault} from "../interfaces/IVault.sol";
+import {EmergencyPause} from "../core/EmergencyPause.sol";
 
 /**
  * @title BaseVault
@@ -90,6 +91,9 @@ abstract contract BaseVault is
     uint16 public performanceFeeBps;         // 300 = 3%
     address public feeReceiver;
     mapping(address => uint256) public userCostBasisPerShare; // WAD precision (1e18)
+
+    /// @notice Global emergency pause contract (APPENDED — UUPS-safe)
+    address public emergencyPause;
 
     // ═══ Events ═══
     event PerformanceFeeCollected(address indexed user, uint256 fee, uint256 profit);
@@ -172,6 +176,13 @@ abstract contract BaseVault is
         _;
     }
 
+    modifier whenProtocolNotPaused() {
+        if (emergencyPause != address(0) && EmergencyPause(emergencyPause).protocolPaused()) {
+            revert("Protocol emergency paused");
+        }
+        _;
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  SOULBOUND: Non-transferable shares
     // ═══════════════════════════════════════════════════════════
@@ -196,7 +207,7 @@ abstract contract BaseVault is
     // ═══════════════════════════════════════════════════════════
 
     /// @inheritdoc IVault
-    function depositAssets(uint256 assets, address receiver) external nonReentrant returns (uint256 shares) {
+    function depositAssets(uint256 assets, address receiver) external nonReentrant whenProtocolNotPaused returns (uint256 shares) {
         if (assets < MIN_DEPOSIT) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
@@ -240,7 +251,7 @@ abstract contract BaseVault is
     }
 
     /// @inheritdoc IVault
-    function completeWithdrawal(address receiver) external nonReentrant returns (uint256 assets) {
+    function completeWithdrawal(address receiver) external nonReentrant whenProtocolNotPaused returns (uint256 assets) {
         require(!withdrawalsPaused, "Withdrawals paused");
 
         WithdrawalRequest storage req = _withdrawalRequests[msg.sender];
@@ -339,7 +350,7 @@ abstract contract BaseVault is
         emit WithdrawalRequested(msg.sender, shares, cooldownEnd);
     }
 
-    function completeWithdrawalV2(address receiver) external nonReentrant returns (uint256 assets) {
+    function completeWithdrawalV2(address receiver) external nonReentrant whenProtocolNotPaused returns (uint256 assets) {
         require(!withdrawalsPaused, "Withdrawals paused"); // [H-2]
 
         WithdrawalRequest[] storage queue = _withdrawalQueue[msg.sender];
@@ -609,6 +620,10 @@ abstract contract BaseVault is
     function setRouter(address newRouter) external onlyOwner {
         if (newRouter == address(0)) revert ZeroAddress();
         _router = newRouter;
+    }
+
+    function setEmergencyPause(address _emergencyPause) external onlyOwner {
+        emergencyPause = _emergencyPause;
     }
 
     function setPolicyManager(address newPolicyManager) external onlyOwner {

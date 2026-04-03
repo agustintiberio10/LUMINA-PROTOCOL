@@ -13,6 +13,7 @@ import {IOracle} from "../interfaces/IOracle.sol";
 import {IPhalaVerifier} from "../interfaces/IPhalaVerifier.sol";
 import {IPolicyManager} from "../interfaces/IPolicyManager.sol";
 import {IVault} from "../interfaces/IVault.sol";
+import {EmergencyPause} from "./EmergencyPause.sol";
 
 /**
  * @title CoverRouter
@@ -111,6 +112,9 @@ contract CoverRouter is
     uint256 public maxPayoutsPerDay;
     uint256 public dailyPayoutCount;
     uint256 public lastPayoutCountReset;
+
+    /// @notice Global emergency pause contract (APPENDED — UUPS-safe)
+    address public emergencyPause;
 
     // ═══════════════════════════════════════════════════════════
     //  EVENTS (additional, not in interface)
@@ -215,6 +219,13 @@ contract CoverRouter is
         _;
     }
 
+    modifier whenProtocolNotPaused() {
+        if (emergencyPause != address(0) && EmergencyPause(emergencyPause).protocolPaused()) {
+            revert ProtocolIsPaused();
+        }
+        _;
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  AGENT OPERATIONS
     // ═══════════════════════════════════════════════════════════
@@ -222,7 +233,7 @@ contract CoverRouter is
     function purchasePolicy(
         SignedQuote calldata quote,
         bytes calldata signature
-    ) external nonReentrant whenNotPaused returns (PurchaseResult memory result) {
+    ) external nonReentrant whenNotPaused whenProtocolNotPaused returns (PurchaseResult memory result) {
 
         // ── CHECKS ──
         if (quote.buyer != msg.sender) revert BuyerMismatch(quote.buyer, msg.sender);
@@ -526,6 +537,10 @@ contract CoverRouter is
     }
     function setMaxPayoutsPerDay(uint256 _max) external onlyOwner { maxPayoutsPerDay = _max; }
 
+    function setEmergencyPause(address _emergencyPause) external onlyOwner {
+        emergencyPause = _emergencyPause;
+    }
+
     // ═══ Oracle Mitigation: Scheduled Payout Management ═══
 
     function executeScheduledPayout(bytes32 payoutId) external nonReentrant {
@@ -612,7 +627,7 @@ contract CoverRouter is
     function purchasePolicyFor(
         SignedQuote calldata quote,
         bytes calldata signature
-    ) external nonReentrant whenNotPaused returns (PurchaseResult memory result) {
+    ) external nonReentrant whenNotPaused whenProtocolNotPaused returns (PurchaseResult memory result) {
 
         // ── CHECKS ──
         if (!authorizedRelayers[msg.sender]) revert UnauthorizedRelayer(msg.sender);
