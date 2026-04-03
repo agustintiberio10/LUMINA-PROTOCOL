@@ -80,7 +80,8 @@ library USDCConverter {
         }
 
         // Ceiling division: protocol rounds UP when charging
-        uint256 numerator = usdAmount * 1e20;
+        // USD(6 dec) * ORACLE_DECIMALS(1e8) / price(8 dec) = USDC(6 dec)
+        uint256 numerator = usdAmount * ORACLE_DECIMALS;
         usdcAmount = (numerator + price - 1) / price;
     }
 
@@ -107,7 +108,7 @@ library USDCConverter {
             revert USDCPriceOutOfRange(price, MIN_USDC_PRICE, MAX_USDC_PRICE);
         }
 
-        usdAmount = (usdcAmount * price) / 1e20;
+        usdAmount = (usdcAmount * price) / ORACLE_DECIMALS;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -147,7 +148,7 @@ library USDCConverter {
             }
         }
 
-        usdcAmount = (usdAmount * 1e20) / price;
+        usdcAmount = (usdAmount * ORACLE_DECIMALS) / price;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -164,7 +165,7 @@ library USDCConverter {
         uint256 usdcAmount,
         uint256 usdcPrice
     ) internal pure returns (uint256 usdValue) {
-        usdValue = (usdcAmount * usdcPrice) / 1e20;
+        usdValue = (usdcAmount * usdcPrice) / ORACLE_DECIMALS;
     }
 
     /**
