@@ -77,6 +77,10 @@ contract PolicyManager is
         uint256 amount;
     }
 
+    /// @notice Per-product freeze flag — emergency halt for individual products
+    /// @dev APPENDED to storage layout (safe for UUPS upgrade)
+    mapping(bytes32 => bool) public productFrozen;
+
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -93,6 +97,7 @@ contract PolicyManager is
     error VaultNotRegistered(address vault);
     error ProductAlreadyExists(bytes32 productId);
     error PolicyAlreadyAllocated(bytes32 productId, uint256 policyId);
+    error ProductFrozen(bytes32 productId);
 
     // ═══════════════════════════════════════════════════════════
     //  INITIALIZER
@@ -264,6 +269,28 @@ contract PolicyManager is
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  PRODUCT FREEZE (admin only — emergency halt)
+    // ═══════════════════════════════════════════════════════════
+
+    event ProductFreezeChanged(bytes32 indexed productId, bool frozen);
+
+    /// @notice Freeze a product — blocks new allocations without deactivating
+    /// @dev Unlike setProductActive(false), freeze is designed for temporary emergency halt.
+    ///      Existing policies remain backed and can still be claimed/cleaned up.
+    function freezeProduct(bytes32 productId) external onlyAdmin {
+        if (_products[productId].shield == address(0)) revert ProductNotRegistered(productId);
+        productFrozen[productId] = true;
+        emit ProductFreezeChanged(productId, true);
+    }
+
+    /// @notice Unfreeze a product — re-enables new allocations
+    function unfreezeProduct(bytes32 productId) external onlyAdmin {
+        if (_products[productId].shield == address(0)) revert ProductNotRegistered(productId);
+        productFrozen[productId] = false;
+        emit ProductFreezeChanged(productId, false);
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  ALLOCATION — WATERFALL (only CoverRouter)
     // ═══════════════════════════════════════════════════════════
 
@@ -280,6 +307,7 @@ contract PolicyManager is
         ProductRegistration storage prod = _products[productId];
         if (prod.shield == address(0)) return (false, address(0), "PRODUCT_NOT_FOUND");
         if (!prod.active) return (false, address(0), "PRODUCT_NOT_ACTIVE");
+        if (productFrozen[productId]) return (false, address(0), "PRODUCT_FROZEN");
 
         // Check per-product cap
         uint256 productMaxAllowed = _getProductMaxAllowed(productId);
@@ -325,6 +353,7 @@ contract PolicyManager is
         ProductRegistration storage prod = _products[productId];
         if (prod.shield == address(0)) revert ProductNotRegistered(productId);
         if (!prod.active) revert ProductNotActive(productId);
+        if (productFrozen[productId]) revert ProductFrozen(productId);
 
         // RE-VERIFY per-product cap (TOCTOU defense)
         uint256 productMaxAllowed = _getProductMaxAllowed(productId);
