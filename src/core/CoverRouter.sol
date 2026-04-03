@@ -753,6 +753,11 @@ contract CoverRouter is
     function isNonceUsed(uint256 nonce) external view returns (bool) { return _usedNonces[nonce]; }
     function isPaused() external view returns (bool) { return _paused; }
 
+    /// @notice Check if a policy has been resolved (paid out or cleaned up)
+    function isPolicyResolved(bytes32 productId, uint256 policyId) external view returns (bool) {
+        return _policyResolved[productId][policyId];
+    }
+
     function domainSeparator() public view returns (bytes32) {
         if (block.chainid == _cachedChainId) return _cachedDomainSeparator;
         return _computeDomainSeparator();
