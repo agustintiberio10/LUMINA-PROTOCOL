@@ -275,6 +275,13 @@ abstract contract BaseVault is
         delete _withdrawalRequests[msg.sender];
         _burn(msg.sender, shares);
 
+        // [FIX M-2] Decrement userDeposits so LP can re-deposit after withdrawal
+        if (assets >= userDeposits[msg.sender]) {
+            userDeposits[msg.sender] = 0;
+        } else {
+            userDeposits[msg.sender] -= assets;
+        }
+
         // ═══ Performance Fee: 3% on positive yield ═══
         uint256 perfFee = 0;
         if (performanceFeeBps > 0 && feeReceiver != address(0) && userCostBasisPerShare[msg.sender] > 0) {
@@ -359,6 +366,13 @@ abstract contract BaseVault is
         queue[idx] = queue[queue.length - 1];
         queue.pop();
         _burn(msg.sender, shares);
+
+        // [FIX M-2] Decrement userDeposits so LP can re-deposit after withdrawal
+        if (assets >= userDeposits[msg.sender]) {
+            userDeposits[msg.sender] = 0;
+        } else {
+            userDeposits[msg.sender] -= assets;
+        }
 
         // ═══ Performance Fee: 3% on positive yield ═══
         uint256 perfFee = 0;
