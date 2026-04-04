@@ -20,7 +20,8 @@ import {IOracle} from "../interfaces/IOracle.sol";
  *   c) Protocol Emergency: exploit detected → admin pauses → unpauses post-fix
  *
  * DURING PAUSE:
- *   - Active policies do NOT expire (grace periods effectively frozen)
+ *   - Note: Policy expiration timestamps continue during protocol pause. The sequencer
+ *     downtime extension provides protection for network outages but not for admin pauses.
  *   - Pending payouts remain in PENDING state (not lost, not expired)
  *   - LPs cannot withdraw (funds protected from bank run)
  *   - No new purchases or deposits allowed

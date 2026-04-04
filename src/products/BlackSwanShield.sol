@@ -15,7 +15,7 @@ import {BaseShield} from "./BaseShield.sol";
  * TRIGGER: Price drops >30% from the exact price at policy issuance block.
  *          Verified via oracle-signed TWAP proof (15 min or 3 consecutive Chainlink rounds).
  * PAYOUT: Binary — 80% of coverage (20% deductible).
- * DURATION: 7–30 days. No waiting period.
+ * DURATION: 7–30 days. 1-hour waiting period (anti-front-running).
  * ASSET: ETH or BTC (selected at purchase via params.asset).
  *
  * ORACLE PROOF FORMAT:
