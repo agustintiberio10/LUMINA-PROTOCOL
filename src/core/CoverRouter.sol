@@ -406,21 +406,26 @@ contract CoverRouter is
             }
             uint256 totalFromVault = usdcPayout + payoutFee;
 
-            // [FIX N-7] Execute payout BEFORE releasing allocation to prevent
-            // accounting desync if executePayout reverts or queues internally.
-            IVault(vault).executePayout(address(this), totalFromVault, productId, policyId, pr.recipient);
+            // [FIX H-3] Execute payout first. Only release allocation if USDC actually left vault.
+            // If Aave fails and payout is queued, allocation stays locked to prevent _freeAssets() inflation.
+            bool payoutSuccess = IVault(vault).executePayout(address(this), totalFromVault, productId, policyId, pr.recipient);
 
-            // Release allocation AFTER successful payout execution
-            IPolicyManager(_policyManager).releaseAllocation(productId, policyId, info.coverageAmount, vault);
+            if (payoutSuccess) {
+                // USDC left the vault — safe to release allocation
+                IPolicyManager(_policyManager).releaseAllocation(productId, policyId, info.coverageAmount, vault);
 
-            // Protocol fee → feeReceiver (from vault reserves, not agent's payout)
-            if (payoutFee > 0) {
-                IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
-                emit FeeCollected(productId, policyId, payoutFee, "CLAIM");
+                // Protocol fee → feeReceiver (from vault reserves, not agent's payout)
+                if (payoutFee > 0) {
+                    IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
+                    emit FeeCollected(productId, policyId, payoutFee, "CLAIM");
+                }
+
+                // Full payout → agent (100% of calculated payout)
+                IERC20(_usdcToken).safeTransfer(pr.recipient, usdcPayout);
             }
-
-            // Full payout → agent (100% of calculated payout)
-            IERC20(_usdcToken).safeTransfer(pr.recipient, usdcPayout);
+            // else: payout queued in vault's pendingPayouts. Allocation stays locked.
+            // Agent claims via vault.claimPendingPayout() when Aave recovers.
+            // Allocation must be released separately after successful claim.
         }
 
         emit PayoutTriggered(policyId, productId, pr.recipient, pr.payoutAmount);
@@ -574,20 +579,20 @@ contract CoverRouter is
         }
         uint256 totalFromVault = sp.amount + payoutFee;
 
-        // [FIX N-7] Execute payout BEFORE releasing allocation
-        IVault(sp.vault).executePayout(address(this), totalFromVault, sp.productId, sp.policyId, sp.beneficiary);
+        // [FIX H-3] Execute payout first. Only release allocation if USDC actually left vault.
+        bool payoutSuccess = IVault(sp.vault).executePayout(address(this), totalFromVault, sp.productId, sp.policyId, sp.beneficiary);
 
-        // [FIX DRAIN-8.1] Release allocation AFTER successful payout execution
-        IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
+        if (payoutSuccess) {
+            IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
 
-        // Protocol fee → feeReceiver (from vault reserves)
-        if (payoutFee > 0) {
-            IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
-            emit FeeCollected(sp.productId, sp.policyId, payoutFee, "CLAIM");
+            if (payoutFee > 0) {
+                IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
+                emit FeeCollected(sp.productId, sp.policyId, payoutFee, "CLAIM");
+            }
+
+            IERC20(_usdcToken).safeTransfer(sp.beneficiary, sp.amount);
         }
-
-        // Full payout → beneficiary (100% of calculated payout)
-        IERC20(_usdcToken).safeTransfer(sp.beneficiary, sp.amount);
+        // else: payout queued, allocation stays locked until claim
 
         emit ScheduledPayoutExecuted(payoutId, sp.beneficiary, sp.amount);
     }

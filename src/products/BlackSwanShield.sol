@@ -138,11 +138,10 @@ contract BlackSwanShield is BaseShield {
         // [FIX] Validate price is positive (defense-in-depth against oracle errors)
         if (verifiedPrice <= 0) revert InvalidOracleProof();
 
-        // [FIX R2] Event must have occurred during coverage period.
-        // BSS has waitingPeriod=0, so waitingEndsAt == startTimestamp.
-        // Lower bound prevents using proofs generated before policy existed.
-        // Upper bound prevents using proofs from after expiry (grace period is TX-only).
-        if (verifiedAt < cp.startTimestamp || verifiedAt > cp.expiresAt) {
+        // [FIX M-1] Event must have occurred during ACTIVE coverage period.
+        // Uses waitingEndsAt (not startTimestamp) to enforce the 1h waiting period.
+        // Events during waiting period are NOT covered — prevents front-running.
+        if (verifiedAt < cp.waitingEndsAt || verifiedAt > cp.expiresAt) {
             revert EventAfterExpiry(policyId, verifiedAt, cp.expiresAt);
         }
 

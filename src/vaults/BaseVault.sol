@@ -511,14 +511,14 @@ abstract contract BaseVault is
 
         try aavePool.withdraw(asset(), amount, address(this)) {
             IERC20(asset()).safeTransfer(recipient, amount);
+            emit PayoutExecuted(recipient, amount, productId, policyId);
+            return true; // [FIX H-3] Success — caller should release allocation
         } catch {
             // [C-3] Queue for the actual beneficiary, not the Router
             pendingPayouts[beneficiary] += amount;
             emit PayoutQueued(beneficiary, amount);
+            return false; // [FIX H-3] Queued — caller should NOT release allocation
         }
-
-        emit PayoutExecuted(recipient, amount, productId, policyId);
-        return true;
     }
 
     /// @inheritdoc IVault
