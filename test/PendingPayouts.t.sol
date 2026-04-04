@@ -111,7 +111,7 @@ contract PendingPayoutsTest is Test {
 
         // Try to claim while Aave is still failing — should revert
         vm.prank(beneficiary);
-        vm.expectRevert("Aave: no liquidity");
+        vm.expectRevert("Aave unavailable, retry later");
         vault.claimPendingPayout();
     }
 

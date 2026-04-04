@@ -361,10 +361,10 @@ contract CoverRouter is
         if (pr.payoutAmount > info.maxPayout) pr.payoutAmount = info.maxPayout;
 
         // [FIX H-8] Anti-griefing: only insured agent, authorized relayers, or owner
-        require(
-            msg.sender == info.insuredAgent || authorizedRelayers[msg.sender] || msg.sender == owner(),
-            "Only agent, relayer, or owner"
-        );
+        // [FIX N-4] After 6h anyone can trigger to protect agents who are offline
+        if (msg.sender != info.insuredAgent && !authorizedRelayers[msg.sender] && msg.sender != owner()) {
+            require(block.timestamp >= info.waitingEndsAt + 6 hours, "Only agent/relayer/owner (or anyone after 6h)");
+        }
 
         // 3. Mark resolved BEFORE external calls
         _policyResolved[productId][policyId] = true;
@@ -398,27 +398,29 @@ contract CoverRouter is
                 return; // Collateral remains locked until executeScheduledPayout
             }
 
-            // Immediate payout: release allocation NOW (before vault transfer)
-            IPolicyManager(_policyManager).releaseAllocation(productId, policyId, info.coverageAmount, vault);
-
-            // Vault sends full payout to Router first
-            IVault(vault).executePayout(address(this), usdcPayout, productId, policyId, pr.recipient);
-
-            // Protocol fee: 3% of payout → feeReceiver
+            // [FIX P-4] Fee charged from vault reserves, not from agent's payout.
+            // Agent receives 100% of calculated payout; fee is a separate withdrawal.
             uint256 payoutFee = 0;
             if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
                 payoutFee = (usdcPayout * _protocolFeeBps) / 10000;
-                if (payoutFee > 0) {
-                    IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
-                    emit FeeCollected(productId, policyId, payoutFee, "CLAIM");
-                }
+            }
+            uint256 totalFromVault = usdcPayout + payoutFee;
+
+            // [FIX N-7] Execute payout BEFORE releasing allocation to prevent
+            // accounting desync if executePayout reverts or queues internally.
+            IVault(vault).executePayout(address(this), totalFromVault, productId, policyId, pr.recipient);
+
+            // Release allocation AFTER successful payout execution
+            IPolicyManager(_policyManager).releaseAllocation(productId, policyId, info.coverageAmount, vault);
+
+            // Protocol fee → feeReceiver (from vault reserves, not agent's payout)
+            if (payoutFee > 0) {
+                IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
+                emit FeeCollected(productId, policyId, payoutFee, "CLAIM");
             }
 
-            // Net payout → agent (97% of calculated payout)
-            uint256 netPayout = usdcPayout - payoutFee;
-            if (netPayout > 0) {
-                IERC20(_usdcToken).safeTransfer(pr.recipient, netPayout);
-            }
+            // Full payout → agent (100% of calculated payout)
+            IERC20(_usdcToken).safeTransfer(pr.recipient, usdcPayout);
         }
 
         emit PayoutTriggered(policyId, productId, pr.recipient, pr.payoutAmount);
@@ -565,27 +567,27 @@ contract CoverRouter is
 
         sp.executed = true;
 
-        // [FIX DRAIN-8.1] Release allocation NOW (collateral was kept locked since scheduling)
-        IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
-
-        // Execute the actual payout (same logic as triggerPayout's payout section)
-        IVault(sp.vault).executePayout(address(this), sp.amount, sp.productId, sp.policyId, sp.beneficiary);
-
-        // Protocol fee
+        // [FIX P-4] Fee charged from vault reserves, not from agent's payout
         uint256 payoutFee = 0;
         if (_protocolFeeBps > 0 && _feeReceiver != address(0)) {
             payoutFee = (sp.amount * _protocolFeeBps) / 10000;
-            if (payoutFee > 0) {
-                IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
-                emit FeeCollected(sp.productId, sp.policyId, payoutFee, "CLAIM");
-            }
+        }
+        uint256 totalFromVault = sp.amount + payoutFee;
+
+        // [FIX N-7] Execute payout BEFORE releasing allocation
+        IVault(sp.vault).executePayout(address(this), totalFromVault, sp.productId, sp.policyId, sp.beneficiary);
+
+        // [FIX DRAIN-8.1] Release allocation AFTER successful payout execution
+        IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
+
+        // Protocol fee → feeReceiver (from vault reserves)
+        if (payoutFee > 0) {
+            IERC20(_usdcToken).safeTransfer(_feeReceiver, payoutFee);
+            emit FeeCollected(sp.productId, sp.policyId, payoutFee, "CLAIM");
         }
 
-        // Net payout → beneficiary
-        uint256 netPayout = sp.amount - payoutFee;
-        if (netPayout > 0) {
-            IERC20(_usdcToken).safeTransfer(sp.beneficiary, netPayout);
-        }
+        // Full payout → beneficiary (100% of calculated payout)
+        IERC20(_usdcToken).safeTransfer(sp.beneficiary, sp.amount);
 
         emit ScheduledPayoutExecuted(payoutId, sp.beneficiary, sp.amount);
     }

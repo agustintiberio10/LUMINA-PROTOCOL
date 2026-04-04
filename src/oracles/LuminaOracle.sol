@@ -451,6 +451,11 @@ contract LuminaOracle is IOracle, Ownable {
      *      If sequencer is currently DOWN, returns `block.timestamp - sinceTimestamp`.
      *      Returns 0 if no downtime detected or feed not configured.
      */
+    /// @notice [FIX N-5] Conservative downtime estimate with 2h minimum extension.
+    /// If ANY downtime is detected since sinceTimestamp, returns at least 2 hours.
+    /// This accounts for multiple shorter outages that we can't individually track on-chain.
+    uint256 public constant MIN_DOWNTIME_EXTENSION = 2 hours;
+
     function getSequencerDowntime(uint256 sinceTimestamp) external view returns (uint256 downtime) {
         if (address(_sequencerUptimeFeed) == address(0)) return 0;
 
@@ -458,16 +463,17 @@ contract LuminaOracle is IOracle, Ownable {
             uint80, int256 status, uint256 startedAt, uint256, uint80
         ) {
             if (status != 0) {
-                // Sequencer is currently DOWN — downtime = now - sinceTimestamp
+                // Sequencer is currently DOWN
                 if (block.timestamp > sinceTimestamp) {
                     return block.timestamp - sinceTimestamp;
                 }
-                return 0;
+                return MIN_DOWNTIME_EXTENSION;
             }
             // Sequencer is UP — was it down during the period?
             if (startedAt > sinceTimestamp) {
-                // Sequencer came back up AFTER sinceTimestamp → was down for some of the period
-                return startedAt - sinceTimestamp;
+                uint256 detected = startedAt - sinceTimestamp;
+                // [FIX N-5] Apply minimum extension to account for untracked earlier outages
+                return detected > MIN_DOWNTIME_EXTENSION ? detected : MIN_DOWNTIME_EXTENSION;
             }
             // Sequencer has been up since before sinceTimestamp — no downtime
             return 0;

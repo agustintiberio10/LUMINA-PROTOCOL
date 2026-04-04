@@ -676,22 +676,32 @@ abstract contract BaseVault is
     //  CLAIM PENDING
     // ═══════════════════════════════════════════════════════════
 
-    function claimPendingPayout() external nonReentrant whenProtocolNotPaused {
+    // [FIX N-3/P-1] Approved payouts can ALWAYS be claimed, even during protocol pause.
+    // Pause blocks NEW operations (purchases, deposits, triggers), not approved claims.
+    function claimPendingPayout() external nonReentrant {
         uint256 amount = pendingPayouts[msg.sender];
         require(amount > 0, "No pending payout");
-        pendingPayouts[msg.sender] = 0;
-        aavePool.withdraw(asset(), amount, address(this));
-        IERC20(asset()).safeTransfer(msg.sender, amount);
-        emit PendingPayoutClaimed(msg.sender, amount);
+        // [FIX H-7] Try/catch on Aave — if Aave is down, restore pending and revert gracefully
+        try aavePool.withdraw(asset(), amount, address(this)) {
+            pendingPayouts[msg.sender] = 0;
+            IERC20(asset()).safeTransfer(msg.sender, amount);
+            emit PendingPayoutClaimed(msg.sender, amount);
+        } catch {
+            revert("Aave unavailable, retry later");
+        }
     }
 
     function claimPendingWithdrawal() external nonReentrant {
         uint256 amount = pendingWithdrawals[msg.sender];
         require(amount > 0, "No pending withdrawal");
-        pendingWithdrawals[msg.sender] = 0;
-        aavePool.withdraw(asset(), amount, address(this));
-        IERC20(asset()).safeTransfer(msg.sender, amount);
-        emit PendingWithdrawalClaimed(msg.sender, amount);
+        // [FIX H-7] Try/catch on Aave — keep pending if Aave is down
+        try aavePool.withdraw(asset(), amount, address(this)) {
+            pendingWithdrawals[msg.sender] = 0;
+            IERC20(asset()).safeTransfer(msg.sender, amount);
+            emit PendingWithdrawalClaimed(msg.sender, amount);
+        } catch {
+            revert("Aave unavailable, retry later");
+        }
     }
 
     // ═══════════════════════════════════════════════════════════

@@ -386,7 +386,10 @@ abstract contract BaseShield is IShield {
             revert InvalidPolicyStatus(policyId, current, PolicyStatus.ACTIVE);
         }
         // Allow claims during grace period (expiresAt → adjustedCleanupAt)
-        // [FIX M-9] Extend grace period by sequencer downtime
+        // [FIX M-9] Extend grace period by sequencer downtime.
+        // [DOC N-6] Collateral remains locked during sequencer downtime extension to protect
+        // insured agents' right to claim. This temporarily reduces vault free assets but ensures
+        // no legitimate claim is lost. Cleanup bots cannot release collateral until adjustedCleanupAt.
         CorePolicy storage cp = _policies[policyId];
         uint256 downtime = IOracle(oracle).getSequencerDowntime(cp.expiresAt);
         uint256 adjustedCleanupAt = cp.cleanupAt + downtime;

@@ -37,7 +37,9 @@ contract BlackSwanShield is BaseShield {
     uint16 public constant MAX_ALLOCATION_BPS = 2000;   // 20%
     uint32 public constant MIN_DURATION = 7 days;
     uint32 public constant MAX_DURATION = 30 days;
-    uint32 public constant WAITING_PERIOD = 1 hours;      // [FIX C-3] 1h minimum to prevent same-block front-running
+    // [FIX C-3] 1h waiting period. On Base L2 (2s blocks), this is ~1800 blocks.
+    // Sufficient for technical front-running prevention. Macro speculation handled by oracle.
+    uint32 public constant WAITING_PERIOD = 1 hours;
 
     uint256 public constant DEDUCTIBLE_BPS = 2000;       // 20% deductible → 80% max payout
     uint256 public constant TRIGGER_DROP_BPS = 3000;      // 30% drop
