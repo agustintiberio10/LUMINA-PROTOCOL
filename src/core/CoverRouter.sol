@@ -443,7 +443,9 @@ contract CoverRouter is
         // EXPIRED for non-finalized policies past expiresAt/cleanupAt.
         if (status != IShield.PolicyStatus.ACTIVE && status != IShield.PolicyStatus.SETTLEMENT && status != IShield.PolicyStatus.EXPIRED)
             revert InvalidPolicyForPayout(policyId);
-        if (block.timestamp <= info.cleanupAt) revert InvalidPolicyForPayout(policyId);
+        // [FIX M-9] Extend cleanup deadline by sequencer downtime
+        uint256 downtime = IOracle(_oracle).getSequencerDowntime(info.expiresAt);
+        if (block.timestamp <= info.cleanupAt + downtime) revert InvalidPolicyForPayout(policyId);
 
         _policyResolved[productId][policyId] = true;
 

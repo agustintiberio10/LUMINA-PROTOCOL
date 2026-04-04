@@ -76,7 +76,8 @@ abstract contract BaseVault is
     uint256 public maxDepositPerUser;
     mapping(address => uint256) public userDeposits;
     uint256 public maxPayoutPerTx;
-    uint256 public dailyWithdrawLimit; // basis points of TVL
+    // [FIX L-6] Set at 50% of target to account for daily reset boundary double-dip
+    uint256 public dailyWithdrawLimit; // basis points of TVL (set at 50% of intended limit)
     uint256 public dailyWithdrawn;
     uint256 public lastWithdrawReset;
     uint256 public dailyWithdrawSnapshot; // [M-1] totalAssets at start of day

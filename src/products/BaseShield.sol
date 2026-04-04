@@ -385,10 +385,12 @@ abstract contract BaseShield is IShield {
         if (current != PolicyStatus.ACTIVE && current != PolicyStatus.EXPIRED) {
             revert InvalidPolicyStatus(policyId, current, PolicyStatus.ACTIVE);
         }
-        // Allow claims during grace period (expiresAt → cleanupAt)
-        // but reject after grace period ends
+        // Allow claims during grace period (expiresAt → adjustedCleanupAt)
+        // [FIX M-9] Extend grace period by sequencer downtime
         CorePolicy storage cp = _policies[policyId];
-        if (block.timestamp >= cp.cleanupAt) {
+        uint256 downtime = IOracle(oracle).getSequencerDowntime(cp.expiresAt);
+        uint256 adjustedCleanupAt = cp.cleanupAt + downtime;
+        if (block.timestamp >= adjustedCleanupAt) {
             revert InvalidPolicyStatus(policyId, PolicyStatus.EXPIRED, PolicyStatus.ACTIVE);
         }
     }

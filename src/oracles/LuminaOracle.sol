@@ -442,6 +442,40 @@ contract LuminaOracle is IOracle, Ownable {
         return address(_sequencerUptimeFeed);
     }
 
+    /**
+     * @notice Estimate sequencer downtime since a given timestamp.
+     * @dev Uses the sequencer uptime feed's `startedAt` to determine when the
+     *      sequencer last changed state. If the sequencer is currently UP and
+     *      `startedAt > sinceTimestamp`, the sequencer was down for some period.
+     *      Returns `startedAt - sinceTimestamp` as a conservative estimate.
+     *      If sequencer is currently DOWN, returns `block.timestamp - sinceTimestamp`.
+     *      Returns 0 if no downtime detected or feed not configured.
+     */
+    function getSequencerDowntime(uint256 sinceTimestamp) external view returns (uint256 downtime) {
+        if (address(_sequencerUptimeFeed) == address(0)) return 0;
+
+        try _sequencerUptimeFeed.latestRoundData() returns (
+            uint80, int256 status, uint256 startedAt, uint256, uint80
+        ) {
+            if (status != 0) {
+                // Sequencer is currently DOWN — downtime = now - sinceTimestamp
+                if (block.timestamp > sinceTimestamp) {
+                    return block.timestamp - sinceTimestamp;
+                }
+                return 0;
+            }
+            // Sequencer is UP — was it down during the period?
+            if (startedAt > sinceTimestamp) {
+                // Sequencer came back up AFTER sinceTimestamp → was down for some of the period
+                return startedAt - sinceTimestamp;
+            }
+            // Sequencer has been up since before sinceTimestamp — no downtime
+            return 0;
+        } catch {
+            return 0;
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  INTERNAL — L2 SEQUENCER CHECK
     // ═══════════════════════════════════════════════════════════

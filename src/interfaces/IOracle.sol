@@ -29,6 +29,9 @@ interface IOracle {
      */
     function getLatestPrice(bytes32 asset) external view returns (int256 price);
 
+    /// @notice Estimate sequencer downtime since a given timestamp
+    function getSequencerDowntime(uint256 sinceTimestamp) external view returns (uint256 downtime);
+
     // ═══════════════════════════════════════════════════════════
     //  SIGNATURE VERIFICATION
     // ═══════════════════════════════════════════════════════════
