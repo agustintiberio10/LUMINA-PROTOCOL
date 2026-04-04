@@ -162,7 +162,8 @@ contract ILIndexCover is BaseShield {
         uint256 priceAtExpiry = uint256(verifiedPrice);
         uint256 priceAtPurchase = uint256(data.strikePrice);
 
-        uint256 ilBps = ILMath.calculateIL(priceAtExpiry, priceAtPurchase);
+        // [FIX C-1] Convert WAD (1e18=100%) to BPS (10000=100%)
+        uint256 ilBps = ILMath.calculateIL(priceAtExpiry, priceAtPurchase) * BPS / WAD;
 
         // Apply restable deductible: IL_net = max(0, IL - 2%)
         if (ilBps <= DEDUCTIBLE_BPS) {
@@ -245,7 +246,8 @@ contract ILIndexCover is BaseShield {
         CorePolicy storage cp = _policies[policyId];
         if (cp.insuredAgent == address(0)) revert PolicyNotFound(policyId);
 
-        ilBps = ILMath.calculateIL(currentPrice, uint256(data.strikePrice));
+        // [FIX C-1] Convert WAD to BPS
+        ilBps = ILMath.calculateIL(currentPrice, uint256(data.strikePrice)) * BPS / WAD;
         ilNetBps = ilBps > DEDUCTIBLE_BPS ? ilBps - DEDUCTIBLE_BPS : 0;
 
         if (ilNetBps > 0) {

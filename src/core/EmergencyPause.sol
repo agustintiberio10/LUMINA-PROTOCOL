@@ -71,19 +71,21 @@ contract EmergencyPause is Ownable {
     //  EMERGENCY ACTIONS
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Pause the entire protocol — instant, no delay
+    /// @notice Pause the entire protocol — ALWAYS instant, no cooldown
+    /// @dev [FIX H-1] Cooldown moved to unpause. Pausing must always be instant.
     function emergencyPauseAll() external onlyEmergencyRole {
         if (protocolPaused) revert AlreadyPaused();
-        if (lastUnpauseAt > 0 && block.timestamp < lastUnpauseAt + unpauseCooldown) {
-            revert CooldownNotElapsed(lastUnpauseAt + unpauseCooldown - block.timestamp);
-        }
         protocolPaused = true;
         emit ProtocolPaused(msg.sender);
     }
 
-    /// @notice Unpause the entire protocol
+    /// @notice Unpause the entire protocol — cooldown prevents rapid unpause/re-unpause
+    /// @dev [FIX H-1] Cooldown on unpause prevents attacker from rapidly unpausing
     function emergencyUnpauseAll() external onlyEmergencyRole {
         if (!protocolPaused) revert NotPaused();
+        if (lastUnpauseAt > 0 && block.timestamp < lastUnpauseAt + unpauseCooldown) {
+            revert CooldownNotElapsed(lastUnpauseAt + unpauseCooldown - block.timestamp);
+        }
         protocolPaused = false;
         lastUnpauseAt = block.timestamp;
         emit ProtocolUnpaused(msg.sender);

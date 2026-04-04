@@ -81,6 +81,9 @@ contract PolicyManager is
     /// @dev APPENDED to storage layout (safe for UUPS upgrade)
     mapping(bytes32 => bool) public productFrozen;
 
+    /// @dev Storage gap for future UUPS upgrades
+    uint256[49] private __gap;
+
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════

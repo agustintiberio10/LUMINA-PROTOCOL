@@ -132,24 +132,29 @@ contract EmergencyPauseTest is Test {
     //  COOLDOWN BETWEEN PAUSE CYCLES
     // ═══════════════════════════════════════════════════════════
 
-    function test_CooldownPreventsRePause() public {
-        // Pause → unpause
+    function test_CooldownPreventsReUnpause() public {
+        // [FIX H-1] Cooldown now on UNPAUSE, not pause
+        // Pause → unpause → pause → try unpause immediately → should fail
         vm.startPrank(pauser);
         ep.emergencyPauseAll();
         ep.emergencyUnpauseAll();
 
-        // Try to pause again immediately → should fail (cooldown)
-        vm.expectRevert();
+        // Pause again immediately → should work (no cooldown on pause)
         ep.emergencyPauseAll();
+        assertTrue(ep.protocolPaused());
+
+        // Try to unpause immediately → should fail (cooldown)
+        vm.expectRevert();
+        ep.emergencyUnpauseAll();
         vm.stopPrank();
 
         // Warp past cooldown (1 hour)
         vm.warp(block.timestamp + 1 hours + 1);
 
-        // Now pause should work
+        // Now unpause should work
         vm.prank(pauser);
-        ep.emergencyPauseAll();
-        assertTrue(ep.protocolPaused());
+        ep.emergencyUnpauseAll();
+        assertFalse(ep.protocolPaused());
     }
 
     // ═══════════════════════════════════════════════════════════

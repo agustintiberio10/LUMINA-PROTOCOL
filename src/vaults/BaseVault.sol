@@ -81,8 +81,8 @@ abstract contract BaseVault is
     uint256 public lastWithdrawReset;
     uint256 public dailyWithdrawSnapshot; // [M-1] totalAssets at start of day
 
-    /// @dev Storage gap for future upgrades
-    uint256[50] private __gap;
+    /// @dev Storage gap for future upgrades (reduced from 50 to 46: 4 slots used post-gap)
+    uint256[46] private __gap;
 
     // ═══ Oracle Mitigation: Payout-specific pause ═══
     bool public payoutsPaused;
@@ -694,7 +694,7 @@ abstract contract BaseVault is
     //  CLAIM PENDING
     // ═══════════════════════════════════════════════════════════
 
-    function claimPendingPayout() external nonReentrant {
+    function claimPendingPayout() external nonReentrant whenProtocolNotPaused {
         uint256 amount = pendingPayouts[msg.sender];
         require(amount > 0, "No pending payout");
         pendingPayouts[msg.sender] = 0;

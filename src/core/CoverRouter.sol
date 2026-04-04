@@ -116,6 +116,9 @@ contract CoverRouter is
     /// @notice Global emergency pause contract (APPENDED — UUPS-safe)
     address public emergencyPause;
 
+    /// @dev Storage gap for future UUPS upgrades
+    uint256[49] private __gap_router;
+
     // ═══════════════════════════════════════════════════════════
     //  EVENTS (additional, not in interface)
     // ═══════════════════════════════════════════════════════════
@@ -356,6 +359,12 @@ contract CoverRouter is
         IShield.PolicyInfo memory info = IShield(shield).getPolicyInfo(policyId);
         if (pr.recipient != info.insuredAgent) revert RecipientMismatch(info.insuredAgent, pr.recipient);
         if (pr.payoutAmount > info.maxPayout) pr.payoutAmount = info.maxPayout;
+
+        // [FIX H-8] Anti-griefing: only insured agent, authorized relayers, or owner
+        require(
+            msg.sender == info.insuredAgent || authorizedRelayers[msg.sender] || msg.sender == owner(),
+            "Only agent, relayer, or owner"
+        );
 
         // 3. Mark resolved BEFORE external calls
         _policyResolved[productId][policyId] = true;
