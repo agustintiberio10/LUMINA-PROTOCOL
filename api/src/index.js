@@ -589,11 +589,22 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       nonce: nonce,                              // required field
     };
 
-    // Sign quote — try OWS first, fallback to ethers
+    // Sign quote — multi-sig: sign with all available oracle keys, concatenate signatures
+    // Contract uses verifyPackedMultisig: expects N×65-byte packed signatures
     let signature = await owsSigner.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteData);
     if (!signature) {
-      const oracleWallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY);
-      signature = await oracleWallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteData);
+      const signatures = [];
+      const oracleKeys = [process.env.ORACLE_PRIVATE_KEY, process.env.ORACLE_PRIVATE_KEY_2].filter(Boolean);
+      for (const key of oracleKeys) {
+        const wallet = new ethers.Wallet(key);
+        const sig = await wallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteData);
+        signatures.push(sig);
+      }
+      // Concatenate: remove 0x prefix from subsequent sigs
+      signature = signatures[0];
+      for (let i = 1; i < signatures.length; i++) {
+        signature += signatures[i].slice(2); // append without 0x
+      }
     }
 
     // Build the quote struct for the contract call
@@ -875,15 +886,23 @@ app.post("/api/v2/quote", async (req, res) => {
       nonce: nonce,
     };
 
-    // Sign with EIP-712 — try OWS first, fallback to ethers
+    // Sign with EIP-712 — multi-sig: sign with all available oracle keys
     let signature = await owsSigner.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteValues);
     if (!signature) {
-      const privateKey = process.env.ORACLE_PRIVATE_KEY;
-      if (!privateKey) {
-        return res.status(500).json({ error: "ORACLE_PRIVATE_KEY not configured and OWS not available" });
+      const oracleKeys = [process.env.ORACLE_PRIVATE_KEY, process.env.ORACLE_PRIVATE_KEY_2].filter(Boolean);
+      if (oracleKeys.length === 0) {
+        return res.status(500).json({ error: "No ORACLE_PRIVATE_KEY configured and OWS not available" });
       }
-      const signer = new ethers.Wallet(privateKey);
-      signature = await signer.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteValues);
+      const signatures = [];
+      for (const key of oracleKeys) {
+        const wallet = new ethers.Wallet(key);
+        const sig = await wallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, quoteValues);
+        signatures.push(sig);
+      }
+      signature = signatures[0];
+      for (let i = 1; i < signatures.length; i++) {
+        signature += signatures[i].slice(2);
+      }
     }
 
     // Serialize signedQuote with BigInt→string for JSON
