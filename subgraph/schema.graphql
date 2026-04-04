@@ -1,0 +1,80 @@
+type Policy @entity {
+  id: ID! # productId-policyId
+  policyId: BigInt!
+  productId: Bytes!
+  buyer: Bytes!
+  vault: Bytes!
+  coverageAmount: BigInt!
+  premiumPaid: BigInt!
+  durationSeconds: Int!
+  startsAt: BigInt!
+  expiresAt: BigInt!
+  resolved: Boolean!
+  shield: Shield!
+  createdAt: BigInt!
+  createdTx: Bytes!
+}
+
+type Vault @entity {
+  id: ID! # vault address
+  address: Bytes!
+  totalDeposits: BigInt!
+  totalWithdrawals: BigInt!
+  deposits: [Deposit!]! @derivedFrom(field: "vault")
+  withdrawals: [Withdrawal!]! @derivedFrom(field: "vault")
+}
+
+type Shield @entity {
+  id: ID! # shield address
+  address: Bytes!
+  totalPolicies: BigInt!
+  policies: [Policy!]! @derivedFrom(field: "shield")
+}
+
+type Deposit @entity {
+  id: ID! # tx hash - log index
+  vault: Vault!
+  depositor: Bytes!
+  assets: BigInt!
+  shares: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+type Withdrawal @entity {
+  id: ID! # tx hash - log index
+  vault: Vault!
+  user: Bytes!
+  assets: BigInt!
+  shares: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+type CooldownRequest @entity {
+  id: ID! # vault-user
+  vault: Vault!
+  user: Bytes!
+  shares: BigInt!
+  cooldownEnd: BigInt!
+  timestamp: BigInt!
+}
+
+type Claim @entity {
+  id: ID! # tx hash - log index
+  policyId: BigInt!
+  productId: Bytes!
+  recipient: Bytes!
+  payoutAmount: BigInt!
+  timestamp: BigInt!
+  tx: Bytes!
+}
+
+type ProtocolEvent @entity {
+  id: ID! # tx hash - log index
+  eventType: String! # "PAUSED" | "UNPAUSED" | "PRODUCT_FROZEN" | "PRODUCT_UNFROZEN"
+  actor: Bytes!
+  productId: Bytes
+  timestamp: BigInt!
+  tx: Bytes!
+}

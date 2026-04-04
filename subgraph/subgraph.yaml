@@ -1,0 +1,196 @@
+specVersion: 0.0.5
+schema:
+  file: ./schema.graphql
+dataSources:
+  # ═══ CoverRouter ═══
+  - kind: ethereum
+    name: CoverRouter
+    network: base
+    source:
+      address: "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025"
+      abi: CoverRouter
+      startBlock: 44091000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Policy
+        - Claim
+      abis:
+        - name: CoverRouter
+          file: ./abis/CoverRouter.json
+      eventHandlers:
+        - event: PolicyPurchased(indexed uint256,indexed bytes32,indexed address,address,uint256,uint256,uint32)
+          handler: handlePolicyPurchased
+        - event: PayoutTriggered(indexed uint256,indexed bytes32,address,uint256)
+          handler: handlePayoutTriggered
+        - event: PolicyCleanedUp(indexed uint256,indexed bytes32)
+          handler: handlePolicyCleanedUp
+      file: ./src/cover-router.ts
+
+  # ═══ PolicyManager ═══
+  - kind: ethereum
+    name: PolicyManager
+    network: base
+    source:
+      address: "0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a"
+      abi: PolicyManager
+      startBlock: 44091000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Policy
+      abis:
+        - name: PolicyManager
+          file: ./abis/PolicyManager.json
+      eventHandlers:
+        - event: AllocationRecorded(indexed bytes32,indexed uint256,indexed address,uint256)
+          handler: handleAllocationRecorded
+        - event: AllocationReleased(indexed bytes32,indexed uint256,indexed address,uint256)
+          handler: handleAllocationReleased
+        - event: ProductFreezeChanged(indexed bytes32,bool)
+          handler: handleProductFreezeChanged
+      file: ./src/policy-manager.ts
+
+  # ═══ EmergencyPause ═══
+  - kind: ethereum
+    name: EmergencyPause
+    network: base
+    source:
+      address: "0x0b977e492650cc03dfaef7d3dbfb3ee87dceade5"
+      abi: EmergencyPause
+      startBlock: 44091000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - ProtocolEvent
+      abis:
+        - name: EmergencyPause
+          file: ./abis/EmergencyPause.json
+      eventHandlers:
+        - event: ProtocolPaused(indexed address)
+          handler: handleProtocolPaused
+        - event: ProtocolUnpaused(indexed address)
+          handler: handleProtocolUnpaused
+      file: ./src/emergency-pause.ts
+
+  # ═══ VolatileShort Vault ═══
+  - kind: ethereum
+    name: VolatileShortVault
+    network: base
+    source:
+      address: "0xbd44547581b92805aAECc40EB2809352b9b2880d"
+      abi: BaseVault
+      startBlock: 44091000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Vault
+        - Deposit
+        - Withdrawal
+        - CooldownRequest
+      abis:
+        - name: BaseVault
+          file: ./abis/BaseVault.json
+      eventHandlers:
+        - event: Deposited(indexed address,uint256,uint256)
+          handler: handleDeposited
+        - event: WithdrawalCompleted(indexed address,uint256,uint256)
+          handler: handleWithdrawalCompleted
+        - event: WithdrawalRequested(indexed address,uint256,uint256)
+          handler: handleWithdrawalRequested
+      file: ./src/vault.ts
+
+  # ═══ VolatileLong Vault ═══
+  - kind: ethereum
+    name: VolatileLongVault
+    network: base
+    source:
+      address: "0xFee5d6DAdA0A41407e9EA83D4F357DA6214Ff904"
+      abi: BaseVault
+      startBlock: 44091000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Vault
+        - Deposit
+        - Withdrawal
+        - CooldownRequest
+      abis:
+        - name: BaseVault
+          file: ./abis/BaseVault.json
+      eventHandlers:
+        - event: Deposited(indexed address,uint256,uint256)
+          handler: handleDeposited
+        - event: WithdrawalCompleted(indexed address,uint256,uint256)
+          handler: handleWithdrawalCompleted
+        - event: WithdrawalRequested(indexed address,uint256,uint256)
+          handler: handleWithdrawalRequested
+      file: ./src/vault.ts
+
+  # ═══ StableShort Vault ═══
+  - kind: ethereum
+    name: StableShortVault
+    network: base
+    source:
+      address: "0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC"
+      abi: BaseVault
+      startBlock: 44091000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Vault
+        - Deposit
+        - Withdrawal
+        - CooldownRequest
+      abis:
+        - name: BaseVault
+          file: ./abis/BaseVault.json
+      eventHandlers:
+        - event: Deposited(indexed address,uint256,uint256)
+          handler: handleDeposited
+        - event: WithdrawalCompleted(indexed address,uint256,uint256)
+          handler: handleWithdrawalCompleted
+        - event: WithdrawalRequested(indexed address,uint256,uint256)
+          handler: handleWithdrawalRequested
+      file: ./src/vault.ts
+
+  # ═══ StableLong Vault ═══
+  - kind: ethereum
+    name: StableLongVault
+    network: base
+    source:
+      address: "0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c"
+      abi: BaseVault
+      startBlock: 44091000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Vault
+        - Deposit
+        - Withdrawal
+        - CooldownRequest
+      abis:
+        - name: BaseVault
+          file: ./abis/BaseVault.json
+      eventHandlers:
+        - event: Deposited(indexed address,uint256,uint256)
+          handler: handleDeposited
+        - event: WithdrawalCompleted(indexed address,uint256,uint256)
+          handler: handleWithdrawalCompleted
+        - event: WithdrawalRequested(indexed address,uint256,uint256)
+          handler: handleWithdrawalRequested
+      file: ./src/vault.ts

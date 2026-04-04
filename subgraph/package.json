@@ -1,0 +1,16 @@
+{
+  "name": "lumina-subgraph",
+  "version": "1.0.0",
+  "description": "The Graph subgraph for Lumina Protocol on Base mainnet",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy:studio": "graph deploy --studio lumina-protocol",
+    "create:local": "graph create --node http://localhost:8020/ lumina-protocol",
+    "deploy:local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 lumina-protocol"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "^0.68.0",
+    "@graphprotocol/graph-ts": "^0.32.0"
+  }
+}
