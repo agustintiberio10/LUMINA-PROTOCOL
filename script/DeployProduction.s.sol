@@ -105,7 +105,7 @@ contract DeployProduction is Script {
         ILIndexCover il = new ILIndexCover(routerAddr, address(oracle));
         console.log("ILIndexCover:", address(il));
 
-        ExploitShield exploit = new ExploitShield(routerAddr, address(oracle), address(phala));
+        ExploitShield exploit = new ExploitShield(routerAddr, address(oracle), address(phala), AAVE_POOL);
         console.log("ExploitShield:", address(exploit));
 
         // ═══ 8. REGISTER PRODUCTS ═══

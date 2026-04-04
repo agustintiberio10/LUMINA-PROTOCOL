@@ -102,6 +102,9 @@ contract PolicyManager is
     error PolicyAlreadyAllocated(bytes32 productId, uint256 policyId);
     error ProductFrozen(bytes32 productId);
 
+    event AllocationUnderflow(bytes32 indexed productId, uint256 expected, uint256 actual);
+    event MaxAllocationUpdated(bytes32 indexed productId, uint16 oldBps, uint16 newBps);
+
     // ═══════════════════════════════════════════════════════════
     //  INITIALIZER
     // ═══════════════════════════════════════════════════════════
@@ -176,7 +179,9 @@ contract PolicyManager is
     /// @inheritdoc IPolicyManager
     function updateMaxAllocation(bytes32 productId, uint16 newMaxAllocationBps) external onlyAdmin {
         if (_products[productId].shield == address(0)) revert ProductNotRegistered(productId);
+        uint16 oldBps = _products[productId].maxAllocationBps;
         _products[productId].maxAllocationBps = newMaxAllocationBps;
+        emit MaxAllocationUpdated(productId, oldBps, newMaxAllocationBps);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -432,12 +437,14 @@ contract PolicyManager is
 
         // Update product tracking
         if (actualAmount > _productAllocated[productId]) {
+            emit AllocationUnderflow(productId, actualAmount, _productAllocated[productId]);
             _productAllocated[productId] = 0;
         } else {
             _productAllocated[productId] -= actualAmount;
         }
 
         if (actualAmount > _productVaultAllocated[productId][actualVault]) {
+            emit AllocationUnderflow(productId, actualAmount, _productVaultAllocated[productId][actualVault]);
             _productVaultAllocated[productId][actualVault] = 0;
         } else {
             _productVaultAllocated[productId][actualVault] -= actualAmount;
@@ -449,6 +456,7 @@ contract PolicyManager is
         for (uint256 i = 0; i < groups.length; i++) {
             CorrelationGroup storage group = _correlationGroups[groups[i]];
             if (actualAmount > group.currentAllocated) {
+                emit AllocationUnderflow(productId, actualAmount, group.currentAllocated);
                 group.currentAllocated = 0;
             } else {
                 group.currentAllocated -= actualAmount;
@@ -520,6 +528,20 @@ contract PolicyManager is
     function setRouter(address newRouter) external onlyAdmin {
         if (newRouter == address(0)) revert ZeroAddress("router");
         _router = newRouter;
+    }
+
+    /// @notice Remove inactive products from _productIds array (gas optimization)
+    function cleanProductIds() external onlyAdmin {
+        uint256 writeIdx = 0;
+        for (uint256 i = 0; i < _productIds.length; i++) {
+            if (_products[_productIds[i]].active) {
+                _productIds[writeIdx] = _productIds[i];
+                writeIdx++;
+            }
+        }
+        while (_productIds.length > writeIdx) {
+            _productIds.pop();
+        }
     }
 
     // ═══════════════════════════════════════════════════════════

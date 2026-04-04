@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IOracle} from "../interfaces/IOracle.sol";
 
 /**
  * @title EmergencyPause
@@ -10,12 +11,20 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *         deposits, and withdrawals across the entire protocol are halted.
  *
  * @dev Separate from per-contract Pausable and per-product freeze.
- *      Designed for catastrophic scenarios (oracle compromise, exploit detected).
- *
  *      EMERGENCY_ROLE holders can pause instantly without Timelock delay.
- *      Only owner (TimelockController) can grant/revoke EMERGENCY_ROLE.
- *
  *      Non-upgradeable by design — a circuit breaker should be immutable.
+ *
+ * PAUSE SCENARIOS:
+ *   a) USDC Depeg: USDC < $0.95 for +24h → admin pauses → unpauses when 1:1 restored
+ *   b) Aave V3 Issue: Aave paused/exploited → admin pauses → unpauses when Aave resolves
+ *   c) Protocol Emergency: exploit detected → admin pauses → unpauses post-fix
+ *
+ * DURING PAUSE:
+ *   - Active policies do NOT expire (grace periods effectively frozen)
+ *   - Pending payouts remain in PENDING state (not lost, not expired)
+ *   - LPs cannot withdraw (funds protected from bank run)
+ *   - No new purchases or deposits allowed
+ *   - triggerPayout and cleanupExpiredPolicy still work (claims must always be processable)
  */
 contract EmergencyPause is Ownable {
 
@@ -31,6 +40,15 @@ contract EmergencyPause is Ownable {
     /// @notice Timestamp of last unpause (for cooldown enforcement)
     uint256 public lastUnpauseAt;
 
+    /// @notice Oracle for USDC/USD price check
+    IOracle public oracle;
+    bytes32 public constant USDC_ASSET = "USDC";
+    uint256 public constant DEPEG_THRESHOLD = 95_000_000; // $0.95 in 8 decimals
+    uint256 public constant DEPEG_DURATION = 24 hours;
+
+    /// @notice Timestamp when USDC first went below threshold (0 if not depegged)
+    uint256 public depegStartedAt;
+
     // ═══════════════════════════════════════════════════════════
     //  EVENTS
     // ═══════════════════════════════════════════════════════════
@@ -40,6 +58,7 @@ contract EmergencyPause is Ownable {
     event EmergencyRoleGranted(address indexed account);
     event EmergencyRoleRevoked(address indexed account);
     event UnpauseCooldownUpdated(uint256 newCooldown);
+    event USDCDepegAlert(uint256 price, uint256 duration);
 
     // ═══════════════════════════════════════════════════════════
     //  ERRORS
@@ -108,5 +127,43 @@ contract EmergencyPause is Ownable {
     function setUnpauseCooldown(uint256 newCooldown) external onlyOwner {
         unpauseCooldown = newCooldown;
         emit UnpauseCooldownUpdated(newCooldown);
+    }
+
+    function setOracle(address oracle_) external onlyOwner {
+        oracle = IOracle(oracle_);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  USDC DEPEG MONITORING
+    // ═══════════════════════════════════════════════════════════
+
+    /// @notice Check USDC depeg status. Call periodically from backend.
+    /// @return isDepegged True if USDC < $0.95 for > 24h
+    /// @return currentPrice Current USDC price (8 decimals)
+    /// @return depegDuration How long USDC has been below threshold (0 if not)
+    function checkUSDCDepeg() external returns (bool isDepegged, uint256 currentPrice, uint256 depegDuration) {
+        if (address(oracle) == address(0)) return (false, 100_000_000, 0);
+
+        try oracle.getLatestPrice(USDC_ASSET) returns (int256 rawPrice) {
+            if (rawPrice <= 0) return (false, 0, 0);
+            currentPrice = uint256(rawPrice);
+
+            if (currentPrice < DEPEG_THRESHOLD) {
+                if (depegStartedAt == 0) {
+                    depegStartedAt = block.timestamp;
+                }
+                depegDuration = block.timestamp - depegStartedAt;
+
+                if (depegDuration >= DEPEG_DURATION) {
+                    isDepegged = true;
+                    emit USDCDepegAlert(currentPrice, depegDuration);
+                }
+            } else {
+                depegStartedAt = 0;
+            }
+        } catch {
+            // Oracle failed — cannot determine depeg
+            return (false, 0, 0);
+        }
     }
 }

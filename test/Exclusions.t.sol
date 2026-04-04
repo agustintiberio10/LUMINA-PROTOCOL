@@ -44,7 +44,7 @@ contract ExclusionsTest is Test {
         phalaVerifier = new MockPhalaVerifier();
 
         depegShield = new DepegShield(router, address(oracle));
-        exploitShield = new ExploitShield(router, address(oracle), address(phalaVerifier));
+        exploitShield = new ExploitShield(router, address(oracle), address(phalaVerifier), 0xA238Dd80C259A72E81D7E4674A5471b2F0730305);
     }
 
     // ═══════════════════════════════════════════════════════════

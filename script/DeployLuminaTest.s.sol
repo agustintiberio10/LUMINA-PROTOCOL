@@ -216,7 +216,7 @@ contract DeployLuminaTest is Script {
         console.log("ILIndexCover:", address(il));
 
         // 8d. ExploitShield — constructor(router_, oracle_, phalaVerifier_)
-        ExploitShield exploit = new ExploitShield(coverRouterAddr, address(oracle), address(phala));
+        ExploitShield exploit = new ExploitShield(coverRouterAddr, address(oracle), address(phala), address(aavePool));
         console.log("ExploitShield:", address(exploit));
 
         // ═══════════════════════════════════════════════════════════

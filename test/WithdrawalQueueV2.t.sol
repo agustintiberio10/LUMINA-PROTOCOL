@@ -194,19 +194,16 @@ contract WithdrawalQueueV2Test is Test {
     // TEST 8: Cancel withdrawal by index
     // ═══════════════════════════════════════════
 
-    function testCancelWithdrawalV2_basic() public {
+    function testCancelWithdrawalV2_reverts() public {
         _depositAs(user, 1000);
-
         uint256 s500 = vault.convertToShares(500 * USDC_DECIMALS);
-
         vm.prank(user);
         vault.requestWithdrawalV2(s500);
 
+        // [M-4] Cooldown is now irrevocable
         vm.prank(user);
+        vm.expectRevert("CooldownIrrevocable");
         vault.cancelWithdrawalV2(0);
-
-        IVault.WithdrawalRequest[] memory queue = vault.getWithdrawalQueue(user);
-        assertEq(queue.length, 0);
     }
 
     // ═══════════════════════════════════════════

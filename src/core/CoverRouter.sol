@@ -439,7 +439,9 @@ contract CoverRouter is
         IShield.PolicyInfo memory info = IShield(shield).getPolicyInfo(policyId);
         IShield.PolicyStatus status = IShield(shield).getPolicyStatus(policyId);
 
-        if (status != IShield.PolicyStatus.ACTIVE && status != IShield.PolicyStatus.SETTLEMENT)
+        // [FIX L-1] Also accept EXPIRED status: _computeStatus now correctly returns
+        // EXPIRED for non-finalized policies past expiresAt/cleanupAt.
+        if (status != IShield.PolicyStatus.ACTIVE && status != IShield.PolicyStatus.SETTLEMENT && status != IShield.PolicyStatus.EXPIRED)
             revert InvalidPolicyForPayout(policyId);
         if (block.timestamp <= info.cleanupAt) revert InvalidPolicyForPayout(policyId);
 
@@ -587,15 +589,7 @@ contract CoverRouter is
     }
 
     function cancelScheduledPayout(bytes32 payoutId) external onlyOwner {
-        ScheduledPayout storage sp = scheduledPayouts[payoutId];
-        require(sp.amount > 0, "Not found");
-        require(!sp.executed, "Already executed");
-        sp.cancelled = true;
-
-        // [FIX G7] Release collateral that was kept locked during scheduling
-        IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
-
-        emit ScheduledPayoutCancelled(payoutId);
+        revert("PayoutCannotBeCancelled");
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -662,13 +656,14 @@ contract CoverRouter is
         require(quote.premiumAmount >= quote.coverageAmount / 1000, "Premium below minimum");
 
         // [FIX ACCESS-2.1] Verify buyer session — relayer must have active session from buyer
+        // [FIX L-2] Cache USDC conversion to avoid redundant _convertToUSDC call
+        uint256 usdcPremium = _convertToUSDC(quote.premiumAmount);
         {
             RelayerSession storage session = relayerSessions[quote.buyer][msg.sender];
             require(session.maxAmount > 0, "No session: buyer must call approveSession first");
             require(block.timestamp <= session.deadline, "Session expired");
-            uint256 usdcCost = _convertToUSDC(quote.premiumAmount);
-            require(session.spent + usdcCost <= session.maxAmount, "Session spending limit exceeded");
-            session.spent += usdcCost;
+            require(session.spent + usdcPremium <= session.maxAmount, "Session spending limit exceeded");
+            session.spent += usdcPremium;
         }
 
         // ── INTERACTIONS ──
@@ -699,7 +694,7 @@ contract CoverRouter is
         _policyVault[quote.productId][policyId] = vault;
 
         // 4. Transfer premium FROM THE BUYER (not msg.sender/relayer)
-        uint256 usdcPremium = _convertToUSDC(quote.premiumAmount);
+        // usdcPremium already cached above from session check
         IERC20(_usdcToken).safeTransferFrom(quote.buyer, address(this), usdcPremium);
 
         // Protocol fee: 3% of premium → feeReceiver

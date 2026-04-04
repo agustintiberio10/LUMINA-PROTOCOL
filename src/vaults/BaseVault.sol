@@ -237,17 +237,7 @@ abstract contract BaseVault is
 
     /// @inheritdoc IVault
     function cancelWithdrawal() external nonReentrant {
-        WithdrawalRequest storage req = _withdrawalRequests[msg.sender];
-        if (req.cooldownEnd == 0) revert NoActiveWithdrawalRequest(msg.sender);
-
-        uint256 shares = req.shares;
-
-        // [GM-1] Simple subtraction — no drift because we track shares, not assets
-        _pendingWithdrawalShares -= shares;
-
-        delete _withdrawalRequests[msg.sender];
-
-        emit WithdrawalCancelled(msg.sender, shares);
+        revert("CooldownIrrevocable");
     }
 
     /// @inheritdoc IVault
@@ -422,16 +412,7 @@ abstract contract BaseVault is
     }
 
     function cancelWithdrawalV2(uint256 index) external nonReentrant {
-        WithdrawalRequest[] storage queue = _withdrawalQueue[msg.sender];
-        if (index >= queue.length) revert NoActiveWithdrawalRequest(msg.sender);
-
-        uint256 shares = queue[index].shares;
-        _pendingQueueShares -= shares;
-
-        queue[index] = queue[queue.length - 1];
-        queue.pop();
-
-        emit WithdrawalCancelled(msg.sender, shares);
+        revert("CooldownIrrevocable");
     }
 
     /// @inheritdoc IVault
@@ -745,6 +726,7 @@ abstract contract BaseVault is
 
         // Supply to Aave if healthy
         if (_aaveHealthCheck()) {
+            IERC20(asset()).approve(address(aavePool), 0);
             IERC20(asset()).approve(address(aavePool), assets);
             aavePool.supply(asset(), assets, address(this), 0);
         }

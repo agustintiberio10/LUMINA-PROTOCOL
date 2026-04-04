@@ -173,16 +173,11 @@ contract OracleMitigationsTest is Test {
     // ═══════════════════════════════════════════════════════════
 
     /// @notice Test 5: Owner can cancel a scheduled payout.
-    function test_ownerCanCancelScheduledPayout() public {
-        // Manually construct a payoutId and write a scheduled payout into storage
+    function test_cancelScheduledPayoutAlwaysReverts() public {
+        // [H-5] cancelScheduledPayout always reverts — payouts are immutable
         bytes32 payoutId = keccak256("test-payout-1");
-
-        // Store a scheduled payout via storage slot manipulation
-        // scheduledPayouts is a mapping(bytes32 => ScheduledPayout) at a known slot
-        // Instead, we test cancelScheduledPayout requires a valid entry:
-        // First, it should revert with "Not found" for non-existent payout
         vm.prank(owner);
-        vm.expectRevert("Not found");
+        vm.expectRevert("PayoutCannotBeCancelled");
         router.cancelScheduledPayout(payoutId);
     }
 

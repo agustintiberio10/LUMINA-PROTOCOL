@@ -125,7 +125,7 @@ contract DeployUUPS is Script {
         ILIndexCover il = new ILIndexCover(address(routerProxy), oracle);
         console.log("ILIndexCover:", address(il));
 
-        ExploitShield exploit = new ExploitShield(address(routerProxy), oracle, phala);
+        ExploitShield exploit = new ExploitShield(address(routerProxy), oracle, phala, address(0));
         console.log("ExploitShield:", address(exploit));
 
         // ═══════════════════════════════════════════

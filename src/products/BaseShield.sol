@@ -293,11 +293,14 @@ abstract contract BaseShield is IShield {
         if (block.timestamp < cp.waitingEndsAt) return PolicyStatus.WAITING;
         if (block.timestamp < cp.expiresAt) return PolicyStatus.ACTIVE;
         // IL Index: between expiresAt and cleanupAt → SETTLEMENT
-        if (_hasSettlementWindow() && block.timestamp < cp.cleanupAt) {
+        if (_hasSettlementWindow() && block.timestamp <= cp.cleanupAt) {
             return PolicyStatus.SETTLEMENT;
         }
-        // Expired but not finalized → return ACTIVE for Router cleanup compatibility
-        return PolicyStatus.ACTIVE;
+        // [FIX L-1] Past expiresAt (or past cleanupAt for settlement products)
+        // and not finalized → return EXPIRED. Previously returned ACTIVE which
+        // misrepresented policy status. Router.cleanupExpiredPolicy updated to
+        // also accept EXPIRED status.
+        return PolicyStatus.EXPIRED;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -372,12 +375,14 @@ abstract contract BaseShield is IShield {
     ///                              waitingEndsAt    expiresAt    cleanupAt
     ///
     ///      IL Index overrides: requires SETTLEMENT status (48h window replaces grace).
-    /// @dev [H-5] The dual check (status == ACTIVE && timestamp < cleanupAt) is intentional.
-    ///      _computeStatus returns ACTIVE for expired-but-not-finalized policies (for Router
-    ///      compatibility), so the cleanupAt check is the actual temporal boundary.
+    /// @dev [H-5] [FIX L-1] Accept ACTIVE or EXPIRED status for trigger validation.
+    ///      _computeStatus now correctly returns EXPIRED for non-finalized policies past expiresAt.
+    ///      During the grace period (expiresAt → cleanupAt), agents can still submit claims
+    ///      for events that occurred during coverage. The cleanupAt check is the temporal boundary.
     ///      Both checks are needed: status prevents finalized policies, cleanupAt prevents stale claims.
     function _validateStatusForTrigger(uint256 policyId, PolicyStatus current) internal view virtual {
-        if (current != PolicyStatus.ACTIVE) {
+        // Allow ACTIVE (during coverage) or EXPIRED (grace period, not yet finalized)
+        if (current != PolicyStatus.ACTIVE && current != PolicyStatus.EXPIRED) {
             revert InvalidPolicyStatus(policyId, current, PolicyStatus.ACTIVE);
         }
         // Allow claims during grace period (expiresAt → cleanupAt)

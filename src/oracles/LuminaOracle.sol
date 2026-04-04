@@ -415,9 +415,26 @@ contract LuminaOracle is IOracle, Ownable {
         uint256 updatedAt,
         uint80 answeredInRound
     ) {
+        // [FIX M-8] Check L2 sequencer health (same as getLatestPrice)
+        _checkSequencer();
+
         FeedConfig storage config = _feeds[asset];
         if (!config.active) revert FeedNotRegistered(asset);
-        return config.feed.latestRoundData();
+
+        (roundId, answer, startedAt, updatedAt, answeredInRound) = config.feed.latestRoundData();
+
+        // [FIX M-8] Validate price > 0
+        if (answer <= 0) revert InvalidPriceAsset(asset, answer);
+
+        // [FIX M-8] Validate round completeness
+        if (answeredInRound < roundId) {
+            revert IncompleteRound(asset, roundId, answeredInRound);
+        }
+
+        // [FIX M-8] Validate staleness
+        if (updatedAt > block.timestamp || block.timestamp - updatedAt > config.maxStaleness) {
+            revert StalePriceAsset(asset, updatedAt, config.maxStaleness);
+        }
     }
 
     /// @notice Get sequencer uptime feed address
