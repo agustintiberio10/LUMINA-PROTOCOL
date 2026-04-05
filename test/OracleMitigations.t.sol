@@ -71,21 +71,21 @@ contract OracleMitigationsTest is Test {
     //  VAULT-LEVEL: payoutsPaused
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Test 7: With payoutsPaused=true, executePayout reverts.
-    function test_payoutsPauseStopsTriggers() public {
+    /// @notice Test 7: payoutsPaused is deprecated — executePayout works regardless.
+    function test_payoutsPauseDoesNotBlockExecutePayout() public {
         _depositAs(user1, 10_000e6);
 
-        // Owner pauses payouts
+        // Owner sets payoutsPaused (deprecated, no effect)
         vm.prank(owner);
         vault.pausePayouts();
         assertTrue(vault.payoutsPaused(), "payoutsPaused should be true");
 
         bytes32 productId = keccak256("TEST");
 
-        // executePayout should revert
+        // executePayout should SUCCEED despite payoutsPaused (Option E)
         vm.prank(address(router));
-        vm.expectRevert("Payouts paused");
         vault.executePayout(address(0xBEEF), 500e6, productId, 1, address(0xBEEF));
+        // No revert — payouts always execute
     }
 
     /// @notice Test 8: Deposits still work when payouts are paused.
@@ -173,11 +173,11 @@ contract OracleMitigationsTest is Test {
     // ═══════════════════════════════════════════════════════════
 
     /// @notice Test 5: Owner can cancel a scheduled payout.
-    function test_cancelScheduledPayoutAlwaysReverts() public {
-        // [H-5] cancelScheduledPayout always reverts — payouts are immutable
+    function test_cancelScheduledPayoutRequiresEmergencyRole() public {
+        // [Option E] cancelScheduledPayout requires EMERGENCY_ROLE
         bytes32 payoutId = keccak256("test-payout-1");
         vm.prank(owner);
-        vm.expectRevert("PayoutCannotBeCancelled");
+        vm.expectRevert("Only emergency role");
         router.cancelScheduledPayout(payoutId);
     }
 

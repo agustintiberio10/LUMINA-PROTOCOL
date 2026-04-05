@@ -86,6 +86,8 @@ abstract contract BaseVault is
     uint256[46] private __gap;
 
     // ═══ Oracle Mitigation: Payout-specific pause ═══
+    // DEPRECATED: Not used in executePayout. Kept for storage layout compatibility only.
+    // Veto-based cancellation via CoverRouter.cancelScheduledPayout replaces blanket pause.
     bool public payoutsPaused;
 
     // ═══ Performance Fee (3% on positive yield at withdrawal) ═══
@@ -502,8 +504,9 @@ abstract contract BaseVault is
         bytes32 productId,
         uint256 policyId,
         address beneficiary
-    ) external onlyRouter nonReentrant whenNotPaused returns (bool) {
-        require(!payoutsPaused, "Payouts paused");
+    // [FIX Option-E] No whenNotPaused — approved payouts ALWAYS execute regardless of pause state.
+    // Admin uses targeted cancelScheduledPayout for fraud, not blanket pause.
+    ) external onlyRouter nonReentrant returns (bool) {
         if (amount == 0) return true;
         if (recipient == address(0)) revert ZeroAddress();
         if (beneficiary == address(0)) revert ZeroAddress();

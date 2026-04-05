@@ -116,8 +116,12 @@ contract CoverRouter is
     /// @notice Global emergency pause contract (APPENDED — UUPS-safe)
     address public emergencyPause;
 
+    // ═══ Veto tracking ═══
+    /// @notice Weekly veto tracking: weekNumber => count
+    mapping(uint256 => uint256) public weeklyVetoCount;
+
     /// @dev Storage gap for future UUPS upgrades
-    uint256[49] private __gap_router;
+    uint256[48] private __gap_router;
 
     // ═══════════════════════════════════════════════════════════
     //  EVENTS (additional, not in interface)
@@ -141,8 +145,16 @@ contract CoverRouter is
     error InvalidFeeBps(uint16 feeBps);
     error ZeroFeeReceiver();
     error UnauthorizedRelayer(address caller);
+    error PayoutFinalized();
+    error VetoLimitExceeded(uint256 weeklyCount, uint256 maxAllowed);
+    error NotEmergencyRole();
 
     event RelayerAuthorized(address indexed relayer, bool authorized);
+
+    // ═══ Veto Events ═══
+    event PayoutVetoed(bytes32 indexed productId, uint256 indexed policyId, address indexed vetoedBy, uint256 amount);
+
+    uint256 public constant MAX_VETOES_PER_WEEK = 3;
 
     // ═══ Oracle Mitigation Events ═══
     event PayoutScheduled(bytes32 indexed payoutId, address indexed beneficiary, uint256 amount, uint256 executeAfter);
@@ -597,8 +609,32 @@ contract CoverRouter is
         emit ScheduledPayoutExecuted(payoutId, sp.beneficiary, sp.amount);
     }
 
-    function cancelScheduledPayout(bytes32 payoutId) external onlyOwner {
-        revert("PayoutCannotBeCancelled");
+    function cancelScheduledPayout(bytes32 payoutId) external {
+        // Only EMERGENCY_ROLE holders can veto (read from EmergencyPause contract)
+        require(
+            emergencyPause != address(0) && EmergencyPause(emergencyPause).hasEmergencyRole(msg.sender),
+            "Only emergency role"
+        );
+
+        ScheduledPayout storage sp = scheduledPayouts[payoutId];
+        require(sp.amount > 0, "Not found");
+        require(!sp.executed, "Already executed");
+        require(!sp.cancelled, "Already cancelled");
+
+        // Can only cancel BEFORE the payout becomes claimable
+        require(block.timestamp < sp.executeAfter, "PayoutFinalized: delay passed, agent can claim");
+
+        // Weekly veto limit
+        uint256 currentWeek = block.timestamp / 1 weeks;
+        require(weeklyVetoCount[currentWeek] < MAX_VETOES_PER_WEEK, "Veto limit exceeded");
+        weeklyVetoCount[currentWeek]++;
+
+        sp.cancelled = true;
+
+        // Release allocation back to vault
+        IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
+
+        emit PayoutVetoed(sp.productId, sp.policyId, msg.sender, sp.amount);
     }
 
     // ═══════════════════════════════════════════════════════════

@@ -1,52 +1,69 @@
-# LUMINA PROTOCOL — ANTI-FRAUD PLAYBOOK
+# LUMINA PROTOCOL — ANTI-FRAUD PLAYBOOK (Option E)
 ## Operator Guide for Detecting and Responding to Fraudulent Payouts
 
 ---
 
-## DEFENSE LAYERS (Pre-Payout)
+## CORE PRINCIPLE
 
-| Layer | Mechanism | What it prevents |
-|-------|-----------|-----------------|
-| 1 | Oracle cryptographic signature | Fake events (oracle must sign proof) |
-| 2 | Waiting period (1h BSS, 24h Depeg, 14d Exploit) | Same-block front-running |
-| 3 | Dual verification (Exploit: Oracle + Phala TEE) | Single-point oracle compromise |
-| 4 | EmergencyPause (instant, no delay) | Halt protocol before trigger |
-| 5 | Scheduled payout delay ($50K+) | Window to pause before execution |
+**Once a payout passes its delay window and becomes Claimable, the insured agent ALWAYS receives their funds. No admin, multisig, or timelock can stop it.** The admin's only window to act is DURING the scheduled delay period.
 
 ---
 
-## IF YOU DETECT A FRAUDULENT PAYOUT ATTEMPT
+## DEFENSE LAYERS
 
-### Scenario A: Oracle key potentially compromised
+| Layer | Mechanism | What it prevents | Timing |
+|-------|-----------|-----------------|--------|
+| 1 | Oracle 2-of-3 multisig | Fake events | Pre-trigger |
+| 2 | Waiting period (1h BSS, 24h Depeg, 14d Exploit) | Front-running | Pre-trigger |
+| 3 | Dual verification (Exploit: Oracle + Phala TEE) | Single-point compromise | Pre-trigger |
+| 4 | EmergencyPause (instant, no delay) | Halt new purchases/triggers | Pre-trigger |
+| 5 | Scheduled payout delay (largePayoutDelay, min 1h) | Window to investigate + veto | Post-trigger |
+| 6 | `cancelScheduledPayout` targeted veto | Cancel specific fraudulent payouts | During delay only |
+| 7 | Weekly veto limit (max 3/week) | Prevent admin abuse of veto power | Always |
 
-**Time available:** Until the attacker calls `triggerPayout()`
+---
 
-1. **IMMEDIATELY** call `EmergencyPause.emergencyPauseAll()` from Gnosis Safe
-   - This blocks `purchasePolicy` and `purchasePolicyFor` (no new fraudulent policies)
-   - `triggerPayout` still works (by design) but `executePayout` reverts if vault is paused
-2. Rotate oracle key: `LuminaOracle.setOracleKey(newKey)` via TimelockController
-3. If multisig oracle: `removeSigner(compromisedKey)` + `setRequiredSignatures(N)`
-4. Unpause after key rotation
+## PAYOUT LIFECYCLE
 
-### Scenario B: Fraudulent payout already triggered (large, scheduled)
+```
+EVENT → triggerPayout() → [SCHEDULED: delay period] → [CLAIMABLE: agent collects]
+                               ↑                          ↑
+                          Admin can VETO here        Admin CANNOT act here
+                          (cancelScheduledPayout)    (payout is final)
+```
 
-**Time available:** `largePayoutDelay` (configured, minimum 1 hour)
+---
 
-1. The payout is scheduled, not yet executed
-2. Call `EmergencyPause.emergencyPauseAll()` — this blocks `executeScheduledPayout` (vault paused)
-3. Investigate the claim off-chain
-4. If fraud confirmed: the scheduled payout cannot be cancelled (by design) BUT it also cannot execute while paused
-5. Upgrade the CoverRouter via UUPS to add the ability to void this specific payout, then unpause
-6. If legitimate: simply unpause, the scheduled payout executes normally
+## FRAUD RESPONSE PROCEDURE
 
-### Scenario C: Fraudulent payout already executed (small, immediate)
+### DETECTION
+1. Off-chain monitoring detects suspicious trigger (unusual amount, timing, oracle data inconsistency)
+2. Alert sent to operations team (Slack, PagerDuty, etc.)
 
-**Time available:** None — funds already transferred
+### ACTION WINDOW
+3. Admin has from `triggerPayout()` until `sp.executeAfter` to act
+4. Delay value: `largePayoutDelay` (configurable, minimum 1 hour)
+5. Only payouts > `largePayoutThreshold` are scheduled (small payouts are instant)
 
-1. The damage is limited to: `maxPayout` of the specific policy
-2. Pause protocol to prevent further attacks
-3. Rotate compromised keys
-4. The `maxPayoutsPerDay` rate limit caps total daily damage
+### IF FRAUD CONFIRMED (within delay window)
+6. Admin calls `cancelScheduledPayout(payoutId)` from Gnosis Safe (requires 2/3 EMERGENCY_ROLE)
+7. Funds return to vault (benefit all LPs), allocation released
+8. Event `PayoutVetoed` emitted for transparency
+9. Max 3 vetoes per week to prevent admin abuse
+10. Investigate attack vector, rotate compromised keys
+
+### IF FRAUD NOT CONFIRMED
+11. Do nothing. Delay passes. Payout becomes Claimable.
+12. Agent calls `executeScheduledPayout(payoutId)` — collects full payout.
+
+### AFTER DELAY PASSES (Claimable)
+13. `cancelScheduledPayout` reverts with "delay passed, agent can claim"
+14. Agent collects whenever they want, even during protocol pause
+15. `executePayout` has no pause check — funds flow regardless
+
+### SMALL PAYOUTS (below threshold)
+16. Execute immediately in `triggerPayout` — no delay, no veto window
+17. If suspicious, admin must pause protocol BEFORE the trigger (Layer 4)
 
 ---
 
@@ -59,15 +76,28 @@
 | USDC depeg (< $0.95) | Every 5 min | `EmergencyPause.checkUSDCDepeg()` |
 | Sequencer uptime | Real-time | Chainlink feed |
 | Vault utilization spikes | Hourly | Dashboard |
+| Veto count this week | Daily | On-chain query |
 | Multiple policies from same agent | Daily | Subgraph query |
 
 ---
 
 ## RESPONSE TIME TABLE
 
-| Scenario | Detection → Pause | Pause → Investigation | Investigation → Resolution |
-|----------|------------------|----------------------|---------------------------|
-| Oracle compromise | < 5 min | Instant | 1-24h (key rotation) |
-| USDC depeg | < 30 min | Instant | Until depeg resolves |
-| Aave V3 issue | < 15 min | Instant | Until Aave resolves |
-| Protocol exploit | < 5 min | Instant | Days (upgrade + audit) |
+| Scenario | Detection → Action | Available Window | Max Damage |
+|----------|-------------------|-----------------|------------|
+| Oracle compromise (large payout) | < 5 min | `largePayoutDelay` (1h+) | Veto cancels it |
+| Oracle compromise (small payout) | < 5 min | None (instant) | maxPayout of 1 policy |
+| USDC depeg | < 30 min | Pause before triggers | 0 if paused in time |
+| Protocol exploit | < 5 min | Pause immediately | 0 if paused in time |
+
+---
+
+## CONFIGURATION RECOMMENDATIONS
+
+| Parameter | Recommended Value | Why |
+|-----------|-------------------|-----|
+| `largePayoutThreshold` | $50,000 (50_000e6) | Payouts above this get scheduled delay |
+| `largePayoutDelay` | 6 hours | Enough time for 2/3 multisig to respond |
+| `maxPayoutsPerDay` | 10 | Limits daily drain from compromised oracle |
+| `requiredSignatures` | 2 (of 3) | Oracle multisig |
+| `MAX_VETOES_PER_WEEK` | 3 | Hardcoded — prevents admin abuse |
