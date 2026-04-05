@@ -490,7 +490,7 @@ NOTE: Vault function signatures verified from BaseVault.sol source code.
 Core:
   CoverRouter:       0xd5f8678A0F2149B6342F9014CCe6d743234Ca025
   PolicyManager:     0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a
-  LuminaOracle:      0xB52BB8B09Df13dB2D244746688C14A720ceE4C09
+  LuminaOracle:      0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87
   PhalaVerifier:     0x468b9D2E9043c80467B610bC290b698ae23adb9B
 
 Vaults:
@@ -500,10 +500,10 @@ Vaults:
   StableLong:        0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c
 
 Shields:
-  BSS:               0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e
-  Depeg:             0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306
-  ILIndex:           0x4196f2Cc92C5c4141a34f9a28f23236446E3C4E0
-  Exploit:           0xaE29Fc3e5f0DedC968cE2dA2A2F3ccB98397b38C
+  BSS:               0x2926202bbe3f25f71ef17b25a20ebe8be028af5f
+  Depeg:             0x7578816a803d293bbb4dbea0efbed872842679d0
+  ILIndex:           0x2ac0d2a9889a8a4143727a0240de3fed4650dd93
+  Exploit:           0x9870830c615d1b9c53dfee4136c4792de395b7a1
 
 Governance:
   TimelockController: 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a

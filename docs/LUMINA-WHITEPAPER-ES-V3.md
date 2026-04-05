@@ -163,16 +163,16 @@ El humano, a traves de su agente de IA, deposita USDC en uno de los cuatro vault
 |-------------------------|----------------|--------|--------------------------------------|----------------------------------------------------|
 | CoverRouter             | Core           | UUPS   | Todos los Shields, PolicyManager     | `0xd5f8678A0F2149B6342F9014CCe6d743234Ca025`       |
 | PolicyManager           | Core           | UUPS   | Vaults, Shields                      | `0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a`       |
-| LuminaOracle            | Oracle         | UUPS   | Chainlink feeds, Sequencer           | `0xB52BB8B09Df13dB2D244746688C14A720ceE4C09`       |
+| LuminaOracle            | Oracle         | UUPS   | Chainlink feeds, Sequencer           | `0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87`       |
 | LuminaPhalaVerifier     | Oracle         | UUPS   | Phala TEE network                    | `0x468b9D2E9043c80467B610bC290b698ae23adb9B`       |
 | VolatileShort Vault     | Vault          | UUPS   | Aave V3, USDC                        | `0xbd44547581b92805aAECc40EB2809352b9b2880d`       |
 | VolatileLong Vault      | Vault          | UUPS   | Aave V3, USDC                        | `0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904`       |
 | StableShort Vault       | Vault          | UUPS   | Aave V3, USDC                        | `0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC`       |
 | StableLong Vault        | Vault          | UUPS   | Aave V3, USDC                        | `0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`       |
-| BlackSwanShield         | Producto       | UUPS   | Oracle, PolicyManager, VolatileShort | `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e`       |
-| DepegShield             | Producto       | UUPS   | Oracle, PolicyManager, StableShort   | `0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306`       |
-| ILIndexCover            | Producto       | UUPS   | Oracle, PolicyManager, VolatileShort | `0x4196f2Cc92C5c4141a34f9a28f23236446E3C4E0`       |
-| ExploitShield           | Producto       | UUPS   | Oracle, Phala TEE, PolicyManager     | `0xaE29Fc3e5f0DedC968cE2dA2A2F3ccB98397b38C`       |
+| BlackSwanShield         | Producto       | UUPS   | Oracle, PolicyManager, VolatileShort | `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f`       |
+| DepegShield             | Producto       | UUPS   | Oracle, PolicyManager, StableShort   | `0x7578816a803d293bbb4dbea0efbed872842679d0`       |
+| ILIndexCover            | Producto       | UUPS   | Oracle, PolicyManager, VolatileShort | `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93`       |
+| ExploitShield           | Producto       | UUPS   | Oracle, Phala TEE, PolicyManager     | `0x9870830c615d1b9c53dfee4136c4792de395b7a1`       |
 | TimelockController      | Governance     | --     | Gnosis Safe                          | `0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a`       |
 
 ### 3.5 Colateralizacion Estricta 1:1
@@ -194,7 +194,7 @@ Este modelo elimina el riesgo de subcapitalizacion que afecta a otros protocolos
 | Parametro                | Valor                                                     |
 |--------------------------|-----------------------------------------------------------|
 | Producto ID              | `BLACKSWAN-001`                                           |
-| Contrato                 | `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e`              |
+| Contrato                 | `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f`              |
 | Trigger                  | Caida > 30% desde el precio al momento de compra          |
 | TRIGGER_DROP_BPS         | `3000` (30% en puntos base)                               |
 | Verificacion             | TWAP 15 minutos o 3 rounds consecutivos de Chainlink      |
@@ -235,7 +235,7 @@ Payout neto al agente: $38,800
 | Parametro                | Valor                                                     |
 |--------------------------|-----------------------------------------------------------|
 | Producto ID              | `DEPEG-STABLE-001`                                        |
-| Contrato                 | `0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306`              |
+| Contrato                 | `0x7578816a803d293bbb4dbea0efbed872842679d0`              |
 | Trigger                  | Precio stablecoin < $0.95                                 |
 | TRIGGER_PRICE            | `95_000_000` (8 decimales Chainlink)                      |
 | Verificacion             | TWAP 30 minutos o 5 rounds consecutivos                   |
@@ -274,7 +274,7 @@ Los descuentos por duracion incentivan polizas de largo plazo, lo cual beneficia
 | Parametro                | Valor                                                     |
 |--------------------------|-----------------------------------------------------------|
 | Producto ID              | `IL-INDEX-001`                                            |
-| Contrato                 | `0x4196f2Cc92C5c4141a34f9a28f23236446E3C4E0`              |
+| Contrato                 | `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93`              |
 | Trigger                  | IL > 2% al vencimiento de la poliza                       |
 | Estilo                   | European-style (resolucion solo al vencimiento)           |
 | Ventana de resolucion    | 48 horas post-vencimiento                                 |
@@ -326,7 +326,7 @@ El payout maximo absoluto es **$5,850** por cada **$50,000** de cobertura (11.7%
 | Parametro                | Valor                                                     |
 |--------------------------|-----------------------------------------------------------|
 | Producto ID              | `EXPLOIT-SHIELD-001`                                      |
-| Contrato                 | `0xaE29Fc3e5f0DedC968cE2dA2A2F3ccB98397b38C`              |
+| Contrato                 | `0x9870830c615d1b9c53dfee4136c4792de395b7a1`              |
 | Trigger dual             | (1) Token de gobernanza -25% en 24h AND (2) Receipt token -30% por 4h O contrato pausado |
 | Verificacion             | Oracle (Chainlink) + Phala TEE                            |
 | Deducible                | 10%                                                       |
@@ -414,7 +414,7 @@ Se han disenado tres productos adicionales para futuras versiones del protocolo:
 
 ### 6.1 LuminaOracle
 
-El contrato LuminaOracle (`0xB52BB8B09Df13dB2D244746688C14A720ceE4C09`) es el componente central de verificacion de datos del protocolo. Opera con un esquema multisig N-of-M que puede expandirse segun las necesidades de descentralizacion.
+El contrato LuminaOracle (`0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87`) es el componente central de verificacion de datos del protocolo. Opera con un esquema multisig N-of-M que puede expandirse segun las necesidades de descentralizacion.
 
 Actualmente opera en modo 1-of-1 (expandible a N-of-M). El oracle verifica los feeds de Chainlink, implementa un chequeo de sequencer de 1 hora para Base L2, y valida la frescura de los datos antes de aceptarlos como input para triggers.
 
@@ -691,7 +691,7 @@ Lumina Protocol se proporciona "tal cual" (AS-IS) sin garantias de ningun tipo, 
 |------------------------|-----------------------------------------------------|
 | CoverRouter            | `0xd5f8678A0F2149B6342F9014CCe6d743234Ca025`       |
 | PolicyManager          | `0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a`       |
-| LuminaOracle           | `0xB52BB8B09Df13dB2D244746688C14A720ceE4C09`       |
+| LuminaOracle           | `0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87`       |
 | LuminaPhalaVerifier    | `0x468b9D2E9043c80467B610bC290b698ae23adb9B`       |
 
 ### Vaults
@@ -707,10 +707,10 @@ Lumina Protocol se proporciona "tal cual" (AS-IS) sin garantias de ningun tipo, 
 
 | Shield                 | Direccion                                          |
 |------------------------|-----------------------------------------------------|
-| BlackSwanShield (BSS)  | `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e`       |
-| DepegShield            | `0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306`       |
-| ILIndexCover           | `0x4196f2Cc92C5c4141a34f9a28f23236446E3C4E0`       |
-| ExploitShield          | `0xaE29Fc3e5f0DedC968cE2dA2A2F3ccB98397b38C`       |
+| BlackSwanShield (BSS)  | `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f`       |
+| DepegShield            | `0x7578816a803d293bbb4dbea0efbed872842679d0`       |
+| ILIndexCover           | `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93`       |
+| ExploitShield          | `0x9870830c615d1b9c53dfee4136c4792de395b7a1`       |
 
 ### Contratos Externos
 

@@ -7,7 +7,8 @@
 ## Core
 - CoverRouter: `0xd5f8678A0F2149B6342F9014CCe6d743234Ca025`
 - PolicyManager: `0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a`
-- LuminaOracle: `0xB52BB8B09Df13dB2D244746688C14A720ceE4C09`
+- LuminaOracle: `0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87`
+- EmergencyPause: `0xc7ac8c19c3f10f820d7e42f07e6e257bacc22876`
 - LuminaPhalaVerifier: `0x468b9D2E9043c80467B610bC290b698ae23adb9B`
 
 ## Vaults
@@ -17,10 +18,10 @@
 - StableLong (372d cooldown): `0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`
 
 ## Shields
-- BlackSwanShield (BSS): `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e`
-- DepegShield: `0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306`
-- ILIndexCover: `0x4196f2Cc92C5c4141a34f9a28f23236446E3C4E0`
-- ExploitShield: `0xaE29Fc3e5f0DedC968cE2dA2A2F3ccB98397b38C`
+- BlackSwanShield (BSS): `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f`
+- DepegShield: `0x7578816a803d293bbb4dbea0efbed872842679d0`
+- ILIndexCover: `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93`
+- ExploitShield: `0x9870830c615d1b9c53dfee4136c4792de395b7a1`
 
 ## External
 - USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
@@ -39,6 +40,14 @@
 - USDC/USD: `0x7e860098F58bBFC8648a4311b374B1D669a2bc6B` (86400s staleness)
 - USDT/USD: `0xf19d560eB8d2ADf07BD6D13ed03e1D11215721F9` (86400s staleness)
 - DAI/USD: `0x591e79239a7d679378eC8c847e5038150364C78F` (86400s staleness)
+
+## Implementation Addresses
+- CoverRouter impl: `0x4125c61ca25970793cc44350ac414f291d0057fd`
+- PolicyManager impl: `0xd55e61c0175696a76d2c494c6e9cc71b9bddb77f`
+- VolatileShort impl: `0xce02076988c3b727d4c8063085e86a09e7b64010`
+- VolatileLong impl: `0x747f9fe892181cf771ec7f961aaf546d053f1ade`
+- StableShort impl: `0x73611a3022dd4ef8f27ff335687ea72d068e5271`
+- StableLong impl: `0xd5f252279fef6db364e5089930fd183eba2a6871`
 
 ## Deployed
 - Date: 2026-03-29

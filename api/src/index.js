@@ -74,10 +74,10 @@ const VAULTS = {
 };
 
 const SHIELDS = {
-  BSS:     process.env.SHIELD_BSS     || "0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e",
-  DEPEG:   process.env.SHIELD_DEPEG   || "0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306",
-  IL_INDEX:process.env.SHIELD_IL      || "0x4196f2Cc92C5c4141a34f9a28f23236446E3C4E0",
-  EXPLOIT: process.env.SHIELD_EXPLOIT || "0xaE29Fc3e5f0DedC968cE2dA2A2F3ccB98397b38C",
+  BSS:     process.env.SHIELD_BSS     || "0x2926202bbe3f25f71ef17b25a20ebe8be028af5f",
+  DEPEG:   process.env.SHIELD_DEPEG   || "0x7578816a803d293bbb4dbea0efbed872842679d0",
+  IL_INDEX:process.env.SHIELD_IL      || "0x2ac0d2a9889a8a4143727a0240de3fed4650dd93",
+  EXPLOIT: process.env.SHIELD_EXPLOIT || "0x9870830c615d1b9c53dfee4136c4792de395b7a1",
 };
 
 // Product IDs (keccak256 of product name)
