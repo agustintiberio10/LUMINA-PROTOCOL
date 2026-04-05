@@ -13,7 +13,7 @@
 
 | Layer | Mechanism | What it prevents | Timing |
 |-------|-----------|-----------------|--------|
-| 1 | Oracle 2-of-3 multisig | Fake events | Pre-trigger |
+| 1 | Oracle multisig (currently 1-of-1, planned upgrade to 2-of-3) | Fake events | Pre-trigger |
 | 2 | Waiting period (1h BSS, 24h Depeg, 14d Exploit) | Front-running | Pre-trigger |
 | 3 | Dual verification (Exploit: Oracle + Phala TEE) | Single-point compromise | Pre-trigger |
 | 4 | EmergencyPause (instant, no delay) | Halt new purchases/triggers | Pre-trigger |

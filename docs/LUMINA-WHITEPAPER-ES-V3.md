@@ -124,9 +124,9 @@ U_MAX = 95% → se rechaza la poliza (no se puede comprar cobertura)
 | 40%              | 1.25x               | +25% sobre la prima base      |
 | 60%              | 1.38x               | +38% sobre la prima base      |
 | 80%              | 1.50x               | +50% (punto kink)             |
-| 85%              | 1.88x               | +88% (zona agresiva)          |
-| 90%              | 2.25x               | +125% (zona agresiva)         |
-| 95%              | 2.63x               | RECHAZADO (U_MAX alcanzado)   |
+| 85%              | 2.25x               | +125% (zona agresiva)         |
+| 90%              | 3.00x               | +200% (zona agresiva)         |
+| 95%              | 3.75x               | RECHAZADO (U_MAX alcanzado)   |
 
 Este modelo garantiza que cuando la capacidad del vault esta holgada, las primas son competitivas. A medida que la utilizacion se acerca al 80%, las primas suben gradualmente. Por encima del 80%, el crecimiento es exponencial, protegiendo a los LPs de sobreexposicion.
 
@@ -201,7 +201,7 @@ Este modelo elimina el riesgo de subcapitalizacion que afecta a otros protocolos
 | Deducible                | 20%                                                       |
 | Payout                   | Binario: 80% del coverage                                 |
 | Duracion                 | 7 a 30 dias                                               |
-| Waiting period           | Ninguno -- cobertura inmediata                            |
+| Waiting period           | 1 hora                                                    |
 | Assets cubiertos         | ETH, BTC                                                  |
 | MAX_PROOF_AGE            | 30 minutos                                                |
 | Tasa base                | 22% anualizado                                            |
@@ -332,6 +332,7 @@ El payout maximo absoluto es **$5,850** por cada **$50,000** de cobertura (11.7%
 | Deducible                | 10%                                                       |
 | Payout                   | Binario: 90% del coverage                                 |
 | Cap por wallet           | $50,000                                                   |
+| Lifetime cap por wallet  | $150,000                                                  |
 | Duracion                 | 90 a 365 dias                                             |
 | Waiting period           | 14 dias                                                   |
 | Vault                    | StableLong (`0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`)  |
@@ -580,7 +581,7 @@ El modelo de payout proporcional de IL Index Cover y el deducible del 2% crean u
 | Ganancia neta anual          | +$2,000                |
 | Margen                       | 65%                    |
 
-Exploit Shield tiene el menor volumen absoluto pero el mayor margen porcentual. El dual trigger, el waiting period de 14 dias y el cap de $50,000 por wallet limitan significativamente la exposicion.
+Exploit Shield tiene el menor volumen absoluto pero el mayor margen porcentual. El dual trigger, el waiting period de 14 dias y el cap de $50,000 por wallet y el lifetime cap de $150,000 por wallet limitan significativamente la exposicion.
 
 ### 9.5 Peor Escenario Sistemico
 

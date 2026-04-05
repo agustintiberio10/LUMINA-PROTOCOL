@@ -148,9 +148,9 @@ Si U > U_kink (zona de estrés):
 | 60% | 1.38 | Segura |
 | 70% | 1.44 | Segura |
 | 80% | 1.50 | Límite (kink) |
-| 85% | 1.88 | Estrés |
-| 90% | 2.25 | Estrés |
-| 95% | 2.63 | Estrés crítico |
+| 85% | 2.25 | Estrés |
+| 90% | 3.00 | Estrés |
+| 95% | 3.75 | Estrés crítico |
 | >95% | RECHAZADO | Protección de solvencia |
 
 ### 4.5 Tabla de primas resultantes (Coverage $50,000)

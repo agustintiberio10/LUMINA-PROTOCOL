@@ -54,7 +54,7 @@ Exploit: $40,000 / (0.90 × 0.97) = $45,830 coverage
 | Trigger | Price drops >30% from the exact price at the moment you buy the policy |
 | Payout | 80% of coverage (20% deductible) |
 | Duration | 7 to 30 days (you choose, priced by the second) |
-| Waiting Period | None — coverage starts immediately |
+| Waiting Period | 1 hour |
 | Minimum Coverage | $100 |
 | Base Rate | 22% annualized |
 | Protocol Fee | 3% on premium + 3% on payout. Net payout = 77.6% of coverage |
@@ -207,6 +207,7 @@ Example:
 | Duration | 90 to 365 days |
 | Waiting Period | 14 days (longest — anti-insider) |
 | Max Coverage | $50,000 per wallet |
+| Lifetime Cap | $150,000 per wallet |
 | Base Rate | 3% annualized (Tier 1) |
 | Protocol Fee | 3% on premium + 3% on payout. Net payout = 87.3% of coverage |
 
@@ -278,10 +279,10 @@ Premium for a $50K BSS policy (14d): $50K × 0.22 × 1.38 × (14/365) = $582
 
 Now an agent buys another $50K policy:
 New utilization: ($120K + $50K) / $200K = 85%
-Kink multiplier at 85%: 1.88x
-Next premium for same policy: $50K × 0.22 × 1.88 × (14/365) = $793
+Kink multiplier at 85%: 2.25x
+Next premium for same policy: $50K × 0.22 × 2.25 × (14/365) = $949
 
-The premium increased 36% because utilization went up.
+The premium increased 63% because utilization went up.
 LPs in this vault are earning MORE per dollar deployed.
 This higher yield attracts new LPs → they deposit → utilization drops → premiums normalize.
 ```
@@ -331,7 +332,7 @@ Lumina uses multiple layers to prevent gaming:
 | Mechanism | Purpose | Products |
 |-----------|---------|----------|
 | TWAP verification | Prevents flash crash exploitation | All |
-| Waiting periods | Prevents buying when you see the event coming | Depeg (24h), Exploit (14d) |
+| Waiting periods | Prevents buying when you see the event coming | BSS (1h), Depeg (24h), Exploit (14d) |
 | Circuit breakers | Pauses or increases price during volatile moments | All |
 | European-style resolution | Prevents scanning for optimal claim point | IL Index |
 | $50K cap per wallet | Makes insider attacks unprofitable | Exploit |
@@ -451,7 +452,7 @@ To maintain continuous coverage without gaps:
 ┌─────────┬────────────────┬────────────────────────────────────────────────────┐
 │ Product │ Waiting Period │ Repurchase Window                                  │
 ├─────────┼────────────────┼────────────────────────────────────────────────────┤
-│ BSS     │ None           │ Repurchase when expiresAt - now < 3600 (1 hour)    │
+│ BSS     │ 3600s (1h)     │ Repurchase when expiresAt - now < 7200 (2 hours)   │
 │ DEPEG   │ 86400s (24h)   │ Repurchase when expiresAt - now < 90000 (25 hours) │
 │ IL      │ None           │ Repurchase when expiresAt - now < 3600 (1 hour)    │
 │ EXPLOIT │ 1209600s (14d) │ Repurchase when expiresAt - now < 1296000 (15 days)│
@@ -462,7 +463,7 @@ Logic for your agent loop:
   timeLeft = policy.expiresAt - currentTime
   if (timeLeft < repurchaseWindowSeconds) → GET /quote → POST /purchase
 
-This ensures zero coverage gaps. The extra buffer (1h for BSS/IL, 25h for DEPEG, 15d for EXPLOIT) accounts for the waiting period of the new policy.
+This ensures zero coverage gaps. The extra buffer (2h for BSS, 1h for IL, 25h for DEPEG, 15d for EXPLOIT) accounts for the waiting period of the new policy.
 
 ## Error Handling
 
@@ -481,6 +482,7 @@ On-chain transactions can revert. Here is how to handle each error:
 | `DurationOutOfRange` | Duration outside product limits | Check product's durationRange (e.g., BSS: 7-30 days) |
 | `CoverageOutOfRange` | Coverage below $100 minimum | Increase coverage to at least $100 |
 | `MaxCoveragePerWalletExceeded` | Exploit Shield: exceeded $50K per wallet | You already have $50K in Exploit coverage — cannot buy more from this wallet |
+| `LifetimeCapExceeded` | Exploit Shield: exceeded $150K lifetime cap per wallet | Cumulative Exploit Shield payouts have reached $150K for this wallet |
 | `TriggerNotMet` | Tried to claim but the trigger condition wasn't met | Verify the event actually occurred. Check oracle proof freshness. |
 | `PolicyAlreadyResolved` | Policy was already paid out or cleaned up | No action needed — policy is settled |
 
@@ -730,9 +732,9 @@ If U > 95%:  REJECTED — policy cannot be issued
 | 40% | 1.25x | Normal operating range |
 | 60% | 1.38x | Getting busy |
 | 80% | 1.50x | Kink point — premiums start rising fast |
-| 85% | 1.88x | Stress zone |
-| 90% | 2.25x | Very expensive |
-| 95% | 2.63x | Maximum before rejection |
+| 85% | 2.25x | Stress zone |
+| 90% | 3.00x | Very expensive |
+| 95% | 3.75x | Maximum before rejection |
 | >95% | REJECTED | No more policies sold |
 
 ## Why This Matters For You:
@@ -1321,7 +1323,7 @@ GET /api/v2/health
 {"status":"ok","chain":"base","chainId":8453}
 
 GET /api/v2/products
-[{"id":"BSS","name":"Black Swan Shield","pBaseBps":650,"deductibleBps":2000,"minDurationSeconds":604800,"maxDurationSeconds":2592000,"waitingPeriodSeconds":0,"riskType":"VOLATILE","excludedAssets":[]},{"id":"DEPEG","name":"Depeg Shield","pBaseBps":250,"deductibleBps":{"USDT":1500,"DAI":1200},"minDurationSeconds":1209600,"maxDurationSeconds":31536000,"waitingPeriodSeconds":86400,"riskType":"STABLE","excludedAssets":["USDC"]},{"id":"IL","name":"IL Index Cover","pBaseBps":850,"deductibleBps":200,"minDurationSeconds":1209600,"maxDurationSeconds":7776000,"waitingPeriodSeconds":0,"riskType":"VOLATILE"},{"id":"EXPLOIT","name":"Exploit Shield","pBaseBps":400,"deductibleBps":1000,"minDurationSeconds":7776000,"maxDurationSeconds":31536000,"waitingPeriodSeconds":1209600,"riskType":"STABLE","excludedProtocols":["Aave V3"]}]
+[{"id":"BSS","name":"Black Swan Shield","pBaseBps":650,"deductibleBps":2000,"minDurationSeconds":604800,"maxDurationSeconds":2592000,"waitingPeriodSeconds":3600,"riskType":"VOLATILE","excludedAssets":[]},{"id":"DEPEG","name":"Depeg Shield","pBaseBps":250,"deductibleBps":{"USDT":1500,"DAI":1200},"minDurationSeconds":1209600,"maxDurationSeconds":31536000,"waitingPeriodSeconds":86400,"riskType":"STABLE","excludedAssets":["USDC"]},{"id":"IL","name":"IL Index Cover","pBaseBps":850,"deductibleBps":200,"minDurationSeconds":1209600,"maxDurationSeconds":7776000,"waitingPeriodSeconds":0,"riskType":"VOLATILE"},{"id":"EXPLOIT","name":"Exploit Shield","pBaseBps":400,"deductibleBps":1000,"minDurationSeconds":7776000,"maxDurationSeconds":31536000,"waitingPeriodSeconds":1209600,"riskType":"STABLE","excludedProtocols":["Aave V3"]}]
 
 GET /api/v2/vaults
 [{"id":"volatile_short","name":"Volatile Short","totalValueLockedUSD":24208.19,"currentUtilizationPct":20.61,"estimatedAPY":5.7,"cooldownDays":30,"products":["BSS","IL"],"riskProfile":"higher"}]

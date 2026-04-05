@@ -123,7 +123,7 @@ Si el 90% de los LPs van al Stable Yield Vault (porque es "más seguro"):
 | Deducible | 20% |
 | Duración | 7 a 30 días |
 | P_base | 0.065 (6.5% anualizado) |
-| Waiting period | Ninguno (trigger relativo a precio de compra) |
+| Waiting period | 1 hora |
 | Volatility circuit breaker | >5% move en 1h → P_base ×1.5. >10% → halt. Verificar 3+ exchanges. |
 | Renovación | 24h antes de expiración → oferta al agente |
 
@@ -200,7 +200,7 @@ Margen: ~62%
 | Resolución | Solo al vencimiento (estilo opción europea). Ventana 48h post-expiración. |
 | Duración | 14 a 90 días |
 | P_base | 0.085 (8.5% anualizado) |
-| Waiting period | Ninguno (trigger relativo a precio de compra) |
+| Waiting period | 1 hora |
 | Circuit breaker | >5% move en 1h → P_base ×1.5. >10% → halt. |
 | Dirección | Ambas (IL ocurre si ETH sube O baja) |
 | Renovación | 24h antes de expiración → oferta al agente |
@@ -254,6 +254,7 @@ Margen: ~74%
 | P_base Tier 1 | 0.04 (4.0%) — Aave, Compound, Uniswap, MakerDAO |
 | P_base Tier 2 | 0.045 (4.5%) Curve / 0.054 (5.4%) Morpho |
 | Max Coverage por wallet | $50,000 |
+| Lifetime cap por wallet | $150,000 |
 | Waiting period | 14 días |
 | Circuit breaker | Token gov -10% → prima ×3. -20% → halt. Receipt token -5% → halt inmediato. |
 | Renovación | 24h antes. Gap de 14 días sin cobertura entre pólizas. |

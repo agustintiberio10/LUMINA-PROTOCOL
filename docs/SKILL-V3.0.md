@@ -148,7 +148,7 @@ Trigger: Price drops >30% from purchase price (TRIGGER_DROP_BPS = 3000)
 Verification: Oracle-signed TWAP 15 min or 3 consecutive Chainlink rounds
 Deductible: 20% — Payout: 80% of coverage (binary, all-or-nothing)
 Duration: 7 to 30 days
-Waiting period: None (coverage starts immediately)
+Waiting period: 1 hour
 Base rate: 6.5% annualized (650 bps)
 Assets: ETH, BTC
 Max proof age: 30 minutes
@@ -200,6 +200,7 @@ Deductible: 10% — Payout: 90% of coverage (binary)
 Duration: 90 to 365 days
 Waiting period: 14 days
 Max coverage: $50,000 per wallet
+Lifetime cap: $150,000 per wallet
 Base rate: 4.0% annualized (400 bps)
 Covered protocols: Compound III, Uniswap V3, MakerDAO (Tier 1), Curve, Morpho (Tier 2)
 Excluded: Aave V3 (circular — Lumina deposits in Aave)
@@ -271,7 +272,7 @@ Where M(U) is the utilization multiplier (from PremiumMath.sol):
 
 Multiplier table:
   0% = 1.00x | 20% = 1.13x | 40% = 1.25x | 60% = 1.38x
-  80% = 1.50x (kink) | 85% = 1.88x | 90% = 2.25x | 95% = REJECTED
+  80% = 1.50x (kink) | 85% = 2.25x | 90% = 3.00x | 95% = REJECTED
 
 The model self-balances: high demand → scarce capital → premiums rise → LP yield rises → attracts LPs → more capital → premiums normalize.
 
@@ -302,7 +303,7 @@ Large payouts may be delayed (configurable by protocol governance) for security 
 There is NO auto-renewal on-chain. Your agent must monitor expiresAt and buy a new policy before the current one expires.
 
 Recommended repurchase windows (buy new policy this many seconds before expiry):
-  BSS:     3,600 (1 hour before)
+  BSS:     7,200 (2 hours before — accounts for 1h waiting period)
   DEPEG:   90,000 (25 hours before — accounts for 24h waiting period)
   IL:      3,600 (1 hour before)
   EXPLOIT: 1,296,000 (15 days before — accounts for 14d waiting period)
