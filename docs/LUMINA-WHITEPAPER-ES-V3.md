@@ -503,7 +503,7 @@ Los 13 contratos del protocolo han sido desarrollados con las mejores practicas 
 - **Patron CEI (Checks-Effects-Interactions):** Todas las funciones criticas siguen este patron
 - **SafeERC20:** Todas las transferencias de USDC utilizan la libreria SafeERC20 de OpenZeppelin
 - **ReentrancyGuard:** Proteccion contra ataques de reentrancia en todas las funciones que mueven fondos
-- **79 tests:** Suite completa de tests unitarios y de integracion
+- **119 tests:** Suite completa de tests unitarios y de integracion
 
 ### 8.2 Governance
 
@@ -599,7 +599,7 @@ Un escenario sistemico (crash de mercado + depeg + exploit simultaneos) podria g
 
 | Riesgo                         | Probabilidad | Impacto  | Mitigacion                                                                          |
 |--------------------------------|--------------|----------|--------------------------------------------------------------------------------------|
-| Bug en smart contract          | Baja         | Critico  | 79 tests, CEI, ReentrancyGuard, Solidity 0.8.20, proxies UUPS para upgrades         |
+| Bug en smart contract          | Baja         | Critico  | 119 tests, CEI, ReentrancyGuard, Solidity 0.8.20, proxies UUPS para upgrades         |
 | Manipulacion de oracle         | Baja         | Alto     | TWAP (no precio spot), multisig, sequencer check 1h, MAX_PROOF_AGE 30min            |
 | Flash loan attack              | Baja         | Alto     | TWAP multiples rounds, colateral 1:1, no dependencia de precios spot                |
 | Sequencer de Base L2 offline   | Media        | Medio    | Sequencer check de 1 hora, polizas no expiran durante downtime                      |

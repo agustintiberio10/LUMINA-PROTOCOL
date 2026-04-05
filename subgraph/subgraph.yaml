@@ -60,7 +60,7 @@ dataSources:
     name: EmergencyPause
     network: base
     source:
-      address: "0x0b977e492650cc03dfaef7d3dbfb3ee87dceade5"
+      address: "0xc7ac8c19c3f10f820d7e42f07e6e257bacc22876"
       abi: EmergencyPause
       startBlock: 44091000
     mapping:

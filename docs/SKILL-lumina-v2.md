@@ -149,7 +149,7 @@ If USDT depegs to $0.93 (TWAP 30 min confirms):
 | Cap | 11.7% of coverage |
 | Resolution | European-style: ONLY within 48h window after expiry |
 | Duration | 14 to 90 days |
-| Waiting Period | None (trigger is relative to purchase price) |
+| Waiting Period | 1 hour |
 | Base Rate | 20% annualized |
 | Asset | ETH/USD |
 | Protocol Fee | 3% on premium + 3% on payout. Net payout = IL_net × 87.3% of coverage |
@@ -260,10 +260,10 @@ Total yield = Aave V3 yield + premium yield
 
 | Vault | Cooldown | Aave V3 Base | Premiums | TOTAL APY |
 |-------|----------|-----------|----------|-----------|
-| VolatileShort | 30 days | 3-5% | 9-11% | **12-16%** |
-| VolatileLong | 90 days | 3-5% | 12-14% | **15-19%** |
-| StableShort | 90 days | 3-5% | 8-10% | **11-15%** |
-| StableLong | 365 days | 3-5% | 15-22% | **18-27%** |
+| VolatileShort | 37 days | 3-5% | 9-11% | **12-16%** |
+| VolatileLong | 97 days | 3-5% | 12-14% | **15-19%** |
+| StableShort | 97 days | 3-5% | 8-10% | **11-15%** |
+| StableLong | 372 days | 3-5% | 15-22% | **18-27%** |
 
 Note: Premium APYs shown are AFTER the 3% protocol fee. The vault receives 97% of each premium. These APYs already reflect that.
 
@@ -525,7 +525,7 @@ ABIs are published at: `https://github.com/org-lumina/LUMINA-PROTOCOL/tree/main/
 
 | What changes | VolatileShort | VolatileLong | StableShort | StableLong |
 |-------------|---------------|--------------|-------------|------------|
-| Cooldown (exit notice) | 30 days | 90 days | 90 days | 365 days |
+| Cooldown (exit notice) | 37 days | 97 days | 97 days | 372 days |
 | Products backed | BSS + IL short | IL long + BSS overflow | Depeg short | Depeg long + Exploit |
 | Risk type | VOLATILE | VOLATILE | STABLE | STABLE |
 | Claim frequency | Higher | Higher | Low | Very low |
@@ -534,23 +534,23 @@ ABIs are published at: `https://github.com/org-lumina/LUMINA-PROTOCOL/tree/main/
 **What is a cooldown? It is NOT a lock period. It is an EXIT NOTICE.**
 
 ```
-WRONG understanding:  "I deposit for 30 days, then I get my money back"
-RIGHT understanding:  "I deposit INDEFINITELY. When I want to leave, I give 30 days notice."
+WRONG understanding:  "I deposit for 37 days, then I get my money back"
+RIGHT understanding:  "I deposit INDEFINITELY. When I want to leave, I give 37 days notice."
 
 Think of it like renting an apartment:
   - You sign the lease (deposit USDC)
   - You live there as long as you want (earn yield indefinitely)
   - One day you decide to move out (requestWithdrawal)
-  - You give 30 days notice (cooldown period)
-  - After 30 days, you leave and get your deposit back (completeWithdrawal + yield)
+  - You give 37 days notice (cooldown period)
+  - After 37 days, you leave and get your deposit back (completeWithdrawal + yield)
 ```
 
 **Why does the cooldown exist?**
 Because your money is BACKING insurance policies. If you could withdraw instantly and a crash happens 5 minutes later, the policies you were backing would have no collateral. The cooldown ensures your capital stays until existing policies expire or are settled.
 
 **Why does longer cooldown = higher APY?**
-- 30-day cooldown: you can exit relatively quickly, so you earn less
-- 365-day cooldown: you're committed for a year when you decide to exit, so you earn the highest yield
+- 37-day cooldown: you can exit relatively quickly, so you earn less
+- 372-day cooldown: you're committed for a year when you decide to exit, so you earn the highest yield
 - Longer commitment = backs longer (more expensive) policies = more premium income
 
 **Your money keeps earning DURING the cooldown:**
@@ -572,8 +572,8 @@ GET /api/v2/vaults
 **Decision guide:**
 ```
 Want maximum yield and OK with 1-year exit notice?    → StableLong (18-26%)
-Want moderate yield with 90-day exit notice?           → VolatileLong or StableShort (11-18%)
-Want quick exit (30-day notice) and accept BSS risk?   → VolatileShort (12-15%)
+Want moderate yield with 97-day exit notice?           → VolatileLong or StableShort (11-18%)
+Want quick exit (37-day notice) and accept BSS risk?   → VolatileShort (12-15%)
 Unsure? Start with VolatileShort (shortest commitment) → move to longer vaults later
 ```
 
@@ -612,13 +612,13 @@ This is a 3-step process. You choose WHEN to start it — there is no automatic 
 ```solidity
 // Step 4a: REQUEST withdrawal (starts the cooldown timer)
 IVault(VAULT_ADDRESS).requestWithdrawal(sharesToWithdraw);
-// From this moment: cooldown clock starts (30/90/90/365 days depending on vault)
+// From this moment: cooldown clock starts (37/97/97/372 days depending on vault)
 // Your capital still earns yield during cooldown
 
 // Step 4b: WAIT for cooldown to complete
 // Nothing to do. Just wait.
-// VolatileShort: 30 days, VolatileLong: 90 days
-// StableShort: 90 days, StableLong: 365 days
+// VolatileShort: 37 days, VolatileLong: 97 days
+// StableShort: 97 days, StableLong: 372 days
 
 // Step 4c: COMPLETE withdrawal (after cooldown ends)
 IVault(VAULT_ADDRESS).completeWithdrawal();
@@ -633,7 +633,7 @@ IVault(VAULT_ADDRESS).cancelWithdrawal();
 
 If you want to switch from VolatileShort to StableLong (better APY):
 ```
-1. requestWithdrawal() from VolatileShort → wait 30 days
+1. requestWithdrawal() from VolatileShort → wait 37 days
 2. completeWithdrawal() → USDC back in your wallet
 3. deposit() into StableLong → done
 ```
@@ -666,13 +666,13 @@ IF the premium (including 3% protocol fee) exceeds 5% of your projected returns:
 ## Should I deposit as LP? (For LP agents)
 
 ```
-IF you want maximum yield and can lock for 365 days:
+IF you want maximum yield and can lock for 372 days:
   → StableLong (18-25% APY combined)
 
-IF you want moderate yield with 90-day flexibility:
+IF you want moderate yield with 97-day flexibility:
   → VolatileLong or StableShort (12-17% APY)
 
-IF you want quick access (30 days) and tolerate BSS/IL claim risk:
+IF you want quick access (37 days) and tolerate BSS/IL claim risk:
   → VolatileShort (12-14% APY)
 
 IF a vault's utilization is > 80%:
@@ -1260,10 +1260,10 @@ Settlement token: USDC (Circle) on Base.
 | PolicyManager | `0x615e9c32c70350192fCa9BAC06Ba8ebA9dC4fEF4` | Vault selection + allocation |
 | LuminaOracle | `0x2f9d3DA66FCB84f47851636d9e0921373ede2176` | Chainlink price feeds + signature verification |
 | LuminaPhalaVerifier | `0xa2d461f4A7eC7089A7e414986d9d9b43514a82EC` | Phala TEE attestation (Exploit Shield only) |
-| VolatileShortVault | `0x2D7D735f71638730cbe9A143227A00Fa64E94E88` | 30-day cooldown |
-| VolatileLongVault | `0xDf30548d46e77015A4dDA82D3c263e81a60B075c` | 90-day cooldown |
-| StableShortVault | `0x8F6e6a4Ee6aeD70757c16382eA7156AD4b33c078` | 90-day cooldown |
-| StableLongVault | `0x3e8dF8746c42Aa4B0CDb089174aBbBaf2C3aD46c` | 365-day cooldown |
+| VolatileShortVault | `0x2D7D735f71638730cbe9A143227A00Fa64E94E88` | 37-day cooldown |
+| VolatileLongVault | `0xDf30548d46e77015A4dDA82D3c263e81a60B075c` | 97-day cooldown |
+| StableShortVault | `0x8F6e6a4Ee6aeD70757c16382eA7156AD4b33c078` | 97-day cooldown |
+| StableLongVault | `0x3e8dF8746c42Aa4B0CDb089174aBbBaf2C3aD46c` | 372-day cooldown |
 | BlackSwanShield | `0xC01ED8eF52506B29545f08BBf9aAe5Fe59b15CF7` | BSS product |
 | DepegShield | `0xCdA417909d43F252f63034346db9121441BfE70F` | Depeg product |
 | ILIndexCover | `0x73fB5CB9Aa0BeBAf74a3a4b6Cfb09d3Fd66C9FB6` | IL product |
@@ -1326,7 +1326,7 @@ GET /api/v2/products
 [{"id":"BSS","name":"Black Swan Shield","pBaseBps":650,"deductibleBps":2000,"minDurationSeconds":604800,"maxDurationSeconds":2592000,"waitingPeriodSeconds":3600,"riskType":"VOLATILE","excludedAssets":[]},{"id":"DEPEG","name":"Depeg Shield","pBaseBps":250,"deductibleBps":{"USDT":1500,"DAI":1200},"minDurationSeconds":1209600,"maxDurationSeconds":31536000,"waitingPeriodSeconds":86400,"riskType":"STABLE","excludedAssets":["USDC"]},{"id":"IL","name":"IL Index Cover","pBaseBps":850,"deductibleBps":200,"minDurationSeconds":1209600,"maxDurationSeconds":7776000,"waitingPeriodSeconds":0,"riskType":"VOLATILE"},{"id":"EXPLOIT","name":"Exploit Shield","pBaseBps":400,"deductibleBps":1000,"minDurationSeconds":7776000,"maxDurationSeconds":31536000,"waitingPeriodSeconds":1209600,"riskType":"STABLE","excludedProtocols":["Aave V3"]}]
 
 GET /api/v2/vaults
-[{"id":"volatile_short","name":"Volatile Short","totalValueLockedUSD":24208.19,"currentUtilizationPct":20.61,"estimatedAPY":5.7,"cooldownDays":30,"products":["BSS","IL"],"riskProfile":"higher"}]
+[{"id":"volatile_short","name":"Volatile Short","totalValueLockedUSD":24208.19,"currentUtilizationPct":20.61,"estimatedAPY":5.7,"cooldownDays":37,"products":["BSS","IL"],"riskProfile":"higher"}]
 
 Key fields for decision-making:
 - currentUtilizationPct: if > 80 → post-kink, premiums expensive

@@ -8,7 +8,7 @@ The Graph subgraph for indexing Lumina Protocol events on Base mainnet (chain 84
 |----------|---------|--------|
 | CoverRouter | `0xd5f8678A...` | PolicyPurchased, PayoutTriggered, PolicyCleanedUp |
 | PolicyManager | `0xCCA07e06...` | AllocationRecorded, AllocationReleased, ProductFreezeChanged |
-| EmergencyPause | `0x0b977e49...` | ProtocolPaused, ProtocolUnpaused |
+| EmergencyPause | `0xc7ac8c19...` | ProtocolPaused, ProtocolUnpaused |
 | VolatileShort | `0xbd445475...` | Deposited, WithdrawalCompleted, WithdrawalRequested |
 | VolatileLong | `0xFee5d6DA...` | Deposited, WithdrawalCompleted, WithdrawalRequested |
 | StableShort | `0x429b6d7d...` | Deposited, WithdrawalCompleted, WithdrawalRequested |

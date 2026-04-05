@@ -181,7 +181,7 @@ Formula: IL = 1 - (2 × sqrt(r)) / (1 + r), where r = priceAtExpiry / priceAtPur
 Payout: Proportional — Coverage × max(0, IL% - 2%) × 90%
 Payout cap: 11.7% of coverage (max IL 13% × 90% factor)
 Duration: 14 to 90 days
-Waiting period: None
+Waiting period: 1 hour
 Settlement window: 48 HOURS after expiry. If you miss this window, the claim is lost.
 Base rate: 8.5% annualized (850 bps)
 Asset: ETH

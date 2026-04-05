@@ -151,10 +151,10 @@ contract DeployUUPS is Script {
         // ═══════════════════════════════════════════
         PolicyManager pm = PolicyManager(address(pmProxy));
 
-        pm.registerVault(address(vsProxy), keccak256("VOLATILE"), 30 days, 1);
-        pm.registerVault(address(vlProxy), keccak256("VOLATILE"), 90 days, 2);
-        pm.registerVault(address(ssProxy), keccak256("STABLE"), 90 days, 1);
-        pm.registerVault(address(slProxy), keccak256("STABLE"), 365 days, 2);
+        pm.registerVault(address(vsProxy), keccak256("VOLATILE"), 37 days, 1);
+        pm.registerVault(address(vlProxy), keccak256("VOLATILE"), 97 days, 2);
+        pm.registerVault(address(ssProxy), keccak256("STABLE"), 97 days, 1);
+        pm.registerVault(address(slProxy), keccak256("STABLE"), 372 days, 2);
         console.log("4 vaults registered in PolicyManager");
 
         // ═══════════════════════════════════════════
