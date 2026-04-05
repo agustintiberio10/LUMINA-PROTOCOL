@@ -1,0 +1,967 @@
+openapi: "3.0.3"
+info:
+  title: Lumina Protocol API
+  version: "2.0.0"
+  description: |
+    REST API for Lumina Protocol — on-chain DeFi insurance on Base L2.
+
+    ## Rate Limits
+    - **Global**: 100 requests per 15 minutes per IP
+    - **Purchase** (`POST /api/v2/purchase`): 30 requests per minute per API key (plus 5 per minute per wallet enforced server-side)
+    - **Key creation** (`/api/v2/keys/*`): 5 requests per hour per IP
+
+    ## Authentication
+    Protected endpoints require an `X-API-Key` header. Keys are created via `POST /api/v2/keys/create`
+    and follow the format `lum_<48 hex chars>`. Each wallet may hold a maximum of 3 keys.
+
+    ## Units
+    - **Coverage & premium amounts**: USDC with 6 decimals (e.g. `1000000000` = $1,000)
+    - **Durations**: seconds (e.g. `604800` = 7 days)
+  contact:
+    name: Lumina Protocol
+    url: https://www.lumina-org.com
+
+servers:
+  - url: https://lumina-protocol-production.up.railway.app
+    description: Production (Base Mainnet)
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key obtained from `POST /api/v2/keys/create`. Format `lum_<48 hex chars>`.
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+      example:
+        error: "Something went wrong"
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        chain:
+          type: integer
+          example: 8453
+        version:
+          type: string
+          example: "2.0.0"
+
+    Product:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Black Swan Shield"
+        id:
+          type: string
+          example: "BLACKSWAN-001"
+        productId:
+          type: string
+          description: "keccak256 hash of the product name"
+          example: "0x..."
+        shield:
+          type: string
+          description: "Shield contract address"
+          example: "0x2926202bbe3f25f71ef17b25a20ebe8be028af5f"
+        riskType:
+          type: string
+          enum: [VOLATILE, STABLE]
+          example: "VOLATILE"
+        vaults:
+          type: array
+          items:
+            type: string
+          description: "Vault contract addresses assigned to this product"
+        pBase:
+          type: integer
+          description: "Base premium rate in basis points (e.g. 650 = 6.5%)"
+          example: 650
+        minDuration:
+          type: integer
+          description: "Minimum policy duration in seconds"
+          example: 604800
+        maxDuration:
+          type: integer
+          description: "Maximum policy duration in seconds"
+          example: 2592000
+        deductible:
+          type: integer
+          description: "Deductible trigger in basis points (e.g. 3000 = 30%)"
+          example: 3000
+        assets:
+          type: array
+          items:
+            type: string
+          example: ["ETH", "BTC"]
+        stablecoins:
+          type: array
+          items:
+            type: string
+          example: ["USDC", "USDT", "DAI"]
+
+    ProductsResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+
+    Vault:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "VOLATILE_SHORT"
+        address:
+          type: string
+          example: "0xbd44547581b92805aAECc40EB2809352b9b2880d"
+        riskType:
+          type: string
+          enum: [VOLATILE, STABLE]
+        totalAssets:
+          type: number
+          description: "Total assets in the vault (USDC 6 decimals)"
+          example: 50000000000
+        allocatedAssets:
+          type: number
+          description: "Assets currently allocated to active policies"
+          example: 15000000000
+        freeAssets:
+          type: number
+          description: "Unallocated assets available for new policies"
+          example: 35000000000
+        utilizationBps:
+          type: integer
+          description: "Current utilization in basis points"
+          example: 3000
+        totalShares:
+          type: string
+          description: "Total vault shares (BigInt as string)"
+          example: "50000000000"
+        cooldownDuration:
+          type: integer
+          description: "Withdrawal cooldown in seconds"
+          example: 86400
+        estimatedAPY:
+          type: number
+          description: "Estimated annual yield percentage"
+          example: 5.83
+
+    VaultsResponse:
+      type: object
+      properties:
+        vaults:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vault"
+
+    QuoteRequest:
+      type: object
+      required:
+        - productId
+        - coverageAmount
+        - durationSeconds
+        - buyer
+      properties:
+        productId:
+          type: string
+          description: "Short ID (BSS, DEPEG, IL, EXPLOIT) or full ID (BLACKSWAN-001, etc.)"
+          example: "BSS"
+        coverageAmount:
+          type: integer
+          description: "Coverage in USDC 6 decimals. Min $100 (100000000)."
+          example: 1000000000
+        durationSeconds:
+          type: integer
+          description: "Policy duration in seconds. Min 7 days (604800), max 365 days (31536000). Per-product limits apply."
+          example: 1209600
+        asset:
+          type: string
+          description: "Covered asset symbol (optional)"
+          example: "ETH"
+        stablecoin:
+          type: string
+          description: "Payment stablecoin symbol (optional)"
+          example: "USDC"
+        protocol:
+          type: string
+          description: "Protocol address to cover (optional, defaults to zero address)"
+          example: "0x0000000000000000000000000000000000000000"
+        buyer:
+          type: string
+          description: "Buyer wallet address"
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+
+    QuoteResponse:
+      type: object
+      properties:
+        quote:
+          type: object
+          properties:
+            productId:
+              type: string
+              description: "keccak256 product hash"
+            productName:
+              type: string
+              example: "Black Swan Shield"
+            coverageAmount:
+              type: string
+              example: "1000000000"
+            premiumAmount:
+              type: string
+              description: "Calculated premium in USDC 6 decimals"
+              example: "2650000"
+            durationSeconds:
+              type: integer
+              example: 1209600
+            asset:
+              type: string
+              nullable: true
+              example: "ETH"
+            stablecoin:
+              type: string
+              nullable: true
+              example: "USDC"
+            protocol:
+              type: string
+              example: "0x0000000000000000000000000000000000000000"
+            buyer:
+              type: string
+              example: "0x1234567890abcdef1234567890abcdef12345678"
+            deadline:
+              type: integer
+              description: "Unix timestamp — quote expires 5 minutes after creation"
+              example: 1712200000
+            nonce:
+              type: string
+              description: "Random 256-bit nonce (decimal string)"
+              example: "1234567890"
+            utilizationAtQuote:
+              type: number
+              description: "Vault utilization percentage at the time the quote was generated"
+              example: 30.0
+        signature:
+          type: string
+          description: "EIP-712 oracle signature (hex). Multi-sig when multiple oracles are configured."
+          example: "0xabcdef..."
+        signedQuote:
+          type: object
+          description: "EIP-712 typed struct values with BigInt fields serialized as strings"
+          properties:
+            productId:
+              type: string
+            coverageAmount:
+              type: string
+            premiumAmount:
+              type: string
+            durationSeconds:
+              type: integer
+            asset:
+              type: string
+            stablecoin:
+              type: string
+            protocol:
+              type: string
+            buyer:
+              type: string
+            deadline:
+              type: string
+            nonce:
+              type: string
+
+    PurchaseRequest:
+      type: object
+      required:
+        - productId
+        - coverageAmount
+        - durationSeconds
+      properties:
+        productId:
+          type: string
+          description: "Short product ID"
+          enum: [BSS, DEPEG, IL, EXPLOIT]
+          example: "BSS"
+        coverageAmount:
+          type: integer
+          description: "Coverage in USDC 6 decimals. Range $100 – $100,000 (100000000 – 100000000000)."
+          example: 1000000000
+        durationSeconds:
+          type: integer
+          description: "Policy duration in seconds. Per-product limits: BSS 7-30d, DEPEG 14-365d, IL 14-90d, EXPLOIT 90-365d."
+          example: 1209600
+
+    PurchaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        txHash:
+          type: string
+          description: "Base transaction hash"
+          example: "0xabc123..."
+        product:
+          type: string
+          example: "Black Swan Shield"
+        productId:
+          type: string
+          example: "BSS"
+        coverage:
+          type: string
+          example: "1000000000"
+        premium:
+          type: string
+          example: "2650000"
+        premiumUSD:
+          type: string
+          example: "2.65"
+        durationDays:
+          type: number
+          example: 14
+        wallet:
+          type: string
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+        explorer:
+          type: string
+          example: "https://basescan.org/tx/0xabc123..."
+        message:
+          type: string
+          example: "Policy purchased successfully."
+
+    DashboardResponse:
+      type: object
+      properties:
+        vaults:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "VOLATILE_SHORT"
+              address:
+                type: string
+                example: "0xbd44547581b92805aAECc40EB2809352b9b2880d"
+              totalAssets:
+                type: string
+                example: "50000000000"
+              totalSupply:
+                type: string
+                example: "50000000000"
+              allocatedAssets:
+                type: string
+                example: "15000000000"
+              utilizationBps:
+                type: integer
+                example: 3000
+              error:
+                type: boolean
+                description: "Present and true if the vault could not be read on-chain"
+        policies:
+          type: array
+          items:
+            type: object
+            properties:
+              policyId:
+                type: integer
+                example: 1
+              insuredAgent:
+                type: string
+                example: "0x1234567890abcdef1234567890abcdef12345678"
+              coverageAmount:
+                type: string
+                example: "1000000000"
+              premiumPaid:
+                type: string
+                example: "2650000"
+              maxPayout:
+                type: string
+                example: "1000000000"
+              startTimestamp:
+                type: integer
+                example: 1712100000
+              expiresAt:
+                type: integer
+                example: 1713309600
+              status:
+                type: integer
+                description: "0=NONEXISTENT, 1=WAITING, 2=ACTIVE, 3=EXPIRED, 4=SETTLEMENT, 5=PAID_OUT, 6=CANCELLED"
+                example: 2
+              shieldName:
+                type: string
+                example: "BSS"
+              shieldAddress:
+                type: string
+                example: "0x2926202bbe3f25f71ef17b25a20ebe8be028af5f"
+        lastUpdated:
+          type: integer
+          description: "Unix timestamp (ms) of last cache refresh"
+          example: 1712186400000
+        cacheAge:
+          type: integer
+          description: "Milliseconds since last cache refresh"
+          example: 15000
+
+    KeyCreateRequest:
+      type: object
+      required:
+        - wallet
+      properties:
+        wallet:
+          type: string
+          description: "Ethereum wallet address"
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+        label:
+          type: string
+          description: "Optional label for the key"
+          example: "my-bot"
+
+    KeyCreateResponse:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          description: "The raw API key. Save it securely; it cannot be retrieved again."
+          example: "lum_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"
+        wallet:
+          type: string
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+        label:
+          type: string
+          example: "my-bot"
+        warning:
+          type: string
+          example: "Save this key securely. It cannot be retrieved again."
+
+    KeyListResponse:
+      type: object
+      properties:
+        wallet:
+          type: string
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+        keys:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+                example: "my-bot"
+              createdAt:
+                type: integer
+                description: "Unix timestamp (ms)"
+                example: 1712186400000
+
+    KeyRevokeRequest:
+      type: object
+      required:
+        - apiKey
+      properties:
+        apiKey:
+          type: string
+          description: "The raw API key to revoke"
+          example: "lum_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"
+
+    KeyRevokeResponse:
+      type: object
+      properties:
+        revoked:
+          type: boolean
+          example: true
+        wallet:
+          type: string
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+
+paths:
+  /api/v2/health:
+    get:
+      summary: Health check
+      description: Returns API status, chain ID, and version. Rate limit: 100 req / 15 min.
+      operationId: getHealth
+      tags: [Status]
+      responses:
+        "200":
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many requests, try again later"
+
+  /api/v2/products:
+    get:
+      summary: List all insurance products
+      description: |
+        Returns the full catalogue of Lumina insurance products with their configuration,
+        including premium base rates, duration limits, and supported assets.
+        Rate limit: 100 req / 15 min.
+      operationId: getProducts
+      tags: [Products]
+      responses:
+        "200":
+          description: Product catalogue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductsResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many requests, try again later"
+
+  /api/v2/vaults:
+    get:
+      summary: List all vaults with on-chain state
+      description: |
+        Reads on-chain state for every vault: total assets, allocation, utilization,
+        shares, cooldown, and an estimated APY based on the Kink Model premium curve.
+        Rate limit: 100 req / 15 min.
+      operationId: getVaults
+      tags: [Vaults]
+      responses:
+        "200":
+          description: Vault states
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultsResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many requests, try again later"
+        "500":
+          description: Internal error (e.g. RPC failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Internal server error"
+
+  /api/v2/vaults/{address}:
+    get:
+      summary: Get a single vault by contract address
+      description: |
+        Returns on-chain state for one vault identified by its contract address.
+        Rate limit: 100 req / 15 min.
+      operationId: getVaultByAddress
+      tags: [Vaults]
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Vault contract address
+          schema:
+            type: string
+            example: "0xbd44547581b92805aAECc40EB2809352b9b2880d"
+      responses:
+        "200":
+          description: Vault state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vault"
+        "404":
+          description: Vault not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Vault not found"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many requests, try again later"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Internal server error"
+
+  /api/v2/quote:
+    post:
+      summary: Get a signed insurance quote
+      description: |
+        Calculates the premium using the on-chain Kink Model and returns an EIP-712
+        signed quote that can be submitted to the CoverRouter contract. The quote
+        expires 5 minutes after creation. Also checks PolicyManager capacity
+        (correlation group caps). Rate limit: 100 req / 15 min.
+
+        **Product duration limits:**
+        - BSS: 7 - 30 days
+        - DEPEG: 14 - 365 days
+        - IL: 14 - 90 days
+        - EXPLOIT: 90 - 365 days
+      operationId: postQuote
+      tags: [Coverage]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteRequest"
+      responses:
+        "200":
+          description: Signed quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuoteResponse"
+        "400":
+          description: Validation error (missing fields, unknown product, duration out of range, capacity exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                missingFields:
+                  summary: Missing required fields
+                  value:
+                    error: "Missing required fields: productId, coverageAmount, durationSeconds, buyer"
+                unknownProduct:
+                  summary: Unknown product
+                  value:
+                    error: "Unknown product: XYZ. Valid: BSS, DEPEG, IL, EXPLOIT (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001)"
+                durationTooShort:
+                  summary: Duration too short
+                  value:
+                    error: "Duration too short for BSS. Minimum: 7 days (604800 seconds)"
+                capacityExceeded:
+                  summary: Capacity check failed
+                  value:
+                    error: "Capacity check failed: GROUP_CAP_EXCEEDED"
+                    detail: "BSS and IL Protection share a combined 70% allocation cap per vault. The combined usage would exceed this limit."
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many requests, try again later"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Internal server error"
+
+  /api/v2/purchase:
+    post:
+      summary: Purchase a policy (requires API key)
+      description: |
+        Executes an on-chain policy purchase via the relayer. The API signs an EIP-712 quote,
+        performs a static call to verify the transaction will succeed, then submits it.
+
+        **Requires** an `X-API-Key` header. The buyer wallet is derived from the API key.
+
+        **Rate limits:**
+        - 30 requests per minute per API key (IP-level)
+        - 5 purchases per minute per wallet (server-side)
+
+        **Prerequisites:**
+        - The buyer wallet must have sufficient USDC balance
+        - The buyer wallet must have approved the CoverRouter contract for USDC spending
+
+        **Product duration limits:**
+        - BSS: 7 - 30 days
+        - DEPEG: 14 - 365 days
+        - IL: 14 - 90 days
+        - EXPLOIT: 90 - 365 days
+      operationId: postPurchase
+      tags: [Coverage]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseRequest"
+      responses:
+        "201":
+          description: Policy purchased successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseResponse"
+        "400":
+          description: Validation error, insufficient balance/allowance, or static-call revert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                missingFields:
+                  summary: Missing required fields
+                  value:
+                    error: "Required: productId, coverageAmount, durationSeconds"
+                unknownProduct:
+                  summary: Unknown product
+                  value:
+                    error: "Unknown productId. Valid: BSS, DEPEG, IL, EXPLOIT"
+                coverageRange:
+                  summary: Coverage out of range
+                  value:
+                    error: "Coverage between $100 and $100,000 (6 decimals). Example: 1000000000 = $1,000"
+                insufficientBalance:
+                  summary: Insufficient USDC balance
+                  value:
+                    error: "Insufficient USDC balance"
+                    required: "2650000"
+                    balance: "0"
+                    wallet: "0x1234..."
+                insufficientAllowance:
+                  summary: Insufficient USDC allowance
+                  value:
+                    error: "Insufficient USDC allowance. Approve the CoverRouter from your wallet first."
+                    required: "2650000"
+                    allowance: "0"
+                    coverRouter: "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025"
+                    wallet: "0x1234..."
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                missing:
+                  summary: No API key provided
+                  value:
+                    error: "API key required. Pass via X-API-Key header."
+                invalid:
+                  summary: Invalid API key
+                  value:
+                    error: "Invalid API key"
+        "409":
+          description: Another purchase is already in progress for this wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Another purchase is being processed for this wallet. Wait a moment."
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                global:
+                  summary: Global rate limit
+                  value:
+                    error: "Purchase rate limit exceeded"
+                perWallet:
+                  summary: Per-wallet rate limit
+                  value:
+                    error: "Rate limit: max 5 purchases per minute"
+        "500":
+          description: Purchase execution failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Purchase failed. Please try again."
+
+  /api/v2/dashboard:
+    get:
+      summary: Dashboard data (cached)
+      description: |
+        Returns cached vault states and policy data. The cache is refreshed every 60 seconds.
+        Optionally filter policies by wallet address. Rate limit: 100 req / 15 min.
+      operationId: getDashboard
+      tags: [Dashboard]
+      parameters:
+        - name: wallet
+          in: query
+          required: false
+          description: Filter policies by buyer wallet address. If omitted, all policies are returned.
+          schema:
+            type: string
+            example: "0x1234567890abcdef1234567890abcdef12345678"
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many requests, try again later"
+
+  /api/v2/keys/create:
+    post:
+      summary: Create a new API key
+      description: |
+        Generates a new API key for the given wallet address. Each wallet can hold
+        a maximum of 3 keys. Rate limit: 5 requests per hour per IP.
+      operationId: createApiKey
+      tags: [API Keys]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyCreateRequest"
+      responses:
+        "201":
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyCreateResponse"
+        "400":
+          description: Invalid wallet or max keys reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                invalidWallet:
+                  summary: Invalid wallet address
+                  value:
+                    error: "Valid wallet address required"
+                maxKeys:
+                  summary: Maximum keys reached
+                  value:
+                    error: "Maximum 3 API keys per wallet"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many key creation requests"
+
+  /api/v2/keys/list:
+    get:
+      summary: List API keys for a wallet
+      description: |
+        Returns metadata (label, creation date) for all API keys associated with a wallet.
+        Raw keys are never exposed. Rate limit: 5 requests per hour per IP.
+      operationId: listApiKeys
+      tags: [API Keys]
+      parameters:
+        - name: wallet
+          in: query
+          required: true
+          description: Wallet address to look up
+          schema:
+            type: string
+            example: "0x1234567890abcdef1234567890abcdef12345678"
+      responses:
+        "200":
+          description: Key listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyListResponse"
+        "400":
+          description: Missing wallet parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "wallet required"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many key creation requests"
+
+  /api/v2/keys/revoke:
+    delete:
+      summary: Revoke an API key
+      description: |
+        Permanently revokes an API key. The raw key must be provided in the request body.
+        Rate limit: 5 requests per hour per IP.
+      operationId: revokeApiKey
+      tags: [API Keys]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyRevokeRequest"
+      responses:
+        "200":
+          description: Key revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyRevokeResponse"
+        "400":
+          description: Missing apiKey field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "apiKey required"
+        "404":
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "API key not found"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Too many key creation requests"
