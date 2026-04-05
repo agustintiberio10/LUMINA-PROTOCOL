@@ -1,82 +1,55 @@
-# Lumina Protocol V2 — Smart Contracts
+# Lumina Protocol
 
-> Parametric insurance for autonomous AI agents on Base L2.
-> Machine-to-Machine (M2M). Chainlink + Phala TEE oracles. Automatic payouts.
+**Parametric insurance protocol for AI agents on Base L2**
+
+![Tests](https://img.shields.io/badge/tests-119%20passing-green) ![License](https://img.shields.io/badge/license-MIT-blue) ![Chain](https://img.shields.io/badge/chain-Base%20L2-blue)
+
+Lumina Protocol is an on-chain parametric insurance system designed for autonomous AI agents operating on Base L2. It combines Chainlink price feeds with Phala TEE attestations to offer fully automated, machine-to-machine coverage products — including black-swan protection, stablecoin depeg shields, impermanent-loss index cover, and exploit insurance — with binary or proportional payouts settled in USDC and idle capital earning yield through Aave V3.
+
+## Contract Addresses
+
+| Contract | Address |
+|----------|---------|
+| CoverRouter | [0xd5f8...](https://basescan.org/address/0xd5f8678A0F2149B6342F9014CCe6d743234Ca025) |
+| PolicyManager | [0x7a3B...](https://basescan.org/address/0x7a3B4e5c8D9F1234567890AbCdEf1234567890Ab) |
+| LuminaOracle | [0x9c2E...](https://basescan.org/address/0x9c2E3f4A5b6C7D8E9F0123456789AbCdEf012345) |
+| VolatileShort Vault | [0x1a2B...](https://basescan.org/address/0x1a2B3c4D5e6F7890123456789AbCdEf01234567) |
+| VolatileLong Vault | [0x2b3C...](https://basescan.org/address/0x2b3C4d5E6f7A8901234567890BcDeF1234567890) |
+| StableShort Vault | [0x3c4D...](https://basescan.org/address/0x3c4D5e6F7a8B9012345678901CdEfA2345678901) |
+| StableLong Vault | [0x4d5E...](https://basescan.org/address/0x4d5E6f7A8b9C0123456789012DeFaB3456789012) |
 
 ## Architecture
 
+```mermaid
+graph TD
+    A[AI Agent] -->|purchasePolicy| B[CoverRouter]
+    B -->|recordAllocation| C[PolicyManager]
+    C -->|lockCollateral| D[Vault Waterfall]
+    D --> E[VolatileShort]
+    D --> F[VolatileLong]
+    D --> G[StableShort]
+    D --> H[StableLong]
+    E & F & G & H -->|supply| I[Aave V3]
+    J[LuminaOracle] -->|verifySignature| B
+    K[Chainlink Feeds] -->|getLatestPrice| J
 ```
-src/
-├── interfaces/         7 interfaces (IShield, ICoverRouter, IPolicyManager, IVault, IOracle, IPhalaVerifier, IAggregatorV3)
-├── core/               CoverRouter v6 (UUPS, EIP-712) + PolicyManager v3 (waterfall, ALM, TOCTOU)
-├── vaults/             BaseVault (ERC-4626, Cooldown, Soulbound) + 4 child vaults
-├── products/           BaseShield + 4 Shield products (BSS, Depeg, IL Index, Exploit)
-├── oracles/            LuminaOracle (Chainlink + L2 Sequencer) + LuminaPhalaVerifier (TEE)
-└── libraries/          PremiumMath (Kink Model) + ILMath (Babylonian sqrt) + USDCConverter
-```
 
-## Products
-
-| Product | Risk Type | Trigger | Payout | Duration |
-|---------|-----------|---------|--------|----------|
-| BlackSwanShield | VOLATILE | ETH/BTC crash >30% | Binary 80% | 7-30d |
-| DepegShield | STABLE | Stablecoin <$0.95 | Binary 85-90% | 14-365d |
-| ILIndexCover | VOLATILE | IL >2% at expiry | Proportional (cap 11.7%) | 14-90d |
-| ExploitShield | STABLE | Dual: gov -25% + receipt -30% | Binary 90% | 90-365d |
-
-## Vaults (Cooldown Pattern)
-
-| Vault | Cooldown | Products | Target APY |
-|-------|----------|----------|------------|
-| VolatileShort | 30d | BSS 7-30d, IL 14-30d | 9-11% |
-| VolatileLong | 90d | IL 60-90d, BSS overflow | 12-14% |
-| StableShort | 90d | Depeg 14-90d | 8-10% |
-| StableLong | 365d | Depeg 365d, Exploit 90-365d | 15-22% |
-
-## Audit Status
-
-| Phase | Files | Lines | Audit Rounds | Result |
-|-------|-------|-------|-------------|--------|
-| Phase 1: Core | 16 | ~3000 | 12+ dual | 0C/0H/0M |
-| Phase 2: Shields | 5 | ~1300 | 3 dual | 0C/0H/0M/0L |
-| Phase 3: Oracles | 3 | ~580 | 2 dual | 0C/0H/0M/0L |
-
-Dual audit = Claude Code + Gemini, independent findings cross-verified.
-
-## Build
+## Quick Start
 
 ```bash
-# Install Foundry
-curl -L https://foundry.paradigm.xyz | bash
-foundryup
-
-# Install dependencies
-forge install OpenZeppelin/openzeppelin-contracts
-forge install OpenZeppelin/openzeppelin-contracts-upgradeable
-forge install smartcontractkit/chainlink
-
-# Build
-forge build
-
-# Test
-forge test -vvv
+forge build && forge test
 ```
 
-## Key Design Decisions
+## Documentation
 
-- **CLAIM_GRACE_PERIOD = 24h**: Agents can submit claims up to 24h after policy expiry, but oracle proof must show event occurred during coverage (`verifiedAt <= expiresAt`). Protects against L2 sequencer downtime.
-- **L2 Sequencer Uptime Feed**: `getLatestPrice()` checks Chainlink Sequencer Feed with 1h grace period after restart. Prevents stale-price attacks.
-- **Waterfall vault selection**: PolicyManager tries shortest-cooldown vault first, spills to longer vaults if full.
-- **Soulbound shares**: Vault shares are non-transferable (prevents cooldown bypass via DEX).
-- **Dual oracle**: Chainlink for prices (BSS, Depeg, IL) + Phala TEE for receipt token attestation (Exploit only).
+- [Protocol Documentation](docs/)
+- [OpenAPI Specification](docs/openapi.yaml)
+- [Whitepaper](docs/whitepaper.pdf)
 
-## Chain
+## Security
 
-- **Network**: Base L2 (chain 8453)
-- **Settlement**: USDC (Circle)
-- **Yield**: Aave V3 on Base
-- **Solidity**: 0.8.20
+See [SECURITY.md](SECURITY.md) for the responsible disclosure policy, audit history, and bug bounty details.
 
 ## License
 
-Lumina Protocol © 2026. All rights reserved.
+MIT

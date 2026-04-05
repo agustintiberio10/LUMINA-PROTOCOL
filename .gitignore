@@ -3,3 +3,11 @@ cache/
 .env
 broadcast/
 node_modules/
+.DS_Store
+*.log
+.vscode/
+.idea/
+coverage/
+lcov.info
+*.env*
+!.env.example
