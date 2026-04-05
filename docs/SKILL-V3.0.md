@@ -1,5 +1,5 @@
 LUMINA PROTOCOL — SKILL FILE FOR AI AGENTS
-Version: 3.0 | Chain: Base Mainnet (8453) | Settlement: USDC | March 2026
+Version: 3.0 | Chain: Base Mainnet (8453) | Settlement: USDC | April 2026
 
 ════════════════════════════════════════════════════════════
 1. WHAT IS LUMINA?
@@ -231,10 +231,10 @@ Four vaults, each with a different risk profile and cooldown period:
 
 | Vault          | Cooldown | Products            | Est. APY  | Address                                    |
 |----------------|----------|---------------------|-----------|--------------------------------------------|
-| VolatileShort  | 30 days  | BSS + IL            | 12-16%    | 0xbd44547581b92805aAECc40EB2809352b9b2880d |
-| VolatileLong   | 90 days  | IL long + BSS spill | 15-19%    | 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904 |
-| StableShort    | 90 days  | Depeg short         | 11-15%    | 0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC |
-| StableLong     | 365 days | Depeg + Exploit     | 18-27%    | 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c |
+| VolatileShort  | 37 days  | BSS + IL            | 12-16%    | 0xbd44547581b92805aAECc40EB2809352b9b2880d |
+| VolatileLong   | 97 days  | IL long + BSS spill | 15-19%    | 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904 |
+| StableShort    | 97 days  | Depeg short         | 11-15%    | 0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC |
+| StableLong     | 372 days | Depeg + Exploit     | 18-27%    | 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c |
 
 YIELD SOURCES:
   Layer 1: Aave V3 base yield (~3-5% APY) — USDC deposited automatically
@@ -246,7 +246,7 @@ HOW TO DEPOSIT: On-chain transaction directly to the vault contract.
 
 HOW TO WITHDRAW:
   1. Call requestWithdrawal(shares) on the vault — starts cooldown timer
-  2. Wait for cooldown period (30 to 365 days depending on vault)
+  2. Wait for cooldown period (37 to 372 days depending on vault)
   3. Call completeWithdrawal(receiverAddress) — receive USDC + accumulated yield
   Partial withdrawals allowed (any number of shares). Up to 10 concurrent withdrawal requests.
 
@@ -257,6 +257,40 @@ PERFORMANCE FEE: 3% charged ONLY on positive yield (profit above your deposit co
 SHARES ARE SOULBOUND: Vault shares cannot be transferred or sold. This prevents market manipulation. You can only deposit and withdraw through the vault contract.
 
 NEW DEPOSITS: You can deposit more USDC at any time. Shares accumulate. New deposits do NOT affect existing withdrawal requests or cooldowns.
+
+════════════════════════════════════════════════════════════
+5b. LP RISKS
+════════════════════════════════════════════════════════════
+
+SHARE PRICE DECREASE DURING COOLDOWN:
+  Vault share price can decrease if the vault pays out claims while your withdrawal is
+  pending. You withdraw at the share price at completion time, not at request time.
+  Example: Request withdrawal at $1.05/share → vault pays large claim → share price
+  drops to $0.98 → you receive $0.98 per share.
+
+PERFORMANCE FEE:
+  3% fee on positive yield at withdrawal. Charged only on profit above deposit cost.
+  This reduces your net return. No fee if you withdraw at a loss.
+
+USDC DEPEG RISK:
+  Lumina Protocol uses USDC at a 1:1 ratio for all settlements. If USDC depegs from
+  $1.00, all vault assets, premiums, and payouts are affected. The protocol does not
+  hedge against USDC devaluation.
+
+AAVE V3 DEPENDENCY:
+  Vault idle capital is deposited into Aave V3 for base yield and liquidity. If Aave
+  experiences an exploit, liquidity crisis, or extended downtime, vault withdrawals
+  and payouts may be delayed or impaired.
+
+COOLDOWN IS IRREVOCABLE:
+  Once you call requestWithdrawal, the cooldown cannot be cancelled or reversed. You
+  are committed to waiting the full cooldown period (37 to 372 days depending on vault).
+  You cannot re-deposit those shares during the cooldown.
+
+DAILY WITHDRAWAL LIMIT:
+  At high vault utilization, daily withdrawal amounts may be capped. If many LPs
+  withdraw simultaneously, a queue forms and your withdrawal may be delayed beyond
+  the cooldown period until sufficient liquidity is available.
 
 ════════════════════════════════════════════════════════════
 6. PRICING MODEL (Kink)
@@ -350,13 +384,39 @@ COMMON ERRORS AND REMEDIES:
 10. SECURITY
 ════════════════════════════════════════════════════════════
 
-Smart Contracts: 79 tests passing. Solidity 0.8.20. CEI pattern. SafeERC20. ReentrancyGuard.
+Smart Contracts: 119 tests passing. Solidity 0.8.20. CEI pattern. SafeERC20. ReentrancyGuard.
 Governance: TimelockController (48h delay) + Gnosis Safe (2-of-3 multisig). No instant admin changes.
 Oracle: Multisig-capable (N-of-M). Chainlink TWAP verification. L2 sequencer uptime check (1h grace).
 API: Rate limiting, CORS restrictions, Helmet headers, NonceManager, sanitized errors.
 
 Collateral: Strict 1:1. Every $1 of coverage = $1 USDC locked in vault. Max utilization 95%.
 Session approval: Buyers must authorize relayers before purchases can be made on their behalf.
+
+ADDITIONAL SECURITY MECHANISMS:
+
+Option E — Targeted veto for scheduled payouts:
+  cancelScheduledPayout can be called within the delay window by EMERGENCY_ROLE only.
+  Maximum 3 vetos per week to prevent abuse.
+
+Sequencer downtime extension:
+  Claim grace period is automatically extended by the duration of any L2 sequencer downtime.
+  Minimum extension: 2 hours.
+
+Two-phase allocation release:
+  executePayout must complete before releaseAllocation. Allocation is only released if
+  USDC actually leaves the vault, preventing premature capital unlocking.
+
+Cooldown irrevocable:
+  Once an LP initiates a withdrawal request (requestWithdrawal), it cannot be cancelled.
+  The cooldown runs to completion.
+
+Product freeze:
+  Individual products can be halted independently without affecting other products.
+  Frozen products reject new purchases but existing policies remain valid.
+
+Try/catch on Aave interactions:
+  All Aave V3 deposit/withdraw calls are wrapped in try/catch. If Aave fails,
+  payouts and withdrawals are queued in a pending queue for later processing.
 
 NEVER share your private key with anyone — not even Lumina. The API only needs your wallet address and API key.
 
@@ -478,8 +538,8 @@ const shares = await vault.deposit(ethers.parseUnits("10000", 6), signer.address
 // Step 3: Request withdrawal (after earning yield)
 await vault.requestWithdrawal(shares);
 
-// Step 4: Complete withdrawal (after cooldown: 30 days for VolatileShort)
-// Wait 30 days...
+// Step 4: Complete withdrawal (after cooldown: 37 days for VolatileShort)
+// Wait 37 days...
 const assets = await vault.completeWithdrawal(signer.address);
 
 NOTE: Vault function signatures verified from BaseVault.sol source code.
@@ -509,6 +569,7 @@ Shields:
 Governance:
   TimelockController: 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a
   Gnosis Safe (2/3):  0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD
+  EmergencyPause:     0xc7ac8c19c3f10f820d7e42f07e6e257bacc22876
 
 External:
   USDC (Circle):     0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
@@ -531,6 +592,6 @@ Sales: labs@lumina-org.com
 VERIFICATION
 ════════════════════════════════════════════════════════════
 
-Every data point in this SKILL was extracted from the source code on March 31, 2026.
+Every data point in this SKILL was extracted from the source code on April 4, 2026.
 Sources: api/src/index.js, src/libraries/PremiumMath.sol, src/core/CoverRouter.sol,
 src/vaults/BaseVault.sol, src/products/*.sol, docs/PRODUCTION-ADDRESSES.md, lib/lumina-config.ts

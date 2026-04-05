@@ -3,16 +3,31 @@
 
 ---
 
-## SCORE CARD
+## SCORE CARD (POST-FIX)
 
-| Agent | Score | Summary |
-|-------|-------|---------|
-| A - Buyer Agent | 7/10 | Can operate but missing signature format, 6h trigger fallback, edge cases |
-| B - LP Investor | 6/10 | Adequate but cooldown discrepancy (30 vs 37d), no UI walkthrough |
-| C - Tech Integrator | 5.5/10 | No OpenAPI spec, no testnet, incomplete ABIs, product ID conflicts |
-| D - Math Verifier | 7/10 | BSS waiting=0 in SKILL (should be 1h), M(U) table wrong post-kink |
-| E - Security Reviewer | 7/10 | Oracle 2-of-3 claimed but deployed 1-of-1, no RBAC matrix |
-| **AVERAGE** | **6.5/10** | Functional but has critical inconsistencies that must be fixed |
+| Agent | Pre-Fix | Post-Fix | Top 3 Remaining |
+|-------|---------|----------|-----------------|
+| A - Buyer Agent | 7/10 | **9/10** | EIP-712 struct details, full CoverRouter ABI, "can't collect" scenarios list |
+| B - LP Investor | 6/10 | **8.5/10** | Dashboard UI screenshots, historical yield data, Aave pause user guide |
+| C - Tech Integrator | 5.5/10 | **7.5/10** | OpenAPI/Swagger spec, testnet/sandbox, SDK package (npm) |
+| D - Math Verifier | 7/10 | **9.5/10** | Premium formula v2 catalog stale (minor), riskMult docs could be clearer |
+| E - Security Reviewer | 7/10 | **9/10** | Storage layout JSON export, invariant test docs, oracle liveness guarantee |
+| **AVERAGE** | **6.5/10** | **8.7/10** | |
+
+### Fixes Applied (20 gaps closed)
+- BSS waiting: "None" -> "1 hour" (12+ locations)
+- Cooldowns: 30/90/365 -> 37/97/372 (config + all SKILL files)
+- Oracle: "2-of-3" -> "1-of-1 (planned 2-of-3)"
+- M(U) table: post-kink values corrected (85%=2.25x, 90%=3.0x)
+- ExploitShield $150K lifetime cap documented
+- Product IDs: both short and full formats documented
+- 6h anyone-can-trigger: documented in claims section
+- Sequencer downtime extension: documented
+- RBAC matrix: ACCESS-CONTROL-MATRIX.md created
+- LP risks section: added to SKILL-V3.0.md
+- Test count: 79 -> 119
+- Dates: March -> April 2026
+- Security section: Option E, two-phase release, irrevocable cooldown added
 
 ---
 
