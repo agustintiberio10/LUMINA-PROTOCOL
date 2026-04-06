@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+### Added
+- BTCCatastropheShield (BCS): BTC -50% trigger, 7-30d, pBase 15%, maxAlloc 30%
+- ETHApocalypseShield (EAS): ETH -60% trigger, 7-30d, pBase 20%, maxAlloc 25%
+### Deprecated
+- BlackSwanShield (BSS): Replaced by BCS + EAS. No new policies.
+### Changed
+- VolatileShort APY: 3.3%-22.2% → 3.9%-16.9%
+- VolatileLong APY: 3.3%-24.7% → 4.0%-20.5%
+
 ## [2.0.0] - 2026-04-04
 
 ### Security

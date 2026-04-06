@@ -5,21 +5,18 @@ import {IShield} from "../interfaces/IShield.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {BaseShield} from "./BaseShield.sol";
 
-/// @notice DEPRECATED — Replaced by BTCCatastropheShield + ETHApocalypseShield
-/// @dev Existing policies will run to expiry. No new policies will be issued.
-
 /**
- * @title BlackSwanShield
+ * @title BTCCatastropheShield
  * @author Lumina Protocol
- * @notice Catastrophic parametric insurance against >30% crash in BTC or ETH.
+ * @notice Parametric insurance: pays 80% if BTC drops >50%
  *
- * PRODUCT: BLACKSWAN-001
+ * PRODUCT: BTCCAT-001
  * RISK TYPE: VOLATILE
- * TRIGGER: Price drops >30% from the exact price at policy issuance block.
+ * TRIGGER: Price drops >50% from the exact price at policy issuance block.
  *          Verified via oracle-signed TWAP proof (15 min or 3 consecutive Chainlink rounds).
  * PAYOUT: Binary — 80% of coverage (20% deductible).
  * DURATION: 7–30 days. 1-hour waiting period (anti-front-running).
- * ASSET: ETH or BTC (selected at purchase via params.asset).
+ * ASSET: BTC only (selected at purchase via params.asset).
  *
  * ORACLE PROOF FORMAT:
  *   abi.encode(int256 verifiedPrice, bytes32 asset, uint256 verifiedAt, bytes signature)
@@ -28,16 +25,16 @@ import {BaseShield} from "./BaseShield.sol";
  *
  * @dev Non-upgradeable. Extends BaseShield for shared policy management.
  */
-contract BlackSwanShield is BaseShield {
+contract BTCCatastropheShield is BaseShield {
 
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
 
-    bytes32 public constant PRODUCT_ID = keccak256("BLACKSWAN-001");
+    bytes32 public constant PRODUCT_ID = keccak256("BTCCAT-001");
     bytes32 public constant RISK_TYPE = keccak256("VOLATILE");
 
-    uint16 public constant MAX_ALLOCATION_BPS = 2000;   // 20%
+    uint16 public constant MAX_ALLOCATION_BPS = 3000;   // 30%
     uint32 public constant MIN_DURATION = 7 days;
     uint32 public constant MAX_DURATION = 30 days;
     // [FIX C-3] 1h waiting period. On Base L2 (2s blocks), this is ~1800 blocks.
@@ -45,7 +42,7 @@ contract BlackSwanShield is BaseShield {
     uint32 public constant WAITING_PERIOD = 1 hours;
 
     uint256 public constant DEDUCTIBLE_BPS = 2000;       // 20% deductible → 80% max payout
-    uint256 public constant TRIGGER_DROP_BPS = 3000;      // 30% drop
+    uint256 public constant TRIGGER_DROP_BPS = 5000;      // 50% drop
     uint256 private constant BPS = 10_000;
 
     /// @notice Max age of oracle proof (prevents stale proofs)
@@ -56,9 +53,9 @@ contract BlackSwanShield is BaseShield {
     // ═══════════════════════════════════════════════════════════
 
     struct BSSData {
-        bytes32 asset;          // "ETH" or "BTC"
+        bytes32 asset;          // "BTC"
         int256 strikePrice;     // Price at issuance (Chainlink 8 decimals)
-        int256 triggerPrice;    // strikePrice × 70 / 100
+        int256 triggerPrice;    // strikePrice × 50 / 100
     }
 
     mapping(uint256 => BSSData) private _bssData;
@@ -99,17 +96,15 @@ contract BlackSwanShield is BaseShield {
         uint256 policyId,
         CreatePolicyParams calldata params
     ) internal override {
-        // Validate asset is ETH or BTC
-        if (params.asset != "ETH" && params.asset != "BTC") {
-            revert InvalidAsset(params.asset);
-        }
+        // Validate asset is BTC only
+        if (params.asset != "BTC") revert InvalidAsset(params.asset);
 
         // Get current price from oracle
         int256 currentPrice = IOracle(oracle).getLatestPrice(params.asset);
         if (currentPrice <= 0) revert InvalidOracleProof();
 
-        // Calculate trigger price: strikePrice × (1 - 0.30) = strikePrice × 70 / 100
-        int256 trigger = (currentPrice * 70) / 100;
+        // Calculate trigger price: strikePrice × (1 - 0.50) = strikePrice × 50 / 100
+        int256 trigger = (currentPrice * 50) / 100;
 
         _bssData[policyId] = BSSData({
             asset: params.asset,
@@ -161,7 +156,7 @@ contract BlackSwanShield is BaseShield {
             triggered: true,
             payoutAmount: cp.maxPayout,
             recipient: cp.insuredAgent,
-            reason: "BLACKSWAN_CRASH"
+            reason: "BTCCAT_CRASH"
         });
     }
 

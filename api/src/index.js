@@ -86,6 +86,8 @@ const PRODUCT_IDS = {
   "DEPEG-STABLE-001":ethers.keccak256(ethers.toUtf8Bytes("DEPEG-STABLE-001")),
   "ILPROT-001":      ethers.keccak256(ethers.toUtf8Bytes("ILPROT-001")),
   "EXPLOIT-001":     ethers.keccak256(ethers.toUtf8Bytes("EXPLOIT-001")),
+  "BTCCAT-001":      ethers.keccak256(ethers.toUtf8Bytes("BTCCAT-001")),
+  "ETHAPOC-001":     ethers.keccak256(ethers.toUtf8Bytes("ETHAPOC-001")),
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -147,6 +149,7 @@ const PRODUCTS = [
     deductible: 3000,     // 30% drop trigger
     assets: ["ETH", "BTC"],
     stablecoins: ["USDC", "USDT", "DAI"],
+    deprecated: true,
   },
   {
     name: "Depeg Shield",
@@ -190,6 +193,29 @@ const PRODUCTS = [
     assets: [],
     stablecoins: ["USDC", "USDT", "DAI"],
   },
+  {
+    id: "BTCCAT-001",
+    name: "BTC Catastrophe Shield",
+    productId: ethers.keccak256(ethers.toUtf8Bytes("BTCCAT-001")),
+    asset: "BTC",
+    riskType: "VOLATILE",
+    vaults: [VAULTS.VOLATILE_SHORT, VAULTS.VOLATILE_LONG],
+    pBase: 1500,
+    minDuration: 7 * 86400,
+    maxDuration: 30 * 86400,
+    // shield address will be set after deploy
+  },
+  {
+    id: "ETHAPOC-001",
+    name: "ETH Apocalypse Shield",
+    productId: ethers.keccak256(ethers.toUtf8Bytes("ETHAPOC-001")),
+    asset: "ETH",
+    riskType: "VOLATILE",
+    vaults: [VAULTS.VOLATILE_SHORT, VAULTS.VOLATILE_LONG],
+    pBase: 2000,
+    minDuration: 7 * 86400,
+    maxDuration: 30 * 86400,
+  },
 ];
 
 // Short-ID → config for /purchase endpoint
@@ -198,6 +224,8 @@ const PRODUCT_CONFIG = {
   "DEPEG":   { name: "Depeg Shield",      fullId: "DEPEG-STABLE-001", vault: VAULTS.STABLE_SHORT,   riskType: "STABLE",   asset: "USDC", shield: SHIELDS.DEPEG },
   "IL":      { name: "IL Index Cover",     fullId: "ILPROT-001",      vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "ETH",  shield: SHIELDS.IL_INDEX },
   "EXPLOIT": { name: "Exploit Shield",     fullId: "EXPLOIT-001",     vault: VAULTS.STABLE_SHORT,   riskType: "STABLE",   asset: "ETH",  shield: SHIELDS.EXPLOIT },
+  "BCS":     { name: "BTC Catastrophe Shield", fullId: "BTCCAT-001",  vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "BTC",  shield: null },
+  "EAS":     { name: "ETH Apocalypse Shield",  fullId: "ETHAPOC-001", vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "ETH",  shield: null },
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -502,6 +530,11 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       return res.status(400).json({ error: "Product not configured: " + product.fullId });
     }
 
+    // Reject deprecated products
+    if (productEntry.deprecated) {
+      return res.status(400).json({ error: "Product deprecated. Use BCS (BTCCAT-001) for BTC or EAS (ETHAPOC-001) for ETH." });
+    }
+
     if (coverageAmount < 100000000 || coverageAmount > 100000000000) {
       return res.status(400).json({ error: "Coverage between $100 and $100,000 (6 decimals). Example: 1000000000 = $1,000" });
     }
@@ -515,7 +548,9 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       "BSS": { min: 7 * 86400, max: 30 * 86400 },
       "DEPEG": { min: 14 * 86400, max: 365 * 86400 },
       "IL": { min: 14 * 86400, max: 90 * 86400 },
-      "EXPLOIT": { min: 90 * 86400, max: 365 * 86400 }
+      "EXPLOIT": { min: 90 * 86400, max: 365 * 86400 },
+      "BCS": { min: 7 * 86400, max: 30 * 86400 },
+      "EAS": { min: 7 * 86400, max: 30 * 86400 }
     };
     const pLimits = PURCHASE_DUR_LIMITS[productId];
     if (pLimits) {
@@ -809,7 +844,9 @@ app.post("/api/v2/quote", async (req, res) => {
       "BSS": { min: 7 * 86400, max: 30 * 86400 },
       "DEPEG": { min: 14 * 86400, max: 365 * 86400 },
       "IL": { min: 14 * 86400, max: 90 * 86400 },
-      "EXPLOIT": { min: 90 * 86400, max: 365 * 86400 }
+      "EXPLOIT": { min: 90 * 86400, max: 365 * 86400 },
+      "BCS": { min: 7 * 86400, max: 30 * 86400 },
+      "EAS": { min: 7 * 86400, max: 30 * 86400 }
     };
     const durLimits = DURATION_LIMITS[productId];
     if (durLimits) {
@@ -821,14 +858,19 @@ app.post("/api/v2/quote", async (req, res) => {
       }
     }
 
-    // Alias map: short IDs (BSS, DEPEG, IL, EXPLOIT) → full IDs (BLACKSWAN-001, etc.)
-    const PRODUCT_ALIASES = { "BSS": "BLACKSWAN-001", "DEPEG": "DEPEG-STABLE-001", "IL": "ILPROT-001", "EXPLOIT": "EXPLOIT-001" };
+    // Alias map: short IDs (BSS, DEPEG, IL, EXPLOIT, BCS, EAS) → full IDs
+    const PRODUCT_ALIASES = { "BSS": "BLACKSWAN-001", "DEPEG": "DEPEG-STABLE-001", "IL": "ILPROT-001", "EXPLOIT": "EXPLOIT-001", "BCS": "BTCCAT-001", "EAS": "ETHAPOC-001" };
     const resolvedId = PRODUCT_ALIASES[productId] || productId;
 
     // Find product config
     const product = PRODUCTS.find((p) => p.id === resolvedId || p.productId === resolvedId || p.id === productId || p.productId === productId);
     if (!product) {
-      return res.status(400).json({ error: `Unknown product: ${productId}. Valid: BSS, DEPEG, IL, EXPLOIT (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001)` });
+      return res.status(400).json({ error: `Unknown product: ${productId}. Valid: BSS, DEPEG, IL, EXPLOIT, BCS, EAS (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001, BTCCAT-001, ETHAPOC-001)` });
+    }
+
+    // Reject deprecated products
+    if (product.deprecated) {
+      return res.status(400).json({ error: "Product deprecated. Use BCS (BTCCAT-001) for BTC or EAS (ETHAPOC-001) for ETH." });
     }
 
     // Read current utilization from the first vault for this product

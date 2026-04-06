@@ -177,8 +177,8 @@ components:
       properties:
         productId:
           type: string
-          description: "Short ID (BSS, DEPEG, IL, EXPLOIT) or full ID (BLACKSWAN-001, etc.)"
-          example: "BSS"
+          description: "Short ID (BSS, DEPEG, IL, EXPLOIT, BCS, EAS) or full ID (BLACKSWAN-001, BTCCAT-001, ETHAPOC-001, etc.)"
+          example: "BCS"
         coverageAmount:
           type: integer
           description: "Coverage in USDC 6 decimals. Min $100 (100000000)."
@@ -291,15 +291,15 @@ components:
         productId:
           type: string
           description: "Short product ID"
-          enum: [BSS, DEPEG, IL, EXPLOIT]
-          example: "BSS"
+          enum: [BSS, DEPEG, IL, EXPLOIT, BCS, EAS]
+          example: "BCS"
         coverageAmount:
           type: integer
           description: "Coverage in USDC 6 decimals. Range $100 – $100,000 (100000000 – 100000000000)."
           example: 1000000000
         durationSeconds:
           type: integer
-          description: "Policy duration in seconds. Per-product limits: BSS 7-30d, DEPEG 14-365d, IL 14-90d, EXPLOIT 90-365d."
+          description: "Policy duration in seconds. Per-product limits: BSS 7-30d (deprecated), BCS 7-30d, EAS 7-30d, DEPEG 14-365d, IL 14-90d, EXPLOIT 90-365d."
           example: 1209600
 
     PurchaseResponse:
@@ -623,7 +623,9 @@ paths:
         (correlation group caps). Rate limit: 100 req / 15 min.
 
         **Product duration limits:**
-        - BSS: 7 - 30 days
+        - BSS: 7 - 30 days *(deprecated — use BCS or EAS)*
+        - BCS: 7 - 30 days
+        - EAS: 7 - 30 days
         - DEPEG: 14 - 365 days
         - IL: 14 - 90 days
         - EXPLOIT: 90 - 365 days
@@ -656,7 +658,7 @@ paths:
                 unknownProduct:
                   summary: Unknown product
                   value:
-                    error: "Unknown product: XYZ. Valid: BSS, DEPEG, IL, EXPLOIT (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001)"
+                    error: "Unknown product: XYZ. Valid: BSS, DEPEG, IL, EXPLOIT, BCS, EAS (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001, BTCCAT-001, ETHAPOC-001)"
                 durationTooShort:
                   summary: Duration too short
                   value:
@@ -701,7 +703,9 @@ paths:
         - The buyer wallet must have approved the CoverRouter contract for USDC spending
 
         **Product duration limits:**
-        - BSS: 7 - 30 days
+        - BSS: 7 - 30 days *(deprecated — use BCS or EAS)*
+        - BCS: 7 - 30 days
+        - EAS: 7 - 30 days
         - DEPEG: 14 - 365 days
         - IL: 14 - 90 days
         - EXPLOIT: 90 - 365 days
@@ -736,7 +740,7 @@ paths:
                 unknownProduct:
                   summary: Unknown product
                   value:
-                    error: "Unknown productId. Valid: BSS, DEPEG, IL, EXPLOIT"
+                    error: "Unknown productId. Valid: BSS, DEPEG, IL, EXPLOIT, BCS, EAS"
                 coverageRange:
                   summary: Coverage out of range
                   value:
