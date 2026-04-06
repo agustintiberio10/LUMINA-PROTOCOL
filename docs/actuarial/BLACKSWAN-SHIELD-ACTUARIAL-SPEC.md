@@ -33,6 +33,7 @@ Solo LONG (protección contra caída de precio). Short puede agregarse en versi�
 | Deducible | 20% fijo |
 | Max Payout | 80% del Coverage Amount |
 | P_base (prima base anualizada) | 0.065 (6.5%) |
+| Waiting Period | 1 hora (3600 segundos) — anti-front-running; eventos durante el waiting period NO están cubiertos |
 | Coverage mínimo | $100 USDC |
 | Coverage máximo | Limitado por liquidez disponible del vault |
 | MaxAllocationPerProduct | 20% del Mega Pool |
@@ -157,12 +158,12 @@ Si U > U_kink (zona de estrés):
 
 | Duración | U=20% | U=40% | U=60% | U=80% | U=90% |
 |---|---|---|---|---|---|
-| 7 días | $239 (0.48%) | $264 (0.53%) | $291 (0.58%) | $317 (0.63%) | $475 (0.95%) |
-| 14 días | $477 (0.95%) | $527 (1.05%) | $582 (1.16%) | $633 (1.27%) | $949 (1.90%) |
-| 21 días | $716 (1.43%) | $791 (1.58%) | $874 (1.75%) | $950 (1.90%) | $1,424 (2.85%) |
-| 30 días | $1,021 (2.04%) | $1,130 (2.26%) | $1,248 (2.50%) | $1,357 (2.71%) | $2,034 (4.07%) |
+| 7 días | $70 (0.14%) | $78 (0.16%) | $86 (0.17%) | $93 (0.19%) | $187 (0.37%) |
+| 14 días | $140 (0.28%) | $156 (0.31%) | $171 (0.34%) | $187 (0.37%) | $374 (0.75%) |
+| 21 días | $210 (0.42%) | $234 (0.47%) | $257 (0.51%) | $280 (0.56%) | $561 (1.12%) |
+| 30 días | $301 (0.60%) | $334 (0.67%) | $367 (0.73%) | $401 (0.80%) | $801 (1.60%) |
 
-Rango operativo normal (U=20-60%): **0.48% a 2.50%** del coverage según duración y utilización.
+Rango operativo normal (U=20-60%): **0.14% a 0.73%** del coverage según duración y utilización.
 
 ---
 
@@ -225,8 +226,8 @@ Para 30 días: ~1.5-2.0% de probabilidad con TWAP
 Escenario: Vault $1M, 20% en BSS ($200K), 4 pólizas de $50K, duración 30 días, U=40%
 
 ```
-Primas mensuales BSS: 4 × $1,130 = $4,520
-Primas anuales BSS: $4,520 × 12 = $54,240
+Primas mensuales BSS: 4 × $334 = $1,336
+Primas anuales BSS: $1,336 × 12 = $16,027
 
 Si claim (todas las pólizas se activan — evento correlacionado):
   Payout total: 4 × ($50K × 80%) = $160,000
@@ -235,28 +236,39 @@ Si claim (todas las pólizas se activan — evento correlacionado):
 Probabilidad de al menos 1 claim/año: ~18-24% (basado en 1.5-2% mensual)
 Expected annual claims: 0.21 × $160,000 = $33,600
 
-EV anual = $54,240 - $33,600 = +$20,640
-Margen sobre expected claims: ~38%
+EV anual BSS solo = $16,027 - $33,600 = -$17,573
+
+NOTA: Con pBase=650 bps, BSS solo no es rentable para LPs a U=40%.
+La viabilidad del vault depende de:
+  1. Múltiples productos (BSS + IL Protection + Exploit Shield) compartiendo el vault
+  2. Yield de Aave V3 (~3-6% APY sobre totalAssets)
+  3. Utilización agregada elevada por la combinación de productos
+  4. A U=90% (M=3.0), BSS solo genera EV positivo: $38,466 - $33,600 = +$4,866
 ```
 
 ### 6.4 Stress test — año catastrófico (2 eventos)
 
 ```
-Primas anuales: $54,240
+Primas anuales BSS: $16,027
 Claims: 2 × $160,000 = $320,000
-Neto: -$265,760
+Neto BSS: -$303,973
 
 Probabilidad de 2+ eventos/año: ~3-5%
 ```
 
-En un año con 2 cisnes negros, el vault pierde 26.5% de su capital solo por BSS. Pero el MaxAllocationPerProduct del 20% limita esto: la pérdida máxima por un solo evento es 16%, y por dos eventos es 32% del vault. Severo pero no terminal.
+En un año con 2 cisnes negros, el vault pierde 32% de su capital solo por BSS. El MaxAllocationPerProduct del 20% limita la pérdida máxima por un solo evento a 16%. Las primas BSS a pBase=650 no cubren ni un evento. La viabilidad del vault en stress depende del yield combinado de todos los productos y Aave V3.
 
 ### 6.5 Break-even para el LP
 
 ```
-Meses de primas para recuperar 1 claim: $160,000 / $4,520 = ~35 meses
+Meses de primas BSS para recuperar 1 claim: $160,000 / $1,336 = ~120 meses
 Con probabilidad mensual de claim de ~2%: esperanza de 50 meses entre claims
-Margen de seguridad: 50 - 35 = 15 meses → el LP está en positivo en promedio
+
+NOTA: Con BSS solo a pBase=650, el break-even por primas excede la esperanza entre claims.
+El vault se sostiene por la combinación de:
+  - Primas de todos los productos (BSS + IL + Exploit + Depeg)
+  - Yield de Aave V3 sobre totalAssets (~3-6% APY)
+  - El Kink Model incentiva utilización alta donde las primas son multiplicadas
 ```
 
 ---
@@ -267,13 +279,13 @@ Margen de seguridad: 50 - 35 = 15 meses → el LP está en positivo en promedio
 
 | Capital a cubrir | Duración | Prima (U=40%) | Costo mensual si renueva | % mensual |
 |---|---|---|---|---|
-| $25,000 | 7 días | $132 | $528 | 2.11% |
-| $25,000 | 30 días | $565 | $565 | 2.26% |
-| $50,000 | 7 días | $264 | $1,056 | 2.11% |
-| $50,000 | 30 días | $1,130 | $1,130 | 2.26% |
-| $100,000 | 7 días | $528 | $2,112 | 2.11% |
-| $100,000 | 30 días | $2,260 | $2,260 | 2.26% |
-| $500,000 | 30 días | $11,301 | $11,301 | 2.26% |
+| $25,000 | 7 días | $39 | $167 | 0.67% |
+| $25,000 | 30 días | $167 | $167 | 0.67% |
+| $50,000 | 7 días | $78 | $334 | 0.67% |
+| $50,000 | 30 días | $334 | $334 | 0.67% |
+| $100,000 | 7 días | $156 | $668 | 0.67% |
+| $100,000 | 30 días | $668 | $668 | 0.67% |
+| $500,000 | 30 días | $3,339 | $3,339 | 0.67% |
 
 ### 7.2 Value proposition
 
@@ -281,7 +293,7 @@ Margen de seguridad: 50 - 35 = 15 meses → el LP está en positivo en promedio
 Sin seguro: BTC cae 30% → pierde parte o todo del capital (dependiendo del apalancamiento)
 Con seguro: BTC cae 30% → cobra 80% del coverage amount. Sobrevive y se reposiciona.
 
-Costo: ~2.3% mensual del capital cubierto
+Costo: ~0.67% mensual del capital cubierto (a U=40%)
 Alternativa: no hay producto equivalente en DeFi que cubra cisnes negros con liquidación automática
 ```
 
@@ -426,7 +438,7 @@ Los contratos existentes (MutualLumina, DisputeResolver, AutoResolver) se mantie
 |---|---|---|---|---|
 | Threshold | -30% fijo | Flexible (any strike) | No tiene threshold | Varía |
 | Duración | 7-30 días | Fijo (expiry dates) | Indefinido | 30-365 días |
-| Prima | ~1-4% por período | Variable (volatility surface) | Funding rate | 2.6%/año |
+| Prima | ~0.14-1.60% por período | Variable (volatility surface) | Funding rate | 2.6%/año |
 | Payout | Automático on-chain | Requiere ejercicio | Manual | Requiere claim + votación |
 | Cobertura | BTC/ETH crashes | Cualquier activo listado | Cualquier perp | Smart contract exploits |
 | Liquidación | N/A | Riesgo de margin call | Riesgo de liquidación | N/A |
@@ -443,5 +455,5 @@ Los contratos existentes (MutualLumina, DisputeResolver, AutoResolver) se mantie
 | Ratio de claims / pólizas emitidas | <3% mensual | >5% mensual |
 | EV acumulado del LP | Positivo | Negativo por >3 meses |
 | Tiempo promedio de renovación | <1 hora | >12 horas |
-| Prima promedio como % coverage | 1.5-2.5% | <1% o >5% |
+| Prima promedio como % coverage | 0.5-1.0% | <0.3% o >2% |
 | MaxAllocation utilizado | <80% del cap | >90% del cap |
