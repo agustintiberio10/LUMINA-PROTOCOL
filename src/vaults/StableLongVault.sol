@@ -10,7 +10,7 @@ import {BaseVault} from "./BaseVault.sol";
  *         Backs: Depeg Shield up to 365d, Exploit Shield 90-365d, Depeg overflow from StableShort
  *         Cooldown = 365d max policy + 7d safety buffer (actuarial recommendation)
  *         This is the ONLY vault that can back annual policies.
- *         Monopoly on long-term premiums → highest APY (~15-22%)
+ *         Monopoly on long-term premiums → APY range ~2.8-10.3%
  *         Target: institutional LPs, DAO treasuries, family offices
  */
 contract StableLongVault is BaseVault {

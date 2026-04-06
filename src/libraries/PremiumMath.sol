@@ -132,7 +132,7 @@ library PremiumMath {
      *      matches the expected value (within acceptable tolerance).
      *
      * @param coverageAmount  Coverage in USD (6 decimals, e.g. 50000e6 = $50,000)
-     * @param pBaseBps        P_base in basis points (e.g. 2200 = 22% for BSS, 300 = 3% for Exploit)
+     * @param pBaseBps        P_base in basis points (e.g. 650 = 6.5% for BSS, 250 = 2.5% for Depeg, 850 = 8.5% for IL, 400 = 4.0% for Exploit)
      * @param riskMultBps     Risk multiplier in bps (10000 = 1.0x, 14000 = 1.4x for USDT Depeg)
      * @param durationDiscountBps  Duration discount in bps (10000 = 1.0x, 9000 = 0.9x, 8000 = 0.8x)
      * @param utilizationBps  Current vault utilization in bps (0-9500)

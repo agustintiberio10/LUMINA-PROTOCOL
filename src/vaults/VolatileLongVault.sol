@@ -9,7 +9,7 @@ import {BaseVault} from "./BaseVault.sol";
  * @notice 97-day cooldown vault for long-duration volatile products.
  *         Backs: IL Index 60-90d, BSS overflow from VolatileShort (via waterfall)
  *         Cooldown = 90d max policy + 7d safety buffer (actuarial recommendation)
- *         APY estimate: ~12-14% at moderate utilization
+ *         APY range: ~3.3-24.7% (verified from PremiumMath Kink Model + 2.5% Aave)
  */
 contract VolatileLongVault is BaseVault {
     function initialize(

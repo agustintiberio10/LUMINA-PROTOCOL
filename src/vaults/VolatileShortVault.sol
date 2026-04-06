@@ -9,7 +9,7 @@ import {BaseVault} from "./BaseVault.sol";
  * @notice 37-day cooldown vault for short-duration volatile products.
  *         Backs: BSS 7-30d, IL Index 14-30d (via waterfall)
  *         Cooldown = 30d max policy + 7d safety buffer (actuarial recommendation)
- *         APY estimate: ~9-11% at moderate utilization
+ *         APY range: ~3.3-22.2% (verified from PremiumMath Kink Model + 2.5% Aave)
  */
 contract VolatileShortVault is BaseVault {
     function initialize(
