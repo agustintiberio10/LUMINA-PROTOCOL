@@ -187,7 +187,7 @@ Este modelo elimina el riesgo de subcapitalizacion que afecta a otros protocolos
 
 ### 4.1 BTC Catastrophe Shield (BCS) y ETH Apocalypse Shield (EAS)
 
-**Descripcion:** El humano, a traves de su agente de IA, puede proteger sus posiciones en BTC y ETH contra caidas catastroficas del mercado. BCS cubre crasheos superiores al 50% en BTC; EAS cubre crasheos superiores al 60% en ETH. Reemplazan al producto legacy Black Swan Shield (BSS, deprecated 2026-04-06).
+**Descripcion:** El humano, a traves de su agente de IA, puede proteger sus posiciones en BTC y ETH contra caidas catastroficas del mercado. BCS cubre crasheos superiores al 50% en BTC como el vivido durante COVID (marzo 2020); eventos como LUNA (mayo 2022, BTC -42%) o FTX (noviembre 2022, BTC -26%) NO activan BCS porque las caidas de BTC fueron menores al 50%. EAS cubre crasheos superiores al 60% en ETH; solo un evento de esta magnitud ha ocurrido en los ultimos 8 anos (COVID, marzo 2020), cuando ETH cayo de $230 a $80 en 2 dias, y eventos como China (mayo 2021, ETH -56%) o LUNA (junio 2022, ETH -51%) NO activan EAS. Reemplazan al producto legacy Black Swan Shield (BSS, deprecated 2026-04-06).
 
 **Parametros del contrato:**
 
