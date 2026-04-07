@@ -631,8 +631,16 @@ contract CoverRouter is
 
         sp.cancelled = true;
 
-        // Release allocation back to vault
-        IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
+        // [FIX M-4] Reset the resolved flag so the agent can submit a fresh
+        // proof if the triggering event still falls within the coverage window.
+        // We deliberately do NOT call releaseAllocation here: keeping the
+        // collateral locked is required so a re-trigger has backing and so
+        // we never double-count via PolicyManager._policyAllocations. If the
+        // agent never re-triggers, cleanupExpiredPolicy will release the
+        // allocation at expiry (it requires !_policyResolved, which we just
+        // restored). This converts a permanent loss-of-claim into a recoverable
+        // veto without opening any double-payout vector — see audit M-4.
+        _policyResolved[sp.productId][sp.policyId] = false;
 
         emit PayoutVetoed(sp.productId, sp.policyId, msg.sender, sp.amount);
     }
