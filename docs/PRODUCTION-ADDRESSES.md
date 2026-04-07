@@ -18,10 +18,12 @@
 - StableLong (372d cooldown): `0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`
 
 ## Shields
-- BlackSwanShield (BSS): `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f`
+- BlackSwanShield (BSS): `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f` **(DEPRECATED — split into BCS+EAS)**
 - DepegShield: `0x7578816a803d293bbb4dbea0efbed872842679d0`
 - ILIndexCover: `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93`
 - ExploitShield: `0x9870830c615d1b9c53dfee4136c4792de395b7a1`
+- BTCCatastropheShield (BCS): `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8` (deployed 2026-04-06, verified on Blockscout)
+- ETHApocalypseShield (EAS): `0xA755D134a0b2758E9b397E11E7132a243f672A3D` (deployed 2026-04-06, verified on Blockscout)
 
 ## External
 - USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`

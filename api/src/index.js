@@ -74,10 +74,12 @@ const VAULTS = {
 };
 
 const SHIELDS = {
-  BSS:     process.env.SHIELD_BSS     || "0x2926202bbe3f25f71ef17b25a20ebe8be028af5f",
+  BSS:     process.env.SHIELD_BSS     || "0x2926202bbe3f25f71ef17b25a20ebe8be028af5f", // DEPRECATED
   DEPEG:   process.env.SHIELD_DEPEG   || "0x7578816a803d293bbb4dbea0efbed872842679d0",
   IL_INDEX:process.env.SHIELD_IL      || "0x2ac0d2a9889a8a4143727a0240de3fed4650dd93",
   EXPLOIT: process.env.SHIELD_EXPLOIT || "0x9870830c615d1b9c53dfee4136c4792de395b7a1",
+  BCS:     process.env.SHIELD_BCS     || "0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8",
+  EAS:     process.env.SHIELD_EAS     || "0xA755D134a0b2758E9b397E11E7132a243f672A3D",
 };
 
 // Product IDs (keccak256 of product name)
@@ -197,18 +199,19 @@ const PRODUCTS = [
     id: "BTCCAT-001",
     name: "BTC Catastrophe Shield",
     productId: ethers.keccak256(ethers.toUtf8Bytes("BTCCAT-001")),
+    shield: SHIELDS.BCS,
     asset: "BTC",
     riskType: "VOLATILE",
     vaults: [VAULTS.VOLATILE_SHORT, VAULTS.VOLATILE_LONG],
     pBase: 1500,
     minDuration: 7 * 86400,
     maxDuration: 30 * 86400,
-    // shield address will be set after deploy
   },
   {
     id: "ETHAPOC-001",
     name: "ETH Apocalypse Shield",
     productId: ethers.keccak256(ethers.toUtf8Bytes("ETHAPOC-001")),
+    shield: SHIELDS.EAS,
     asset: "ETH",
     riskType: "VOLATILE",
     vaults: [VAULTS.VOLATILE_SHORT, VAULTS.VOLATILE_LONG],
@@ -224,8 +227,8 @@ const PRODUCT_CONFIG = {
   "DEPEG":   { name: "Depeg Shield",      fullId: "DEPEG-STABLE-001", vault: VAULTS.STABLE_SHORT,   riskType: "STABLE",   asset: "USDC", shield: SHIELDS.DEPEG },
   "IL":      { name: "IL Index Cover",     fullId: "ILPROT-001",      vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "ETH",  shield: SHIELDS.IL_INDEX },
   "EXPLOIT": { name: "Exploit Shield",     fullId: "EXPLOIT-001",     vault: VAULTS.STABLE_SHORT,   riskType: "STABLE",   asset: "ETH",  shield: SHIELDS.EXPLOIT },
-  "BCS":     { name: "BTC Catastrophe Shield", fullId: "BTCCAT-001",  vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "BTC",  shield: null },
-  "EAS":     { name: "ETH Apocalypse Shield",  fullId: "ETHAPOC-001", vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "ETH",  shield: null },
+  "BCS":     { name: "BTC Catastrophe Shield", fullId: "BTCCAT-001",  vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "BTC",  shield: SHIELDS.BCS },
+  "EAS":     { name: "ETH Apocalypse Shield",  fullId: "ETHAPOC-001", vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "ETH",  shield: SHIELDS.EAS },
 };
 
 // ═══════════════════════════════════════════════════════════

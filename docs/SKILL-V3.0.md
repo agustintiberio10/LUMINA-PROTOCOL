@@ -561,10 +561,12 @@ Vaults:
   StableLong:        0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c
 
 Shields:
-  BSS:               0x2926202bbe3f25f71ef17b25a20ebe8be028af5f
+  BSS:               0x2926202bbe3f25f71ef17b25a20ebe8be028af5f  (DEPRECATED — split into BCS+EAS)
   Depeg:             0x7578816a803d293bbb4dbea0efbed872842679d0
   ILIndex:           0x2ac0d2a9889a8a4143727a0240de3fed4650dd93
   Exploit:           0x9870830c615d1b9c53dfee4136c4792de395b7a1
+  BCS (BTCCAT-001):  0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8
+  EAS (ETHAPOC-001): 0xA755D134a0b2758E9b397E11E7132a243f672A3D
 
 Governance:
   TimelockController: 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a
