@@ -108,24 +108,31 @@ Si el 90% de los LPs van al Stable Yield Vault (porque es "más seguro"):
 
 ---
 
-### 3.1 PRODUCTO 1: The Black Swan Shield (BLACKSWAN-001)
+### 3.1 PRODUCTO 1: BTC Catastrophe Shield (BTCCAT-001) y ETH Apocalypse Shield (ETHAPOC-001)
 
-**Vault:** Volatile Yield Vault (20% MaxAlloc)
+> **Nota:** Reemplazan al producto legacy Black Swan Shield (BLACKSWAN-001), deprecated 2026-04-06.
 
-| Parámetro | Valor |
-|---|---|
-| Naturaleza | Seguro catastrófico contra cisnes negros de BTC/ETH |
-| Activos | BTC/USD, ETH/USD (Chainlink feeds) |
-| Trigger | Precio cae >30% desde precio del bloque de emisión |
-| Verificación | TWAP 15 min O 3 roundIds consecutivos de Chainlink |
-| Anti-flash crash | Lectura instantánea única PROHIBIDA |
-| Payout | Binario: 80% del coverage |
-| Deducible | 20% |
-| Duración | 7 a 30 días |
-| P_base | 0.065 (6.5% anualizado) |
-| Waiting period | 1 hora |
-| Volatility circuit breaker | >5% move en 1h → P_base ×1.5. >10% → halt. Verificar 3+ exchanges. |
-| Renovación | 24h antes de expiración → oferta al agente |
+**Vault BCS:** VolatileShort (30% MaxAlloc) → overflow VolatileLong
+**Vault EAS:** VolatileShort (25% MaxAlloc) → overflow VolatileLong
+
+| Parámetro | BCS — BTC Catastrophe Shield | EAS — ETH Apocalypse Shield |
+|---|---|---|
+| Producto ID | `BTCCAT-001` | `ETHAPOC-001` |
+| Contrato | `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8` | `0xA755D134a0b2758E9b397E11E7132a243f672A3D` |
+| Naturaleza | Seguro catastrófico contra crash de BTC | Seguro apocalíptico contra crash de ETH |
+| Activos | BTC/USD (Chainlink feed) | ETH/USD (Chainlink feed) |
+| Trigger | Precio BTC cae >50% desde el bloque de emisión | Precio ETH cae >60% desde el bloque de emisión |
+| TRIGGER_DROP_BPS | 5000 (50%) | 6000 (60%) |
+| Verificación | TWAP 15 min O 3 roundIds consecutivos de Chainlink | TWAP 15 min O 3 roundIds consecutivos de Chainlink |
+| Anti-flash crash | Lectura instantánea única PROHIBIDA | Lectura instantánea única PROHIBIDA |
+| Payout | Binario: 80% del coverage | Binario: 80% del coverage |
+| Deducible | 20% | 20% |
+| Duración | 7 a 30 días | 7 a 30 días |
+| P_base | 0.15 (15% anualizado, 1500 bps) | 0.20 (20% anualizado, 2000 bps) |
+| Max allocation | 30% del vault (3000 bps) | 25% del vault (2500 bps) |
+| Waiting period | 1 hora | 1 hora |
+| Volatility circuit breaker | >5% move en 1h → P_base ×1.5. >10% → halt. | >5% move en 1h → P_base ×1.5. >10% → halt. |
+| Renovación | 24h antes de expiración → oferta al agente | 24h antes de expiración → oferta al agente |
 
 **Resolución:** agente llama triggerPayout() → contrato verifica TWAP on-chain → pago en misma TX.
 

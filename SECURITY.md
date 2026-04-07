@@ -21,7 +21,7 @@ If you discover a security vulnerability in Lumina Protocol, please report it re
 | 4 Vaults | 0xbd44.../0xFee5.../0x429b.../0x1778... | Yes |
 | LuminaOracle | 0x4d1140ac... | Yes |
 | EmergencyPause | 0xc7ac8c19... | Yes |
-| 4 Shields | 0x2926.../0x7578.../0x2ac0.../0x9870... | Yes |
+| 5 Shields | 0x36e3... (BCS) / 0xA755... (EAS) / 0x7578... (Depeg) / 0x2ac0... (IL) / 0x9870... (Exploit) | Yes |
 | API (Node.js) | lumina-protocol-production.up.railway.app | Yes |
 
 ## Bug Bounty
