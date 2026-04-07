@@ -740,7 +740,7 @@ paths:
                 unknownProduct:
                   summary: Unknown product
                   value:
-                    error: "Unknown productId. Valid: BSS, DEPEG, IL, EXPLOIT, BCS, EAS"
+                    error: "Unknown productId. Valid: BCS, EAS, DEPEG, IL, EXPLOIT (BSS deprecated)"
                 coverageRange:
                   summary: Coverage out of range
                   value:

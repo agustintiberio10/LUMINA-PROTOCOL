@@ -1379,8 +1379,8 @@ Key fields for decision-making:
 - estimatedAPY: total yield for LPs (Aave + premiums)
 - allocatedAssets: how much is locked for active policies
 
-GET /api/v2/quote?productId=BSS&coverageAmount=1000000000&durationSeconds=604800
-{"premium":1635000,"premiumUSD":1.64,"product":"BSS","coverage":1000000000,"utilizationPct":20.6}
+GET /api/v2/quote?productId=BTCCAT-001&coverageAmount=1000000000&durationSeconds=604800
+{"premium":3770000,"premiumUSD":3.77,"product":"BCS","coverage":1000000000,"utilizationPct":20.6}
 
 POST /api/v2/purchase (requires X-API-Key header)
 Success: {"success":true,"policyId":"1","premium":1635000,"txHash":"0x..."}

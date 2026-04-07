@@ -247,7 +247,7 @@ Payout neto al agente: $38,800
 | Verificacion             | TWAP 30 minutos o 5 rounds consecutivos                   |
 | Duracion                 | 14 a 365 dias                                             |
 | Waiting period           | 24 horas                                                  |
-| Tasa base                | 24% anualizado                                            |
+| Tasa base                | 2.5% anualizado (250 bps)                                 |
 | Vault (corto)            | StableShort (`0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC`) |
 | Vault (largo)            | StableLong (`0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`)  |
 
