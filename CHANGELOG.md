@@ -14,8 +14,8 @@
 ### Security
 - TimelockController `minDelay` changed from `172800` (48h, original deploy) to `0` for operational flexibility during pre-launch phase. Verified on-chain on 2026-04-06.
   **NOTE**: This MUST be reverted to `172800` (or higher) before institutional launch. The whitepaper documents a 48h delay as the security promise.
-### Known Issues
-- **CRITICAL — Oracle key format mismatch (BCS/EAS/BSS)**: All three Volatile-asset shields call `IOracle.getLatestPrice(params.asset)` where `params.asset = bytes32("BTC")` or `bytes32("ETH")` (left-padded literal), but `LuminaOracle._feeds` is keyed by `keccak256("BTC")`/`keccak256("ETH")`. The on-chain Oracle reverts with `FeedNotRegistered` for the literal-bytes32 form. As a result, `createPolicy` on BCS, EAS, and the legacy BSS will revert before reaching `_doVerifyAndCalculate`. Fix path: either (a) re-deploy shields hashing the asset before calling the oracle, or (b) admin (Safe→Timelock) calls `oracle.registerFeed(bytes32("ETH"), ...)` and `bytes32("BTC")` to add the literal-bytes32 keys alongside the existing keccak ones. Verified via on-chain `isFeedActive` checks.
+### Fixed
+- **Oracle key format mismatch (BCS/EAS/BSS) — RESOLVED 2026-04-07** via Safe→Timelock batch (`script/safe-tx-register-oracle-feeds-bytes32.json`). The Volatile-asset shields call `IOracle.getLatestPrice(params.asset)` with `params.asset = bytes32("BTC")` or `bytes32("ETH")` (left-padded literal), but `LuminaOracle._feeds` was only keyed by `keccak256("BTC")`/`keccak256("ETH")`, so calls reverted with `FeedNotRegistered`. Fix: registered the literal `bytes32("ETH")` and `bytes32("BTC")` as alternate keys pointing to the same Chainlink aggregators (`0x71041d...` ETH/USD, `0xCCADC6...` BTC/USD) with the same 1200s staleness as the existing `keccak` entries. The original `keccak` keys are untouched. Verified on-chain: `isFeedActive(bytes32("ETH"))=true`, `isFeedActive(bytes32("BTC"))=true`, and `getLatestPrice` returns valid Chainlink prices for both. BCS/EAS `createPolicy` will no longer revert at the oracle step (still gated by per-product capacity, which depends on vault TVL).
 
 ## [2.0.0] - 2026-04-04
 
