@@ -3,12 +3,19 @@
 ## [Unreleased]
 ### Added
 - BTCCatastropheShield (BCS): BTC -50% trigger, 7-30d, pBase 15%, maxAlloc 30%
+  Deployed 2026-04-06 at `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8`, registered in CoverRouter via Safe→Timelock.
 - ETHApocalypseShield (EAS): ETH -60% trigger, 7-30d, pBase 20%, maxAlloc 25%
+  Deployed 2026-04-06 at `0xA755D134a0b2758E9b397E11E7132a243f672A3D`, registered in CoverRouter via Safe→Timelock.
 ### Deprecated
-- BlackSwanShield (BSS): Replaced by BCS + EAS. No new policies.
+- BlackSwanShield (BSS): Replaced by BCS + EAS. No new policies. Address registered in CoverRouter is `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e`. The legacy orphan deploy `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f` was never registered and is not used.
 ### Changed
 - VolatileShort APY: 3.3%-22.2% → 3.9%-16.9%
 - VolatileLong APY: 3.3%-24.7% → 4.0%-20.5%
+### Security
+- TimelockController `minDelay` changed from `172800` (48h, original deploy) to `0` for operational flexibility during pre-launch phase. Verified on-chain on 2026-04-06.
+  **NOTE**: This MUST be reverted to `172800` (or higher) before institutional launch. The whitepaper documents a 48h delay as the security promise.
+### Known Issues
+- **CRITICAL — Oracle key format mismatch (BCS/EAS/BSS)**: All three Volatile-asset shields call `IOracle.getLatestPrice(params.asset)` where `params.asset = bytes32("BTC")` or `bytes32("ETH")` (left-padded literal), but `LuminaOracle._feeds` is keyed by `keccak256("BTC")`/`keccak256("ETH")`. The on-chain Oracle reverts with `FeedNotRegistered` for the literal-bytes32 form. As a result, `createPolicy` on BCS, EAS, and the legacy BSS will revert before reaching `_doVerifyAndCalculate`. Fix path: either (a) re-deploy shields hashing the asset before calling the oracle, or (b) admin (Safe→Timelock) calls `oracle.registerFeed(bytes32("ETH"), ...)` and `bytes32("BTC")` to add the literal-bytes32 keys alongside the existing keccak ones. Verified via on-chain `isFeedActive` checks.
 
 ## [2.0.0] - 2026-04-04
 

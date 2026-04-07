@@ -18,7 +18,8 @@
 - StableLong (372d cooldown): `0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`
 
 ## Shields
-- BlackSwanShield (BSS): `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f` **(DEPRECATED — split into BCS+EAS)**
+- BlackSwanShield (BSS): `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e` **(DEPRECATED — split into BCS+EAS)**
+- BlackSwanShield (BSS, orphaned legacy deploy): `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f` (NEVER registered in CoverRouter; superseded by 0x54CDc21D before launch)
 - DepegShield: `0x7578816a803d293bbb4dbea0efbed872842679d0`
 - ILIndexCover: `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93`
 - ExploitShield: `0x9870830c615d1b9c53dfee4136c4792de395b7a1`

@@ -7,7 +7,7 @@ JSON ABI files for all Lumina Protocol contracts on Base mainnet (chain 8453).
 | CoverRouter | 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025 | CoverRouter.json |
 | PolicyManager | 0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a | PolicyManager.json |
 | BaseVault (4 instances) | VS:0xbd44.../VL:0xFee5.../SS:0x429b.../SL:0x1778... | BaseVault.json |
-| BlackSwanShield | 0x2926202bbe3f25f71ef17b25a20ebe8be028af5f | BlackSwanShield.json |
+| BlackSwanShield (deprecated) | 0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e | BlackSwanShield.json |
 | DepegShield | 0x7578816a803d293bbb4dbea0efbed872842679d0 | DepegShield.json |
 | ILIndexCover | 0x2ac0d2a9889a8a4143727a0240de3fed4650dd93 | ILIndexCover.json |
 | ExploitShield | 0x9870830c615d1b9c53dfee4136c4792de395b7a1 | ExploitShield.json |

@@ -74,7 +74,7 @@ const VAULTS = {
 };
 
 const SHIELDS = {
-  BSS:     process.env.SHIELD_BSS     || "0x2926202bbe3f25f71ef17b25a20ebe8be028af5f", // DEPRECATED
+  BSS:     process.env.SHIELD_BSS     || "0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e", // DEPRECATED — registered in CoverRouter
   DEPEG:   process.env.SHIELD_DEPEG   || "0x7578816a803d293bbb4dbea0efbed872842679d0",
   IL_INDEX:process.env.SHIELD_IL      || "0x2ac0d2a9889a8a4143727a0240de3fed4650dd93",
   EXPLOIT: process.env.SHIELD_EXPLOIT || "0x9870830c615d1b9c53dfee4136c4792de395b7a1",
@@ -725,6 +725,9 @@ app.get("/api/v2/products", (_req, res) => {
     deductible: p.deductible,
     assets: p.assets,
     stablecoins: p.stablecoins,
+    status: p.deprecated ? "DEPRECATED" : "ACTIVE",
+    deprecated: !!p.deprecated,
+    ...(p.deprecated && { deprecatedMessage: "Replaced by BCS (BTCCAT-001) for BTC and EAS (ETHAPOC-001) for ETH. No new policies." }),
   }));
   res.json({ products });
 });
