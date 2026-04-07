@@ -32,14 +32,14 @@ Step 2 — Create your API key:
 Step 3 — Get a price quote:
   curl -X POST https://lumina-protocol-production.up.railway.app/api/v2/quote \
     -H "Content-Type: application/json" \
-    -d '{"productId":"BSS","coverageAmount":1000000000,"durationSeconds":1209600,"buyer":"0xYOUR_WALLET"}'
+    -d '{"productId":"BTCCAT-001","coverageAmount":1000000000,"durationSeconds":1209600,"buyer":"0xYOUR_WALLET"}'
   Note: Quotes expire in 5 minutes (300 seconds).
 
 Step 4 — Buy a policy:
   curl -X POST https://lumina-protocol-production.up.railway.app/api/v2/purchase \
     -H "Content-Type: application/json" \
     -H "X-API-Key: lum_YOUR_KEY" \
-    -d '{"productId":"BSS","coverageAmount":1000000000,"durationSeconds":1209600}'
+    -d '{"productId":"BTCCAT-001","coverageAmount":1000000000,"durationSeconds":1209600}'
   Requires: USDC balance + USDC approved to CoverRouter (0xd5f8678A0F2149B6342F9014CCe6d743234Ca025)
 
 Step 5 — Check your policies:
@@ -75,19 +75,19 @@ Status codes: 200, 404, 500
 
 --- POST /api/v2/quote ---
 No auth required.
-Body: { "productId": "BSS", "coverageAmount": 1000000000, "durationSeconds": 1209600, "buyer": "0x..." }
-Optional body fields: "asset" (for BSS: "ETH" or "BTC"), "stablecoin" (for DEPEG: "USDT" or "DAI"), "protocol" (for EXPLOIT: protocol address)
+Body: { "productId": "BTCCAT-001", "coverageAmount": 1000000000, "durationSeconds": 1209600, "buyer": "0x..." }
+Optional body fields: "asset" (for BCS: "BTC", for EAS: "ETH"), "stablecoin" (for DEPEG: "USDT" or "DAI"), "protocol" (for EXPLOIT: protocol address)
 Response: { "quote": { "productId", "productName", "coverageAmount", "premiumAmount", "durationSeconds", "asset", "stablecoin", "protocol", "buyer", "deadline", "nonce", "utilizationAtQuote" }, "signature": "0x...", "signedQuote": {...} }
 Quotes expire in 300 seconds (5 minutes). Get a fresh quote before each purchase.
 Status codes: 200, 400, 500
 
 --- POST /api/v2/purchase ---
 Requires: X-API-Key header
-Body: { "productId": "BSS", "coverageAmount": 1000000000, "durationSeconds": 1209600 }
-  productId: "BSS" | "DEPEG" | "IL" | "EXPLOIT"
+Body: { "productId": "BTCCAT-001", "coverageAmount": 1000000000, "durationSeconds": 1209600 }
+  productId: "BTCCAT-001" | "DEPEG" | "IL" | "EXPLOIT"
   coverageAmount: 6 decimals. Min $100 (100000000), Max $100,000 (100000000000)
   durationSeconds: Min 604800 (7 days), Max 31536000 (365 days) — varies by product
-Response: { "success": true, "txHash": "0x...", "product": "Black Swan Shield", "productId": "BSS", "coverage": "1000000000", "premium": "...", "premiumUSD": "...", "durationDays": 14, "wallet": "0x...", "explorer": "https://basescan.org/tx/0x...", "message": "Policy purchased successfully." }
+Response: { "success": true, "txHash": "0x...", "product": "Black Swan Shield", "productId": "BTCCAT-001", "coverage": "1000000000", "premium": "...", "premiumUSD": "...", "durationDays": 14, "wallet": "0x...", "explorer": "https://basescan.org/tx/0x...", "message": "Policy purchased successfully." }
 Status codes: 201, 400, 401, 409, 429, 500
 
 --- GET /api/v2/policies ---
@@ -100,7 +100,7 @@ Status codes: 200, 400, 500
 
 --- POST /api/v2/renew ---
 Requires: X-API-Key header
-Body: { "productId": "BSS", "durationSeconds": 1209600 }
+Body: { "productId": "BTCCAT-001", "durationSeconds": 1209600 }
 Response: { "message": "Use POST /purchase with these parameters to renew:", "suggestedParams": { "productId", "coverageAmount", "durationSeconds" }, "note": "Premium will be recalculated based on current vault utilization.", "previousPolicy": {...} }
 This is a convenience endpoint. It finds your last policy for the product and suggests params for /purchase. It does NOT execute the purchase.
 Status codes: 200, 400, 401, 404, 500
@@ -141,22 +141,46 @@ RATE LIMITS:
 4. INSURANCE PRODUCTS
 ════════════════════════════════════════════════════════════
 
---- BLACK SWAN SHIELD (BSS) ---
-What it covers: ETH or BTC price crashes exceeding 30%
-Product ID: "BSS"
-Trigger: Price drops >30% from purchase price (TRIGGER_DROP_BPS = 3000)
+--- BTC CATASTROPHE SHIELD (BCS) ---
+What it covers: BTC price crashes exceeding 50%
+Product ID: "BTCCAT-001"  (short alias also accepted: "BCS")
+Trigger: Price drops >50% from purchase price (TRIGGER_DROP_BPS = 5000)
 Verification: Oracle-signed TWAP 15 min or 3 consecutive Chainlink rounds
 Deductible: 20% — Payout: 80% of coverage (binary, all-or-nothing)
 Duration: 7 to 30 days
 Waiting period: 1 hour
-Base rate: 6.5% annualized (650 bps)
-Assets: ETH, BTC
+Base rate: 15% annualized (1500 bps)
+Max allocation per vault: 30%
+Assets: BTC only
 Max proof age: 30 minutes
 Fee: 3% on premium (purchase) + 3% on payout (claim)
 
-Example: Buy $10,000 BSS coverage for 14 days
-  Premium ≈ $10,000 × 0.065 × M(U) × (14/365) = ~$25-40 depending on utilization
+Example: Buy $10,000 BCS coverage for 14 days
+  Premium ≈ $10,000 × 0.15 × M(U) × (14/365) = ~$58-95 depending on utilization
   If trigger activates: payout = $10,000 × 80% = $8,000 gross, $7,760 net (after 3% fee)
+
+--- ETH APOCALYPSE SHIELD (EAS) ---
+What it covers: ETH price crashes exceeding 60%
+Product ID: "ETHAPOC-001"  (short alias also accepted: "EAS")
+Trigger: Price drops >60% from purchase price (TRIGGER_DROP_BPS = 6000)
+Verification: Oracle-signed TWAP 15 min or 3 consecutive Chainlink rounds
+Deductible: 20% — Payout: 80% of coverage (binary, all-or-nothing)
+Duration: 7 to 30 days
+Waiting period: 1 hour
+Base rate: 20% annualized (2000 bps)
+Max allocation per vault: 25%
+Assets: ETH only
+Max proof age: 30 minutes
+Fee: 3% on premium (purchase) + 3% on payout (claim)
+
+Example: Buy $10,000 EAS coverage for 14 days
+  Premium ≈ $10,000 × 0.20 × M(U) × (14/365) = ~$77-127 depending on utilization
+  If trigger activates: payout = $10,000 × 80% = $8,000 gross, $7,760 net (after 3% fee)
+
+NOTE: BLACK SWAN SHIELD (BSS, BLACKSWAN-001) is DEPRECATED as of 2026-04-06.
+It was replaced by BCS (BTC) and EAS (ETH). New policies are blocked at the
+router level (`isProductAvailable("BLACKSWAN-001") = false`). totalPolicies = 0
+on-chain — no legacy positions exist.
 
 --- DEPEG SHIELD ---
 What it covers: Stablecoin losing its peg (dropping below $0.95)
@@ -229,12 +253,12 @@ DURATION REFERENCE (in seconds):
 
 Four vaults, each with a different risk profile and cooldown period:
 
-| Vault          | Cooldown | Products            | Est. APY  | Address                                    |
-|----------------|----------|---------------------|-----------|--------------------------------------------|
-| VolatileShort  | 37 days  | BSS + IL            | 12-16%    | 0xbd44547581b92805aAECc40EB2809352b9b2880d |
-| VolatileLong   | 97 days  | IL long + BSS spill | 15-19%    | 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904 |
-| StableShort    | 97 days  | Depeg short         | 11-15%    | 0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC |
-| StableLong     | 372 days | Depeg + Exploit     | 18-27%    | 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c |
+| Vault          | Cooldown | Products              | Est. APY     | Address                                    |
+|----------------|----------|-----------------------|--------------|--------------------------------------------|
+| VolatileShort  | 37 days  | BCS + EAS + IL        | 3.9 - 16.9%  | 0xbd44547581b92805aAECc40EB2809352b9b2880d |
+| VolatileLong   | 97 days  | IL long + BCS/EAS spill | 4.0 - 20.5% | 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904 |
+| StableShort    | 97 days  | Depeg short           | 2.7 - 9.0%   | 0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC |
+| StableLong     | 372 days | Depeg + Exploit       | 2.8 - 10.3%  | 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c |
 
 YIELD SOURCES:
   Layer 1: Aave V3 base yield (~3-5% APY) — USDC deposited automatically
@@ -318,14 +342,15 @@ Always GET /api/v2/quote before purchasing to see the current premium.
 
 Claims are AUTOMATIC. The oracle monitors conditions and triggers payouts when met. You do NOT need to submit a claim manually.
 
-BSS:     Oracle detects >30% drop → verifies TWAP → triggers payout → 80% of coverage sent to your wallet
+BCS:     Oracle detects >50% BTC drop → verifies TWAP → triggers payout → 80% of coverage sent to your wallet
+EAS:     Oracle detects >60% ETH drop → verifies TWAP → triggers payout → 80% of coverage sent to your wallet
 DEPEG:   Oracle detects stablecoin <$0.95 → verifies TWAP → triggers payout → 85-88% sent
 IL:      At expiry, oracle calculates IL → if >2%, proportional payout → sent within 48h settlement window
 EXPLOIT: Oracle detects gov token -25% AND TEE verifies receipt token → 90% of coverage sent
 
 Payout = (Coverage × (100% - Deductible%)) × 97% (after 3% protocol fee)
 
-Claim grace period: 24 hours after policy expiry for BSS, Depeg, Exploit.
+Claim grace period: 24 hours after policy expiry for BCS, EAS, Depeg, Exploit.
 IL settlement: ONLY within 48 hours after expiry (European-style). Do not miss this window.
 
 Large payouts may be delayed (configurable by protocol governance) for security review.
@@ -337,7 +362,8 @@ Large payouts may be delayed (configurable by protocol governance) for security 
 There is NO auto-renewal on-chain. Your agent must monitor expiresAt and buy a new policy before the current one expires.
 
 Recommended repurchase windows (buy new policy this many seconds before expiry):
-  BSS:     7,200 (2 hours before — accounts for 1h waiting period)
+  BCS:     7,200 (2 hours before — accounts for 1h waiting period)
+  EAS:     7,200 (2 hours before — accounts for 1h waiting period)
   DEPEG:   90,000 (25 hours before — accounts for 24h waiting period)
   IL:      3,600 (1 hour before)
   EXPLOIT: 1,296,000 (15 days before — accounts for 14d waiting period)
@@ -439,7 +465,7 @@ api_key = key["apiKey"]  # Save this! Shown only once
 
 # 2. Get quote
 quote = requests.post(f"{API}/quote", json={
-    "productId": "BSS",
+    "productId": "BTCCAT-001",
     "coverageAmount": 10000000000,  # $10,000 (6 decimals)
     "durationSeconds": 1209600,     # 14 days
     "buyer": "0xYourAgentWallet"
@@ -450,7 +476,7 @@ print(f"Premium: {quote['quote']['premiumAmount']}")
 policy = requests.post(f"{API}/purchase",
     headers={"X-API-Key": api_key},
     json={
-        "productId": "BSS",
+        "productId": "BTCCAT-001",
         "coverageAmount": 10000000000,
         "durationSeconds": 1209600
     }
@@ -480,7 +506,7 @@ const quoteRes = await fetch(`${API}/quote`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    productId: "BSS",
+    productId: "BTCCAT-001",
     coverageAmount: 10000000000,
     durationSeconds: 1209600,
     buyer: "0xYourWallet"
@@ -492,7 +518,7 @@ const quote = await quoteRes.json();
 const purchaseRes = await fetch(`${API}/purchase`, {
   method: "POST",
   headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
-  body: JSON.stringify({ productId: "BSS", coverageAmount: 10000000000, durationSeconds: 1209600 })
+  body: JSON.stringify({ productId: "BTCCAT-001", coverageAmount: 10000000000, durationSeconds: 1209600 })
 });
 const policy = await purchaseRes.json();
 

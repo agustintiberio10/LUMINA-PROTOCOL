@@ -1,10 +1,15 @@
 # SKILL: Lumina Protocol — Insurance & Yield for AI Agents
 
-## Version: 2.3 (March 2026)
-## Last updated: 2026-03-24
+## Version: 2.4 (April 2026)
+## Last updated: 2026-04-07
 ## Chain: Base L2 (8453) | Settlement: USDC (Circle)
 ## Contact: hello@lumina-org.com
 ## Docs: https://lumina-org.com
+
+> **NOTE:** This is the v2 skill, kept for legacy reference. The canonical
+> SKILL is **`SKILL-V3.0.md`** (April 2026, post BSS→BCS+EAS split).
+> The Section 2 product list below has been updated in place to reflect
+> the migration: BSS is deprecated, BCS and EAS replace it.
 
 ---
 
@@ -40,46 +45,87 @@ Exploit: $40,000 / (0.90 × 0.97) = $45,830 coverage
 
 ---
 
-# SECTION 2: THE 4 INSURANCE PRODUCTS
+# SECTION 2: THE 5 INSURANCE PRODUCTS
 
-## Product 1: Black Swan Shield (BSS)
+> **MIGRATION NOTE (2026-04-06):** The legacy Black Swan Shield (BSS,
+> `BLACKSWAN-001`) was deprecated and SPLIT into two distinct shields:
+> BCS (BTC only, -50% trigger, 15% pBase) and EAS (ETH only, -60% trigger,
+> 20% pBase). BSS is `setProductActive(false)` on-chain and has zero
+> historical policies (`totalPolicies = 0`). New integrations must use
+> `BTCCAT-001` or `ETHAPOC-001`.
 
-**What it covers:** Catastrophic crash of ETH or BTC (>30% drop from your purchase price).
+## Product 1: BTC Catastrophe Shield (BCS)
 
-**When you need it:** You hold ETH/BTC exposure and want protection against sudden market collapse. Not for normal 10-15% swings — this is for "the world is ending" scenarios like COVID March 2020, LUNA collapse 2022, or FTX crash 2022.
+**What it covers:** Catastrophic crash of BTC (>50% drop from your purchase price).
+
+**When you need it:** You hold BTC exposure and want protection against
+catastrophic market collapse. This is for "the world is ending" scenarios —
+crashes deeper than the typical bear market drawdown.
 
 | Parameter | Value |
 |-----------|-------|
-| Product ID | `BLACKSWAN-001` |
-| Trigger | Price drops >30% from the exact price at the moment you buy the policy |
+| Product ID | `BTCCAT-001` (short alias `BCS`) |
+| Asset | BTC only |
+| Trigger | Price drops >50% from the exact price at the moment you buy the policy |
 | Payout | 80% of coverage (20% deductible) |
 | Duration | 7 to 30 days (you choose, priced by the second) |
+| Waiting Period | 1 hour (anti-front-running) |
+| Minimum Coverage | $100 |
+| Base Rate | 15% annualized (1500 bps) |
+| Max allocation per vault | 30% |
+| Shield contract | `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8` |
+| Protocol Fee | 3% on premium + 3% on payout. Net payout = 77.6% of coverage |
+
+**Example:**
+```
+You buy: $50,000 coverage on BTC for 14 days
+BTC price at purchase: $60,000
+Trigger price: $60,000 × 0.50 = $30,000
+
+Premium: $50,000 × 0.15 × 1.25 (utilization multiplier) × (14/365) = $359
+
+Scenario A: BTC stays above $30,000 → policy expires, you lose $359
+Scenario B: BTC crashes to $29,000 → you receive $40,000 (80% of $50K)
+Return on premium: $40,000 / $359 = 111x
+```
+
+## Product 1b: ETH Apocalypse Shield (EAS)
+
+**What it covers:** Apocalyptic crash of ETH (>60% drop from your purchase price).
+
+**When you need it:** You hold ETH exposure and want protection against the
+deepest tail-risk scenarios. EAS triggers at -60% (deeper than BCS at -50%)
+because ETH historical volatility is higher than BTC.
+
+| Parameter | Value |
+|-----------|-------|
+| Product ID | `ETHAPOC-001` (short alias `EAS`) |
+| Asset | ETH only |
+| Trigger | Price drops >60% from the exact price at the moment you buy the policy |
+| Payout | 80% of coverage (20% deductible) |
+| Duration | 7 to 30 days |
 | Waiting Period | 1 hour |
 | Minimum Coverage | $100 |
-| Base Rate | 22% annualized |
+| Base Rate | 20% annualized (2000 bps) |
+| Max allocation per vault | 25% |
+| Shield contract | `0xA755D134a0b2758E9b397E11E7132a243f672A3D` |
 | Protocol Fee | 3% on premium + 3% on payout. Net payout = 77.6% of coverage |
 
 **Example:**
 ```
 You buy: $50,000 coverage on ETH for 14 days
-ETH price at purchase: $2,000
-Trigger price: $2,000 × 0.70 = $1,400
+ETH price at purchase: $2,500
+Trigger price: $2,500 × 0.40 = $1,000
 
-Premium: $50,000 × 0.22 × 1.25 (utilization multiplier) × (14/365) = $527
+Premium: $50,000 × 0.20 × 1.25 × (14/365) = $479
 
-Scenario A: ETH stays above $1,400 → policy expires, you lose $527
-Scenario B: ETH crashes to $1,350 → you receive $40,000 (80% of $50K)
-Return on premium: $40,000 / $527 = 75x
+Scenario A: ETH stays above $1,000 → policy expires, you lose $479
+Scenario B: ETH crashes to $950 → you receive $40,000 (80% of $50K)
 ```
 
-**Pricing table ($50,000 coverage, utilization 40%):**
-
-| Duration | Premium | % of Coverage |
-|----------|---------|---------------|
-| 7 days | $264 | 0.53% |
-| 14 days | $527 | 1.05% |
-| 21 days | $791 | 1.58% |
-| 30 days | $1,130 | 2.26% |
+**Correlation cap:** BCS and EAS share a `VOLATILE_CRASH` correlation group
+with a 40% combined cap on any Volatile vault, so a simultaneous BTC and ETH
+crash cannot drain more than 40% of vault TVL via these two products together.
 
 ---
 

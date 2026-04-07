@@ -95,7 +95,7 @@ Premium = Coverage x P_base x RiskMult x DurationDiscount x M(U) x (Duration / 3
 Donde:
 
 - **Coverage**: monto asegurado en USDC
-- **P_base**: tasa base anualizada del producto (ej: 22% para BSS, 24% para Depeg)
+- **P_base**: tasa base anualizada del producto (ej: 15% para BCS, 20% para EAS, 2.5% para Depeg, 8.5% para IL, 4% para Exploit)
 - **RiskMult**: multiplicador de riesgo por activo
 - **DurationDiscount**: descuento por duracion larga
 - **M(U)**: multiplicador de utilizacion (modelo kink)
@@ -139,7 +139,7 @@ El humano, a traves de su agente de IA, inicia la compra de cobertura. El flujo 
 3. **API** calcula la prima usando el modelo kink y devuelve los parametros
 4. **Agente** aprueba USDC al CoverRouter y ejecuta `purchaseCover()`
 5. **CoverRouter** (`0xd5f8678A0F2149B6342F9014CCe6d743234Ca025`) valida parametros y rutea al Shield correcto
-6. **Shield** (BSS/Depeg/IL/Exploit) valida reglas especificas del producto
+6. **Shield** (BCS/EAS/Depeg/IL/Exploit) valida reglas especificas del producto
 7. **PolicyManager** (`0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a`) registra la poliza on-chain
 8. **Vault** bloquea colateral 1:1 para respaldar la cobertura
 9. **USDC** se transfiere del agente al vault (prima) y se cobra el 3% de fee
@@ -177,7 +177,7 @@ El humano, a traves de su agente de IA, deposita USDC en uno de los cuatro vault
 
 ### 3.5 Colateralizacion Estricta 1:1
 
-Cada poliza emitida en Lumina esta respaldada por colateral bloqueado 1:1 en el vault correspondiente. Esto significa que si un agente compra $50,000 de cobertura BSS, el vault bloquea exactamente $50,000 en USDC (depositados en Aave V3 como aUSDC) para garantizar el pago en caso de siniestro.
+Cada poliza emitida en Lumina esta respaldada por colateral bloqueado 1:1 en el vault correspondiente. Esto significa que si un agente compra $50,000 de cobertura BCS o EAS, el vault bloquea exactamente $50,000 en USDC (depositados en Aave V3 como aUSDC) para garantizar el pago en caso de siniestro.
 
 Este modelo elimina el riesgo de subcapitalizacion que afecta a otros protocolos de seguro DeFi que operan con modelos de pool compartido. Si la utilizacion del vault alcanza el 95% (U_MAX), no se aceptan nuevas polizas hasta que se libere capacidad.
 
@@ -185,27 +185,33 @@ Este modelo elimina el riesgo de subcapitalizacion que afecta a otros protocolos
 
 ## 4. PRODUCTOS DE SEGURO
 
-### 4.1 Black Swan Shield (BSS)
+### 4.1 BTC Catastrophe Shield (BCS) y ETH Apocalypse Shield (EAS)
 
-**Descripcion:** El humano, a traves de su agente de IA, puede proteger sus posiciones en ETH o BTC contra caidas catastroficas del mercado. Black Swan Shield cubre escenarios de cisne negro: crasheos superiores al 30% como los vividos durante COVID (marzo 2020), el colapso de LUNA (mayo 2022) o la caida de FTX (noviembre 2022).
+**Descripcion:** El humano, a traves de su agente de IA, puede proteger sus posiciones en BTC y ETH contra caidas catastroficas del mercado. BCS cubre crasheos superiores al 50% en BTC; EAS cubre crasheos superiores al 60% en ETH. Reemplazan al producto legacy Black Swan Shield (BSS, deprecated 2026-04-06).
 
 **Parametros del contrato:**
 
-| Parametro                | Valor                                                     |
-|--------------------------|-----------------------------------------------------------|
-| Producto ID              | `BLACKSWAN-001`                                           |
-| Contrato                 | `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e` (deprecated) |
-| Trigger                  | Caida > 30% desde el precio al momento de compra          |
-| TRIGGER_DROP_BPS         | `3000` (30% en puntos base)                               |
-| Verificacion             | TWAP 15 minutos o 3 rounds consecutivos de Chainlink      |
-| Deducible                | 20%                                                       |
-| Payout                   | Binario: 80% del coverage                                 |
-| Duracion                 | 7 a 30 dias                                               |
-| Waiting period           | 1 hora                                                    |
-| Assets cubiertos         | ETH, BTC                                                  |
-| MAX_PROOF_AGE            | 30 minutos                                                |
-| Tasa base                | 22% anualizado                                            |
-| Vault                    | VolatileShort (`0xbd44547581b92805aAECc40EB2809352b9b2880d`) |
+| Parametro                | BCS — BTC Catastrophe Shield                              | EAS — ETH Apocalypse Shield                              |
+|--------------------------|-----------------------------------------------------------|----------------------------------------------------------|
+| Producto ID              | `BTCCAT-001`                                              | `ETHAPOC-001`                                            |
+| Contrato                 | `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8`              | `0xA755D134a0b2758E9b397E11E7132a243f672A3D`             |
+| Trigger                  | Caida > 50% desde el precio al momento de compra          | Caida > 60% desde el precio al momento de compra         |
+| TRIGGER_DROP_BPS         | `5000` (50%)                                              | `6000` (60%)                                             |
+| Verificacion             | TWAP 15 minutos o 3 rounds consecutivos de Chainlink      | TWAP 15 minutos o 3 rounds consecutivos de Chainlink     |
+| Deducible                | 20%                                                       | 20%                                                      |
+| Payout                   | Binario: 80% del coverage                                 | Binario: 80% del coverage                                |
+| Duracion                 | 7 a 30 dias                                               | 7 a 30 dias                                              |
+| Waiting period           | 1 hora                                                    | 1 hora                                                   |
+| Assets cubiertos         | BTC unicamente                                            | ETH unicamente                                           |
+| MAX_PROOF_AGE            | 30 minutos                                                | 30 minutos                                               |
+| Tasa base                | 15% anualizado (1500 bps)                                 | 20% anualizado (2000 bps)                                |
+| Max allocation por vault | 30%                                                       | 25%                                                      |
+| Correlation cap          | VOLATILE_CRASH 40% combinado con EAS                      | VOLATILE_CRASH 40% combinado con BCS                     |
+| Vault                    | VolatileShort + VolatileLong                              | VolatileShort + VolatileLong                             |
+
+**Producto legacy (deprecated):** Black Swan Shield (BSS, `BLACKSWAN-001`,
+`0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e`) — `setProductActive(false)`,
+totalPolicies = 0, no acepta nuevas polizas.
 
 **Circuit Breaker:**
 
@@ -217,10 +223,10 @@ El contrato implementa un mecanismo de circuit breaker para proteger al protocol
 **Ejemplo de pago:**
 
 ```
-Cobertura: $50,000 en ETH
+Cobertura: $50,000 en ETH (EAS — ETH Apocalypse Shield)
 Precio al comprar: $2,000
-Precio trigger: $2,000 x 0.70 = $1,400
-ETH cae a $1,350 → Trigger activado
+Precio trigger: $2,000 x 0.40 = $800   (-60%)
+ETH cae a $750 → Trigger activado
 Payout bruto: $50,000 x 80% = $40,000
 Fee protocolo (3%): $1,200
 Payout neto al agente: $38,800

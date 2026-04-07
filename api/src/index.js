@@ -900,7 +900,7 @@ app.post("/api/v2/quote", async (req, res) => {
         return res.status(400).json({
           error: `Capacity check failed: ${reasonStr}`,
           detail: reasonStr === "GROUP_CAP_EXCEEDED"
-            ? "BSS and IL Protection share a combined 70% allocation cap per vault. The combined usage would exceed this limit."
+            ? "BCS and EAS share a combined 40% VOLATILE_CRASH correlation cap per vault. The combined usage would exceed this limit."
             : undefined,
         });
       }
