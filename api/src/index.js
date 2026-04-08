@@ -811,45 +811,72 @@ app.get("/api/v2/products", async (_req, res) => {
 });
 
 // GET /api/v2/vaults
+// Reads on-chain vault state for all 4 vaults sequentially with a small
+// breather between calls (matching /products) to avoid burst rate-limits
+// on the upstream RPC. Per-vault read failures are surfaced as a partial
+// response with error details on the failing entries instead of bringing
+// down the whole endpoint.
 app.get("/api/v2/vaults", async (_req, res) => {
   try {
     const results = [];
+    let anyFailed = false;
+    let i = 0;
     for (const [name, address] of Object.entries(VAULTS)) {
-      const vault = new ethers.Contract(address, VAULT_ABI, provider);
-      const state = await vault.getVaultState();
+      try {
+        const vault = new ethers.Contract(address, VAULT_ABI, provider);
+        const state = await vault.getVaultState();
 
-      const totalAssets = Number(state.totalAssets);
-      const allocated = Number(state.allocatedAssets);
-      const free = Number(state.freeAssets);
-      const utilBps = Number(state.utilizationBps);
-      const totalShares = state.totalShares.toString();
-      const cooldown = Number(state.cooldownDuration);
+        const totalAssets = Number(state.totalAssets);
+        const allocated = Number(state.allocatedAssets);
+        const free = Number(state.freeAssets);
+        const utilBps = Number(state.utilizationBps);
+        const totalShares = state.totalShares.toString();
+        const cooldown = Number(state.cooldownDuration);
 
-      const utilization = totalAssets > 0 ? allocated / totalAssets : 0;
-      const riskType = name.startsWith("STABLE") ? "STABLE" : "VOLATILE";
-      // Use average pBase for vault-level APY estimate (VOLATILE=750, STABLE=325)
-      const avgPBase = riskType === "VOLATILE" ? 750 : 325;
-      const premiumRate = calculatePremiumRate(utilization, avgPBase);
-      const usdyBaseAPY = 0.0355; // 3.55%
-      const estimatedAPY = usdyBaseAPY + premiumRate * utilization;
+        const utilization = totalAssets > 0 ? allocated / totalAssets : 0;
+        const riskType = name.startsWith("STABLE") ? "STABLE" : "VOLATILE";
+        // Use average pBase for vault-level APY estimate (VOLATILE=750, STABLE=325)
+        const avgPBase = riskType === "VOLATILE" ? 750 : 325;
+        const premiumRate = calculatePremiumRate(utilization, avgPBase);
+        const usdyBaseAPY = 0.0355; // 3.55%
+        const estimatedAPY = usdyBaseAPY + premiumRate * utilization;
 
-      results.push({
-        name,
-        address,
-        riskType,
-        totalAssets,
-        allocatedAssets: allocated,
-        freeAssets: free,
-        utilizationBps: utilBps,
-        totalShares,
-        cooldownDuration: cooldown,
-        estimatedAPY: Math.round(estimatedAPY * 10000) / 100, // percentage
-      });
+        results.push({
+          name,
+          address,
+          riskType,
+          totalAssets,
+          allocatedAssets: allocated,
+          freeAssets: free,
+          utilizationBps: utilBps,
+          totalShares,
+          cooldownDuration: cooldown,
+          estimatedAPY: Math.round(estimatedAPY * 10000) / 100, // percentage
+        });
+      } catch (vErr) {
+        anyFailed = true;
+        const msg = vErr && (vErr.shortMessage || vErr.message) || String(vErr);
+        results.push({
+          name,
+          address,
+          error: "VAULT_READ_FAILED",
+          message: `Could not read vault state for ${name}. Underlying error: ${msg}`,
+        });
+      }
+      i++;
+      if (i < Object.keys(VAULTS).length) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
     }
-    res.json({ vaults: results });
+    res.json({ vaults: results, partial: anyFailed });
   } catch (err) {
-    console.error("Internal error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("[Vaults] error:", err);
+    const msg = err && (err.shortMessage || err.message) || String(err);
+    return res.status(200).json({
+      error: "VAULT_READ_FAILED",
+      message: `Could not read vault states. Underlying error: ${msg}`,
+      vaults: [],
+    });
   }
 });
 
@@ -923,7 +950,7 @@ app.post("/api/v2/quote", async (req, res) => {
       return res.status(400).json({ error: `Minimum coverage is $100 (${MIN_COVERAGE} in USDC 6 decimals)` });
     }
 
-    // Per-product duration limits
+    // Per-product duration limits, keyed by SHORT id
     const DURATION_LIMITS = {
       "BSS": { min: 7 * 86400, max: 30 * 86400 },
       "DEPEG": { min: 14 * 86400, max: 365 * 86400 },
@@ -932,7 +959,12 @@ app.post("/api/v2/quote", async (req, res) => {
       "BCS": { min: 7 * 86400, max: 30 * 86400 },
       "EAS": { min: 7 * 86400, max: 30 * 86400 }
     };
-    const durLimits = DURATION_LIMITS[productId];
+    // Bidirectional ID maps so the same lookup table works whether the
+    // caller uses the short ID ("BCS") or the full ID ("BTCCAT-001").
+    const SHORT_TO_FULL = { "BSS":"BLACKSWAN-001", "DEPEG":"DEPEG-STABLE-001", "IL":"ILPROT-001", "EXPLOIT":"EXPLOIT-001", "BCS":"BTCCAT-001", "EAS":"ETHAPOC-001" };
+    const FULL_TO_SHORT = Object.fromEntries(Object.entries(SHORT_TO_FULL).map(([k, v]) => [v, k]));
+    const shortIdForLimits = FULL_TO_SHORT[productId] || productId;
+    const durLimits = DURATION_LIMITS[shortIdForLimits];
     if (durLimits) {
       if (durNum < durLimits.min) {
         return res.status(400).json({ error: `Duration too short for ${productId}. Minimum: ${durLimits.min / 86400} days (${durLimits.min} seconds)` });
@@ -943,7 +975,7 @@ app.post("/api/v2/quote", async (req, res) => {
     }
 
     // Alias map: short IDs (BSS, DEPEG, IL, EXPLOIT, BCS, EAS) → full IDs
-    const PRODUCT_ALIASES = { "BSS": "BLACKSWAN-001", "DEPEG": "DEPEG-STABLE-001", "IL": "ILPROT-001", "EXPLOIT": "EXPLOIT-001", "BCS": "BTCCAT-001", "EAS": "ETHAPOC-001" };
+    const PRODUCT_ALIASES = SHORT_TO_FULL;
     const resolvedId = PRODUCT_ALIASES[productId] || productId;
 
     // Find product config
@@ -955,6 +987,26 @@ app.post("/api/v2/quote", async (req, res) => {
     // Reject deprecated products
     if (product.deprecated) {
       return res.status(400).json({ error: "Product deprecated. Use BCS (BTCCAT-001) for BTC or EAS (ETHAPOC-001) for ETH." });
+    }
+
+    // Asset validation: each active product accepts a fixed set of asset
+    // symbols. Reject early so the agent doesn't waste an on-chain quote
+    // / purchase that the shield would revert anyway.
+    const PRODUCT_ASSETS = {
+      "BTCCAT-001":       ["BTC"],
+      "ETHAPOC-001":      ["ETH"],
+      "ILPROT-001":       ["ETH", "BTC"],
+      "DEPEG-STABLE-001": ["USDC", "USDT", "DAI"],
+      "EXPLOIT-001":      ["ETH"],
+    };
+    const validAssets = PRODUCT_ASSETS[product.id];
+    if (asset && validAssets && !validAssets.includes(asset)) {
+      return res.status(200).json({
+        error: "INVALID_ASSET",
+        message: `Invalid asset: ${asset}. ${product.id} only covers: ${validAssets.join(", ")}.`,
+        product: product.id,
+        validAssets,
+      });
     }
 
     // Verify product is actually registered+active in the on-chain CoverRouter
