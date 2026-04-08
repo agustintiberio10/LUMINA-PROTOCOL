@@ -62,18 +62,18 @@ components:
       properties:
         name:
           type: string
-          example: "Black Swan Shield"
+          example: "BTC Catastrophe Shield"
         id:
           type: string
-          example: "BLACKSWAN-001"
+          example: "BTCCAT-001"
         productId:
           type: string
           description: "keccak256 hash of the product name"
-          example: "0x..."
+          example: "0x26933c71268d75599d65cc1b8689b5b3e2b410538d43e93922eaf522945deb0f"
         shield:
           type: string
           description: "Shield contract address"
-          example: "0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e"
+          example: "0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8"
         riskType:
           type: string
           enum: [VOLATILE, STABLE]
@@ -85,8 +85,8 @@ components:
           description: "Vault contract addresses assigned to this product"
         pBase:
           type: integer
-          description: "Base premium rate in basis points (e.g. 650 = 6.5%)"
-          example: 650
+          description: "Base premium rate in basis points. Example: 1500 = 15% (BCS), 2000 = 20% (EAS), 250 = 2.5% (DEPEG), 850 = 8.5% (IL), 400 = 4% (EXPLOIT)."
+          example: 1500
         minDuration:
           type: integer
           description: "Minimum policy duration in seconds"
@@ -97,8 +97,21 @@ components:
           example: 2592000
         deductible:
           type: integer
-          description: "Deductible trigger in basis points (e.g. 3000 = 30%)"
-          example: 3000
+          description: "Trigger threshold in basis points. For BCS this is the price drop trigger (5000 = 50%); for EAS, 6000 = 60%."
+          example: 5000
+        status:
+          type: string
+          enum: [ACTIVE, DEPRECATED, PENDING_REGISTRATION, UNKNOWN]
+          description: "Live status reflecting on-chain CoverRouter registration. ACTIVE = open for new policies; DEPRECATED = explicitly deprecated (BSS); PENDING_REGISTRATION = shield deployed but not yet registered in router; UNKNOWN = on-chain read failed at request time."
+          example: "ACTIVE"
+        registeredOnChain:
+          type: boolean
+          nullable: true
+          description: "True if isProductAvailable() == true on-chain. Null if the on-chain read failed."
+          example: true
+        deprecated:
+          type: boolean
+          example: false
         assets:
           type: array
           items:
@@ -177,8 +190,8 @@ components:
       properties:
         productId:
           type: string
-          description: "Short ID (BSS, DEPEG, IL, EXPLOIT, BCS, EAS) or full ID (BLACKSWAN-001, BTCCAT-001, ETHAPOC-001, etc.)"
-          example: "BCS"
+          description: "Short ID (BCS, EAS, DEPEG, IL, EXPLOIT) or full ID (BTCCAT-001, ETHAPOC-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001). BSS / BLACKSWAN-001 is accepted but always returns the deprecated error — use BCS for BTC or EAS for ETH instead."
+          example: "BTCCAT-001"
         coverageAmount:
           type: integer
           description: "Coverage in USDC 6 decimals. Min $100 (100000000)."
@@ -215,7 +228,7 @@ components:
               description: "keccak256 product hash"
             productName:
               type: string
-              example: "Black Swan Shield"
+              example: "BTC Catastrophe Shield"
             coverageAmount:
               type: string
               example: "1000000000"
@@ -281,6 +294,48 @@ components:
             nonce:
               type: string
 
+    QuoteErrorResponse:
+      type: object
+      description: |
+        Structured error returned by POST /api/v2/quote with HTTP 200. The
+        client should always check for the presence of an `error` field
+        before treating the body as a successful quote. The `error` value
+        is a stable machine-readable code from the enum below.
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum:
+            - VAULT_EMPTY
+            - PRODUCT_CAP_EXCEEDED
+            - GROUP_CAP_EXCEEDED
+            - PRODUCT_NOT_REGISTERED
+            - VAULT_READ_FAILED
+            - ON_CHAIN_REVERT
+            - QUOTE_INTERNAL_ERROR
+          example: "VAULT_EMPTY"
+        message:
+          type: string
+          description: "Human-readable description of the error condition"
+          example: "No liquidity available. Vault 0xbd44... has totalAssets = 0."
+        product:
+          type: string
+          description: "Product ID that triggered the error (when applicable)"
+          example: "BTCCAT-001"
+        vault:
+          type: string
+          description: "Vault address involved in the error (when applicable)"
+          example: "0xbd44547581b92805aAECc40EB2809352b9b2880d"
+        totalAssets:
+          type: integer
+          description: "Vault TVL when the error was raised (when applicable)"
+        allocated:
+          type: integer
+          description: "Vault allocated amount when the error was raised (when applicable)"
+        hint:
+          type: string
+          description: "Suggested remediation (when applicable)"
+
     PurchaseRequest:
       type: object
       required:
@@ -290,8 +345,8 @@ components:
       properties:
         productId:
           type: string
-          description: "Short product ID"
-          enum: [BSS, DEPEG, IL, EXPLOIT, BCS, EAS]
+          description: "Short product ID. BCS/EAS/DEPEG/IL/EXPLOIT are active. BSS is accepted by the API alias map but always rejected as deprecated (use BCS or EAS instead)."
+          enum: [BCS, EAS, DEPEG, IL, EXPLOIT, BSS]
           example: "BCS"
         coverageAmount:
           type: integer
@@ -299,7 +354,7 @@ components:
           example: 1000000000
         durationSeconds:
           type: integer
-          description: "Policy duration in seconds. Per-product limits: BSS 7-30d (deprecated), BCS 7-30d, EAS 7-30d, DEPEG 14-365d, IL 14-90d, EXPLOIT 90-365d."
+          description: "Policy duration in seconds. Per-product limits: BCS 7-30d, EAS 7-30d, DEPEG 14-365d, IL 14-90d, EXPLOIT 90-365d. (BSS deprecated, no longer accepted.)"
           example: 1209600
 
     PurchaseResponse:
@@ -314,10 +369,10 @@ components:
           example: "0xabc123..."
         product:
           type: string
-          example: "Black Swan Shield"
+          example: "BTC Catastrophe Shield"
         productId:
           type: string
-          example: "BSS"
+          example: "BCS"
         coverage:
           type: string
           example: "1000000000"
@@ -401,10 +456,10 @@ components:
                 example: 2
               shieldName:
                 type: string
-                example: "BSS"
+                example: "BCS"
               shieldAddress:
                 type: string
-                example: "0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e"
+                example: "0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8"
         lastUpdated:
           type: integer
           description: "Unix timestamp (ms) of last cache refresh"
@@ -488,7 +543,7 @@ paths:
   /api/v2/health:
     get:
       summary: Health check
-      description: Returns API status, chain ID, and version. Rate limit: 100 req / 15 min.
+      description: "Returns API status, chain ID, and version. Rate limit: 100 req / 15 min."
       operationId: getHealth
       tags: [Status]
       responses:
@@ -623,12 +678,26 @@ paths:
         (correlation group caps). Rate limit: 100 req / 15 min.
 
         **Product duration limits:**
-        - BSS: 7 - 30 days *(deprecated — use BCS or EAS)*
         - BCS: 7 - 30 days
         - EAS: 7 - 30 days
         - DEPEG: 14 - 365 days
         - IL: 14 - 90 days
         - EXPLOIT: 90 - 365 days
+        - BSS: deprecated — request always returns the deprecated error.
+
+        **Error responses:** error responses come back with HTTP 200 and an
+        `error` field (machine-readable code) plus a `message` field
+        (human description). HTTP 400 is reserved for malformed requests
+        only. Common error codes:
+
+        - `VAULT_EMPTY`              — vault has totalAssets = 0; deposit USDC first
+        - `PRODUCT_CAP_EXCEEDED`     — coverage exceeds the product's max allocation in the vault
+        - `GROUP_CAP_EXCEEDED`       — BCS+EAS combined correlation cap reached
+        - `PRODUCT_NOT_REGISTERED`   — productId is not in the on-chain CoverRouter
+        - `VAULT_READ_FAILED`        — RPC error reading vault state (transient, retry)
+        - `ON_CHAIN_REVERT`          — generic on-chain read reverted while preparing the quote
+        - `QUOTE_INTERNAL_ERROR`     — unexpected error in the handler
+        - `Product deprecated...`    — productId is BSS / BLACKSWAN-001
       operationId: postQuote
       tags: [Coverage]
       requestBody:
@@ -639,13 +708,86 @@ paths:
               $ref: "#/components/schemas/QuoteRequest"
       responses:
         "200":
-          description: Signed quote
+          description: |
+            Signed quote OR a structured error. Inspect the `error` field in
+            the response body to distinguish — a successful quote has no
+            `error` field; an error response has `error` (machine-readable
+            code) and `message` (human description).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/QuoteResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/QuoteResponse"
+                  - $ref: "#/components/schemas/QuoteErrorResponse"
+              examples:
+                successfulQuote:
+                  summary: Successful signed quote
+                  value:
+                    quote:
+                      productId: "0x26933c71268d75599d65cc1b8689b5b3e2b410538d43e93922eaf522945deb0f"
+                      productName: "BTC Catastrophe Shield"
+                      coverageAmount: "10000000000"
+                      premiumAmount: "12328767"
+                      durationSeconds: 2592000
+                      asset: "BTC"
+                      buyer: "0x1234567890abcdef1234567890abcdef12345678"
+                      deadline: 1715000000
+                      nonce: "0x9f8e..."
+                      utilizationAtQuote: 0.0
+                    signature: "0xabcdef..."
+                    signedQuote: { }
+                vaultEmpty:
+                  summary: Vault has no liquidity
+                  value:
+                    error: "VAULT_EMPTY"
+                    message: "No liquidity available. Vault 0xbd44547581b92805aAECc40EB2809352b9b2880d has totalAssets = 0. Deposit USDC into the vault before quoting."
+                    product: "BTCCAT-001"
+                    vault: "0xbd44547581b92805aAECc40EB2809352b9b2880d"
+                productCapExceeded:
+                  summary: Product cap exceeded
+                  value:
+                    error: "PRODUCT_CAP_EXCEEDED"
+                    message: "Coverage exceeds available capacity. Try a lower amount or wait for more liquidity. Vault TVL: 1000000000, allocated: 300000000."
+                    product: "BTCCAT-001"
+                    vault: "0xbd44547581b92805aAECc40EB2809352b9b2880d"
+                    totalAssets: 1000000000
+                    allocated: 300000000
+                groupCapExceeded:
+                  summary: BCS+EAS correlation cap exceeded
+                  value:
+                    error: "GROUP_CAP_EXCEEDED"
+                    message: "BCS and EAS share a combined 40% VOLATILE_CRASH correlation cap per vault. The combined usage would exceed this limit."
+                productNotRegistered:
+                  summary: Product not in CoverRouter
+                  value:
+                    error: "PRODUCT_NOT_REGISTERED"
+                    message: "Product DEPEG-STABLE-001 is not currently registered in the on-chain CoverRouter. Quotes cannot be generated until it is registered. See /api/v2/products for current status."
+                    product: "DEPEG-STABLE-001"
+                vaultReadFailed:
+                  summary: Vault read RPC error
+                  value:
+                    error: "VAULT_READ_FAILED"
+                    message: "Could not read vault state for BTCCAT-001. Vault address: 0xbd44547581b92805aAECc40EB2809352b9b2880d. Underlying error: missing revert data"
+                    product: "BTCCAT-001"
+                    vault: "0xbd44547581b92805aAECc40EB2809352b9b2880d"
+                onChainRevert:
+                  summary: Generic on-chain revert during quote prep
+                  value:
+                    error: "ON_CHAIN_REVERT"
+                    message: "execution reverted"
+                    hint: "An on-chain read reverted while preparing the quote. Common causes: vault paused, product not registered in router, oracle feed missing for the asset."
+                deprecated:
+                  summary: BSS / deprecated product
+                  value:
+                    error: "Product deprecated. Use BCS (BTCCAT-001) for BTC or EAS (ETHAPOC-001) for ETH."
+                quoteInternalError:
+                  summary: Unexpected error in handler
+                  value:
+                    error: "QUOTE_INTERNAL_ERROR"
+                    message: "<exception message>"
+                    hint: "Unexpected error in /quote handler. Check API logs for stack trace."
         "400":
-          description: Validation error (missing fields, unknown product, duration out of range, capacity exceeded)
+          description: Validation error (malformed request — missing fields, invalid types, duration out of range)
           content:
             application/json:
               schema:
@@ -658,16 +800,15 @@ paths:
                 unknownProduct:
                   summary: Unknown product
                   value:
-                    error: "Unknown product: XYZ. Valid: BSS, DEPEG, IL, EXPLOIT, BCS, EAS (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001, BTCCAT-001, ETHAPOC-001)"
+                    error: "Unknown product: XYZ. Valid: BCS, EAS, DEPEG, IL, EXPLOIT (or BTCCAT-001, ETHAPOC-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001). BSS / BLACKSWAN-001 is accepted but always returns the deprecated error."
                 durationTooShort:
                   summary: Duration too short
                   value:
-                    error: "Duration too short for BSS. Minimum: 7 days (604800 seconds)"
-                capacityExceeded:
-                  summary: Capacity check failed
+                    error: "Duration too short for BCS. Minimum: 7 days (604800 seconds)"
+                coverageBelowMin:
+                  summary: Coverage below minimum
                   value:
-                    error: "Capacity check failed: GROUP_CAP_EXCEEDED"
-                    detail: "BSS and IL Protection share a combined 70% allocation cap per vault. The combined usage would exceed this limit."
+                    error: "Minimum coverage is $100 (100000000 in USDC 6 decimals)"
         "429":
           description: Rate limit exceeded
           content:
@@ -703,12 +844,12 @@ paths:
         - The buyer wallet must have approved the CoverRouter contract for USDC spending
 
         **Product duration limits:**
-        - BSS: 7 - 30 days *(deprecated — use BCS or EAS)*
         - BCS: 7 - 30 days
         - EAS: 7 - 30 days
         - DEPEG: 14 - 365 days
         - IL: 14 - 90 days
         - EXPLOIT: 90 - 365 days
+        - BSS: deprecated — request always returns the deprecated error.
       operationId: postPurchase
       tags: [Coverage]
       security:
