@@ -711,25 +711,67 @@ app.get("/api/v2/health", (_req, res) => {
 });
 
 // GET /api/v2/products
-app.get("/api/v2/products", (_req, res) => {
-  const products = PRODUCTS.map((p) => ({
-    name: p.name,
-    id: p.id,
-    productId: p.productId,
-    shield: p.shield,
-    riskType: p.riskType,
-    vaults: p.vaults,
-    pBase: p.pBase,
-    minDuration: p.minDuration,
-    maxDuration: p.maxDuration,
-    deductible: p.deductible,
-    assets: p.assets,
-    stablecoins: p.stablecoins,
-    status: p.deprecated ? "DEPRECATED" : "ACTIVE",
-    deprecated: !!p.deprecated,
-    ...(p.deprecated && { deprecatedMessage: "Replaced by BCS (BTCCAT-001) for BTC and EAS (ETHAPOC-001) for ETH. No new policies." }),
-  }));
-  res.json({ products });
+// Each product status reflects the on-chain CoverRouter registration:
+//   ACTIVE       — registered + active in router (quotes + purchases work)
+//   DEPRECATED   — explicitly deprecated (BSS replaced by BCS+EAS)
+//   PENDING_REGISTRATION — shield deployed but NOT registered in router; quotes return PRODUCT_NOT_REGISTERED
+app.get("/api/v2/products", async (_req, res) => {
+  try {
+    const router = new ethers.Contract(
+      COVER_ROUTER,
+      ["function isProductAvailable(bytes32) view returns (bool)"],
+      provider
+    );
+    // Check on-chain status for each product (in parallel)
+    const statuses = await Promise.all(
+      PRODUCTS.map((p) =>
+        router.isProductAvailable(p.productId).then((v) => !!v).catch(() => null)
+      )
+    );
+
+    const products = PRODUCTS.map((p, i) => {
+      const onChain = statuses[i];
+      let status, registeredOnChain;
+      if (p.deprecated) {
+        status = "DEPRECATED";
+        registeredOnChain = onChain === true;
+      } else if (onChain === true) {
+        status = "ACTIVE";
+        registeredOnChain = true;
+      } else if (onChain === false) {
+        status = "PENDING_REGISTRATION";
+        registeredOnChain = false;
+      } else {
+        status = "UNKNOWN";
+        registeredOnChain = null;
+      }
+      return {
+        name: p.name,
+        id: p.id,
+        productId: p.productId,
+        shield: p.shield,
+        riskType: p.riskType,
+        vaults: p.vaults,
+        pBase: p.pBase,
+        minDuration: p.minDuration,
+        maxDuration: p.maxDuration,
+        deductible: p.deductible,
+        assets: p.assets,
+        stablecoins: p.stablecoins,
+        status,
+        registeredOnChain,
+        deprecated: !!p.deprecated,
+        ...(p.deprecated && { deprecatedMessage: "Replaced by BCS (BTCCAT-001) for BTC and EAS (ETHAPOC-001) for ETH. No new policies." }),
+        ...(status === "PENDING_REGISTRATION" && {
+          pendingMessage: `Shield ${p.shield} is deployed but not registered in CoverRouter. Quotes will fail with PRODUCT_NOT_REGISTERED until governance calls registerProduct().`,
+        }),
+      };
+    });
+    res.json({ products });
+  } catch (err) {
+    console.error("[Products] error:", err);
+    res.status(500).json({ error: "Failed to load products", message: err.message });
+  }
 });
 
 // GET /api/v2/vaults
@@ -879,29 +921,80 @@ app.post("/api/v2/quote", async (req, res) => {
       return res.status(400).json({ error: "Product deprecated. Use BCS (BTCCAT-001) for BTC or EAS (ETHAPOC-001) for ETH." });
     }
 
+    // Verify product is actually registered+active in the on-chain CoverRouter
+    // (Depeg/IL/Exploit are not currently registered → fail fast with descriptive error)
+    try {
+      const routerCheck = new ethers.Contract(
+        COVER_ROUTER,
+        ["function isProductAvailable(bytes32) view returns (bool)"],
+        provider
+      );
+      const isAvailable = await routerCheck.isProductAvailable(product.productId);
+      if (!isAvailable) {
+        return res.status(200).json({
+          error: "PRODUCT_NOT_REGISTERED",
+          message: `Product ${product.id} is not currently registered in the on-chain CoverRouter. Quotes cannot be generated until it is registered. See /api/v2/products for current status.`,
+          product: product.id,
+        });
+      }
+    } catch (err) {
+      console.warn("[Quote] isProductAvailable check failed (non-blocking):", err.message);
+    }
+
     // Read current utilization from the first vault for this product
     const vaultAddr = product.vaults[0];
     const vault = new ethers.Contract(vaultAddr, VAULT_ABI, provider);
-    const state = await vault.getVaultState();
-    const totalAssets = Number(state.totalAssets);
-    const allocated = Number(state.allocatedAssets);
-    const utilization = totalAssets > 0 ? allocated / totalAssets : 0;
+    let totalAssets = 0;
+    let allocated = 0;
+    let utilization = 0;
+    try {
+      const state = await vault.getVaultState();
+      totalAssets = Number(state.totalAssets);
+      allocated = Number(state.allocatedAssets);
+      utilization = totalAssets > 0 ? allocated / totalAssets : 0;
+    } catch (err) {
+      console.warn("[Quote] getVaultState failed:", err.message);
+      return res.status(200).json({
+        error: "VAULT_READ_FAILED",
+        message: `Could not read vault state for ${product.id}. Vault address: ${vaultAddr}. Underlying error: ${err.shortMessage || err.message}`,
+        product: product.id,
+        vault: vaultAddr,
+      });
+    }
 
-    // Check PolicyManager canAllocate (enforces correlation group caps)
+    // Vault has no liquidity at all → no capacity to write any policy
+    if (totalAssets === 0) {
+      return res.status(200).json({
+        error: "VAULT_EMPTY",
+        message: `No liquidity available. Vault ${vaultAddr} has totalAssets = 0. Deposit USDC into the vault before quoting.`,
+        product: product.id,
+        vault: vaultAddr,
+      });
+    }
+
+    // Check PolicyManager canAllocate (enforces correlation group caps + per-product max alloc)
     try {
       const pmContract = new ethers.Contract(POLICY_MANAGER, POLICY_MANAGER_ABI, provider);
-      const [allowed, , reason] = await pmContract.canAllocate(
+      const [allowed, allocatedVault, reason] = await pmContract.canAllocate(
         product.productId,
         BigInt(coverageAmount),
         Number(durationSeconds)
       );
       if (!allowed) {
-        const reasonStr = ethers.decodeBytes32String(reason).replace(/\0/g, "");
-        return res.status(400).json({
-          error: `Capacity check failed: ${reasonStr}`,
-          detail: reasonStr === "GROUP_CAP_EXCEEDED"
+        let reasonStr;
+        try { reasonStr = ethers.decodeBytes32String(reason).replace(/\0/g, ""); }
+        catch { reasonStr = reason; }
+        return res.status(200).json({
+          error: reasonStr || "CAPACITY_CHECK_FAILED",
+          message: reasonStr === "PRODUCT_CAP_EXCEEDED"
+            ? `Coverage exceeds available capacity. Try a lower amount or wait for more liquidity. Vault TVL: ${totalAssets}, allocated: ${allocated}.`
+            : reasonStr === "GROUP_CAP_EXCEEDED"
             ? "BCS and EAS share a combined 40% VOLATILE_CRASH correlation cap per vault. The combined usage would exceed this limit."
-            : undefined,
+            : `Capacity check failed: ${reasonStr}`,
+          product: product.id,
+          vault: vaultAddr,
+          totalAssets,
+          allocated,
         });
       }
     } catch (err) {
@@ -978,8 +1071,18 @@ app.post("/api/v2/quote", async (req, res) => {
       signedQuote: signedQuoteSerialized,
     });
   } catch (err) {
-    console.error("Internal error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("[Quote] Unhandled error:", err);
+    // Map common ethers errors to descriptive responses instead of opaque 500s
+    const msg = err && (err.shortMessage || err.message) || String(err);
+    const code = err && err.code;
+    const isRevert = code === "CALL_EXCEPTION" || /revert|missing revert/i.test(msg);
+    return res.status(200).json({
+      error: isRevert ? "ON_CHAIN_REVERT" : "QUOTE_INTERNAL_ERROR",
+      message: msg,
+      hint: isRevert
+        ? "An on-chain read reverted while preparing the quote. Common causes: vault paused, product not registered in router, oracle feed missing for the asset."
+        : "Unexpected error in /quote handler. Check API logs for stack trace.",
+    });
   }
 });
 

@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "chainId": "8453",
+  "createdAt": 1712534000000,
+  "meta": {
+    "name": "Lumina — Register USDC/USDT/DAI literal stablecoin feeds in LuminaOracle",
+    "description": "DepegShield references stablecoin assets as literal bytes32 strings (\"USDC\", \"USDT\", \"DAI\"). The current LuminaOracle has these feeds registered ONLY under their keccak256 hash, not under the literal bytes32-string. This batch registers the missing literal entries so DepegShield will be able to query the oracle once it is itself registered in CoverRouter. Same Chainlink feed addresses, same staleness (86400s = 24h) as the existing keccak entries — only the asset key changes. Caller MUST be the Timelock (0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a), which is the owner of LuminaOracle.",
+    "txBuilderVersion": "1.16.5",
+    "createdFromSafeAddress": "0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD",
+    "createdFromOwnerAddress": "",
+    "checksum": ""
+  },
+  "transactions": [
+    {
+      "to": "0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87",
+      "value": "0",
+      "data": "0x7207e83955534443000000000000000000000000000000000000000000000000000000000000000000000000000000007e860098f58bbfc8648a4311b374b1d669a2bc6b0000000000000000000000000000000000000000000000000000000000015180",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "LuminaOracle.registerFeed(bytes32 'USDC' literal, 0x7e860098F58bBFC8648a4311b374B1D669a2bc6B, 86400)"
+    },
+    {
+      "to": "0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87",
+      "value": "0",
+      "data": "0x7207e8395553445400000000000000000000000000000000000000000000000000000000000000000000000000000000f19d560eb8d2adf07bd6d13ed03e1d11215721f90000000000000000000000000000000000000000000000000000000000015180",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "LuminaOracle.registerFeed(bytes32 'USDT' literal, 0xf19d560eB8d2ADf07BD6D13ed03e1D11215721F9, 86400)"
+    },
+    {
+      "to": "0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87",
+      "value": "0",
+      "data": "0x7207e8394441490000000000000000000000000000000000000000000000000000000000000000000000000000000000591e79239a7d679378ec8c847e5038150364c78f0000000000000000000000000000000000000000000000000000000000015180",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "LuminaOracle.registerFeed(bytes32 'DAI' literal, 0x591e79239a7d679378eC8c847e5038150364C78F, 86400)"
+    }
+  ]
+}
