@@ -22,7 +22,12 @@ const { ethers } = require("ethers");
 
 const TICK_INTERVAL_MS = 60 * 1000;       // phases 1-3
 const VAULT_TICK_INTERVAL_MS = 5 * 60 * 1000; // phase 4
-const SCHEDULED_LOOKBACK_BLOCKS = 302_400;    // ~7 days at 2s blocks (Base L2)
+// Each tick scans LOG_CHUNK_BLOCKS * LOG_MAX_CHUNKS blocks of new logs.
+// Base L2 ~2s blocks, 6 chunks × 10 blocks = 120s of coverage per tick — safely
+// larger than the 60s tick interval. We persist the last scanned block across
+// ticks so we don't miss anything when the gap grows after restarts.
+const LOG_CHUNK_BLOCKS = 10;                  // free-tier RPC ceiling
+const LOG_MAX_CHUNKS_PER_TICK = 6;
 const RPC_GAP_MS = 150;                       // small gap between sequential reads
 const MAX_ERRORS = 20;                        // bounded ring buffer
 
@@ -90,6 +95,7 @@ let _ctx = null;
 let _timer = null;
 let _vaultTimer = null;
 let _initialTimers = [];
+let _lastScannedBlock = null; // for phase 3 PayoutScheduled scanner
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -274,15 +280,28 @@ async function runExecutePending() {
   try {
     const router = new ethers.Contract(_ctx.coverRouter, ROUTER_ABI, _ctx.relayerWallet);
     const head = await _ctx.provider.getBlockNumber();
-    const fromBlock = Math.max(0, head - SCHEDULED_LOOKBACK_BLOCKS);
+    // Default starting point: just the last 60 blocks (~2 min) on first run.
+    // Subsequent ticks resume from _lastScannedBlock so no events are missed.
+    const maxTickWindow = LOG_CHUNK_BLOCKS * LOG_MAX_CHUNKS_PER_TICK;
+    if (_lastScannedBlock === null) _lastScannedBlock = Math.max(0, head - maxTickWindow);
+    let cursor = _lastScannedBlock + 1;
+    if (cursor > head) cursor = head;
+    // Bound the per-tick scan: at most LOG_MAX_CHUNKS_PER_TICK chunks
+    const stopAt = Math.min(head, cursor + maxTickWindow - 1);
 
-    let events;
-    try {
-      events = await router.queryFilter(router.filters.PayoutScheduled(), fromBlock, head);
-    } catch (e) {
-      // RPC may reject huge ranges — narrow it
-      const narrow = Math.max(0, head - 50_000);
-      events = await router.queryFilter(router.filters.PayoutScheduled(), narrow, head);
+    const events = [];
+    while (cursor <= stopAt) {
+      const chunkEnd = Math.min(stopAt, cursor + LOG_CHUNK_BLOCKS - 1);
+      try {
+        const chunk = await router.queryFilter(router.filters.PayoutScheduled(), cursor, chunkEnd);
+        for (const ev of chunk) events.push(ev);
+      } catch (e) {
+        // RPC error on this chunk — break, retry the same range next tick
+        break;
+      }
+      _lastScannedBlock = chunkEnd;
+      cursor = chunkEnd + 1;
+      await sleep(RPC_GAP_MS);
     }
 
     const now = Math.floor(Date.now() / 1000);
@@ -424,6 +443,7 @@ function stop() {
   _timer = null;
   _vaultTimer = null;
   _initialTimers = [];
+  _lastScannedBlock = null;
 }
 
 function getState() {
@@ -438,6 +458,7 @@ function getState() {
     relayer: state.relayer,
     oracle: state.oracle,
     phases: state.phases,
+    lastScannedBlock: _lastScannedBlock,
     recentErrors: state.errors,
   };
 }
