@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "chainId": "8453",
+  "createdAt": 1712534000000,
+  "meta": {
+    "name": "Lumina — Upgrade CoverRouter + register Depeg/IL/Exploit V2 + register stablecoin feeds",
+    "description": "Atomic batch executed by the TimelockController (owner of CoverRouter and LuminaOracle, currently minDelay=0). Steps: (1) UUPS-upgrade CoverRouter to a new impl that contains updateProductShield(); (2) re-point Depeg/IL/Exploit productIds to their V2 shield addresses; (3) re-activate the 3 products; (4) register USDC/USDT/DAI literal bytes32-string feeds in LuminaOracle so DepegShield can query the oracle. BEFORE SIGNING: replace the upgradeToAndCall newImplementation argument (currently 0x0...0001 placeholder) with the actual deployed CoverRouter implementation address from .",
+    "txBuilderVersion": "1.16.5",
+    "createdFromSafeAddress": "0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD",
+    "createdFromOwnerAddress": "",
+    "checksum": "",
+    "requiresPlaceholderReplacement": "transactions[0].data — encoded upgradeToAndCall(NEW_IMPL, 0x). Replace 0x0000…0001 in the address slot with the verified new impl address."
+  },
+  "transactions": [
+    {
+      "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
+      "value": "0",
+      "data": "0x4f1ef286000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "CoverRouter(proxy).upgradeToAndCall(NEW_IMPL, \"\")  --  REPLACE NEW_IMPL BEFORE SIGNING"
+    },
+    {
+      "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
+      "value": "0",
+      "data": "0x58fc4c8d69b16b3a179caf29f34647863b0cfc5ce5f99099f0293a360fba1ffacde3b0b80000000000000000000000007578816a803d293bbb4dbea0efbed872842679d0",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "CoverRouter(proxy).updateProductShield(keccak(DEPEG-STABLE-001), 0x7578816a...DepegV2)"
+    },
+    {
+      "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
+      "value": "0",
+      "data": "0x58fc4c8d50ecf07837692ab2f6a0e42d75cc138b9434e565ec05f237c71913635f587fb40000000000000000000000002ac0d2a9889a8a4143727a0240de3fed4650dd93",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "CoverRouter(proxy).updateProductShield(keccak(ILPROT-001), 0x2ac0d2a9...ILV2)"
+    },
+    {
+      "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
+      "value": "0",
+      "data": "0x58fc4c8d7f0eaae48c946e791c889b5c394c39018598b2bfa392aa8825a7f0ee88240dd10000000000000000000000009870830c615d1b9c53dfee4136c4792de395b7a1",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "CoverRouter(proxy).updateProductShield(keccak(EXPLOIT-001), 0x9870830c...ExploitV2)"
+    },
+    {
+      "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
+      "value": "0",
+      "data": "0x11c070eb69b16b3a179caf29f34647863b0cfc5ce5f99099f0293a360fba1ffacde3b0b80000000000000000000000000000000000000000000000000000000000000001",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "CoverRouter(proxy).setProductActive(keccak(DEPEG-STABLE-001), true)"
+    },
+    {
+      "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
+      "value": "0",
+      "data": "0x11c070eb50ecf07837692ab2f6a0e42d75cc138b9434e565ec05f237c71913635f587fb40000000000000000000000000000000000000000000000000000000000000001",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "CoverRouter(proxy).setProductActive(keccak(ILPROT-001), true)"
+    },
+    {
+      "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
+      "value": "0",
+      "data": "0x11c070eb7f0eaae48c946e791c889b5c394c39018598b2bfa392aa8825a7f0ee88240dd10000000000000000000000000000000000000000000000000000000000000001",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "CoverRouter(proxy).setProductActive(keccak(EXPLOIT-001), true)"
+    },
+    {
+      "to": "0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87",
+      "value": "0",
+      "data": "0x7207e83955534443000000000000000000000000000000000000000000000000000000000000000000000000000000007e860098f58bbfc8648a4311b374b1d669a2bc6b0000000000000000000000000000000000000000000000000000000000015180",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "LuminaOracle.registerFeed(bytes32 \"USDC\" literal, USDC/USD chainlink, 86400)"
+    },
+    {
+      "to": "0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87",
+      "value": "0",
+      "data": "0x7207e8395553445400000000000000000000000000000000000000000000000000000000000000000000000000000000f19d560eb8d2adf07bd6d13ed03e1d11215721f90000000000000000000000000000000000000000000000000000000000015180",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "LuminaOracle.registerFeed(bytes32 \"USDT\" literal, USDT/USD chainlink, 86400)"
+    },
+    {
+      "to": "0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87",
+      "value": "0",
+      "data": "0x7207e8394441490000000000000000000000000000000000000000000000000000000000000000000000000000000000591e79239a7d679378ec8c847e5038150364c78f0000000000000000000000000000000000000000000000000000000000015180",
+      "contractMethod": null,
+      "contractInputsValues": null,
+      "_comment": "LuminaOracle.registerFeed(bytes32 \"DAI\" literal, DAI/USD chainlink, 86400)"
+    }
+  ]
+}

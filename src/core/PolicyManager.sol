@@ -184,6 +184,19 @@ contract PolicyManager is
         emit MaxAllocationUpdated(productId, oldBps, newMaxAllocationBps);
     }
 
+    /// @inheritdoc IPolicyManager
+    /// @dev Mutates ONLY the shield field. Allows owner OR router so that
+    ///      CoverRouter.updateProductShield can keep both registries in sync
+    ///      atomically.
+    function updateProductShield(bytes32 productId, address newShield) external {
+        if (msg.sender != owner() && msg.sender != _router) revert OnlyAdmin();
+        if (newShield == address(0)) revert ZeroAddress("shield");
+        if (_products[productId].shield == address(0)) revert ProductNotRegistered(productId);
+        address oldShield = _products[productId].shield;
+        _products[productId].shield = newShield;
+        emit ProductShieldUpdated(productId, oldShield, newShield);
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  VAULT REGISTRY (admin only)
     // ═══════════════════════════════════════════════════════════

@@ -78,6 +78,7 @@ interface IPolicyManager {
     // ═══════════════════════════════════════════════════════════
 
     event ProductRegistered(bytes32 indexed productId, address indexed shield, bytes32 riskType, uint16 maxAllocationBps);
+    event ProductShieldUpdated(bytes32 indexed productId, address indexed oldShield, address indexed newShield);
     event VaultRegistered(address indexed vault, bytes32 riskType, uint32 cooldownDuration, uint8 priority);
     event ProductStatusChanged(bytes32 indexed productId, bool active);
     event CorrelationGroupCreated(bytes32 indexed groupId, uint16 maxAllocationBps);
@@ -106,6 +107,15 @@ interface IPolicyManager {
     function registerProduct(bytes32 productId, address shield, bytes32 riskType, uint16 maxAllocationBps) external;
     function setProductActive(bytes32 productId, bool active) external;
     function updateMaxAllocation(bytes32 productId, uint16 newMaxAllocationBps) external;
+
+    /// @notice Replace the shield contract address for an already-registered product.
+    /// @dev Used when a shield is redeployed (e.g. V1 → V2) and we want to keep
+    ///      the existing productId so API integrations remain stable. Only mutates
+    ///      the `shield` field; riskType, maxAllocationBps, correlationGroups, and
+    ///      `active` are preserved. Caller MUST be either the admin (owner) or
+    ///      the CoverRouter (so CoverRouter.updateProductShield can propagate
+    ///      atomically).
+    function updateProductShield(bytes32 productId, address newShield) external;
 
     /// @notice Register a vault in the waterfall
     function registerVault(address vault, bytes32 riskType, uint32 cooldownDuration, uint8 priority) external;

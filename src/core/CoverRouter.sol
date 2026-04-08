@@ -133,6 +133,7 @@ contract CoverRouter is
     event FeeCollected(bytes32 indexed productId, uint256 indexed policyId, uint256 feeAmount, string feeType);
     event ProtocolFeeUpdated(uint16 oldFeeBps, uint16 newFeeBps);
     event FeeReceiverUpdated(address indexed oldReceiver, address indexed newReceiver);
+    event ProductShieldUpdated(bytes32 indexed productId, address indexed oldShield, address indexed newShield);
 
     // ═══════════════════════════════════════════════════════════
     //  ERRORS (additional)
@@ -140,6 +141,7 @@ contract CoverRouter is
 
     error ZeroAddress(string param);
     error ProductAlreadyRegistered(bytes32 productId);
+    error ProductIdMismatch(bytes32 expected, bytes32 actual);
     error InvalidAllocationBps(uint16 bps);
     error USDCConversionNotImplemented();
     error InvalidFeeBps(uint16 feeBps);
@@ -500,6 +502,28 @@ contract CoverRouter is
         _productActive[productId] = active;
         IPolicyManager(_policyManager).setProductActive(productId, active);
         emit ProductUpdated(productId, _products[productId], active);
+    }
+
+    /// @notice Replace the shield contract address for an already-registered product.
+    /// @dev Use case: a shield was redeployed (e.g. V1 → V2) and we want to keep
+    ///      the existing productId so API consumers and on-chain integrations
+    ///      remain stable. Updates the local _products mapping AND propagates
+    ///      to PolicyManager so canAllocate / dispatch downstream see the new
+    ///      shield. Does NOT touch riskType, maxAllocationBps, _productActive,
+    ///      or correlation groups. Caller must be owner (TimelockController).
+    /// @param productId The keccak256 product identifier (must already be registered).
+    /// @param newShield The new shield contract address. Must be non-zero and
+    ///                  must report `productId() == productId` so a typo cannot
+    ///                  silently bind a wrong shield.
+    function updateProductShield(bytes32 productId, address newShield) external onlyOwner {
+        if (newShield == address(0)) revert ZeroAddress("shield");
+        address oldShield = _products[productId];
+        if (oldShield == address(0)) revert ProductNotAvailable(productId);
+        // Defence-in-depth: verify the new shield reports the same productId.
+        if (IShield(newShield).productId() != productId) revert ProductIdMismatch(productId, IShield(newShield).productId());
+        _products[productId] = newShield;
+        IPolicyManager(_policyManager).updateProductShield(productId, newShield);
+        emit ProductShieldUpdated(productId, oldShield, newShield);
     }
 
     function setOracle(address newOracle) external onlyOwner {
