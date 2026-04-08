@@ -4,21 +4,22 @@
   "createdAt": 1712534000000,
   "meta": {
     "name": "Lumina — Upgrade CoverRouter + register Depeg/IL/Exploit V2 + register stablecoin feeds",
-    "description": "Atomic batch executed by the TimelockController (owner of CoverRouter and LuminaOracle, currently minDelay=0). Steps: (1) UUPS-upgrade CoverRouter to a new impl that contains updateProductShield(); (2) re-point Depeg/IL/Exploit productIds to their V2 shield addresses; (3) re-activate the 3 products; (4) register USDC/USDT/DAI literal bytes32-string feeds in LuminaOracle so DepegShield can query the oracle. BEFORE SIGNING: replace the upgradeToAndCall newImplementation argument (currently 0x0...0001 placeholder) with the actual deployed CoverRouter implementation address from .",
+    "description": "Atomic batch executed by the TimelockController (owner of CoverRouter and LuminaOracle, currently minDelay=0). Steps: (1) UUPS-upgrade CoverRouter to the new implementation 0xFCb89188EBcb16D122aa1f5615C2ae3C2E726d05 (contains updateProductShield); (2) re-point Depeg/IL/Exploit productIds to their V2 shield addresses; (3) re-activate the 3 products; (4) register USDC/USDT/DAI literal bytes32-string feeds in LuminaOracle so DepegShield can query the oracle. New impl deployed in tx 0x33eb2176359340fa7a9f117002c64a2823d787dfe4692a8c5390b58bd47a0bb2 at block 44413371 by deployer 0x2b4D825417f568231e809E31B9332ED146760337.",
     "txBuilderVersion": "1.16.5",
     "createdFromSafeAddress": "0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD",
     "createdFromOwnerAddress": "",
     "checksum": "",
-    "requiresPlaceholderReplacement": "transactions[0].data — encoded upgradeToAndCall(NEW_IMPL, 0x). Replace 0x0000…0001 in the address slot with the verified new impl address."
+    "newImplementation": "0xFCb89188EBcb16D122aa1f5615C2ae3C2E726d05",
+    "deployTxHash": "0x33eb2176359340fa7a9f117002c64a2823d787dfe4692a8c5390b58bd47a0bb2"
   },
   "transactions": [
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x4f1ef286000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000",
+      "data": "0x4f1ef286000000000000000000000000fcb89188ebcb16d122aa1f5615c2ae3c2e726d0500000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000",
       "contractMethod": null,
       "contractInputsValues": null,
-      "_comment": "CoverRouter(proxy).upgradeToAndCall(NEW_IMPL, \"\")  --  REPLACE NEW_IMPL BEFORE SIGNING"
+      "_comment": "CoverRouter(proxy).upgradeToAndCall(0xFCb89188EBcb16D122aa1f5615C2ae3C2E726d05, \"\")"
     },
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
