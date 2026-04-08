@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 const { ethers } = require("ethers");
 const crypto = require("crypto");
 const owsSigner = require("./ows-signer");
+const relayer = require("./relayer");
 
 const app = express();
 
@@ -1337,6 +1338,15 @@ app.get("/api/v2/dashboard", (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// GET /api/v2/relayer/status — health/visibility for the relayer service
+app.get("/api/v2/relayer/status", (_req, res) => {
+  try {
+    res.json(relayer.getState());
+  } catch (e) {
+    res.status(500).json({ error: "Failed to read relayer state", detail: e.message });
+  }
+});
+
 //  START
 // ═══════════════════════════════════════════════════════════
 
@@ -1356,6 +1366,7 @@ app.listen(PORT, () => {
   console.log(`    POST /api/v2/keys/create`);
   console.log(`    GET  /api/v2/keys/list`);
   console.log(`    DELETE /api/v2/keys/revoke`);
+  console.log(`    GET  /api/v2/relayer/status`);
 
   // Log relayer balance
   provider.getBalance(baseWallet.address).then(bal => {
@@ -1363,57 +1374,16 @@ app.listen(PORT, () => {
     console.log(`[Relayer] ETH Balance: ${ethers.formatEther(bal)} ETH`);
   }).catch(() => {});
 
-  // ═══ KEEPER: Auto-cleanup expired policies every 10 minutes ═══
-  const KEEPER_INTERVAL = 10 * 60 * 1000; // 10 minutes
-  const coverRouterKeeper = new ethers.Contract(
-    process.env.COVER_ROUTER || COVER_ROUTER,
-    [
-      "function cleanupExpiredPolicy(bytes32 productId, uint256 policyId) external",
-    ],
-    relayerWallet
-  );
-
-  async function runKeeper() {
-    try {
-      console.log("[Keeper] Scanning for expired policies...");
-      // Check each product's shield for expired policies
-      for (const [key, entry] of Object.entries(PRODUCT_CONFIG)) {
-        try {
-          const shieldContract = new ethers.Contract(entry.shield, [
-            "function totalPolicies() view returns (uint256)",
-            "function getPolicyInfo(uint256) view returns (tuple(uint256 policyId, address insuredAgent, uint256 coverageAmount, uint256 premiumPaid, uint256 maxPayout, uint256 startTimestamp, uint256 waitingEndsAt, uint256 expiresAt, uint256 cleanupAt, uint8 status))",
-          ], provider);
-
-          const total = await shieldContract.totalPolicies();
-          const now = Math.floor(Date.now() / 1000);
-
-          for (let i = 1; i <= Number(total); i++) {
-            try {
-              const info = await shieldContract.getPolicyInfo(i);
-              // Status 2 = ACTIVE, cleanupAt passed
-              if (Number(info.status) <= 2 && Number(info.cleanupAt) > 0 && now > Number(info.cleanupAt)) {
-                console.log(`[Keeper] Cleaning up policy ${i} of ${key}`);
-                const productId = PRODUCT_IDS[entry.fullId];
-                const tx = await coverRouterKeeper.cleanupExpiredPolicy(productId, i);
-                await tx.wait();
-                console.log(`[Keeper] Policy ${i} cleaned: ${tx.hash}`);
-              }
-            } catch (e) {
-              // Skip individual policy errors
-            }
-          }
-        } catch (e) {
-          // Skip product errors
-        }
-      }
-      console.log("[Keeper] Scan complete.");
-    } catch (err) {
-      console.error("[Keeper] Error:", err.message);
-    }
-  }
-
-  // Run keeper after startup, then every 10 minutes
-  setTimeout(runKeeper, 60 * 1000);
-  setInterval(runKeeper, KEEPER_INTERVAL);
-  console.log("[Keeper] Started — scanning every 10 minutes");
+  // ═══ Start Relayer service (auto-claim, cleanup, execute pending, monitor vaults) ═══
+  // The relayer module supersedes the inline keeper. It runs phases 1-3 every 60s
+  // and phase 4 every 5 min, all wrapped in per-phase try/catch.
+  relayer.start({
+    provider,
+    relayerWallet,
+    baseWallet,
+    owsSigner,
+    coverRouter: COVER_ROUTER,
+    products: PRODUCTS,
+    vaults: VAULTS,
+  }).catch((e) => console.error("[Relayer] start failed:", e.message));
 });
