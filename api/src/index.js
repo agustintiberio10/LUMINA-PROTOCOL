@@ -931,6 +931,15 @@ app.post("/api/v2/quote", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields: productId, coverageAmount, durationSeconds, buyer" });
     }
 
+    // Buyer must be a 0x-prefixed 20-byte hex address. Reject early so
+    // we don't waste an on-chain read or generate an unsignable quote.
+    if (typeof buyer !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(buyer)) {
+      return res.status(400).json({
+        error: "INVALID_BUYER",
+        message: `buyer must be a 0x-prefixed 20-byte hex address (got ${typeof buyer === "string" ? `"${buyer}"` : typeof buyer})`,
+      });
+    }
+
     // Input validation — reject invalid values with 400, not 500
     const covNum = Number(coverageAmount);
     const durNum = Number(durationSeconds);
@@ -992,18 +1001,33 @@ app.post("/api/v2/quote", async (req, res) => {
     // Asset validation: each active product accepts a fixed set of asset
     // symbols. Reject early so the agent doesn't waste an on-chain quote
     // / purchase that the shield would revert anyway.
+    //
+    // DEPEG note: USDC is intentionally NOT in the accepted list. The
+    // settlement token cannot insure itself against its own depeg
+    // (circular risk) — DepegShield.sol enforces the same rule on-chain
+    // by reverting with ExcludedStablecoin when params.stablecoin == USDC.
+    // Mirroring the rule here in /quote means an agent that asks for
+    // USDC depeg coverage gets a clean INVALID_ASSET response instead
+    // of passing /quote and being rejected later by the on-chain
+    // purchasePolicyFor.
     const PRODUCT_ASSETS = {
       "BTCCAT-001":       ["BTC"],
       "ETHAPOC-001":      ["ETH"],
       "ILPROT-001":       ["ETH", "BTC"],
-      "DEPEG-STABLE-001": ["USDC", "USDT", "DAI"],
+      "DEPEG-STABLE-001": ["USDT", "DAI"], // USDC excluded by DepegShield (circular risk)
       "EXPLOIT-001":      ["ETH"],
     };
+    // For DEPEG, the user-facing field is `stablecoin`, not `asset`.
+    // Validate against whichever field they sent.
+    const assetCandidate = asset || stablecoin;
     const validAssets = PRODUCT_ASSETS[product.id];
-    if (asset && validAssets && !validAssets.includes(asset)) {
+    if (assetCandidate && validAssets && !validAssets.includes(assetCandidate)) {
+      const isUsdcDepeg = product.id === "DEPEG-STABLE-001" && assetCandidate === "USDC";
       return res.status(200).json({
         error: "INVALID_ASSET",
-        message: `Invalid asset: ${asset}. ${product.id} only covers: ${validAssets.join(", ")}.`,
+        message: isUsdcDepeg
+          ? "USDC cannot be insured by DEPEG-STABLE-001. USDC is the protocol settlement token, so insuring it against its own depeg is a circular risk and is rejected by DepegShield on-chain. Use USDT or DAI."
+          : `Invalid asset: ${assetCandidate}. ${product.id} only covers: ${validAssets.join(", ")}.`,
         product: product.id,
         validAssets,
       });

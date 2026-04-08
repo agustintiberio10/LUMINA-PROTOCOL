@@ -76,7 +76,7 @@ Status codes: 200, 404, 500
 --- POST /api/v2/quote ---
 No auth required.
 Body: { "productId": "BTCCAT-001", "coverageAmount": 1000000000, "durationSeconds": 1209600, "buyer": "0x..." }
-Optional body fields: "asset" (for BCS: "BTC", for EAS: "ETH"), "stablecoin" (for DEPEG: "USDT" or "DAI"), "protocol" (for EXPLOIT: protocol address)
+Optional body fields: "asset" (for BCS: "BTC", for EAS: "ETH"), "stablecoin" (for DEPEG: "USDT" or "DAI" — USDC is excluded because it is the protocol settlement token, insuring it would create circular risk), "protocol" (for EXPLOIT: protocol address)
 Response: { "quote": { "productId", "productName", "coverageAmount", "premiumAmount", "durationSeconds", "asset", "stablecoin", "protocol", "buyer", "deadline", "nonce", "utilizationAtQuote" }, "signature": "0x...", "signedQuote": {...} }
 Quotes expire in 300 seconds (5 minutes). Get a fresh quote before each purchase.
 Status codes: 200, 400, 500
@@ -87,7 +87,7 @@ Body: { "productId": "BTCCAT-001", "coverageAmount": 1000000000, "durationSecond
   productId: "BTCCAT-001" | "DEPEG" | "IL" | "EXPLOIT"
   coverageAmount: 6 decimals. Min $100 (100000000), Max $100,000 (100000000000)
   durationSeconds: Min 604800 (7 days), Max 31536000 (365 days) — varies by product
-Response: { "success": true, "txHash": "0x...", "product": "Black Swan Shield", "productId": "BTCCAT-001", "coverage": "1000000000", "premium": "...", "premiumUSD": "...", "durationDays": 14, "wallet": "0x...", "explorer": "https://basescan.org/tx/0x...", "message": "Policy purchased successfully." }
+Response: { "success": true, "txHash": "0x...", "product": "BTC Catastrophe Shield", "productId": "BTCCAT-001", "coverage": "1000000000", "premium": "...", "premiumUSD": "...", "durationDays": 14, "wallet": "0x...", "explorer": "https://basescan.org/tx/0x...", "message": "Policy purchased successfully." }
 Status codes: 201, 400, 401, 409, 429, 500
 
 --- GET /api/v2/policies ---
