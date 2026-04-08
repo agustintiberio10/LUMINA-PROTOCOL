@@ -737,15 +737,28 @@ app.get("/api/v2/products", async (_req, res) => {
       provider
     );
 
-    // Check on-chain status for each product SEQUENTIALLY (avoids rate-limit
-    // bursts that the parallel Promise.all version was triggering).
+    // Check on-chain status for each product SEQUENTIALLY with a tiny gap
+    // between calls. The Railway-side RPC throttles bursts even when they're
+    // back-to-back awaits, so we add a 150ms breather between requests.
+    // We also skip the on-chain read entirely for products marked
+    // `deprecated: true` — their status is hard-coded to DEPRECATED below
+    // and we already know on-chain isProductAvailable returns false for them.
     const statuses = [];
-    for (const p of PRODUCTS) {
+    for (let i = 0; i < PRODUCTS.length; i++) {
+      const p = PRODUCTS[i];
+      if (p.deprecated) {
+        statuses.push(false); // deprecated → never on-chain-active
+        continue;
+      }
       try {
         const v = await router.isProductAvailable(p.productId);
         statuses.push(!!v);
       } catch {
         statuses.push(null);
+      }
+      // Small gap before the next call — only between non-final entries
+      if (i < PRODUCTS.length - 1) {
+        await new Promise((r) => setTimeout(r, 150));
       }
     }
 
