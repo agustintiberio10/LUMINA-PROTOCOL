@@ -715,19 +715,39 @@ app.get("/api/v2/health", (_req, res) => {
 //   ACTIVE       — registered + active in router (quotes + purchases work)
 //   DEPRECATED   — explicitly deprecated (BSS replaced by BCS+EAS)
 //   PENDING_REGISTRATION — shield deployed but NOT registered in router; quotes return PRODUCT_NOT_REGISTERED
+//   UNKNOWN      — RPC read failed (rate-limited / transient)
+//
+// Caching strategy: 30-second in-memory cache + sequential on-chain reads
+// on cache miss. Avoids hammering the upstream RPC (which rate-limits
+// `Promise.all([6 calls])`) and keeps the endpoint fast (~ms when cached).
+let _productsCache = null;
+let _productsCacheAt = 0;
+const PRODUCTS_CACHE_TTL_MS = 30_000;
+
 app.get("/api/v2/products", async (_req, res) => {
   try {
+    // Serve from cache if fresh
+    if (_productsCache && (Date.now() - _productsCacheAt) < PRODUCTS_CACHE_TTL_MS) {
+      return res.json(_productsCache);
+    }
+
     const router = new ethers.Contract(
       COVER_ROUTER,
       ["function isProductAvailable(bytes32) view returns (bool)"],
       provider
     );
-    // Check on-chain status for each product (in parallel)
-    const statuses = await Promise.all(
-      PRODUCTS.map((p) =>
-        router.isProductAvailable(p.productId).then((v) => !!v).catch(() => null)
-      )
-    );
+
+    // Check on-chain status for each product SEQUENTIALLY (avoids rate-limit
+    // bursts that the parallel Promise.all version was triggering).
+    const statuses = [];
+    for (const p of PRODUCTS) {
+      try {
+        const v = await router.isProductAvailable(p.productId);
+        statuses.push(!!v);
+      } catch {
+        statuses.push(null);
+      }
+    }
 
     const products = PRODUCTS.map((p, i) => {
       const onChain = statuses[i];
@@ -767,7 +787,10 @@ app.get("/api/v2/products", async (_req, res) => {
         }),
       };
     });
-    res.json({ products });
+    const payload = { products };
+    _productsCache = payload;
+    _productsCacheAt = Date.now();
+    res.json(payload);
   } catch (err) {
     console.error("[Products] error:", err);
     res.status(500).json({ error: "Failed to load products", message: err.message });
