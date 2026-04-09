@@ -264,8 +264,30 @@ function calculatePremium(coverageAmount, durationSeconds, utilization, pBase) {
 // ═══════════════════════════════════════════════════════════
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-const baseWallet = new ethers.Wallet(process.env.RELAYER_PRIVATE_KEY || process.env.ORACLE_PRIVATE_KEY, provider);
+
+// ── KEY SEPARATION (Vuln 4 fix) ──────────────────────────────────────────
+// ORACLE_PRIVATE_KEY → signs EIP-712 proofs (PriceProof, ExploitGovProof).
+//   Must correspond to the oracleKey registered in LuminaOracleV2.
+//   Never sends transactions, never needs ETH.
+// RELAYER_PRIVATE_KEY → sends on-chain transactions (triggerPayout, cleanup,
+//   executeScheduledPayout, purchasePolicyFor). Needs ETH for gas.
+//   Must be in CoverRouter.authorizedRelayers.
+if (!process.env.RELAYER_PRIVATE_KEY) {
+  console.error("FATAL: RELAYER_PRIVATE_KEY not set");
+  process.exit(1);
+}
+if (!process.env.ORACLE_PRIVATE_KEY) {
+  console.error("FATAL: ORACLE_PRIVATE_KEY not set");
+  process.exit(1);
+}
+const oracleSignerWallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY); // no provider — never sends tx
+const baseWallet = new ethers.Wallet(process.env.RELAYER_PRIVATE_KEY, provider);
 const relayerWallet = new ethers.NonceManager(baseWallet);
+
+if (oracleSignerWallet.address.toLowerCase() === baseWallet.address.toLowerCase()) {
+  console.warn("[SECURITY] ORACLE_PRIVATE_KEY and RELAYER_PRIVATE_KEY resolve to the SAME address — separate them for production");
+}
+console.log(`[Oracle]  Signer: ${oracleSignerWallet.address}`);
 console.log(`[Relayer] Address: ${baseWallet.address}`);
 
 // Initialize OWS (non-blocking, falls back to ethers)
@@ -1338,8 +1360,38 @@ app.get("/api/v2/dashboard", (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// GET /api/v2/relayer/status — health/visibility for the relayer service
+// ADMIN AUTH (Vuln 3 fix) — protects endpoints that expose sensitive state
+// ═══════════════════════════════════════════════════════════
+function adminAuth(req, res, next) {
+  const key = req.headers["x-admin-key"];
+  if (!key || !process.env.ADMIN_API_KEY || key !== process.env.ADMIN_API_KEY) {
+    return res.status(401).json({ error: "Unauthorized — X-Admin-Key header required" });
+  }
+  next();
+}
+
+// GET /api/v2/relayer/status — PUBLIC health check (safe subset only)
 app.get("/api/v2/relayer/status", (_req, res) => {
+  try {
+    const full = relayer.getState();
+    res.json({
+      running: full.running,
+      uptimeSeconds: full.uptimeSec,
+      ticks: full.ticks,
+      phases: {
+        autoClaim:      { healthy: !full.phases.autoClaim.lastError },
+        cleanup:        { healthy: !full.phases.cleanup.lastError },
+        executePending: { healthy: !full.phases.executePending.lastError },
+        monitorVaults:  { healthy: !full.phases.monitorVaults.lastError },
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to read relayer state" });
+  }
+});
+
+// GET /api/v2/admin/relayer/status — AUTHENTICATED full state (addresses, balances, errors)
+app.get("/api/v2/admin/relayer/status", adminAuth, (_req, res) => {
   try {
     res.json(relayer.getState());
   } catch (e) {
@@ -1367,6 +1419,7 @@ app.listen(PORT, () => {
   console.log(`    GET  /api/v2/keys/list`);
   console.log(`    DELETE /api/v2/keys/revoke`);
   console.log(`    GET  /api/v2/relayer/status`);
+  console.log(`    GET  /api/v2/admin/relayer/status  [X-Admin-Key required]`);
 
   // Log relayer balance
   provider.getBalance(baseWallet.address).then(bal => {
@@ -1375,12 +1428,11 @@ app.listen(PORT, () => {
   }).catch(() => {});
 
   // ═══ Start Relayer service (auto-claim, cleanup, execute pending, monitor vaults) ═══
-  // The relayer module supersedes the inline keeper. It runs phases 1-3 every 60s
-  // and phase 4 every 5 min, all wrapped in per-phase try/catch.
   relayer.start({
     provider,
     relayerWallet,
     baseWallet,
+    oracleSignerWallet,    // separate from relayer — signs proofs only, never sends tx
     owsSigner,
     coverRouter: COVER_ROUTER,
     products: PRODUCTS,

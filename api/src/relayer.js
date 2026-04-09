@@ -159,14 +159,19 @@ async function buildPriceProof(verifiedPrice, assetBytes32, verifiedAt) {
     catch { /* fall through to local signing */ }
   }
   if (!signature) {
-    const keys = [process.env.ORACLE_PRIVATE_KEY, process.env.ORACLE_PRIVATE_KEY_2].filter(Boolean);
-    if (keys.length === 0) throw new Error("No ORACLE_PRIVATE_KEY configured");
-    const wallets = keys.map((k) => new ethers.Wallet(k));
+    // Use the oracle signer wallet(s) — these MUST be different from the relayer
+    // wallet that sends transactions. The oracle wallet never needs ETH or a provider.
+    const oracleWallets = [];
+    if (_ctx.oracleSignerWallet) oracleWallets.push(_ctx.oracleSignerWallet);
+    // Support multi-sig: additional oracle signers via ORACLE_PRIVATE_KEY_2
+    if (process.env.ORACLE_PRIVATE_KEY_2) {
+      oracleWallets.push(new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY_2));
+    }
+    if (oracleWallets.length === 0) throw new Error("No oracle signer configured");
     // Sort by address ascending (LuminaOracle.verifyPackedMultisig requires this)
-    wallets.sort((a, b) => (BigInt(a.address) < BigInt(b.address) ? -1 : 1));
+    oracleWallets.sort((a, b) => (BigInt(a.address) < BigInt(b.address) ? -1 : 1));
     const sigs = [];
-    for (const w of wallets) {
-      // ethers v6: Wallet.signTypedData(domain, types, value)
+    for (const w of oracleWallets) {
       const sig = await w.signTypedData(domain, PRICE_PROOF_TYPES, value);
       sigs.push(sig);
     }
