@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {IShield} from "../interfaces/IShield.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
+import {IOracleV2} from "../interfaces/IOracleV2.sol";
 
 /**
  * @title BaseShield
@@ -319,6 +320,47 @@ abstract contract BaseShield is IShield {
     ) internal view returns (bool) {
         address signer = IOracle(oracle).verifySignature(dataHash, signature);
         return signer == IOracle(oracle).oracleKey();
+    }
+
+    /**
+     * @notice [V2] Verify an EIP-712 typed PriceProof against the oracle.
+     * @dev    The oracle's domain separator pins the proof to (chainId, oracle).
+     *         A proof generated against a different chain or a different oracle
+     *         instance will not validate. This is the **only** verifier used by
+     *         V2 shields and supersedes the raw-digest path above.
+     *
+     *         The recovered signer must match the canonical oracleKey (or be
+     *         a member of the authorized signer set in multisig mode); the
+     *         oracle returns address(0) on any failure.
+     *
+     *         Requires the bound `oracle` to implement IOracle V2 (i.e.,
+     *         LuminaOracleV2 or later). V1 oracles will revert.
+     */
+    function _verifyPriceProofEIP712(
+        int256 price,
+        bytes32 asset,
+        uint256 verifiedAt,
+        bytes memory signature
+    ) internal view returns (bool) {
+        address signer = IOracleV2(oracle).verifyPriceProofEIP712(price, asset, verifiedAt, signature);
+        return signer != address(0);
+    }
+
+    /**
+     * @notice [V2] Verify an EIP-712 typed ExploitGovProof against the oracle.
+     * @dev    Used by ExploitShieldV2 for the gov-token-drop condition.
+     */
+    function _verifyExploitGovProofEIP712(
+        int256 govTokenPrice,
+        int256 govTokenPrice24hAgo,
+        bytes32 protocolId,
+        uint256 verifiedAt,
+        bytes memory signature
+    ) internal view returns (bool) {
+        address signer = IOracleV2(oracle).verifyExploitGovProofEIP712(
+            govTokenPrice, govTokenPrice24hAgo, protocolId, verifiedAt, signature
+        );
+        return signer != address(0);
     }
 
     // ═══════════════════════════════════════════════════════════

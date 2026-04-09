@@ -59,3 +59,20 @@
 - Aave: Real (V3)
 - Oracle: Multisig-ready (1-of-1, expandable to N-of-M)
 - Ownership: TimelockController (48h delay) via Gnosis Safe (2-of-3)
+
+## V2 Oracle Migration (pending deployment)
+
+- LuminaOracleV2: `<TBD — deploy via DeployOracleV2Batch.s.sol>`
+- BTCCatastropheShieldV2: TBD
+- ETHApocalypseShieldV2: TBD
+- DepegShieldV2: TBD
+- ILIndexCoverV2: TBD
+- ExploitShieldV2: TBD
+
+After deployment, update via Safe batch `safe-tx-oracle-v2-migration.json` which calls `CoverRouter.updateProductShield` for all 5 products + sets circuit breakers.
+
+Design notes:
+- LuminaOracleV2 adds EIP-712 domain-separated proof verification. The domain pins each claim proof to (chainId 8453, the LuminaOracleV2 contract address) preventing cross-chain and cross-contract replay.
+- The oracle is NOT upgradeable (Ownable). Replacement requires deploying a new oracle, calling `CoverRouter.setOracle(newOracle)`, AND redeploying every Shield (Shield.oracle is `immutable`).
+- LuminaPhalaVerifier is NOT upgradeable (Ownable, admin-curated worker EOA list — not hardware attestation).
+- Circuit breakers (`maxPayoutsPerDay`, `largePayoutThreshold`, `largePayoutDelay`) are deployment-time configured and adjustable via Safe batch.

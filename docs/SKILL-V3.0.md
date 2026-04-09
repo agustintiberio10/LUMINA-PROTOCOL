@@ -145,7 +145,7 @@ RATE LIMITS:
 What it covers: BTC price crashes exceeding 50%
 Product ID: "BTCCAT-001"  (short alias also accepted: "BCS")
 Trigger: Price drops >50% from purchase price (TRIGGER_DROP_BPS = 5000)
-Verification: Oracle-signed TWAP 15 min or 3 consecutive Chainlink rounds
+Verification: Chainlink spot price verified via EIP-712 signed proof (LuminaOracleV2)
 Deductible: 20% — Payout: 80% of coverage (binary, all-or-nothing)
 Duration: 7 to 30 days
 Waiting period: 1 hour
@@ -163,7 +163,7 @@ Example: Buy $10,000 BCS coverage for 14 days
 What it covers: ETH price crashes exceeding 60%
 Product ID: "ETHAPOC-001"  (short alias also accepted: "EAS")
 Trigger: Price drops >60% from purchase price (TRIGGER_DROP_BPS = 6000)
-Verification: Oracle-signed TWAP 15 min or 3 consecutive Chainlink rounds
+Verification: Chainlink spot price verified via EIP-712 signed proof (LuminaOracleV2)
 Deductible: 20% — Payout: 80% of coverage (binary, all-or-nothing)
 Duration: 7 to 30 days
 Waiting period: 1 hour
@@ -185,8 +185,8 @@ on-chain — no legacy positions exist.
 --- DEPEG SHIELD ---
 What it covers: Stablecoin losing its peg (dropping below $0.95)
 Product ID: "DEPEG"
-Trigger: Stablecoin TWAP 30 min < $0.95 (TRIGGER_PRICE = 95,000,000 in Chainlink 8-decimal format)
-Verification: TWAP 30 min or 5 consecutive Chainlink rounds
+Trigger: Stablecoin Chainlink spot < $0.95 (TRIGGER_PRICE = 95,000,000 in Chainlink 8-decimal format)
+Verification: Chainlink spot price verified via EIP-712 signed proof (LuminaOracleV2)
 Deductibles per stablecoin:
   DAI:  12% deductible → 88% payout
   USDT: 15% deductible → 85% payout
@@ -219,7 +219,7 @@ Product ID: "EXPLOIT"
 Trigger: DUAL — BOTH conditions must be met:
   1. Governance token drops >25% in 24h (GOV_DROP_THRESHOLD_BPS = 2500)
   2. Receipt token drops >30% for 4+ hours OR protocol contract is paused
-  Condition 1 verified by Chainlink oracle. Condition 2 verified by Phala TEE.
+  Condition 1 verified by Chainlink oracle (EIP-712 signed proof). Condition 2 verified by Phala worker ECDSA signature (admin-curated worker list — not hardware attestation).
 Deductible: 10% — Payout: 90% of coverage (binary)
 Duration: 90 to 365 days
 Waiting period: 14 days
@@ -342,9 +342,9 @@ Always GET /api/v2/quote before purchasing to see the current premium.
 
 Claims are AUTOMATIC. The oracle monitors conditions and triggers payouts when met. You do NOT need to submit a claim manually.
 
-BCS:     Oracle detects >50% BTC drop → verifies TWAP → triggers payout → 80% of coverage sent to your wallet
-EAS:     Oracle detects >60% ETH drop → verifies TWAP → triggers payout → 80% of coverage sent to your wallet
-DEPEG:   Oracle detects stablecoin <$0.95 → verifies TWAP → triggers payout → 85-88% sent
+BCS:     Oracle detects >50% BTC drop → verifies EIP-712 signed Chainlink spot proof → triggers payout → 80% of coverage sent to your wallet
+EAS:     Oracle detects >60% ETH drop → verifies EIP-712 signed Chainlink spot proof → triggers payout → 80% of coverage sent to your wallet
+DEPEG:   Oracle detects stablecoin <$0.95 → verifies EIP-712 signed Chainlink spot proof → triggers payout → 85-88% sent
 IL:      At expiry, oracle calculates IL → if >2%, proportional payout → sent within 48h settlement window
 EXPLOIT: Oracle detects gov token -25% AND TEE verifies receipt token → 90% of coverage sent
 
@@ -412,7 +412,14 @@ COMMON ERRORS AND REMEDIES:
 
 Smart Contracts: 119 tests passing. Solidity 0.8.20. CEI pattern. SafeERC20. ReentrancyGuard.
 Governance: TimelockController (48h delay) + Gnosis Safe (2-of-3 multisig). No instant admin changes.
-Oracle: Multisig-capable (N-of-M). Chainlink TWAP verification. L2 sequencer uptime check (1h grace).
+Oracle: LuminaOracleV2 — NOT upgradeable (Ownable). Multisig-capable (N-of-M). Chainlink spot price verified via EIP-712 signed proof. L2 sequencer uptime check (1h grace).
+PhalaVerifier: LuminaPhalaVerifier — NOT upgradeable (Ownable, admin-curated worker EOA list). Phala worker ECDSA signature verification (admin-curated worker list — not hardware attestation).
+
+SECURITY MODEL — ORACLE:
+  - All claim proofs are EIP-712 typed data signed by the oracle backend.
+  - The EIP-712 domain pins each proof to (chainId 8453, the LuminaOracleV2 contract address) — preventing cross-chain and cross-contract replay.
+  - The oracle is NOT upgradeable — replacement requires deploying a new oracle, calling `CoverRouter.setOracle(newOracle)`, AND redeploying every Shield (Shield.oracle is `immutable`).
+  - Circuit breakers: `maxPayoutsPerDay`, `largePayoutThreshold`, `largePayoutDelay`. Default values are deployment-time configured (see PRODUCTION-ADDRESSES.md for the active values).
 API: Rate limiting, CORS restrictions, Helmet headers, NonceManager, sanitized errors.
 
 Collateral: Strict 1:1. Every $1 of coverage = $1 USDC locked in vault. Max utilization 95%.

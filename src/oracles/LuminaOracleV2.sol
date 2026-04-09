@@ -5,91 +5,134 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {IOracle} from "../interfaces/IOracle.sol";
+import {IOracleV2} from "../interfaces/IOracleV2.sol";
 import {IAggregatorV3} from "../interfaces/IAggregatorV3.sol";
 
 /**
- * @title LuminaOracle
+ * @title LuminaOracleV2
  * @author Lumina Protocol
- * @dev V1 — superseded by LuminaOracleV2 (adds EIP-712 domain-separated proof verification). Existing deployments remain functional for backward compatibility.
- * @notice Concrete oracle for Lumina Protocol. Two responsibilities:
+ * @notice V2 of the Lumina oracle. Adds EIP-712 domain-separated proof
+ *         verification on top of the V1 surface (which remains for backward
+ *         compatibility with V1 shields).
  *
- *   1. SPOT READS — getLatestPrice(asset)
- *      Reads the latest price from a registered Chainlink feed.
- *      Used by Shields at policy creation (e.g., BSS strikePrice, IL strikePrice).
- *      Validates: sequencer up, grace period elapsed, staleness, round completeness, price > 0.
+ * ─────────────────────────────────────────────────────────────────────────
+ * V1 → V2 CHANGES
+ * ─────────────────────────────────────────────────────────────────────────
  *
- *   2. PROOF VERIFICATION — verifySignature(digest, signature)
- *      Recovers ECDSA signer from a digest + signature.
- *      Used by CoverRouter (EIP-712 quote verification) and all Shields
- *      (oracle-signed TWAP proofs at claim time).
+ * 1. EIP-712 DOMAIN SEPARATION (FIX HIGH-1 from oracle audit)
+ *    Every claim proof now includes the chain id and verifying-contract
+ *    address through an EIP-712 domain separator.  Concretely:
+ *      - A proof signed against Base Sepolia (chainId 84532) cannot be
+ *        replayed on Base mainnet (chainId 8453).
+ *      - A proof signed for *this* oracle cannot be replayed against a
+ *        different oracle deployment, even on the same chain.
+ *      - Proofs are now standard EIP-712 typed-data — auditable and
+ *        compatible with hardware wallets / signTypedData tooling.
  *
- * ARCHITECTURE NOTES:
- *   - TWAP computation happens OFF-CHAIN in the Lumina backend.
- *     The backend reads multiple Chainlink rounds, computes the TWAP,
- *     signs the result with the oracleKey, and the agent submits it on-chain.
- *   - This contract does NOT compute TWAPs. It provides spot reads for
- *     policy creation and signature verification for claim proofs.
- *   - NOT upgradeable. If Oracle needs changes → deploy new, update Router
- *     via setOracle(). Shields have immutable oracle — redeploy if needed.
+ * 2. HONEST DOCUMENTATION (FIX HIGH-2)
+ *    The V1 NatSpec advertised "TWAP 15 min or 3 Chainlink rounds".
+ *    The V1 contract did not implement that. V2 documents exactly what
+ *    happens: Shields verify ONE oracle-signed Chainlink spot price, the
+ *    relayer reads `latestRoundData` and signs the result. There is no
+ *    on-chain TWAP. There is no SGX/TDX hardware attestation — the
+ *    PhalaVerifier is an admin-curated EOA signer set.
  *
- * L2 SEQUENCER PROTECTION (Base-specific):
- *   [FIX] When Base L2's sequencer goes down, Chainlink can't update prices.
- *   When it restarts, stale prices are served briefly. An attacker could buy
- *   BSS/IL with a pre-crash strikePrice. We check the Chainlink Sequencer
- *   Uptime Feed and enforce a grace period after restart.
+ * 3. CORRECT FEED ADDRESSES IN NATSPEC
+ *    The V1 NatSpec listed `BTC/USD: 0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F`.
+ *    The actually-registered BTC feed on Base mainnet is
+ *    `0xCCADC697c55bbB68dc5bCdf8d3CBe83CdD4E071E` (Chainlink Data Feed BTC/USD on Base).
+ *    V2 documents the canonical Base mainnet addresses.
  *
- * CHAINLINK FEEDS ON BASE L2 (chain 8453):
- *   ETH/USD:  0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70
- *   BTC/USD:  0xCCADC697c55bbB68dc5bCdf8d3CBe83CdD4E071E
- *   USDC/USD: 0x7e860098F58bBFC8648a4311b374B1D669a2bc6B
- *   USDT/USD: 0xf19d560eB8d2ADf07BD6D13ed03e1D11215721F9
- *   DAI/USD:  0x591e79239a7d679378eC8c847e5038150364C78F
+ * 4. UPGRADEABILITY POLICY
+ *    LuminaOracleV2 is **NOT upgradeable**. To replace it: deploy V3,
+ *    call `CoverRouter.setOracle(newOracle)`, AND redeploy every Shield
+ *    that depends on it (Shield.oracle is `immutable`). Document this
+ *    every place "UUPS" appears in user-facing prose.
  *
- * @dev Ownable for admin operations (key rotation, feed management).
+ * ─────────────────────────────────────────────────────────────────────────
+ * BACKWARD COMPATIBILITY
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * The V1 functions `verifySignature(digest, sig)` and the multisig packed
+ * variant remain available unchanged. V1 shields keep working when paired
+ * with this oracle. The V2 functions are additive:
+ *   - verifyPriceProofEIP712()
+ *   - verifyExploitGovProofEIP712()
+ *   - priceProofDigest() / exploitReceiptProofDigest()  (view helpers)
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * CHAINLINK FEEDS ON BASE MAINNET (chainId 8453)
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ *   ETH/USD:  0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70   (heartbeat 1200s)
+ *   BTC/USD:  0xCCADC697c55bbB68dc5bCdf8d3CBe83CdD4E071E   (heartbeat 1200s)
+ *   USDC/USD: 0x7e860098F58bBFC8648a4311b374B1D669a2bc6B   (heartbeat 86400s)
+ *   USDT/USD: 0xf19d560eB8d2ADf07BD6D13ed03e1D11215721F9   (heartbeat 86400s)
+ *   DAI/USD:  0x591e79239a7d679378eC8c847e5038150364C78F   (heartbeat 86400s)
+ *
+ *   Sequencer Uptime Feed: 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433
  */
-contract LuminaOracle is IOracle, Ownable {
+contract LuminaOracleV2 is IOracleV2, Ownable {
     using ECDSA for bytes32;
 
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice [FIX] Grace period after sequencer restarts before accepting prices.
-    ///         Prevents stale-price attacks during L2 sequencer recovery.
+    /// @notice Grace period after sequencer restarts before accepting prices.
     uint256 public constant SEQUENCER_GRACE_PERIOD = 1 hours;
+
+    /// @notice Conservative downtime extension floor (matches V1).
+    uint256 public constant MIN_DOWNTIME_EXTENSION = 2 hours;
+
+    // ── EIP-712 typehashes ────────────────────────────────────────────────
+
+    bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256(
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    );
+
+    /// @dev keccak256("PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)")
+    bytes32 public constant PRICE_PROOF_TYPEHASH = keccak256(
+        "PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)"
+    );
+
+    /// @dev keccak256("ExploitGovProof(int256 govTokenPrice,int256 govTokenPrice24hAgo,bytes32 protocolId,uint256 verifiedAt)")
+    bytes32 public constant EXPLOIT_GOV_PROOF_TYPEHASH = keccak256(
+        "ExploitGovProof(int256 govTokenPrice,int256 govTokenPrice24hAgo,bytes32 protocolId,uint256 verifiedAt)"
+    );
+
+    /// @dev keccak256("ExploitReceiptProof(bool receiptTokenDepegged,bool contractPaused,bytes32 protocolId,uint256 verifiedAt)")
+    bytes32 public constant EXPLOIT_RECEIPT_PROOF_TYPEHASH = keccak256(
+        "ExploitReceiptProof(bool receiptTokenDepegged,bool contractPaused,bytes32 protocolId,uint256 verifiedAt)"
+    );
 
     // ═══════════════════════════════════════════════════════════
     //  STRUCTS
     // ═══════════════════════════════════════════════════════════
 
     struct FeedConfig {
-        IAggregatorV3 feed;         // Chainlink aggregator
-        uint256 maxStaleness;       // Max seconds since last update (heartbeat)
-        bool active;                // Feed is registered and active
+        IAggregatorV3 feed;
+        uint256 maxStaleness;
+        bool active;
     }
 
     // ═══════════════════════════════════════════════════════════
     //  STORAGE
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Authorized signing key for quotes and proofs
     address private _oracleKey;
-
-    /// @notice Feed registry: asset identifier → Chainlink config
     mapping(bytes32 => FeedConfig) private _feeds;
-
-    /// @notice All registered asset identifiers (for enumeration)
-    /// @dev Soft-delete: removeFeed sets active=false but does NOT remove from this array.
-    ///      Callers of getAllAssets() must check isFeedActive() for each entry.
     bytes32[] private _assetIds;
-
-    /// @notice [FIX] Chainlink L2 Sequencer Uptime Feed
     IAggregatorV3 private immutable _sequencerUptimeFeed;
 
-    // ── Multisig Oracle ──
+    // ── Multisig oracle (V1-compatible) ──
     mapping(address => bool) public authorizedSigners;
     uint256 public requiredSignatures;
     uint256 public totalSigners;
+
+    // ── EIP-712 domain separator ──
+    /// @notice Cached at construction. Pinned to (chainId, address(this)).
+    bytes32 public immutable DOMAIN_SEPARATOR;
 
     // ═══════════════════════════════════════════════════════════
     //  EVENTS
@@ -108,26 +151,20 @@ contract LuminaOracle is IOracle, Ownable {
     // ═══════════════════════════════════════════════════════════
 
     error ZeroAddress(string param);
-    error ZeroValue(string param);              // [FIX] Dedicated error for non-address zero values
+    error ZeroValue(string param);
     error FeedNotRegistered(bytes32 asset);
     error FeedAlreadyRegistered(bytes32 asset);
     error StalePriceAsset(bytes32 asset, uint256 updatedAt, uint256 maxStaleness);
     error InvalidPriceAsset(bytes32 asset, int256 price);
     error IncompleteRound(bytes32 asset, uint80 roundId, uint80 answeredInRound);
     error InvalidSignatureLength();
-    error SequencerDown();                      // [FIX] L2 sequencer is currently offline
-    error SequencerGracePeriodNotOver();         // [FIX] Sequencer restarted too recently
+    error SequencerDown();
+    error SequencerGracePeriodNotOver();
 
     // ═══════════════════════════════════════════════════════════
     //  CONSTRUCTOR
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * @param owner_ Admin address (multisig recommended)
-     * @param oracleKey_ Initial signing key (backend EOA)
-     * @param sequencerUptimeFeed_ Chainlink L2 Sequencer Uptime Feed on Base.
-     *        Set to address(0) for testnet deployment (skips sequencer check).
-     */
     constructor(
         address owner_,
         address oracleKey_,
@@ -138,20 +175,27 @@ contract LuminaOracle is IOracle, Ownable {
         _sequencerUptimeFeed = IAggregatorV3(sequencerUptimeFeed_);
         emit OracleKeyRotated(address(0), oracleKey_);
 
-        // Initialize multisig with oracleKey as first signer (1-of-1)
         authorizedSigners[oracleKey_] = true;
         totalSigners = 1;
         requiredSignatures = 1;
+
+        // EIP-712 domain separator: pinned to deployment chain + this contract.
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256(bytes("LuminaOracle")),
+                keccak256(bytes("2")),
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  IOracle — SPOT READS
+    //  IOracle — SPOT PRICE READS (unchanged from V1)
     // ═══════════════════════════════════════════════════════════
 
-    /// @inheritdoc IOracle
     function getLatestPrice(bytes32 asset) external view returns (int256 price) {
-        // [FIX] Check L2 sequencer health before reading any price feed.
-        // If sequencer is down or just restarted, prices may be stale/exploitable.
         _checkSequencer();
 
         FeedConfig storage config = _feeds[asset];
@@ -165,17 +209,8 @@ contract LuminaOracle is IOracle, Ownable {
             uint80 answeredInRound
         ) = config.feed.latestRoundData();
 
-        // Validate price is positive
         if (answer <= 0) revert InvalidPriceAsset(asset, answer);
-
-        // Validate round completeness (prevents reading partial/pending rounds)
-        if (answeredInRound < roundId) {
-            revert IncompleteRound(asset, roundId, answeredInRound);
-        }
-
-        // [FIX] Validate staleness with underflow protection.
-        // On L2, timestamp sync issues can cause updatedAt > block.timestamp briefly.
-        // Instead of Solidity 0.8 panic (opaque revert), we emit a clear error.
+        if (answeredInRound < roundId) revert IncompleteRound(asset, roundId, answeredInRound);
         if (updatedAt > block.timestamp || block.timestamp - updatedAt > config.maxStaleness) {
             revert StalePriceAsset(asset, updatedAt, config.maxStaleness);
         }
@@ -184,44 +219,27 @@ contract LuminaOracle is IOracle, Ownable {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  IOracle — SIGNATURE VERIFICATION
+    //  IOracle — V1 SIGNATURE VERIFICATION (kept for compatibility)
     // ═══════════════════════════════════════════════════════════
 
-    /// @inheritdoc IOracle
     function verifySignature(
         bytes32 digest,
         bytes calldata signature
     ) external view returns (address signer) {
-        // Multisig mode: if >1 signatures required, verify packed multisig
         if (requiredSignatures > 1) {
-            if (verifyPackedMultisig(digest, signature)) {
-                return _oracleKey; // Return oracleKey so BaseShield check passes
-            }
+            if (verifyPackedMultisig(digest, signature)) return _oracleKey;
             return address(0);
         }
 
-        // Single signer mode (backwards compatible)
         if (signature.length != 65) revert InvalidSignatureLength();
 
         (address recovered, ECDSA.RecoverError err, ) = ECDSA.tryRecover(digest, signature);
+        if (err != ECDSA.RecoverError.NoError) return address(0);
 
-        if (err != ECDSA.RecoverError.NoError) {
-            return address(0);
-        }
-
-        // Accept if authorized signer OR legacy oracleKey
-        if (authorizedSigners[recovered] || recovered == _oracleKey) {
-            return recovered;
-        }
-
+        if (authorizedSigners[recovered] || recovered == _oracleKey) return recovered;
         return address(0);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  MULTISIG VERIFICATION
-    // ═══════════════════════════════════════════════════════════
-
-    /// @notice Verify N packed ECDSA signatures (each 65 bytes, ordered by signer address ascending)
     function verifyPackedMultisig(
         bytes32 dataHash,
         bytes calldata packedSignatures
@@ -231,41 +249,108 @@ contract LuminaOracle is IOracle, Ownable {
         require(packedSignatures.length % 65 == 0, "Invalid signature length");
 
         address lastSigner = address(0);
-
         for (uint256 i = 0; i < sigCount; i++) {
             bytes calldata sig = packedSignatures[i * 65:(i + 1) * 65];
-
             address recovered = ECDSA.recover(dataHash, sig);
-
             require(authorizedSigners[recovered], "Unauthorized signer");
             require(uint160(recovered) > uint160(lastSigner), "Signatures not ordered or duplicate");
             lastSigner = recovered;
         }
-
         return true;
     }
 
-    /// @inheritdoc IOracle
     function oracleKey() external view returns (address) {
         return _oracleKey;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  V2 — EIP-712 DOMAIN-SEPARATED PROOF VERIFICATION
+    // ═══════════════════════════════════════════════════════════
+
+    /// @inheritdoc IOracleV2
+    function verifyPriceProofEIP712(
+        int256 price,
+        bytes32 asset,
+        uint256 verifiedAt,
+        bytes calldata signature
+    ) external view returns (address signer) {
+        bytes32 digest = priceProofDigest(price, asset, verifiedAt);
+        return _verifyEip712(digest, signature);
+    }
+
+    /// @inheritdoc IOracleV2
+    function verifyExploitGovProofEIP712(
+        int256 govTokenPrice,
+        int256 govTokenPrice24hAgo,
+        bytes32 protocolId,
+        uint256 verifiedAt,
+        bytes calldata signature
+    ) external view returns (address signer) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                EXPLOIT_GOV_PROOF_TYPEHASH,
+                govTokenPrice,
+                govTokenPrice24hAgo,
+                protocolId,
+                verifiedAt
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        return _verifyEip712(digest, signature);
+    }
+
+    /// @inheritdoc IOracleV2
+    function priceProofDigest(
+        int256 price,
+        bytes32 asset,
+        uint256 verifiedAt
+    ) public view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(PRICE_PROOF_TYPEHASH, price, asset, verifiedAt)
+        );
+        return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+    }
+
+    /// @inheritdoc IOracleV2
+    function exploitReceiptProofDigest(
+        bool receiptTokenDepegged,
+        bool contractPaused,
+        bytes32 protocolId,
+        uint256 verifiedAt
+    ) external view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                EXPLOIT_RECEIPT_PROOF_TYPEHASH,
+                receiptTokenDepegged,
+                contractPaused,
+                protocolId,
+                verifiedAt
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+    }
+
+    /// @dev Shared EIP-712 verification path: validates packed multisig OR
+    ///      single ECDSA against authorizedSigners + canonical oracleKey.
+    function _verifyEip712(bytes32 digest, bytes calldata signature) internal view returns (address signer) {
+        if (requiredSignatures > 1) {
+            if (verifyPackedMultisig(digest, signature)) return _oracleKey;
+            return address(0);
+        }
+
+        if (signature.length != 65) revert InvalidSignatureLength();
+
+        (address recovered, ECDSA.RecoverError err, ) = ECDSA.tryRecover(digest, signature);
+        if (err != ECDSA.RecoverError.NoError) return address(0);
+
+        if (authorizedSigners[recovered] || recovered == _oracleKey) return recovered;
+        return address(0);
     }
 
     // ═══════════════════════════════════════════════════════════
     //  ADMIN — ORACLE KEY MANAGEMENT
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * @notice Rotate the oracle signing key
-     * @dev Call this when:
-     *   - Key compromise suspected
-     *   - Planned key rotation
-     *   - Backend infrastructure change
-     *
-     *   Old signatures remain valid (stateless verification).
-     *   New quotes/proofs must be signed with the new key.
-     *
-     * @param newKey New signing key address (backend EOA)
-     */
     function setOracleKey(address newKey) external onlyOwner {
         if (newKey == address(0)) revert ZeroAddress("oracleKey");
         address oldKey = _oracleKey;
@@ -273,24 +358,20 @@ contract LuminaOracle is IOracle, Ownable {
         emit OracleKeyRotated(oldKey, newKey);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ADMIN — MULTISIG SIGNER MANAGEMENT
-    // ═══════════════════════════════════════════════════════════
-
-    function addSigner(address _signer) external onlyOwner {
-        require(_signer != address(0), "Zero address");
-        require(!authorizedSigners[_signer], "Already a signer");
-        authorizedSigners[_signer] = true;
+    function addSigner(address signer_) external onlyOwner {
+        require(signer_ != address(0), "Zero address");
+        require(!authorizedSigners[signer_], "Already a signer");
+        authorizedSigners[signer_] = true;
         totalSigners++;
-        emit SignerAdded(_signer);
+        emit SignerAdded(signer_);
     }
 
-    function removeSigner(address _signer) external onlyOwner {
-        require(authorizedSigners[_signer], "Not a signer");
+    function removeSigner(address signer_) external onlyOwner {
+        require(authorizedSigners[signer_], "Not a signer");
         require(totalSigners - 1 >= requiredSignatures, "Would break quorum");
-        authorizedSigners[_signer] = false;
+        authorizedSigners[signer_] = false;
         totalSigners--;
-        emit SignerRemoved(_signer);
+        emit SignerRemoved(signer_);
     }
 
     function setRequiredSignatures(uint256 _required) external onlyOwner {
@@ -304,76 +385,42 @@ contract LuminaOracle is IOracle, Ownable {
         return (requiredSignatures, totalSigners);
     }
 
-    function isSigner(address _addr) external view returns (bool) {
-        return authorizedSigners[_addr];
+    function isSigner(address addr_) external view returns (bool) {
+        return authorizedSigners[addr_];
     }
 
     // ═══════════════════════════════════════════════════════════
     //  ADMIN — FEED MANAGEMENT
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * @notice Register a new Chainlink price feed
-     * @param asset Asset identifier (e.g., "ETH", "BTC", "USDC")
-     * @param feed Chainlink AggregatorV3 address on Base L2
-     * @param maxStaleness Max seconds since last update before price is stale.
-     *        Typical values:
-     *          ETH/USD, BTC/USD: 1200 (20 min, Chainlink heartbeat on Base)
-     *          USDC/USD, USDT/USD, DAI/USD: 86400 (24h, stablecoin feeds update less frequently)
-     */
-    function registerFeed(
-        bytes32 asset,
-        address feed,
-        uint256 maxStaleness
-    ) external onlyOwner {
+    function registerFeed(bytes32 asset, address feed, uint256 maxStaleness) external onlyOwner {
         if (feed == address(0)) revert ZeroAddress("feed");
         if (_feeds[asset].active) revert FeedAlreadyRegistered(asset);
         if (maxStaleness == 0) revert ZeroValue("maxStaleness");
 
-        // Verify feed is alive by doing a test read
         IAggregatorV3 aggregator = IAggregatorV3(feed);
         (, int256 testPrice, , , ) = aggregator.latestRoundData();
         if (testPrice <= 0) revert InvalidPriceAsset(asset, testPrice);
 
-        _feeds[asset] = FeedConfig({
-            feed: aggregator,
-            maxStaleness: maxStaleness,
-            active: true
-        });
+        _feeds[asset] = FeedConfig({feed: aggregator, maxStaleness: maxStaleness, active: true});
         _assetIds.push(asset);
-
         emit FeedRegistered(asset, feed, maxStaleness);
     }
 
-    /**
-     * @notice Update an existing feed's config (address and/or staleness)
-     * @dev Use when Chainlink deploys new aggregator or heartbeat changes
-     */
-    function updateFeed(
-        bytes32 asset,
-        address feed,
-        uint256 maxStaleness
-    ) external onlyOwner {
+    function updateFeed(bytes32 asset, address feed, uint256 maxStaleness) external onlyOwner {
         if (!_feeds[asset].active) revert FeedNotRegistered(asset);
         if (feed == address(0)) revert ZeroAddress("feed");
         if (maxStaleness == 0) revert ZeroValue("maxStaleness");
 
-        // Test read on new feed
         IAggregatorV3 aggregator = IAggregatorV3(feed);
         (, int256 testPrice, , , ) = aggregator.latestRoundData();
         if (testPrice <= 0) revert InvalidPriceAsset(asset, testPrice);
 
         _feeds[asset].feed = aggregator;
         _feeds[asset].maxStaleness = maxStaleness;
-
         emit FeedUpdated(asset, feed, maxStaleness);
     }
 
-    /**
-     * @notice Deactivate a feed (soft delete — keeps in _assetIds for history)
-     * @dev getLatestPrice will revert for this asset after removal.
-     *      The asset remains in _assetIds. Use isFeedActive() to filter.
-     */
     function removeFeed(bytes32 asset) external onlyOwner {
         if (!_feeds[asset].active) revert FeedNotRegistered(asset);
         _feeds[asset].active = false;
@@ -384,78 +431,43 @@ contract LuminaOracle is IOracle, Ownable {
     //  VIEWS
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Get feed config for an asset
-    function getFeedConfig(bytes32 asset) external view returns (
-        address feed,
-        uint256 maxStaleness,
-        bool active
-    ) {
+    function getFeedConfig(bytes32 asset)
+        external
+        view
+        returns (address feed, uint256 maxStaleness, bool active)
+    {
         FeedConfig storage config = _feeds[asset];
         return (address(config.feed), config.maxStaleness, config.active);
     }
 
-    /// @notice Get all registered asset identifiers (includes inactive feeds).
-    /// @dev Soft-delete: removed feeds stay in this array. Filter with isFeedActive().
     function getAllAssets() external view returns (bytes32[] memory) {
         return _assetIds;
     }
 
-    /// @notice Check if a feed is registered and active
     function isFeedActive(bytes32 asset) external view returns (bool) {
         return _feeds[asset].active;
     }
 
-    /**
-     * @notice Get latest price WITH full Chainlink metadata (for off-chain consumers)
-     * @dev Unlike getLatestPrice, this returns all round data for debugging/monitoring
-     */
-    function getLatestRoundData(bytes32 asset) external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ) {
-        // [FIX M-8] Check L2 sequencer health (same as getLatestPrice)
+    function getLatestRoundData(bytes32 asset)
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
         _checkSequencer();
-
         FeedConfig storage config = _feeds[asset];
         if (!config.active) revert FeedNotRegistered(asset);
 
         (roundId, answer, startedAt, updatedAt, answeredInRound) = config.feed.latestRoundData();
-
-        // [FIX M-8] Validate price > 0
         if (answer <= 0) revert InvalidPriceAsset(asset, answer);
-
-        // [FIX M-8] Validate round completeness
-        if (answeredInRound < roundId) {
-            revert IncompleteRound(asset, roundId, answeredInRound);
-        }
-
-        // [FIX M-8] Validate staleness
+        if (answeredInRound < roundId) revert IncompleteRound(asset, roundId, answeredInRound);
         if (updatedAt > block.timestamp || block.timestamp - updatedAt > config.maxStaleness) {
             revert StalePriceAsset(asset, updatedAt, config.maxStaleness);
         }
     }
 
-    /// @notice Get sequencer uptime feed address
     function sequencerUptimeFeed() external view returns (address) {
         return address(_sequencerUptimeFeed);
     }
-
-    /**
-     * @notice Estimate sequencer downtime since a given timestamp.
-     * @dev Uses the sequencer uptime feed's `startedAt` to determine when the
-     *      sequencer last changed state. If the sequencer is currently UP and
-     *      `startedAt > sinceTimestamp`, the sequencer was down for some period.
-     *      Returns `startedAt - sinceTimestamp` as a conservative estimate.
-     *      If sequencer is currently DOWN, returns `block.timestamp - sinceTimestamp`.
-     *      Returns 0 if no downtime detected or feed not configured.
-     */
-    /// @notice [FIX N-5] Conservative downtime estimate with 2h minimum extension.
-    /// If ANY downtime is detected since sinceTimestamp, returns at least 2 hours.
-    /// This accounts for multiple shorter outages that we can't individually track on-chain.
-    uint256 public constant MIN_DOWNTIME_EXTENSION = 2 hours;
 
     function getSequencerDowntime(uint256 sinceTimestamp) external view returns (uint256 downtime) {
         if (address(_sequencerUptimeFeed) == address(0)) return 0;
@@ -464,19 +476,13 @@ contract LuminaOracle is IOracle, Ownable {
             uint80, int256 status, uint256 startedAt, uint256, uint80
         ) {
             if (status != 0) {
-                // Sequencer is currently DOWN
-                if (block.timestamp > sinceTimestamp) {
-                    return block.timestamp - sinceTimestamp;
-                }
+                if (block.timestamp > sinceTimestamp) return block.timestamp - sinceTimestamp;
                 return MIN_DOWNTIME_EXTENSION;
             }
-            // Sequencer is UP — was it down during the period?
             if (startedAt > sinceTimestamp) {
                 uint256 detected = startedAt - sinceTimestamp;
-                // [FIX N-5] Apply minimum extension to account for untracked earlier outages
                 return detected > MIN_DOWNTIME_EXTENSION ? detected : MIN_DOWNTIME_EXTENSION;
             }
-            // Sequencer has been up since before sinceTimestamp — no downtime
             return 0;
         } catch {
             return 0;
@@ -487,40 +493,19 @@ contract LuminaOracle is IOracle, Ownable {
     //  INTERNAL — L2 SEQUENCER CHECK
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * @notice [FIX] Verify L2 sequencer is up and grace period has elapsed.
-     * @dev If sequencerUptimeFeed is address(0) (testnet), skip the check.
-     *
-     *      Attack scenario without this check:
-     *        1. Sequencer goes down for 2h. ETH crashes 40% during downtime.
-     *        2. Sequencer restarts. Mempool TXs execute with STALE prices.
-     *        3. Attacker buys BSS with pre-crash strikePrice → instant profit.
-     *
-     *      With this check:
-     *        1. Sequencer restarts → getLatestPrice reverts for SEQUENCER_GRACE_PERIOD.
-     *        2. After grace, Chainlink has updated → fresh prices → safe.
-     */
     function _checkSequencer() internal view {
-        // Skip check on testnet (sequencer feed not deployed)
         if (address(_sequencerUptimeFeed) == address(0)) return;
 
         (
             /* uint80 roundId */,
             int256 status,
-            uint256 startedAt,              // [FIX R2] Use startedAt per Chainlink docs
+            uint256 startedAt,
             /* uint256 updatedAt */,
             /* uint80 answeredInRound */
         ) = _sequencerUptimeFeed.latestRoundData();
 
-        // status == 0: Sequencer is up. status == 1: Sequencer is down.
         if (status != 0) revert SequencerDown();
 
-        // [FIX R2] Ensure grace period has elapsed since sequencer state CHANGED.
-        // Chainlink recommends startedAt (when status changed to current value),
-        // NOT updatedAt (when the round was last written). If the oracle re-confirms
-        // the same status, updatedAt resets but startedAt stays fixed — using
-        // updatedAt could extend the grace block indefinitely (DoS).
-        // Underflow-safe: if startedAt > block.timestamp (L2 drift), reverts fail-closed.
         if (block.timestamp - startedAt <= SEQUENCER_GRACE_PERIOD) {
             revert SequencerGracePeriodNotOver();
         }

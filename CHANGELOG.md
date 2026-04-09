@@ -1,6 +1,20 @@
 # Changelog
 
-## [Unreleased]
+## [Unreleased] — V2 Oracle Migration
+### Added
+- **LuminaOracleV2** with EIP-712 domain-separated proof verification. The EIP-712 domain pins every proof to (`chainId = 8453`, `verifyingContract = LuminaOracleV2 address`), eliminating cross-chain and cross-contract replay vectors identified in the oracle audit.
+- **5 V2 shields** (BCS V2, EAS V2, Depeg V2, IL V2, Exploit V2) consuming the new EIP-712 verification path on LuminaOracleV2 (`verifyPriceProofEIP712` / `verifyExploitGovProofEIP712`).
+- **Relayer now signs proofs with `signTypedData`** (EIP-712 typed data) instead of raw `keccak256` digests. Proofs are auditable, hardware-wallet compatible, and bound to chain + contract by the domain separator.
+- **Circuit breakers configurable via Safe batch**: `maxPayoutsPerDay`, `largePayoutThreshold`, `largePayoutDelay` can be adjusted by the Gnosis Safe without redeploying.
+
+### Documentation fixes (honesty pass)
+- Removed false **UUPS / upgradeable** claims for `LuminaOracle` and `LuminaPhalaVerifier`. Both contracts are `Ownable` and **NOT upgradeable** — replacement requires deploying a new instance, updating `CoverRouter.setOracle()`, and redeploying every Shield that references the old oracle (`Shield.oracle` is `immutable`).
+- Removed false **TWAP** claims ("TWAP 15 min", "TWAP 30 min", "3 consecutive Chainlink rounds"). The contracts do not implement on-chain TWAP. The relayer reads Chainlink `latestRoundData` spot and signs the result via EIP-712.
+- Removed false **Phala TEE hardware attestation / "tamper-proof"** claims. `LuminaPhalaVerifier` only performs `ecrecover` against an admin-curated `authorizedWorkers` set of EOAs. There is no on-chain SGX/TDX quote verification.
+- Corrected BTC feed address in `LuminaOracle.sol` NatSpec: the old placeholder `0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F` was wrong for Base mainnet. The actually registered feed is `0xCCADC697c55bbB68dc5bCdf8d3CBe83CdD4E071E` (Chainlink BTC/USD on Base, already correctly registered on-chain and already correct in `PRODUCTION-ADDRESSES.md`).
+- Added `@dev V1 — superseded by LuminaOracleV2` notice at the top of `LuminaOracle.sol` NatSpec.
+
+## [Previous Unreleased entries]
 ### Added
 - BTCCatastropheShield (BCS): BTC -50% trigger, 7-30d, pBase 15%, maxAlloc 30%
   Deployed 2026-04-06 at `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8`, registered in CoverRouter via Safe→Timelock.

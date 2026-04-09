@@ -114,22 +114,49 @@ function clearPhaseError(phase) {
   state.phases[phase].lastErrorAt = null;
 }
 
+// Base mainnet chain id — hardcoded (do not read from provider each tick).
+// LuminaOracleV2 binds its EIP-712 domain to chainId=8453.
+const LUMINA_ORACLE_CHAIN_ID = 8453;
+
+// EIP-712 types for LuminaOracleV2 PriceProof.
+const PRICE_PROOF_TYPES = {
+  PriceProof: [
+    { name: "price",      type: "int256"  },
+    { name: "asset",      type: "bytes32" },
+    { name: "verifiedAt", type: "uint256" },
+  ],
+};
+
 // Build the standard oracle proof bytes used by BCS/EAS/DEPEG/IL/BSS shields:
 //   abi.encode(int256 verifiedPrice, bytes32 asset, uint256 verifiedAt, bytes signature)
-// signature is signed over keccak256(abi.encode(verifiedPrice, asset, verifiedAt)).
+// The signature is EIP-712 domain-separated typed-data (LuminaOracleV2 PriceProof):
+// chainId + verifyingContract are baked into the digest, preventing cross-chain
+// and cross-contract replay. The on-chain proof byte-shape is unchanged.
 async function buildPriceProof(verifiedPrice, assetBytes32, verifiedAt) {
-  const dataHash = ethers.keccak256(
-    ethers.AbiCoder.defaultAbiCoder().encode(
-      ["int256", "bytes32", "uint256"],
-      [verifiedPrice, assetBytes32, verifiedAt]
-    )
-  );
+  // EIP-712 signing for LuminaOracleV2: cross-chain and cross-contract replay are
+  // prevented by chainId + verifyingContract being part of the digest.
+  if (!state.oracle.address) {
+    throw new Error("buildPriceProof: state.oracle.address not set — relayer.start() must run first");
+  }
 
-  // Sign — prefer OWS, fall back to ORACLE_PRIVATE_KEY(s).
+  const domain = {
+    name: "LuminaOracle",
+    version: "2",
+    chainId: LUMINA_ORACLE_CHAIN_ID,
+    verifyingContract: state.oracle.address,
+  };
+  const value = {
+    price: verifiedPrice,
+    asset: assetBytes32,
+    verifiedAt,
+  };
+
+  // Sign — prefer OWS (typed-data path), fall back to local ORACLE_PRIVATE_KEY(s).
   // Multi-sig packed signatures are concatenated in ascending signer-address order.
   let signature = null;
-  if (_ctx.owsSigner && typeof _ctx.owsSigner.signDigest === "function") {
-    try { signature = await _ctx.owsSigner.signDigest(dataHash); } catch { /* fall through */ }
+  if (_ctx.owsSigner && typeof _ctx.owsSigner.signTypedData === "function") {
+    try { signature = await _ctx.owsSigner.signTypedData(domain, PRICE_PROOF_TYPES, value); }
+    catch { /* fall through to local signing */ }
   }
   if (!signature) {
     const keys = [process.env.ORACLE_PRIVATE_KEY, process.env.ORACLE_PRIVATE_KEY_2].filter(Boolean);
@@ -139,7 +166,8 @@ async function buildPriceProof(verifiedPrice, assetBytes32, verifiedAt) {
     wallets.sort((a, b) => (BigInt(a.address) < BigInt(b.address) ? -1 : 1));
     const sigs = [];
     for (const w of wallets) {
-      const sig = w.signingKey.sign(dataHash).serialized;
+      // ethers v6: Wallet.signTypedData(domain, types, value)
+      const sig = await w.signTypedData(domain, PRICE_PROOF_TYPES, value);
       sigs.push(sig);
     }
     signature = sigs[0];
