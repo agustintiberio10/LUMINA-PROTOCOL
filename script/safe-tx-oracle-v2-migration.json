@@ -4,23 +4,24 @@
   "createdAt": 1775865600000,
   "meta": {
     "name": "Lumina — Oracle V2 migration: swap 5 shields to V2 + circuit breakers",
-    "description": "Lumina V2 Oracle migration — swap 5 shields to V2 + configure circuit breakers. PLACEHOLDERS: replace `<BCSv2_ADDRESS>`, `<EASv2_ADDRESS>`, `<DEPEGv2_ADDRESS>`, `<ILv2_ADDRESS>`, and `<EXPLOITv2_ADDRESS>` with the addresses printed by `forge script script/DeployOracleV2Batch.s.sol:DeployOracleV2Batch` before signing. Every `data` field in this file is an all-zero PLACEHOLDER on purpose — the signing operator MUST regenerate the real calldata inside the Gnosis Safe Transaction Builder UI using the `contractMethod`/`contractInputsValues` hints on each entry, or by hand-encoding the function signatures listed in each `_comment`. The 5 updateProductShield calls re-point existing productIds from their V1 shields (which read from the legacy LuminaOracle) to the freshly-deployed V2 shields (which read from LuminaOracleV2). The final 3 calls arm the CoverRouter circuit breaker: cap total payouts/day at 10, mark any single payout ≥ $50,000 (USDC 6-decimals) as 'large', and require a 24h delay on those large payouts. Target of every tx in this file is the CoverRouter proxy at 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025. CoverRouter is owned by the TimelockController (0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a); if minDelay > 0 the Safe must wrap these calls in scheduleBatch/executeBatch just like safe-tx-upgrade-router-register-3-products-via-timelock.json. Function selectors verified against src/core/CoverRouter.sol: updateProductShield(bytes32,address) @ line 518, setLargePayoutThreshold(uint256) @ 589, setLargePayoutDelay(uint256) @ 590, setMaxPayoutsPerDay(uint256) @ 594.",
+    "description": "Lumina V2 Oracle migration — swap 5 shields to V2 + configure circuit breakers. READY TO SIGN: deployed addresses are baked in and every `data` field is the real, ABI-encoded calldata generated via `cast calldata`. The 5 updateProductShield calls re-point existing productIds from their V1 shields (which read from the legacy LuminaOracle) to the V2 shields deployed by DeployOracleV2Batch.s.sol on Base mainnet (which read from LuminaOracleV2). The final 3 calls arm the CoverRouter circuit breaker: cap total payouts/day at 10, mark any single payout ≥ $50,000 (USDC 6-decimals) as 'large', and require a 24h delay on those large payouts. Target of every tx in this file is the CoverRouter proxy at 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025. CoverRouter is owned by the TimelockController (0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a); if minDelay > 0 the Safe must wrap these calls in scheduleBatch/executeBatch just like safe-tx-upgrade-router-register-3-products-via-timelock.json. Function selectors verified against src/core/CoverRouter.sol: updateProductShield(bytes32,address) @ line 518, setLargePayoutThreshold(uint256) @ 589, setLargePayoutDelay(uint256) @ 590, setMaxPayoutsPerDay(uint256) @ 594.",
     "txBuilderVersion": "1.16.5",
     "createdFromSafeAddress": "0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD",
     "createdFromOwnerAddress": "",
     "checksum": "",
     "timelockAddress": "0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a",
     "coverRouterAddress": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
-    "placeholders": {
-      "<BCSv2_ADDRESS>": "broadcast output: BTCCatastropheShieldV2",
-      "<EASv2_ADDRESS>": "broadcast output: ETHApocalypseShieldV2",
-      "<DEPEGv2_ADDRESS>": "broadcast output: DepegShieldV2",
-      "<ILv2_ADDRESS>": "broadcast output: ILIndexCoverV2 (TODO: V2 contract not yet written)",
-      "<EXPLOITv2_ADDRESS>": "broadcast output: ExploitShieldV2 (TODO: V2 contract not yet written)"
+    "deployedAddresses": {
+      "LuminaOracleV2": "0x87B576f688bE0E1d7d23A299f55b475658215105",
+      "BTCCatastropheShieldV2": "0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21",
+      "ETHApocalypseShieldV2": "0x70f1c92EFcFe55e8d460aAa6d626779536b15128",
+      "DepegShieldV2": "0x881f683291122c3A72bdD504F71ddCAf47d9AE0e",
+      "ILIndexCoverV2": "0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a",
+      "ExploitShieldV2": "0x63D340AE7229BB464bC801f225651341ebcD3693"
     },
     "productIdHashes": {
-      "BTCCAT-001": "keccak256('BTCCAT-001') — compute via `cast keccak BTCCAT-001`",
-      "ETHAPOC-001": "keccak256('ETHAPOC-001') — compute via `cast keccak ETHAPOC-001`",
+      "BTCCAT-001": "0x26933c71268d75599d65cc1b8689b5b3e2b410538d43e93922eaf522945deb0f",
+      "ETHAPOC-001": "0xac3e70a717672f51eacc71847cde7b874ee16eedfe97bf8ac6da3faebab8c70e",
       "DEPEG-STABLE-001": "0x69b16b3a179caf29f34647863b0cfc5ce5f99099f0293a360fba1ffacde3b0b8",
       "ILPROT-001": "0x50ecf07837692ab2f6a0e42d75cc138b9434e565ec05f237c71913635f587fb4",
       "EXPLOIT-001": "0x7f0eaae48c946e791c889b5c394c39018598b2bfa392aa8825a7f0ee88240dd1"
@@ -30,7 +31,7 @@
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x00",
+      "data": "0x58fc4c8d26933c71268d75599d65cc1b8689b5b3e2b410538d43e93922eaf522945deb0f0000000000000000000000006e0a46b268e4ad9648cdabd9a4b2b20b79e5ab21",
       "contractMethod": {
         "name": "updateProductShield",
         "inputs": [
@@ -40,15 +41,15 @@
         "payable": false
       },
       "contractInputsValues": {
-        "productId": "keccak256('BTCCAT-001')",
-        "newShield": "<BCSv2_ADDRESS>"
+        "productId": "0x26933c71268d75599d65cc1b8689b5b3e2b410538d43e93922eaf522945deb0f",
+        "newShield": "0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21"
       },
-      "_comment": "CoverRouter.updateProductShield(keccak256('BTCCAT-001'), <BCSv2_ADDRESS>) — repoint BTC Catastrophe Shield to V2. PLACEHOLDER: fill <BCSv2_ADDRESS> from DeployOracleV2Batch.s.sol broadcast (BTCCatastropheShieldV2) and regenerate calldata in Safe Tx Builder."
+      "_comment": "CoverRouter.updateProductShield(keccak256('BTCCAT-001'), BTCCatastropheShieldV2) — repoint BTC Catastrophe Shield to V2."
     },
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x00",
+      "data": "0x58fc4c8dac3e70a717672f51eacc71847cde7b874ee16eedfe97bf8ac6da3faebab8c70e00000000000000000000000070f1c92efcfe55e8d460aaa6d626779536b15128",
       "contractMethod": {
         "name": "updateProductShield",
         "inputs": [
@@ -58,15 +59,15 @@
         "payable": false
       },
       "contractInputsValues": {
-        "productId": "keccak256('ETHAPOC-001')",
-        "newShield": "<EASv2_ADDRESS>"
+        "productId": "0xac3e70a717672f51eacc71847cde7b874ee16eedfe97bf8ac6da3faebab8c70e",
+        "newShield": "0x70f1c92EFcFe55e8d460aAa6d626779536b15128"
       },
-      "_comment": "CoverRouter.updateProductShield(keccak256('ETHAPOC-001'), <EASv2_ADDRESS>) — repoint ETH Apocalypse Shield to V2. PLACEHOLDER: fill <EASv2_ADDRESS> from DeployOracleV2Batch.s.sol broadcast (ETHApocalypseShieldV2) and regenerate calldata in Safe Tx Builder."
+      "_comment": "CoverRouter.updateProductShield(keccak256('ETHAPOC-001'), ETHApocalypseShieldV2) — repoint ETH Apocalypse Shield to V2."
     },
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x00",
+      "data": "0x58fc4c8d69b16b3a179caf29f34647863b0cfc5ce5f99099f0293a360fba1ffacde3b0b8000000000000000000000000881f683291122c3a72bdd504f71ddcaf47d9ae0e",
       "contractMethod": {
         "name": "updateProductShield",
         "inputs": [
@@ -77,14 +78,14 @@
       },
       "contractInputsValues": {
         "productId": "0x69b16b3a179caf29f34647863b0cfc5ce5f99099f0293a360fba1ffacde3b0b8",
-        "newShield": "<DEPEGv2_ADDRESS>"
+        "newShield": "0x881f683291122c3A72bdD504F71ddCAf47d9AE0e"
       },
-      "_comment": "CoverRouter.updateProductShield(keccak256('DEPEG-STABLE-001') = 0x69b16b3a179caf29f34647863b0cfc5ce5f99099f0293a360fba1ffacde3b0b8, <DEPEGv2_ADDRESS>) — repoint Depeg Shield to V2. PLACEHOLDER: fill <DEPEGv2_ADDRESS> from DeployOracleV2Batch.s.sol broadcast (DepegShieldV2) and regenerate calldata in Safe Tx Builder."
+      "_comment": "CoverRouter.updateProductShield(keccak256('DEPEG-STABLE-001'), DepegShieldV2) — repoint Depeg Shield to V2."
     },
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x00",
+      "data": "0x58fc4c8d50ecf07837692ab2f6a0e42d75cc138b9434e565ec05f237c71913635f587fb400000000000000000000000001df7f2953dce5be3affb72cb9f059f3d3ee9e5a",
       "contractMethod": {
         "name": "updateProductShield",
         "inputs": [
@@ -95,14 +96,14 @@
       },
       "contractInputsValues": {
         "productId": "0x50ecf07837692ab2f6a0e42d75cc138b9434e565ec05f237c71913635f587fb4",
-        "newShield": "<ILv2_ADDRESS>"
+        "newShield": "0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a"
       },
-      "_comment": "CoverRouter.updateProductShield(keccak256('ILPROT-001') = 0x50ecf07837692ab2f6a0e42d75cc138b9434e565ec05f237c71913635f587fb4, <ILv2_ADDRESS>) — repoint IL Index Cover to V2. PLACEHOLDER: fill <ILv2_ADDRESS> from DeployOracleV2Batch.s.sol broadcast. TODO: ILIndexCoverV2.sol does not yet exist in src/products/ — write the V2 contract before running the deploy script and this entry."
+      "_comment": "CoverRouter.updateProductShield(keccak256('ILPROT-001'), ILIndexCoverV2) — repoint IL Index Cover to V2."
     },
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x00",
+      "data": "0x58fc4c8d7f0eaae48c946e791c889b5c394c39018598b2bfa392aa8825a7f0ee88240dd100000000000000000000000063d340ae7229bb464bc801f225651341ebcd3693",
       "contractMethod": {
         "name": "updateProductShield",
         "inputs": [
@@ -113,14 +114,14 @@
       },
       "contractInputsValues": {
         "productId": "0x7f0eaae48c946e791c889b5c394c39018598b2bfa392aa8825a7f0ee88240dd1",
-        "newShield": "<EXPLOITv2_ADDRESS>"
+        "newShield": "0x63D340AE7229BB464bC801f225651341ebcD3693"
       },
-      "_comment": "CoverRouter.updateProductShield(keccak256('EXPLOIT-001') = 0x7f0eaae48c946e791c889b5c394c39018598b2bfa392aa8825a7f0ee88240dd1, <EXPLOITv2_ADDRESS>) — repoint Exploit Shield to V2. PLACEHOLDER: fill <EXPLOITv2_ADDRESS> from DeployOracleV2Batch.s.sol broadcast. TODO: ExploitShieldV2.sol does not yet exist in src/products/ — write the V2 contract (mirror V1 signature: router, oracle, phalaVerifier, aavePool) before running the deploy script and this entry."
+      "_comment": "CoverRouter.updateProductShield(keccak256('EXPLOIT-001'), ExploitShieldV2) — repoint Exploit Shield to V2."
     },
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x00",
+      "data": "0xf77e2fdf000000000000000000000000000000000000000000000000000000000000000a",
       "contractMethod": {
         "name": "setMaxPayoutsPerDay",
         "inputs": [{ "name": "_max", "type": "uint256" }],
@@ -134,7 +135,7 @@
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x00",
+      "data": "0x48c3ab010000000000000000000000000000000000000000000000000000000ba43b7400",
       "contractMethod": {
         "name": "setLargePayoutThreshold",
         "inputs": [{ "name": "_threshold", "type": "uint256" }],
@@ -148,7 +149,7 @@
     {
       "to": "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",
       "value": "0",
-      "data": "0x00",
+      "data": "0xb7c08d150000000000000000000000000000000000000000000000000000000000015180",
       "contractMethod": {
         "name": "setLargePayoutDelay",
         "inputs": [{ "name": "_delay", "type": "uint256" }],
