@@ -60,16 +60,29 @@
 - Oracle: Multisig-ready (1-of-1, expandable to N-of-M)
 - Ownership: TimelockController (48h delay) via Gnosis Safe (2-of-3)
 
-## V2 Oracle Migration (pending deployment)
+## V2 Oracle Migration (DEPLOYED 2026-04-09)
 
-- LuminaOracleV2: `<TBD — deploy via DeployOracleV2Batch.s.sol>`
-- BTCCatastropheShieldV2: TBD
-- ETHApocalypseShieldV2: TBD
-- DepegShieldV2: TBD
-- ILIndexCoverV2: TBD
-- ExploitShieldV2: TBD
+All V2 contracts are live on Base mainnet. The Safe batch `safe-tx-oracle-v2-via-timelock.json` was executed to swap all 5 productId→shield mappings and set circuit breakers. `safe-tx-coverrouter-set-oracle-v2.json` was executed to point CoverRouter.oracle() to LuminaOracleV2.
 
-After deployment, update via Safe batch `safe-tx-oracle-v2-migration.json` which calls `CoverRouter.updateProductShield` for all 5 products + sets circuit breakers.
+- LuminaOracleV2: `0x87B576f688bE0E1d7d23A299f55b475658215105` (owner: TimelockController)
+- BTCCatastropheShieldV2: `0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21`
+- ETHApocalypseShieldV2: `0x70f1c92EFcFe55e8d460aAa6d626779536b15128`
+- DepegShieldV2: `0x881f683291122c3A72bdD504F71ddCAf47d9AE0e`
+- ILIndexCoverV2: `0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a`
+- ExploitShieldV2: `0x63D340AE7229BB464bC801f225651341ebcD3693`
+
+Circuit breakers (set via Safe batch):
+- maxPayoutsPerDay: 10
+- largePayoutThreshold: 50,000 USDC ($50K, 6 decimals = 50000000000)
+- largePayoutDelay: 86400 seconds (24h)
+
+V1 shields (DEPRECATED — no longer registered in CoverRouter):
+- BTCCatastropheShield V1: `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8`
+- ETHApocalypseShield V1: `0xA755D134a0b2758E9b397E11E7132a243f672A3D`
+- DepegShield V1: `0x7578816a803d293bbb4dbea0efbed872842679d0`
+- ILIndexCover V1: `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93`
+- ExploitShield V1: `0x9870830c615d1b9c53dfee4136c4792de395b7a1`
+- LuminaOracle V1: `0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87` (deprecated — replaced by LuminaOracleV2)
 
 Design notes:
 - LuminaOracleV2 adds EIP-712 domain-separated proof verification. The domain pins each claim proof to (chainId 8453, the LuminaOracleV2 contract address) preventing cross-chain and cross-contract replay.

@@ -169,17 +169,26 @@ You have two options.
 
    The wallet calling this transaction must equal `signedQuote.buyer`.
 
-### Option B — Use the API relayer
+### Option B — Use the API relayer (simpler, no gas needed)
 
 ```http
 POST /api/v2/purchase
 Content-Type: application/json
 X-API-Key: <key created via /api/v2/keys/create>
 
-{ "signedQuote": {...}, "signature": "0x..." }
+{ "productId": "BTCCAT-001", "coverageAmount": 1000000000, "durationSeconds": 1209600 }
 ```
 
-The API relayer pays the gas and submits `purchasePolicyFor` for you.
+The API relayer generates its own signed quote internally, pays the gas, and
+submits `purchasePolicyFor` for you. You do NOT need to pass the `signedQuote`
+or `signature` from `/quote` — the relayer produces a fresh one. You only need
+your API key, the product ID, the coverage amount (USDC 6 decimals), and the
+duration in seconds.
+
+**Note:** Your wallet must have sufficient USDC balance AND must have approved
+the CoverRouter (`0xd5f8678A0F2149B6342F9014CCe6d743234Ca025`) for at least
+`premiumAmount` before calling `/purchase`. Check the `/quote` response to see
+the exact premium.
 
 ---
 

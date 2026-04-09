@@ -76,11 +76,11 @@ const VAULTS = {
 
 const SHIELDS = {
   BSS:     process.env.SHIELD_BSS     || "0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e", // DEPRECATED — registered in CoverRouter
-  DEPEG:   process.env.SHIELD_DEPEG   || "0x7578816a803d293bbb4dbea0efbed872842679d0",
-  IL_INDEX:process.env.SHIELD_IL      || "0x2ac0d2a9889a8a4143727a0240de3fed4650dd93",
-  EXPLOIT: process.env.SHIELD_EXPLOIT || "0x9870830c615d1b9c53dfee4136c4792de395b7a1",
-  BCS:     process.env.SHIELD_BCS     || "0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8",
-  EAS:     process.env.SHIELD_EAS     || "0xA755D134a0b2758E9b397E11E7132a243f672A3D",
+  DEPEG:   process.env.SHIELD_DEPEG   || "0x881f683291122c3A72bdD504F71ddCAf47d9AE0e",
+  IL_INDEX:process.env.SHIELD_IL      || "0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a",
+  EXPLOIT: process.env.SHIELD_EXPLOIT || "0x63D340AE7229BB464bC801f225651341ebcD3693",
+  BCS:     process.env.SHIELD_BCS     || "0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21",
+  EAS:     process.env.SHIELD_EAS     || "0x70f1c92EFcFe55e8d460aAa6d626779536b15128",
 };
 
 // Product IDs (keccak256 of product name)
