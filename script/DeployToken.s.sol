@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 import "../src/token/LuminaToken.sol";
 import "../src/token/AltSeasonVesting.sol";
 import "../src/token/LuminaPriceOracle.sol";
+import "../src/token/LuminaMerkleClaim.sol";
 
 contract DeployToken is Script {
     // Base mainnet addresses
@@ -59,14 +60,24 @@ contract DeployToken is Script {
         // Step 3: Deploy PriceOracle
         LuminaPriceOracle priceOracle = new LuminaPriceOracle(40000); // $0.04 initial
 
-        // Step 4: Transfer ownership to TimelockController
+        // Step 4: Deploy MerkleClaim contracts for Seed and Strategic
+        LuminaMerkleClaim seedClaim = new LuminaMerkleClaim(address(token));
+        LuminaMerkleClaim strategicClaim = new LuminaMerkleClaim(address(token));
+
+        // Point vesting index 0 (Seed) and 1 (Strategic) to claim contracts
+        vesting.updateRecipient(0, address(seedClaim));
+        vesting.updateRecipient(1, address(strategicClaim));
+
+        // Step 5: Transfer ownership to TimelockController
         // Token: grant admin to timelock, revoke from deployer
         token.grantRole(token.DEFAULT_ADMIN_ROLE(), TIMELOCK);
         token.renounceRole(token.DEFAULT_ADMIN_ROLE(), deployer);
 
-        // Vesting + Oracle: transfer ownership to timelock
+        // Vesting + Oracle + Claims: transfer ownership to timelock
         vesting.transferOwnership(TIMELOCK);
         priceOracle.transferOwnership(TIMELOCK);
+        seedClaim.transferOwnership(TIMELOCK);
+        strategicClaim.transferOwnership(TIMELOCK);
 
         vm.stopBroadcast();
 
@@ -79,9 +90,11 @@ contract DeployToken is Script {
         require(priceOracle.owner() == TIMELOCK, "Oracle owner not timelock");
 
         console.log("=== LUMINA TOKEN DEPLOYMENT SUCCESSFUL ===");
-        console.log("Token:       ", address(token));
-        console.log("Vesting:     ", address(vesting));
-        console.log("PriceOracle: ", address(priceOracle));
+        console.log("Token:         ", address(token));
+        console.log("Vesting:       ", address(vesting));
+        console.log("PriceOracle:   ", address(priceOracle));
+        console.log("SeedClaim:     ", address(seedClaim));
+        console.log("StrategicClaim:", address(strategicClaim));
         console.log("Owner:       ", TIMELOCK);
     }
 
