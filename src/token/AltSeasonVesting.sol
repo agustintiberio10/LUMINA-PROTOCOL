@@ -14,12 +14,14 @@ contract AltSeasonVesting is Ownable {
     uint256 public constant SUSTAINED_DURATION = 7 days;
     uint256 public constant TRANCHE_INTERVAL = 31 days;
     uint256 public constant TOTAL_TRANCHES = 3;
+    uint256 public constant FALLBACK_DURATION = 1460 days;
 
     // ═══════ IMMUTABLES ═══════
     ILuminaOracle public immutable oracle;
     address public immutable aavePool;
     IERC20 public immutable luminaToken;
     address public immutable usdc;
+    uint256 public immutable deployedAt;
 
     // ═══════ STATE ═══════
     uint256 public conditionsMetSince;
@@ -42,6 +44,7 @@ contract AltSeasonVesting is Ownable {
     event AltSeasonTriggered(uint256 timestamp);
     event TrancheReleased(uint256 trancheNumber, uint256 totalReleased);
     event RecipientUpdated(uint256 indexed index, address oldRecipient, address newRecipient);
+    event FallbackTriggered(uint256 timestamp, uint256 fallbackDeadline);
 
     constructor(
         address _oracle,
@@ -58,6 +61,7 @@ contract AltSeasonVesting is Ownable {
         aavePool = _aavePool;
         luminaToken = IERC20(_luminaToken);
         usdc = _usdc;
+        deployedAt = block.timestamp;
 
         uint256 total;
         for (uint256 i = 0; i < _recipients.length; i++) {
@@ -94,6 +98,18 @@ contract AltSeasonVesting is Ownable {
             }
             conditionsMetSince = 0;
         }
+    }
+
+    // ═══════ triggerFallback() ═══════
+
+    function triggerFallback() external {
+        require(!altSeasonTriggered, "Alt season already triggered");
+        require(block.timestamp >= deployedAt + FALLBACK_DURATION, "Fallback not reached");
+
+        altSeasonTriggered = true;
+        triggerTimestamp = block.timestamp;
+
+        emit FallbackTriggered(block.timestamp, deployedAt + FALLBACK_DURATION);
     }
 
     // ═══════ releaseTranche() ═══════
@@ -163,13 +179,15 @@ contract AltSeasonVesting is Ownable {
             uint256 _triggerTimestamp,
             uint256 _tranchesReleased,
             uint256 _conditionsMetSince,
-            uint256 nextReleaseAt
+            uint256 nextReleaseAt,
+            uint256 fallbackAt
         )
     {
         triggered = altSeasonTriggered;
         _triggerTimestamp = triggerTimestamp;
         _tranchesReleased = tranchesReleased;
         _conditionsMetSince = conditionsMetSince;
+        fallbackAt = deployedAt + FALLBACK_DURATION;
         if (altSeasonTriggered && tranchesReleased < TOTAL_TRANCHES) {
             nextReleaseAt = triggerTimestamp + (tranchesReleased * TRANCHE_INTERVAL);
         }

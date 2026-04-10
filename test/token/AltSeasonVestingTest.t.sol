@@ -427,6 +427,86 @@ contract AltSeasonVestingTest is Test {
         assertEq(token.balanceOf(recipients[0]), 0);
     }
 
+    // ═══════ Fallback (4 years) ═══════
+
+    function test_fallback_not_available_before_4years() public {
+        vm.expectRevert("Fallback not reached");
+        vesting.triggerFallback();
+    }
+
+    function test_fallback_available_after_4years() public {
+        vm.warp(block.timestamp + 1460 days);
+        vesting.triggerFallback();
+        assertTrue(vesting.altSeasonTriggered());
+        assertEq(vesting.triggerTimestamp(), block.timestamp);
+    }
+
+    function test_fallback_then_release_works() public {
+        vm.warp(block.timestamp + 1460 days);
+        vesting.triggerFallback();
+        uint256 trigger = vesting.triggerTimestamp();
+
+        // Tranche 0
+        vesting.releaseTranche();
+        assertEq(vesting.tranchesReleased(), 1);
+
+        // Tranche 1
+        vm.warp(trigger + 31 days);
+        vesting.releaseTranche();
+        assertEq(vesting.tranchesReleased(), 2);
+
+        // Tranche 2
+        vm.warp(trigger + 62 days);
+        vesting.releaseTranche();
+        assertEq(vesting.tranchesReleased(), 3);
+
+        // All tokens released
+        assertEq(token.balanceOf(address(vesting)), 0);
+        for (uint256 i = 0; i < 7; i++) {
+            (, uint256 totalAmount, uint256 released) = vesting.getAllocation(i);
+            assertEq(released, totalAmount);
+        }
+    }
+
+    function test_fallback_blocked_if_already_triggered_by_oracle() public {
+        _triggerAltSeason();
+        assertTrue(vesting.altSeasonTriggered());
+
+        vm.warp(block.timestamp + 1460 days);
+        vm.expectRevert("Alt season already triggered");
+        vesting.triggerFallback();
+    }
+
+    function test_alt_season_triggers_before_fallback() public {
+        // Alt season triggers at year 2
+        vm.warp(block.timestamp + 730 days);
+        _set2of3Active();
+        vesting.checkAltSeason();
+        vm.warp(block.timestamp + 7 days);
+        vesting.checkAltSeason();
+        assertTrue(vesting.altSeasonTriggered());
+
+        // Warp to year 4
+        vm.warp(block.timestamp + 730 days);
+        vm.expectRevert("Alt season already triggered");
+        vesting.triggerFallback();
+    }
+
+    function test_deployedAt_is_correct() public {
+        assertEq(vesting.deployedAt(), block.timestamp);
+    }
+
+    function test_fallback_duration_is_constant() public {
+        assertEq(vesting.FALLBACK_DURATION(), 1460 days);
+        assertEq(vesting.FALLBACK_DURATION(), 126_144_000);
+    }
+
+    function test_getStatus_includes_fallbackAt() public {
+        (,,,,, uint256 fallbackAt) = vesting.getStatus();
+        assertEq(fallbackAt, vesting.deployedAt() + vesting.FALLBACK_DURATION());
+        assertGt(fallbackAt, block.timestamp);
+    }
+
     // ═══════ DoS Resistance ═══════
 
     function test_checkAltSeason_oracle_reverts() public {

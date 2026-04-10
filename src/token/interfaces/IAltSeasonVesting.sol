@@ -5,8 +5,11 @@ interface IAltSeasonVesting {
     function altSeasonTriggered() external view returns (bool);
     function triggerTimestamp() external view returns (uint256);
     function tranchesReleased() external view returns (uint256);
+    function deployedAt() external view returns (uint256);
+    function FALLBACK_DURATION() external view returns (uint256);
     function getConditions() external view returns (bool condA, bool condB, bool condC);
-    function getStatus() external view returns (bool, uint256, uint256, uint256, uint256);
+    function getStatus() external view returns (bool, uint256, uint256, uint256, uint256, uint256);
     function checkAltSeason() external;
     function releaseTranche() external;
+    function triggerFallback() external;
 }
