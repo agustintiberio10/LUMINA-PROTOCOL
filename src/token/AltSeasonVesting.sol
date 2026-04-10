@@ -52,7 +52,7 @@ contract AltSeasonVesting is Ownable {
         uint256[] memory _amounts
     ) Ownable(msg.sender) {
         require(_recipients.length == _amounts.length, "Length mismatch");
-        require(_recipients.length == 8, "Must have 8 allocations");
+        require(_recipients.length == 7, "Must have 7 allocations");
 
         oracle = ILuminaOracle(_oracle);
         aavePool = _aavePool;

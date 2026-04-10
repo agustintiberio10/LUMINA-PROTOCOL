@@ -73,8 +73,8 @@ contract AltSeasonVestingTest is Test {
         oracle.setPrice(bytes32("BTC"), 5_000_000_000_000); // $50000 (8 dec)
         aavePool.setBorrowRate(3e25); // 3% APY
 
-        recipients = new address[](8);
-        amounts = new uint256[](8);
+        recipients = new address[](7);
+        amounts = new uint256[](7);
 
         recipients[0] = makeAddr("seed");
         recipients[1] = makeAddr("strategic");
@@ -83,16 +83,14 @@ contract AltSeasonVestingTest is Test {
         recipients[4] = makeAddr("founder2");
         recipients[5] = makeAddr("ecosystem");
         recipients[6] = makeAddr("devs");
-        recipients[7] = makeAddr("exchangeAlt");
 
         amounts[0] = 10_000_000 * 1e18; // Seed
         amounts[1] = 10_000_000 * 1e18; // Strategic
         amounts[2] = 10_000_000 * 1e18; // Community
         amounts[3] = 7_500_000 * 1e18;  // Founder 1
         amounts[4] = 7_500_000 * 1e18;  // Founder 2
-        amounts[5] = 10_000_000 * 1e18; // Ecosystem
+        amounts[5] = 15_000_000 * 1e18; // Ecosystem
         amounts[6] = 5_000_000 * 1e18;  // Devs
-        amounts[7] = 5_000_000 * 1e18;  // Exchange alt
 
         // Deploy vesting first to know address, then deploy token
         // We need to predict the vesting address or deploy in order
@@ -118,13 +116,13 @@ contract AltSeasonVestingTest is Test {
         assertFalse(vesting.altSeasonTriggered());
         assertEq(vesting.tranchesReleased(), 0);
         assertEq(vesting.conditionsMetSince(), 0);
-        assertEq(vesting.getAllocationsCount(), 8);
+        assertEq(vesting.getAllocationsCount(), 7);
         assertEq(token.balanceOf(address(vesting)), 65_000_000 * 1e18);
     }
 
     function test_constructor_validates_65M() public {
-        uint256[] memory badAmounts = new uint256[](8);
-        for (uint256 i = 0; i < 8; i++) badAmounts[i] = 1e18;
+        uint256[] memory badAmounts = new uint256[](7);
+        for (uint256 i = 0; i < 7; i++) badAmounts[i] = 1e18;
 
         vm.expectRevert("Must be 65M total");
         new AltSeasonVesting(address(oracle), address(aavePool), address(token), usdc, recipients, badAmounts);
@@ -138,7 +136,7 @@ contract AltSeasonVestingTest is Test {
         shortAmounts[0] = 1e18;
         shortAmounts[1] = 1e18;
 
-        vm.expectRevert("Must have 8 allocations");
+        vm.expectRevert("Must have 7 allocations");
         new AltSeasonVesting(address(oracle), address(aavePool), address(token), usdc, shortRecipients, shortAmounts);
     }
 
@@ -282,7 +280,7 @@ contract AltSeasonVestingTest is Test {
         assertEq(token.balanceOf(address(vesting)), 0);
 
         // Verify each allocation fully released
-        for (uint256 i = 0; i < 8; i++) {
+        for (uint256 i = 0; i < 7; i++) {
             (address recipient, uint256 totalAmount, uint256 released) = vesting.getAllocation(i);
             assertEq(released, totalAmount);
             assertEq(token.balanceOf(recipient), totalAmount);
@@ -298,7 +296,7 @@ contract AltSeasonVestingTest is Test {
     function test_remainder_handling() public {
         _releaseAll3Tranches();
 
-        for (uint256 i = 0; i < 8; i++) {
+        for (uint256 i = 0; i < 7; i++) {
             (, uint256 totalAmount, uint256 released) = vesting.getAllocation(i);
             assertEq(released, totalAmount, "Released must equal totalAmount");
         }
@@ -327,7 +325,7 @@ contract AltSeasonVestingTest is Test {
 
     function test_amounts_are_immutable() public {
         // Verify no setter for totalAmount — checked by ensuring the struct field is correct
-        for (uint256 i = 0; i < 8; i++) {
+        for (uint256 i = 0; i < 7; i++) {
             (, uint256 totalAmount,) = vesting.getAllocation(i);
             assertEq(totalAmount, amounts[i]);
         }
