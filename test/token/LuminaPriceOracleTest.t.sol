@@ -66,6 +66,17 @@ contract LuminaPriceOracleTest is Test {
         oracle.enableTwap(makeAddr("pool"), true);
     }
 
+    function test_set_manual_price_too_high_reverts() public {
+        vm.expectRevert("Price too high");
+        oracle.setManualPrice(1_000_000_001); // > $1000
+    }
+
+    function test_revert_to_manual_too_high_reverts() public {
+        oracle.enableTwap(makeAddr("pool"), true);
+        vm.expectRevert("Price too high");
+        oracle.revertToManual(1_000_000_001);
+    }
+
     function test_twap_interval_bounds() public {
         vm.expectRevert("5min to 2h");
         oracle.setTwapInterval(200);

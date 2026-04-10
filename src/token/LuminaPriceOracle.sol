@@ -48,6 +48,7 @@ contract LuminaPriceOracle is Ownable {
     function setManualPrice(uint256 _price) external onlyOwner {
         require(useManualPrice, "TWAP mode active, cannot set manual");
         require(_price > 0, "Price must be > 0");
+        require(_price <= 1_000_000_000, "Price too high"); // Max $1000 per LUMINA (6 dec)
         manualPrice = _price;
         emit ManualPriceUpdated(_price);
     }
@@ -71,6 +72,7 @@ contract LuminaPriceOracle is Ownable {
 
     function revertToManual(uint256 _price) external onlyOwner {
         require(_price > 0, "Price must be > 0");
+        require(_price <= 1_000_000_000, "Price too high");
         useManualPrice = true;
         manualPrice = _price;
         emit RevertedToManual(_price);

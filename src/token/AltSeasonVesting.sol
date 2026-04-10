@@ -142,11 +142,17 @@ contract AltSeasonVesting is Ownable {
     }
 
     function getConditionValues() external view returns (uint256 ethBtcRatio, int256 ethPrice, uint256 borrowRate) {
-        int256 _ethPrice = oracle.getLatestPrice(bytes32("ETH"));
-        int256 btcPrice = oracle.getLatestPrice(bytes32("BTC"));
-        ethBtcRatio = uint256(_ethPrice) * 1e18 / uint256(btcPrice);
-        ethPrice = _ethPrice;
-        borrowRate = _getAaveBorrowRate();
+        try oracle.getLatestPrice(bytes32("ETH")) returns (int256 _ethPrice) {
+            ethPrice = _ethPrice;
+            try oracle.getLatestPrice(bytes32("BTC")) returns (int256 btcPrice) {
+                if (_ethPrice > 0 && btcPrice > 0) {
+                    ethBtcRatio = uint256(_ethPrice) * 1e18 / uint256(btcPrice);
+                }
+            } catch {}
+        } catch {}
+        try this.getAaveBorrowRate() returns (uint256 _borrowRate) {
+            borrowRate = _borrowRate;
+        } catch {}
     }
 
     function getStatus()
@@ -182,22 +188,32 @@ contract AltSeasonVesting is Ownable {
         return allocations.length;
     }
 
+    // ═══════ EXTERNAL HELPER (for try/catch) ═══════
+
+    function getAaveBorrowRate() external view returns (uint256) {
+        return _getAaveBorrowRate();
+    }
+
     // ═══════ INTERNAL ═══════
 
     function _evaluateConditions() internal view returns (bool condA, bool condB, bool condC) {
-        // Condition A: ETH/BTC > 0.050
-        int256 ethPrice = oracle.getLatestPrice(bytes32("ETH"));
-        int256 btcPrice = oracle.getLatestPrice(bytes32("BTC"));
-        require(ethPrice > 0 && btcPrice > 0, "Invalid oracle prices");
-        uint256 ethBtcRatio = uint256(ethPrice) * 1e18 / uint256(btcPrice);
-        condA = ethBtcRatio > ETH_BTC_THRESHOLD;
+        // Condition A: ETH/BTC > 0.050 and Condition B: ETH > $4,000
+        // If oracle reverts or returns invalid prices, conditions default to false
+        try oracle.getLatestPrice(bytes32("ETH")) returns (int256 ethPrice) {
+            try oracle.getLatestPrice(bytes32("BTC")) returns (int256 btcPrice) {
+                if (ethPrice > 0 && btcPrice > 0) {
+                    uint256 ethBtcRatio = uint256(ethPrice) * 1e18 / uint256(btcPrice);
+                    condA = ethBtcRatio > ETH_BTC_THRESHOLD;
+                    condB = ethPrice > ETH_USD_THRESHOLD;
+                }
+            } catch {}
+        } catch {}
 
-        // Condition B: ETH > $4,000
-        condB = ethPrice > ETH_USD_THRESHOLD;
-
-        // Condition C: Aave V3 USDC borrow rate > 7%
-        uint256 borrowRate = _getAaveBorrowRate();
-        condC = borrowRate > BORROW_RATE_THRESHOLD;
+        // Condition C: Aave borrow rate > 7%
+        // If Aave reverts, condition defaults to false
+        try this.getAaveBorrowRate() returns (uint256 borrowRate) {
+            condC = borrowRate > BORROW_RATE_THRESHOLD;
+        } catch {}
     }
 
     function _getAaveBorrowRate() internal view returns (uint256) {

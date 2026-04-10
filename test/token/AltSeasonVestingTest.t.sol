@@ -8,21 +8,32 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MockLuminaOracleForVesting {
     mapping(bytes32 => int256) public prices;
+    bool public shouldRevert;
 
     function setPrice(bytes32 asset, int256 price) external {
         prices[asset] = price;
     }
 
+    function setShouldRevert(bool _revert) external {
+        shouldRevert = _revert;
+    }
+
     function getLatestPrice(bytes32 asset) external view returns (int256) {
+        require(!shouldRevert, "Oracle down");
         return prices[asset];
     }
 }
 
 contract MockAavePoolForVesting {
     uint128 public borrowRate;
+    bool public shouldRevert;
 
     function setBorrowRate(uint128 _rate) external {
         borrowRate = _rate;
+    }
+
+    function setShouldRevert(bool _revert) external {
+        shouldRevert = _revert;
     }
 
     function getReserveData(address)
@@ -46,6 +57,7 @@ contract MockAavePoolForVesting {
             uint128 isolationModeTotalDebt
         )
     {
+        require(!shouldRevert, "Aave down");
         return (0, 0, 0, 0, borrowRate, 0, 0, 0, address(0), address(0), address(0), address(0), 0, 0, 0);
     }
 }
@@ -413,6 +425,32 @@ contract AltSeasonVestingTest is Test {
         uint256 expected = totalAmount / 3;
         assertEq(token.balanceOf(newAddr), expected);
         assertEq(token.balanceOf(recipients[0]), 0);
+    }
+
+    // ═══════ DoS Resistance ═══════
+
+    function test_checkAltSeason_oracle_reverts() public {
+        // Oracle goes down — checkAltSeason should still work, conditions = false
+        oracle.setShouldRevert(true);
+        vesting.checkAltSeason(); // Should NOT revert
+        assertEq(vesting.conditionsMetSince(), 0);
+        assertFalse(vesting.altSeasonTriggered());
+    }
+
+    function test_checkAltSeason_aave_reverts() public {
+        // Aave goes down but oracle works — A+B can still trigger if met
+        oracle.setPrice(bytes32("ETH"), 500_000_000_000); // $5000
+        oracle.setPrice(bytes32("BTC"), 5_000_000_000_000); // $50000
+        aavePool.setShouldRevert(true);
+
+        // A=true, B=true, C=false (Aave down) → 2/3 → starts clock
+        vesting.checkAltSeason();
+        assertGt(vesting.conditionsMetSince(), 0);
+
+        // Can still trigger after 7 days with only A+B
+        vm.warp(block.timestamp + 7 days);
+        vesting.checkAltSeason();
+        assertTrue(vesting.altSeasonTriggered());
     }
 
     // ═══════ Helpers ═══════
