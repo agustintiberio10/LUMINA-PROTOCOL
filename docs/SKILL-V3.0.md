@@ -410,8 +410,8 @@ COMMON ERRORS AND REMEDIES:
 10. SECURITY
 ════════════════════════════════════════════════════════════
 
-Smart Contracts: 119 tests passing. Solidity 0.8.20. CEI pattern. SafeERC20. ReentrancyGuard.
-Governance: TimelockController (48h delay) + Gnosis Safe (2-of-3 multisig). No instant admin changes.
+Smart Contracts: 240 tests passing. Solidity 0.8.20. CEI pattern. SafeERC20. ReentrancyGuard.
+Governance: TimelockController (delay configurable, currently 0 — pending increase to 48h) + Gnosis Safe (2-of-3 multisig).
 Oracle: LuminaOracleV2 — NOT upgradeable (Ownable). Multisig-capable (N-of-M). Chainlink spot price verified via EIP-712 signed proof. L2 sequencer uptime check (1h grace).
 PhalaVerifier: LuminaPhalaVerifier — NOT upgradeable (Ownable, admin-curated worker EOA list). Phala worker ECDSA signature verification (admin-curated worker list — not hardware attestation).
 
@@ -584,7 +584,7 @@ NOTE: Vault function signatures verified from BaseVault.sol source code.
 Core:
   CoverRouter:       0xd5f8678A0F2149B6342F9014CCe6d743234Ca025
   PolicyManager:     0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a
-  LuminaOracle:      0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87
+  LuminaOracleV2:    0x87B576f688bE0E1d7d23A299f55b475658215105
   PhalaVerifier:     0x468b9D2E9043c80467B610bC290b698ae23adb9B
 
 Vaults:
@@ -593,14 +593,15 @@ Vaults:
   StableShort:       0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC
   StableLong:        0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c
 
-Shields:
+Shields V2 (production):
+  BCS (BTCCAT-001):  0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21  (BTCCatastropheShieldV2)
+  EAS (ETHAPOC-001): 0x70f1c92EFcFe55e8d460aAa6d626779536b15128  (ETHApocalypseShieldV2)
+  Depeg:             0x881f683291122c3A72bdD504F71ddCAf47d9AE0e  (DepegShieldV2)
+  ILIndex:           0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a  (ILIndexCoverV2)
+  Exploit:           0x63D340AE7229BB464bC801f225651341ebcD3693  (ExploitShieldV2)
+
+Shields V1 (deprecated):
   BSS:               0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e  (DEPRECATED — split into BCS+EAS)
-  BSS (orphan):      0x2926202bbe3f25f71ef17b25a20ebe8be028af5f  (legacy deploy, never registered in CoverRouter)
-  Depeg:             0x7578816a803d293bbb4dbea0efbed872842679d0
-  ILIndex:           0x2ac0d2a9889a8a4143727a0240de3fed4650dd93
-  Exploit:           0x9870830c615d1b9c53dfee4136c4792de395b7a1
-  BCS (BTCCAT-001):  0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8
-  EAS (ETHAPOC-001): 0xA755D134a0b2758E9b397E11E7132a243f672A3D
 
 Governance:
   TimelockController: 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a
@@ -628,6 +629,6 @@ Sales: labs@lumina-org.com
 VERIFICATION
 ════════════════════════════════════════════════════════════
 
-Every data point in this SKILL was extracted from the source code on April 4, 2026.
+Every data point in this SKILL was extracted from the source code on April 12, 2026.
 Sources: api/src/index.js, src/libraries/PremiumMath.sol, src/core/CoverRouter.sol,
 src/vaults/BaseVault.sol, src/products/*.sol, docs/PRODUCTION-ADDRESSES.md, lib/lumina-config.ts
