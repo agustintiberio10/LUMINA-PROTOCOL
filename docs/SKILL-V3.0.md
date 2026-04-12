@@ -14,6 +14,29 @@ Settlement asset: USDC (Circle, 6 decimals) — 0x833589fCD6eDb6E08f4c7C32D4f71b
 Chain: Base Mainnet (Chain ID: 8453)
 
 ════════════════════════════════════════════════════════════
+1b. PREREQUISITES
+════════════════════════════════════════════════════════════
+
+Before starting, your agent needs:
+
+1. A wallet on Base L2 (any EOA — MetaMask, Fireblocks, or programmatic)
+2. USDC on Base L2 for paying premiums
+   Bridge from Ethereum: https://bridge.base.org
+   Buy directly: Coinbase, Binance (withdraw to Base network)
+3. ETH on Base L2 for gas fees
+   Minimum recommended: 0.01 ETH (~$20, covers thousands of transactions)
+   Typical transaction cost on Base: $0.001 - $0.01
+4. USDC approved to CoverRouter for spending
+   CoverRouter address: 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025
+   Call: USDC.approve(CoverRouter, amount) before first purchase
+5. An API key (created in Step 2 of Quick Start below)
+
+IMPORTANT: The wallet used to approve USDC on-chain MUST be the same
+wallet used as "buyer" in API calls and as "wallet" when creating the
+API key. If your agent uses separate wallets for operations and treasury,
+use the OPERATIONS wallet for all Lumina interactions.
+
+════════════════════════════════════════════════════════════
 2. QUICK START (5 minutes)
 ════════════════════════════════════════════════════════════
 
@@ -32,7 +55,10 @@ Step 2 — Create your API key:
 Step 3 — Get a price quote:
   curl -X POST https://lumina-protocol-production.up.railway.app/api/v2/quote \
     -H "Content-Type: application/json" \
-    -d '{"productId":"BTCCAT-001","coverageAmount":1000000000,"durationSeconds":1209600,"buyer":"0xYOUR_WALLET"}'
+    -d '{"productId":"BTCCAT-001","coverageAmount":1000000000,"durationSeconds":1209600,"asset":"BTC","buyer":"0xYOUR_WALLET"}'
+  Note: Quotes expire in 5 minutes (300 seconds).
+  Required "asset" field: "BTC" for BCS, "ETH" for EAS/IL/EXPLOIT.
+  Required "stablecoin" field for DEPEG: "USDT" or "DAI" (not "USDC").
   Note: Quotes expire in 5 minutes (300 seconds).
 
 Step 4 — Buy a policy:
@@ -41,6 +67,9 @@ Step 4 — Buy a policy:
     -H "X-API-Key: lum_YOUR_KEY" \
     -d '{"productId":"BTCCAT-001","coverageAmount":1000000000,"durationSeconds":1209600}'
   Requires: USDC balance + USDC approved to CoverRouter (0xd5f8678A0F2149B6342F9014CCe6d743234Ca025)
+  CRITICAL: The wallet that approved USDC on-chain must be the EXACT same
+  wallet registered with your API key. The API verifies this match.
+  If they differ, the purchase will fail with "Wallet mismatch".
 
 Step 5 — Check your policies:
   curl https://lumina-protocol-production.up.railway.app/api/v2/policies?buyer=0xYOUR_WALLET
@@ -84,7 +113,7 @@ Status codes: 200, 400, 500
 --- POST /api/v2/purchase ---
 Requires: X-API-Key header
 Body: { "productId": "BTCCAT-001", "coverageAmount": 1000000000, "durationSeconds": 1209600 }
-  productId: "BTCCAT-001" | "DEPEG" | "IL" | "EXPLOIT"
+  productId: "BTCCAT-001" | "ETHAPOC-001" | "DEPEG" | "IL" | "EXPLOIT"
   coverageAmount: 6 decimals. Min $100 (100000000), Max $100,000 (100000000000)
   durationSeconds: Min 604800 (7 days), Max 31536000 (365 days) — varies by product
 Response: { "success": true, "txHash": "0x...", "product": "BTC Catastrophe Shield", "productId": "BTCCAT-001", "coverage": "1000000000", "premium": "...", "premiumUSD": "...", "durationDays": 14, "wallet": "0x...", "explorer": "https://basescan.org/tx/0x...", "message": "Policy purchased successfully." }
@@ -95,6 +124,18 @@ No auth required.
 Query: ?buyer=0xWALLET_ADDRESS&page=1&limit=50
 Response: { "buyer": "0x...", "policies": [{ "policyId", "productId", "productName", "shield", "coverageAmount", "premiumPaid", "maxPayout", "startTimestamp", "waitingEndsAt", "expiresAt", "status" }], "count", "total", "page", "limit", "hasMore" }
 Status values: "NONEXISTENT", "WAITING", "ACTIVE", "EXPIRED", "SETTLEMENT", "PAID_OUT", "CANCELLED"
+
+  AGENT STATUS HANDLING:
+    "WAITING"    → Policy bought, waiting period active. No action needed.
+    "ACTIVE"     → Policy active. Monitor expiresAt for renewal.
+    "EXPIRED"    → Policy expired without trigger. Buy a new one if needed.
+    "SETTLEMENT" → Trigger detected, payout in progress. Wait.
+    "PAID_OUT"   → Payout completed. Remove from monitoring. Check USDC balance.
+    "CANCELLED"  → Policy was cancelled. No further action.
+    "NONEXISTENT"→ Policy ID not found. Verify the policyId.
+
+  Agent logic: Only monitor policies with status "ACTIVE" or "WAITING".
+  Ignore "PAID_OUT", "EXPIRED", "CANCELLED" — they are terminal states.
 Pagination: page (default 1), limit (default 50, max 100)
 Status codes: 200, 400, 500
 
@@ -141,6 +182,17 @@ RATE LIMITS:
 4. INSURANCE PRODUCTS
 ════════════════════════════════════════════════════════════
 
+PRODUCT QUICK REFERENCE:
+| Product | ID | Alias | Asset | Trigger | Payout | Duration | Vault |
+|---------|-----|-------|-------|---------|--------|----------|-------|
+| BTC Catastrophe | BTCCAT-001 | BCS | BTC | -50% | 80% | 7-30d | VolatileShort |
+| ETH Apocalypse | ETHAPOC-001 | EAS | ETH | -60% | 80% | 7-30d | VolatileShort |
+| Depeg Shield | DEPEG | — | USDT/DAI | <$0.95 | 85-88% | 14-365d | StableShort |
+| IL Index Cover | IL | — | ETH | >2% IL | proportional | 14-90d | VolatileLong |
+| Exploit Shield | EXPLOIT | — | varies | dual trigger | 90% | 90-365d | StableLong |
+
+Use the "ID" column value for all API calls (productId parameter).
+
 --- BTC CATASTROPHE SHIELD (BCS) ---
 What it covers: BTC price crashes exceeding 50%
 Product ID: "BTCCAT-001"  (short alias also accepted: "BCS")
@@ -154,6 +206,7 @@ Max allocation per vault: 30%
 Assets: BTC only
 Max proof age: 30 minutes
 Fee: 3% on premium (purchase) + 3% on payout (claim)
+Required quote field: "asset": "BTC"
 
 Example: Buy $10,000 BCS coverage for 14 days
   Premium ≈ $10,000 × 0.15 × M(U) × (14/365) = ~$58-95 depending on utilization
@@ -172,6 +225,7 @@ Max allocation per vault: 25%
 Assets: ETH only
 Max proof age: 30 minutes
 Fee: 3% on premium (purchase) + 3% on payout (claim)
+Required quote field: "asset": "ETH"
 
 Example: Buy $10,000 EAS coverage for 14 days
   Premium ≈ $10,000 × 0.20 × M(U) × (14/365) = ~$77-127 depending on utilization
@@ -196,6 +250,7 @@ Waiting period: 24 hours
 Base rate: 2.5% annualized (250 bps)
 Stablecoins: USDT, DAI (specify in quote with "stablecoin" field)
 Fee: 3% on premium + 3% on payout
+Required quote field: "stablecoin": "USDT" or "DAI"
 
 --- IL INDEX COVER ---
 What it covers: Impermanent loss exceeding 2% at policy expiry
@@ -210,6 +265,7 @@ Settlement window: 48 HOURS after expiry. If you miss this window, the claim is 
 Base rate: 8.5% annualized (850 bps)
 Asset: ETH
 Fee: 3% on premium + 3% on payout
+Required quote field: "asset": "ETH"
 
 CRITICAL: IL Index uses European-style resolution. You can ONLY claim during the 48-hour window after policy expiry. Set a reminder.
 
@@ -229,6 +285,7 @@ Base rate: 4.0% annualized (400 bps)
 Covered protocols: Compound III, Uniswap V3, MakerDAO (Tier 1), Curve, Morpho (Tier 2)
 Excluded: Aave V3 (circular — Lumina deposits in Aave)
 Fee: 3% on premium + 3% on payout
+Required quote field: "asset": "ETH" (or protocol governance token)
 
 COVERAGE AMOUNT REFERENCE (6 decimals):
   $100     = 100000000
@@ -246,6 +303,44 @@ DURATION REFERENCE (in seconds):
   90 days  = 7776000
   180 days = 15552000
   365 days = 31536000
+
+════════════════════════════════════════════════════════════
+4b. DECISION FRAMEWORK — WHICH PRODUCT TO BUY
+════════════════════════════════════════════════════════════
+
+Choose based on your portfolio composition:
+
+IF your agent holds BTC or BTC-denominated assets:
+  → Buy BCS (BTCCAT-001) — protects against >50% BTC crash
+  → Recommended coverage: 50-80% of BTC exposure
+  → Recommended duration: 14 days, auto-renew
+
+IF your agent holds ETH or ETH-denominated assets:
+  → Buy EAS (ETHAPOC-001) — protects against >60% ETH crash
+  → Recommended coverage: 50-80% of ETH exposure
+  → Recommended duration: 14 days, auto-renew
+
+IF your agent holds stablecoins (USDT, DAI):
+  → Buy DEPEG (DEPEG) — protects against depeg below $0.95
+  → Recommended coverage: 100% of stablecoin holdings
+  → Recommended duration: 30-90 days
+
+IF your agent provides liquidity in AMM pools:
+  → Buy IL (IL) — protects against >2% impermanent loss
+  → Recommended coverage: match your LP position size
+  → Recommended duration: match your LP duration
+  → CRITICAL: European-style — claim only within 48h after expiry
+
+IF your agent interacts with DeFi protocols (lending, staking):
+  → Buy EXPLOIT (EXPLOIT) — protects against smart contract hacks
+  → Recommended coverage: match your deposits in the covered protocol
+  → Recommended duration: 90+ days (longer = cheaper per day)
+
+MULTI-PRODUCT STRATEGY:
+  An agent with a diverse portfolio should hold multiple policies:
+  Example: Agent with $50K BTC + $30K ETH + $20K USDT LP position
+  → BCS $40K coverage (80% of BTC) + EAS $24K (80% of ETH) + IL $20K (LP)
+  Total premium: ~$150-300/month depending on durations and utilization
 
 ════════════════════════════════════════════════════════════
 5. VAULTS (for liquidity providers)
@@ -368,11 +463,39 @@ Recommended repurchase windows (buy new policy this many seconds before expiry):
   IL:      3,600 (1 hour before)
   EXPLOIT: 1,296,000 (15 days before — accounts for 14d waiting period)
 
-Agent loop pseudocode:
-  1. GET /api/v2/policies?buyer=myWallet
-  2. For each active policy: timeLeft = expiresAt - now
-  3. If timeLeft < repurchaseWindow → GET /api/v2/quote → if acceptable → POST /api/v2/purchase
-  4. Sleep 3600 seconds → repeat
+FULL AGENT LOOP (recommended — run every hour):
+
+  1. CHECK BALANCES
+     ethBalance = provider.getBalance(myWallet)
+     if ethBalance < 0.005 ETH → ALERT: "Low gas, refill ETH on Base"
+     usdcBalance = USDC.balanceOf(myWallet)
+  
+  2. CHECK ACTIVE POLICIES
+     policies = GET /api/v2/policies?buyer=myWallet
+     for each policy where status == "ACTIVE":
+       timeLeft = expiresAt - now
+       if timeLeft < repurchaseWindow:
+         quote = POST /api/v2/quote (same product, same coverage)
+         if quote.premiumAmount <= maxAcceptablePremium:
+           POST /api/v2/purchase → renew
+         else:
+           LOG: "Premium too high, skipping renewal"
+  
+  3. CHECK FOR PAYOUTS
+     for each policy where status == "PAID_OUT":
+       LOG: "Payout received for policy {policyId}"
+       Remove from monitoring list
+  
+  4. EVALUATE NEW COVERAGE NEEDS
+     portfolio = getPortfolioValue()  // your agent's own logic
+     btcExposure = portfolio.btc
+     ethExposure = portfolio.eth
+     if btcExposure > 0 and no active BCS policy:
+       POST /api/v2/quote for BTCCAT-001
+       if acceptable → POST /api/v2/purchase
+     // repeat for ETH, stables, LP positions
+  
+  5. SLEEP 3600 seconds → repeat
 
 You CAN have multiple policies of the same product active simultaneously.
 Premium is RECALCULATED on each purchase based on current vault utilization (Kink Model).
@@ -456,6 +579,23 @@ NEVER share your private key with anyone — not even Lumina. The API only needs
 ════════════════════════════════════════════════════════════
 11. DEVELOPER INTEGRATION EXAMPLES
 ════════════════════════════════════════════════════════════
+
+GAS REQUIREMENTS (Base L2):
+  Agent must maintain at least 0.01 ETH on Base L2 for gas fees.
+  Typical costs on Base:
+    USDC approve:         ~$0.001
+    Policy purchase:      ~$0.005
+    Vault deposit:        ~$0.005
+    Vault withdrawal:     ~$0.003
+    Complete withdrawal:  ~$0.003
+  
+  With 0.01 ETH (~$20), an agent can execute ~2,000-4,000 transactions.
+  Monitor ETH balance and refill when below 0.005 ETH.
+
+  Fund Base L2 ETH via:
+    - Bridge from Ethereum: https://bridge.base.org
+    - Coinbase: withdraw ETH directly to Base network
+    - Any bridge supporting Base L2
 
 PYTHON (requests):
 
@@ -576,6 +716,13 @@ await vault.requestWithdrawal(shares);
 const assets = await vault.completeWithdrawal(signer.address);
 
 NOTE: Vault function signatures verified from BaseVault.sol source code.
+
+IMPORTANT FOR AI AGENTS:
+  - Vault deposits and withdrawals are ON-CHAIN transactions (not API calls)
+  - The API (GET /api/v2/vaults) provides read-only data only
+  - To deposit/withdraw, your agent needs ethers.js or web3.js
+  - Agent must maintain at least 0.01 ETH on Base for gas fees
+  - All vault function signatures above are verified from BaseVault.sol
 
 ════════════════════════════════════════════════════════════
 12. CONTRACT ADDRESSES (Production — Base L2, Chain 8453)
