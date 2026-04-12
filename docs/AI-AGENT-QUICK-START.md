@@ -32,7 +32,7 @@ Response (truncated):
       "id": "BTCCAT-001",
       "name": "BTC Catastrophe Shield",
       "productId": "0x26933c71...",
-      "shield":   "0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8",
+      "shield":   "0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21",
       "vaults":   ["0xbd445475...", "0xFee5d6DA..."],
       "pBase": 1500,
       "minDuration": 604800,
@@ -207,7 +207,7 @@ Response:
       "policyId": 1,
       "productId": "0x26933c71...",
       "productName": "BTC Catastrophe Shield",
-      "shield": "0x36e37899...",
+      "shield": "0x6E0A46B2...",
       "coverageAmount": "10000000000",
       "premiumPaid": "12328767",
       "maxPayout": "8000000000",
@@ -236,7 +236,7 @@ You don't need to do anything yourself, but if you want to monitor:
 1. Read the current price from the oracle:
 
    ```bash
-   cast call 0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87 \
+   cast call 0x87B576f688bE0E1d7d23A299f55b475658215105 \
      "getLatestPrice(bytes32)(int256)" \
      $(cast --format-bytes32-string "BTC") \
      --rpc-url https://mainnet.base.org
@@ -281,7 +281,7 @@ You don't need to do anything yourself, but if you want to monitor:
 USDC                  0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 CoverRouter           0xd5f8678A0F2149B6342F9014CCe6d743234Ca025
 PolicyManager         0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a
-LuminaOracle          0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87
+LuminaOracleV2        0x87B576f688bE0E1d7d23A299f55b475658215105
 EmergencyPause        0xc7ac8c19c3f10f820d7e42f07e6e257bacc22876
 TimelockController    0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a
 GnosisSafe            0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD
@@ -293,6 +293,6 @@ Vaults:
   StableLong          0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c
 
 Active shields:
-  BCS (BTCCAT-001)    0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8
-  EAS (ETHAPOC-001)   0xA755D134a0b2758E9b397E11E7132a243f672A3D
+  BCS (BTCCAT-001)    0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21
+  EAS (ETHAPOC-001)   0x70f1c92EFcFe55e8d460aAa6d626779536b15128
 ```
