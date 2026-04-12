@@ -213,7 +213,7 @@ Required quote field: "asset": "BTC"
 
 Example: Buy $10,000 BCS coverage for 14 days
   Premium ≈ $10,000 × 0.15 × M(U) × (14/365) = ~$58-95 depending on utilization
-  If trigger activates: payout = $10,000 × 80% = $8,000 gross, $7,760 net (after 3% fee)
+  If trigger activates: payout = $10,000 × 80% = $8,000 (paid to agent in full; 3% fee charged from vault separately)
 
 --- ETH APOCALYPSE SHIELD (EAS) ---
 What it covers: ETH price crashes exceeding 60%
@@ -232,7 +232,7 @@ Required quote field: "asset": "ETH"
 
 Example: Buy $10,000 EAS coverage for 14 days
   Premium ≈ $10,000 × 0.20 × M(U) × (14/365) = ~$77-127 depending on utilization
-  If trigger activates: payout = $10,000 × 80% = $8,000 gross, $7,760 net (after 3% fee)
+  If trigger activates: payout = $10,000 × 80% = $8,000 (paid to agent in full; 3% fee charged from vault separately)
 
 NOTE: BLACK SWAN SHIELD (BSS, BLACKSWAN-001) is DEPRECATED as of 2026-04-06.
 It was replaced by BCS (BTC) and EAS (ETH). New policies are blocked at the
@@ -502,7 +502,8 @@ EXPLOIT: Oracle detects gov token -25% AND TEE verifies receipt token → 90% of
 FLASH BTC: Oracle detects >18%/22% BTC drop → EIP-712 proof → 80% payout instantly
 FLASH ETH: Oracle detects >20%/28% ETH drop → EIP-712 proof → 80% payout instantly
 
-Payout = (Coverage × (100% - Deductible%)) × 97% (after 3% protocol fee)
+Payout = Coverage × (100% - Deductible%)
+Agent receives the full payout amount. Protocol fee (3%) is charged from vault reserves separately, not deducted from the agent's payout.
 
 Claim grace period: 24 hours after policy expiry for BCS, EAS, Depeg, Exploit.
 IL settlement: ONLY within 48 hours after expiry (European-style). Do not miss this window.

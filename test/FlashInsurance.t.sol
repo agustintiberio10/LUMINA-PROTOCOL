@@ -444,4 +444,120 @@ contract FlashInsuranceTest is Test {
     function test_vault_symbol() public {
         assertEq(vault.symbol(), "lmFLASH");
     }
+
+    // ═══════════════════════════════════════════════════════════
+    //  FlashVault — expanded tests
+    // ═══════════════════════════════════════════════════════════
+
+    function test_vault_deposit_updates_balance() public {
+        usdc.mint(buyer, 10_000e6);
+        vm.startPrank(buyer);
+        usdc.approve(address(vault), 10_000e6);
+        vault.deposit(10_000e6, buyer);
+        vm.stopPrank();
+        assertGt(vault.balanceOf(buyer), 0);
+        assertEq(vault.totalAssets(), 10_000e6);
+    }
+
+    function test_vault_withdraw_full_flow() public {
+        usdc.mint(buyer, 10_000e6);
+        vm.startPrank(buyer);
+        usdc.approve(address(vault), 10_000e6);
+        uint256 shares = vault.deposit(10_000e6, buyer);
+        vault.requestWithdrawal(shares);
+        vm.warp(block.timestamp + 604800); // 7 days
+        vault.completeWithdrawal(buyer);
+        vm.stopPrank();
+        assertEq(usdc.balanceOf(buyer), 10_000e6);
+    }
+
+    function test_vault_withdraw_before_cooldown_reverts() public {
+        usdc.mint(buyer, 10_000e6);
+        vm.startPrank(buyer);
+        usdc.approve(address(vault), 10_000e6);
+        uint256 shares = vault.deposit(10_000e6, buyer);
+        vault.requestWithdrawal(shares);
+        vm.warp(block.timestamp + 3 days); // only 3 of 7 days
+        vm.expectRevert();
+        vault.completeWithdrawal(buyer);
+        vm.stopPrank();
+    }
+
+    function test_vault_multiple_deposits() public {
+        address lp2 = makeAddr("lp2");
+        usdc.mint(buyer, 5_000e6);
+        usdc.mint(lp2, 5_000e6);
+
+        vm.startPrank(buyer);
+        usdc.approve(address(vault), 5_000e6);
+        vault.deposit(5_000e6, buyer);
+        vm.stopPrank();
+
+        vm.startPrank(lp2);
+        usdc.approve(address(vault), 5_000e6);
+        vault.deposit(5_000e6, lp2);
+        vm.stopPrank();
+
+        assertEq(vault.totalAssets(), 10_000e6);
+        assertGt(vault.balanceOf(buyer), 0);
+        assertGt(vault.balanceOf(lp2), 0);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  Edge cases
+    // ═══════════════════════════════════════════════════════════
+
+    function test_oracle_price_zero_reverts() public {
+        oracle.setPrice("BTC", 0);
+        vm.expectRevert();
+        _createBTCPolicy(btc24, 86400);
+    }
+
+    function test_oracle_negative_price_reverts() public {
+        oracle.setPrice("BTC", -100);
+        vm.expectRevert();
+        _createBTCPolicy(btc24, 86400);
+    }
+
+    function test_double_claim_reverts() public {
+        uint256 pid = _createBTCPolicy(btc24, 86400);
+        // First claim — trigger
+        int256 crashPrice = BTC_PRICE * 80 / 100; // -20%
+        bytes memory proof = _buildProof(crashPrice, "BTC", block.timestamp);
+        vm.prank(router);
+        btc24.verifyAndCalculate(pid, proof);
+        // Mark paid
+        vm.prank(router);
+        btc24.markPaidOut(pid);
+        // Second claim — should revert
+        vm.prank(router);
+        vm.expectRevert();
+        btc24.verifyAndCalculate(pid, proof);
+    }
+
+    function test_claim_expired_policy_reverts() public {
+        uint256 pid = _createBTCPolicy(btc24, 86400);
+        vm.warp(block.timestamp + 25 hours); // past expiry
+        int256 crashPrice = BTC_PRICE * 80 / 100;
+        bytes memory proof = _buildProof(crashPrice, "BTC", block.timestamp);
+        vm.prank(router);
+        vm.expectRevert();
+        btc24.verifyAndCalculate(pid, proof);
+    }
+
+    function test_coverage_minimum_100usd() public {
+        IShield.CreatePolicyParams memory params = IShield.CreatePolicyParams({
+            buyer: buyer,
+            coverageAmount: 100e6, // $100 minimum
+            premiumAmount: 10e6,
+            durationSeconds: 86400,
+            asset: "BTC",
+            stablecoin: bytes32(0),
+            protocol: address(0),
+            extraData: ""
+        });
+        vm.prank(router);
+        uint256 pid = btc24.createPolicy(params);
+        assertGt(pid, 0);
+    }
 }
