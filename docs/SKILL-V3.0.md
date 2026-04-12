@@ -108,12 +108,13 @@ Body: { "productId": "BTCCAT-001", "coverageAmount": 1000000000, "durationSecond
 Optional body fields: "asset" (for BCS: "BTC", for EAS: "ETH"), "stablecoin" (for DEPEG: "USDT" or "DAI" — USDC is excluded because it is the protocol settlement token, insuring it would create circular risk), "protocol" (for EXPLOIT: protocol address)
 Response: { "quote": { "productId", "productName", "coverageAmount", "premiumAmount", "durationSeconds", "asset", "stablecoin", "protocol", "buyer", "deadline", "nonce", "utilizationAtQuote" }, "signature": "0x...", "signedQuote": {...} }
 Quotes expire in 300 seconds (5 minutes). Get a fresh quote before each purchase.
+For FLASH-BTC and FLASH-ETH: durationSeconds must be exactly 86400 (24h) or 172800 (48h).
 Status codes: 200, 400, 500
 
 --- POST /api/v2/purchase ---
 Requires: X-API-Key header
 Body: { "productId": "BTCCAT-001", "coverageAmount": 1000000000, "durationSeconds": 1209600 }
-  productId: "BTCCAT-001" | "ETHAPOC-001" | "DEPEG" | "IL" | "EXPLOIT"
+  productId: "BTCCAT-001" | "ETHAPOC-001" | "FLASH-BTC" | "FLASH-ETH" | "DEPEG" | "IL" | "EXPLOIT"
   coverageAmount: 6 decimals. Min $100 (100000000), Max $100,000 (100000000000)
   durationSeconds: Min 604800 (7 days), Max 31536000 (365 days) — varies by product
 Response: { "success": true, "txHash": "0x...", "product": "BTC Catastrophe Shield", "productId": "BTCCAT-001", "coverage": "1000000000", "premium": "...", "premiumUSD": "...", "durationDays": 14, "wallet": "0x...", "explorer": "https://basescan.org/tx/0x...", "message": "Policy purchased successfully." }
@@ -190,6 +191,8 @@ PRODUCT QUICK REFERENCE:
 | Depeg Shield | DEPEG | — | USDT/DAI | <$0.95 | 85-88% | 14-365d | StableShort |
 | IL Index Cover | IL | — | ETH | >2% IL | proportional | 14-90d | VolatileLong |
 | Exploit Shield | EXPLOIT | — | varies | dual trigger | 90% | 90-365d | StableLong |
+| Flash BTC | FLASH-BTC | — | BTC | -18%/-22% | 80% | 24h/48h | FlashVault |
+| Flash ETH | FLASH-ETH | — | ETH | -20%/-28% | 80% | 24h/48h | FlashVault |
 
 Use the "ID" column value for all API calls (productId parameter).
 
@@ -287,6 +290,53 @@ Excluded: Aave V3 (circular — Lumina deposits in Aave)
 Fee: 3% on premium + 3% on payout
 Required quote field: "asset": "ETH" (or protocol governance token)
 
+--- FLASH BTC ---
+What it covers: BTC flash crashes in 24 or 48 hours
+Product ID: "FLASH-BTC"
+Duration options:
+  24h: Trigger >18% drop (TRIGGER_DROP_BPS = 1800), pBase 11300
+  48h: Trigger >22% drop (TRIGGER_DROP_BPS = 2200), pBase 8250
+Verification: Chainlink spot price verified via EIP-712 signed proof (LuminaOracleV2)
+Deductible: 20% — Payout: 80% of coverage (binary, all-or-nothing)
+Duration: Choose exactly 24 hours OR exactly 48 hours (fixed, not flexible)
+Waiting period: NONE — coverage starts immediately at purchase
+Max allocation per vault: 30%
+Assets: BTC only
+Max proof age: 15 minutes
+Fee: 3% on premium + 3% on payout
+Required quote field: "asset": "BTC"
+Required durationSeconds: 86400 (24h) OR 172800 (48h) — no other value accepted
+
+Pricing ($10,000 coverage):
+  24h at 0% util: $30.96 | at 50%: $40.63 | at 80% (kink): $46.44
+  48h at 0% util: $45.21 | at 50%: $59.36 | at 80% (kink): $67.82
+
+Historical basis: BTC never dropped -18% in 24h in 1,095 days of data (worst: -14.12%).
+
+--- FLASH ETH ---
+What it covers: ETH flash crashes in 24 or 48 hours
+Product ID: "FLASH-ETH"
+Duration options:
+  24h: Trigger >20% drop (TRIGGER_DROP_BPS = 2000), pBase 11300
+  48h: Trigger >28% drop (TRIGGER_DROP_BPS = 2800), pBase 8250
+All other parameters same as Flash BTC but for ETH.
+Verification: Chainlink spot price verified via EIP-712 signed proof (LuminaOracleV2)
+Deductible: 20% — Payout: 80% of coverage (binary, all-or-nothing)
+Duration: Choose exactly 24 hours OR exactly 48 hours (fixed, not flexible)
+Waiting period: NONE — coverage starts immediately at purchase
+Max allocation per vault: 30%
+Assets: ETH only
+Max proof age: 15 minutes
+Fee: 3% on premium + 3% on payout
+Required quote field: "asset": "ETH"
+Required durationSeconds: 86400 (24h) OR 172800 (48h) — no other value accepted
+
+Pricing ($10,000 coverage): same as Flash BTC.
+  24h at 0% util: $30.96 | at 50%: $40.63 | at 80% (kink): $46.44
+  48h at 0% util: $45.21 | at 50%: $59.36 | at 80% (kink): $67.82
+
+Historical basis: ETH never dropped -20% in 24h in 1,095 days of data (worst: -15.03%).
+
 COVERAGE AMOUNT REFERENCE (6 decimals):
   $100     = 100000000
   $500     = 500000000
@@ -331,6 +381,12 @@ IF your agent provides liquidity in AMM pools:
   → Recommended duration: match your LP duration
   → CRITICAL: European-style — claim only within 48h after expiry
 
+IF your agent has leveraged positions (margin, perps, futures):
+  → Buy Flash BTC (FLASH-BTC) or Flash ETH (FLASH-ETH)
+  → Choose 24h for daily protection, 48h for weekends/holidays
+  → Cost: ~$31-47 per $10K coverage per day
+  → Renew every 24h/48h during high-volatility periods
+
 IF your agent interacts with DeFi protocols (lending, staking):
   → Buy EXPLOIT (EXPLOIT) — protects against smart contract hacks
   → Recommended coverage: match your deposits in the covered protocol
@@ -354,6 +410,7 @@ Four vaults, each with a different risk profile and cooldown period:
 | VolatileLong   | 97 days  | IL long + BCS/EAS spill | 4.0 - 20.5% | 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904 |
 | StableShort    | 97 days  | Depeg short           | 2.7 - 9.0%   | 0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC |
 | StableLong     | 372 days | Depeg + Exploit       | 2.8 - 10.3%  | 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c |
+| FlashVault     | 7 days   | Flash BTC + Flash ETH | 27.8 - 132.4% | TBD (post-deploy) |
 
 YIELD SOURCES:
   Layer 1: Aave V3 base yield (~3-5% APY) — USDC deposited automatically
@@ -442,6 +499,8 @@ EAS:     Oracle detects >60% ETH drop → verifies EIP-712 signed Chainlink spot
 DEPEG:   Oracle detects stablecoin <$0.95 → verifies EIP-712 signed Chainlink spot proof → triggers payout → 85-88% sent
 IL:      At expiry, oracle calculates IL → if >2%, proportional payout → sent within 48h settlement window
 EXPLOIT: Oracle detects gov token -25% AND TEE verifies receipt token → 90% of coverage sent
+FLASH BTC: Oracle detects >18%/22% BTC drop → EIP-712 proof → 80% payout instantly
+FLASH ETH: Oracle detects >20%/28% ETH drop → EIP-712 proof → 80% payout instantly
 
 Payout = (Coverage × (100% - Deductible%)) × 97% (after 3% protocol fee)
 
@@ -462,6 +521,8 @@ Recommended repurchase windows (buy new policy this many seconds before expiry):
   DEPEG:   90,000 (25 hours before — accounts for 24h waiting period)
   IL:      3,600 (1 hour before)
   EXPLOIT: 1,296,000 (15 days before — accounts for 14d waiting period)
+  FLASH 24h: 300 (5 minutes before)
+  FLASH 48h: 300 (5 minutes before)
 
 FULL AGENT LOOP (recommended — run every hour):
 
@@ -739,6 +800,7 @@ Vaults:
   VolatileLong:      0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904
   StableShort:       0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC
   StableLong:        0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c
+  FlashVault:          TBD (post-deploy)
 
 Shields V2 (production):
   BCS (BTCCAT-001):  0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21  (BTCCatastropheShieldV2)
@@ -746,6 +808,10 @@ Shields V2 (production):
   Depeg:             0x881f683291122c3A72bdD504F71ddCAf47d9AE0e  (DepegShieldV2)
   ILIndex:           0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a  (ILIndexCoverV2)
   Exploit:           0x63D340AE7229BB464bC801f225651341ebcD3693  (ExploitShieldV2)
+  FlashBTCShield24h:   TBD
+  FlashBTCShield48h:   TBD
+  FlashETHShield24h:   TBD
+  FlashETHShield48h:   TBD
 
 Shields V1 (deprecated):
   BSS:               0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e  (DEPRECATED — split into BCS+EAS)

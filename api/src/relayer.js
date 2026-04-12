@@ -40,6 +40,7 @@ const STATUS = { NONEXISTENT: 0, WAITING: 1, ACTIVE: 2, SETTLEMENT: 3, EXPIRED: 
 // EXPLOIT-001 has a different proof shape and is intentionally excluded.
 const PRICE_PRODUCTS = new Set([
   "BTCCAT-001", "ETHAPOC-001", "DEPEG-STABLE-001", "ILPROT-001", "BLACKSWAN-001",
+  "FLASHBTC24-001", "FLASHBTC48-001", "FLASHETH24-001", "FLASHETH48-001",
 ]);
 
 // ─── ABIs ───────────────────────────────────────────────────────────────────

@@ -91,6 +91,10 @@ const PRODUCT_IDS = {
   "EXPLOIT-001":     ethers.keccak256(ethers.toUtf8Bytes("EXPLOIT-001")),
   "BTCCAT-001":      ethers.keccak256(ethers.toUtf8Bytes("BTCCAT-001")),
   "ETHAPOC-001":     ethers.keccak256(ethers.toUtf8Bytes("ETHAPOC-001")),
+  "FLASHBTC24-001":  ethers.keccak256(ethers.toUtf8Bytes("FLASHBTC24-001")),
+  "FLASHBTC48-001":  ethers.keccak256(ethers.toUtf8Bytes("FLASHBTC48-001")),
+  "FLASHETH24-001":  ethers.keccak256(ethers.toUtf8Bytes("FLASHETH24-001")),
+  "FLASHETH48-001":  ethers.keccak256(ethers.toUtf8Bytes("FLASHETH48-001")),
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -220,6 +224,38 @@ const PRODUCTS = [
     minDuration: 7 * 86400,
     maxDuration: 30 * 86400,
   },
+  {
+    name: "Flash BTC",
+    id: "FLASH-BTC",
+    riskType: "VOLATILE",
+    vaults: [process.env.FLASH_VAULT || "0x0000000000000000000000000000000000000000"],
+    assets: ["BTC"],
+    stablecoins: [],
+    status: "ACTIVE",
+    waitingPeriod: 0,
+    deductible: 2000,
+    description: "Ultra-short BTC flash crash coverage. Choose 24h or 48h.",
+    durations: [
+      { seconds: 86400, label: "24h", trigger: "-18%", pBase: 11300, shield: process.env.FLASH_BTC_24H_SHIELD || "0x0000000000000000000000000000000000000000", internalProductId: "FLASHBTC24-001" },
+      { seconds: 172800, label: "48h", trigger: "-22%", pBase: 8250, shield: process.env.FLASH_BTC_48H_SHIELD || "0x0000000000000000000000000000000000000000", internalProductId: "FLASHBTC48-001" },
+    ],
+  },
+  {
+    name: "Flash ETH",
+    id: "FLASH-ETH",
+    riskType: "VOLATILE",
+    vaults: [process.env.FLASH_VAULT || "0x0000000000000000000000000000000000000000"],
+    assets: ["ETH"],
+    stablecoins: [],
+    status: "ACTIVE",
+    waitingPeriod: 0,
+    deductible: 2000,
+    description: "Ultra-short ETH flash crash coverage. Choose 24h or 48h.",
+    durations: [
+      { seconds: 86400, label: "24h", trigger: "-20%", pBase: 11300, shield: process.env.FLASH_ETH_24H_SHIELD || "0x0000000000000000000000000000000000000000", internalProductId: "FLASHETH24-001" },
+      { seconds: 172800, label: "48h", trigger: "-28%", pBase: 8250, shield: process.env.FLASH_ETH_48H_SHIELD || "0x0000000000000000000000000000000000000000", internalProductId: "FLASHETH48-001" },
+    ],
+  },
 ];
 
 // Short-ID → config for /purchase endpoint
@@ -230,7 +266,59 @@ const PRODUCT_CONFIG = {
   "EXPLOIT": { name: "Exploit Shield",     fullId: "EXPLOIT-001",     vault: VAULTS.STABLE_SHORT,   riskType: "STABLE",   asset: "ETH",  shield: SHIELDS.EXPLOIT },
   "BCS":     { name: "BTC Catastrophe Shield", fullId: "BTCCAT-001",  vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "BTC",  shield: SHIELDS.BCS },
   "EAS":     { name: "ETH Apocalypse Shield",  fullId: "ETHAPOC-001", vault: VAULTS.VOLATILE_SHORT, riskType: "VOLATILE", asset: "ETH",  shield: SHIELDS.EAS },
+  "FLASHBTC":{ name: "Flash BTC",             fullId: "FLASH-BTC",   vault: process.env.FLASH_VAULT || "0x0000000000000000000000000000000000000000", riskType: "VOLATILE", asset: "BTC",  shield: null },
+  "FLASHETH":{ name: "Flash ETH",             fullId: "FLASH-ETH",   vault: process.env.FLASH_VAULT || "0x0000000000000000000000000000000000000000", riskType: "VOLATILE", asset: "ETH",  shield: null },
 };
+
+// ═══════════════════════════════════════════════════════════
+//  FLASH PRODUCT RESOLVER
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * resolveProduct(productId, durationSeconds)
+ *
+ * For normal products (no `durations` array): returns the product as-is with
+ *   resolvedProductId = product.id, and the existing pBase / shield.
+ *
+ * For Flash products (has `durations[]`): finds the matching duration entry,
+ *   returns a merged object with the correct pBase, shield, productId (keccak),
+ *   and resolvedProductId (e.g. "FLASHBTC24-001").
+ *
+ * Returns { error, message } if the Flash product is used with an invalid duration.
+ */
+function resolveProduct(product, durationSeconds) {
+  if (!product) return { error: "UNKNOWN_PRODUCT", message: "Product not found" };
+
+  // Normal product — no duration variants
+  if (!product.durations || product.durations.length === 0) {
+    return {
+      ...product,
+      resolvedProductId: product.id,
+      // productId already exists as keccak on normal products
+    };
+  }
+
+  // Flash product — match by duration
+  const dur = product.durations.find(d => d.seconds === Number(durationSeconds));
+  if (!dur) {
+    const valid = product.durations.map(d => `${d.seconds}s (${d.label})`).join(", ");
+    return {
+      error: "INVALID_FLASH_DURATION",
+      message: `${product.name} requires an exact duration. Valid: ${valid}`,
+    };
+  }
+
+  return {
+    ...product,
+    pBase: dur.pBase,
+    shield: dur.shield,
+    productId: PRODUCT_IDS[dur.internalProductId] || ethers.keccak256(ethers.toUtf8Bytes(dur.internalProductId)),
+    resolvedProductId: dur.internalProductId,
+    minDuration: dur.seconds,
+    maxDuration: dur.seconds,
+    asset: product.assets && product.assets[0] ? product.assets[0] : undefined,
+  };
+}
 
 // ═══════════════════════════════════════════════════════════
 //  KINK MODEL — Premium Calculation (mirrors PremiumMath.sol)
@@ -551,7 +639,7 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
     }
 
     // Resolve full product entry for keccak256 productId
-    const productEntry = PRODUCTS.find(p => p.id === product.fullId);
+    let productEntry = PRODUCTS.find(p => p.id === product.fullId);
     if (!productEntry) {
       return res.status(400).json({ error: "Product not configured: " + product.fullId });
     }
@@ -561,15 +649,30 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
       return res.status(400).json({ error: "Product deprecated. Use BCS (BTCCAT-001) for BTC or EAS (ETHAPOC-001) for ETH." });
     }
 
+    // Resolve Flash products — merges correct pBase, shield, productId for the chosen duration
+    if (productEntry.durations) {
+      const resolved = resolveProduct(productEntry, durationSeconds);
+      if (resolved.error) {
+        return res.status(400).json({ error: resolved.error, message: resolved.message });
+      }
+      productEntry = resolved;
+      // Override shield in product config for downstream use
+      product.shield = resolved.shield;
+    }
+
     if (coverageAmount < 100000000 || coverageAmount > 100000000000) {
       return res.status(400).json({ error: "Coverage between $100 and $100,000 (6 decimals). Example: 1000000000 = $1,000" });
     }
 
-    if (durationSeconds < 604800 || durationSeconds > 31536000) {
-      return res.status(400).json({ error: "Duration between 7 and 365 days (in seconds). Example: 1209600 = 14 days" });
+    // Flash products use exact durations; non-Flash require 7-365 day range
+    const isFlashProduct = !!productEntry.durations || !!productEntry.resolvedProductId;
+    if (!isFlashProduct) {
+      if (durationSeconds < 604800 || durationSeconds > 31536000) {
+        return res.status(400).json({ error: "Duration between 7 and 365 days (in seconds). Example: 1209600 = 14 days" });
+      }
     }
 
-    // Per-product duration limits
+    // Per-product duration limits (Flash products already validated by resolveProduct)
     const PURCHASE_DUR_LIMITS = {
       "BSS": { min: 7 * 86400, max: 30 * 86400 },
       "DEPEG": { min: 14 * 86400, max: 365 * 86400 },
@@ -773,11 +876,24 @@ app.get("/api/v2/products", async (_req, res) => {
         statuses.push(false); // deprecated → never on-chain-active
         continue;
       }
-      try {
-        const v = await router.isProductAvailable(p.productId);
-        statuses.push(!!v);
-      } catch {
+      // Flash products have per-duration productIds; check the first duration's registration
+      if (p.durations && p.durations.length > 0) {
+        try {
+          const flashPid = PRODUCT_IDS[p.durations[0].internalProductId] || ethers.keccak256(ethers.toUtf8Bytes(p.durations[0].internalProductId));
+          const v = await router.isProductAvailable(flashPid);
+          statuses.push(!!v);
+        } catch {
+          statuses.push(null);
+        }
+      } else if (!p.productId) {
         statuses.push(null);
+      } else {
+        try {
+          const v = await router.isProductAvailable(p.productId);
+          statuses.push(!!v);
+        } catch {
+          statuses.push(null);
+        }
       }
       // Small gap before the next call — only between non-final entries
       if (i < PRODUCTS.length - 1) {
@@ -801,7 +917,7 @@ app.get("/api/v2/products", async (_req, res) => {
         status = "UNKNOWN";
         registeredOnChain = null;
       }
-      return {
+      const entry = {
         name: p.name,
         id: p.id,
         productId: p.productId,
@@ -822,6 +938,19 @@ app.get("/api/v2/products", async (_req, res) => {
           pendingMessage: `Shield ${p.shield} is deployed but not registered in CoverRouter. Quotes will fail with PRODUCT_NOT_REGISTERED until governance calls registerProduct().`,
         }),
       };
+      // Flash products: expose durations array with per-duration details
+      if (p.durations) {
+        entry.durations = p.durations.map(d => ({
+          seconds: d.seconds,
+          label: d.label,
+          trigger: d.trigger,
+          pBase: d.pBase,
+          shield: d.shield,
+          internalProductId: d.internalProductId,
+        }));
+        entry.description = p.description;
+      }
+      return entry;
     });
     const payload = { products };
     _productsCache = payload;
@@ -989,11 +1118,12 @@ app.post("/api/v2/quote", async (req, res) => {
       "IL": { min: 14 * 86400, max: 90 * 86400 },
       "EXPLOIT": { min: 90 * 86400, max: 365 * 86400 },
       "BCS": { min: 7 * 86400, max: 30 * 86400 },
-      "EAS": { min: 7 * 86400, max: 30 * 86400 }
+      "EAS": { min: 7 * 86400, max: 30 * 86400 },
+      // Flash products have exact durations enforced by resolveProduct(); skip generic limits
     };
     // Bidirectional ID maps so the same lookup table works whether the
     // caller uses the short ID ("BCS") or the full ID ("BTCCAT-001").
-    const SHORT_TO_FULL = { "BSS":"BLACKSWAN-001", "DEPEG":"DEPEG-STABLE-001", "IL":"ILPROT-001", "EXPLOIT":"EXPLOIT-001", "BCS":"BTCCAT-001", "EAS":"ETHAPOC-001" };
+    const SHORT_TO_FULL = { "BSS":"BLACKSWAN-001", "DEPEG":"DEPEG-STABLE-001", "IL":"ILPROT-001", "EXPLOIT":"EXPLOIT-001", "BCS":"BTCCAT-001", "EAS":"ETHAPOC-001", "FLASHBTC":"FLASH-BTC", "FLASHETH":"FLASH-ETH" };
     const FULL_TO_SHORT = Object.fromEntries(Object.entries(SHORT_TO_FULL).map(([k, v]) => [v, k]));
     const shortIdForLimits = FULL_TO_SHORT[productId] || productId;
     const durLimits = DURATION_LIMITS[shortIdForLimits];
@@ -1006,19 +1136,28 @@ app.post("/api/v2/quote", async (req, res) => {
       }
     }
 
-    // Alias map: short IDs (BSS, DEPEG, IL, EXPLOIT, BCS, EAS) → full IDs
+    // Alias map: short IDs (BSS, DEPEG, IL, EXPLOIT, BCS, EAS, FLASHBTC, FLASHETH) → full IDs
     const PRODUCT_ALIASES = SHORT_TO_FULL;
     const resolvedId = PRODUCT_ALIASES[productId] || productId;
 
     // Find product config
-    const product = PRODUCTS.find((p) => p.id === resolvedId || p.productId === resolvedId || p.id === productId || p.productId === productId);
+    let product = PRODUCTS.find((p) => p.id === resolvedId || p.productId === resolvedId || p.id === productId || p.productId === productId);
     if (!product) {
-      return res.status(400).json({ error: `Unknown product: ${productId}. Valid: BSS, DEPEG, IL, EXPLOIT, BCS, EAS (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001, BTCCAT-001, ETHAPOC-001)` });
+      return res.status(400).json({ error: `Unknown product: ${productId}. Valid: BSS, DEPEG, IL, EXPLOIT, BCS, EAS, FLASHBTC, FLASHETH (or BLACKSWAN-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001, BTCCAT-001, ETHAPOC-001, FLASH-BTC, FLASH-ETH)` });
     }
 
     // Reject deprecated products
     if (product.deprecated) {
       return res.status(400).json({ error: "Product deprecated. Use BCS (BTCCAT-001) for BTC or EAS (ETHAPOC-001) for ETH." });
+    }
+
+    // Resolve Flash products — merges correct pBase, shield, productId for the chosen duration
+    if (product.durations) {
+      const resolved = resolveProduct(product, durNum);
+      if (resolved.error) {
+        return res.status(400).json({ error: resolved.error, message: resolved.message });
+      }
+      product = resolved;
     }
 
     // Asset validation: each active product accepts a fixed set of asset
@@ -1039,6 +1178,8 @@ app.post("/api/v2/quote", async (req, res) => {
       "ILPROT-001":       ["ETH", "BTC"],
       "DEPEG-STABLE-001": ["USDT", "DAI"], // USDC excluded by DepegShield (circular risk)
       "EXPLOIT-001":      ["ETH"],
+      "FLASH-BTC":        ["BTC"],
+      "FLASH-ETH":        ["ETH"],
     };
     // For DEPEG, the user-facing field is `stablecoin`, not `asset`.
     // Validate against whichever field they sent.
@@ -1232,8 +1373,25 @@ app.get("/api/v2/policies", async (req, res) => {
     const buyerAddr = buyer.toLowerCase();
     const policies = [];
 
+    // Expand Flash products into per-duration entries for scanning
+    const allProductEntries = [];
+    for (const p of PRODUCTS) {
+      if (p.durations && p.durations.length > 0) {
+        for (const dur of p.durations) {
+          allProductEntries.push({
+            productId: PRODUCT_IDS[dur.internalProductId] || ethers.keccak256(ethers.toUtf8Bytes(dur.internalProductId)),
+            name: `${p.name} ${dur.label}`,
+            shield: dur.shield,
+          });
+        }
+      } else {
+        allProductEntries.push(p);
+      }
+    }
+
     // Scan all shields for policies belonging to buyer
-    for (const product of PRODUCTS) {
+    for (const product of allProductEntries) {
+      if (!product.shield || product.shield === ethers.ZeroAddress) continue;
       const shield = new ethers.Contract(product.shield, SHIELD_ABI, provider);
       let totalPolicies;
       try {
@@ -1428,6 +1586,29 @@ app.listen(PORT, () => {
   }).catch(() => {});
 
   // ═══ Start Relayer service (auto-claim, cleanup, execute pending, monitor vaults) ═══
+  // Expand Flash products into per-duration entries so the relayer can iterate
+  // them like normal products (each needs its own shield, asset, productId).
+  const relayerProducts = [];
+  for (const p of PRODUCTS) {
+    if (p.durations && p.durations.length > 0) {
+      for (const dur of p.durations) {
+        relayerProducts.push({
+          id: dur.internalProductId,
+          name: `${p.name} ${dur.label}`,
+          productId: PRODUCT_IDS[dur.internalProductId] || ethers.keccak256(ethers.toUtf8Bytes(dur.internalProductId)),
+          shield: dur.shield,
+          asset: p.assets && p.assets[0] ? p.assets[0] : undefined,
+          riskType: p.riskType,
+          vaults: p.vaults,
+          pBase: dur.pBase,
+          minDuration: dur.seconds,
+          maxDuration: dur.seconds,
+        });
+      }
+    } else {
+      relayerProducts.push(p);
+    }
+  }
   relayer.start({
     provider,
     relayerWallet,
@@ -1435,7 +1616,7 @@ app.listen(PORT, () => {
     oracleSignerWallet,    // separate from relayer — signs proofs only, never sends tx
     owsSigner,
     coverRouter: COVER_ROUTER,
-    products: PRODUCTS,
+    products: relayerProducts,
     vaults: VAULTS,
   }).catch((e) => console.error("[Relayer] start failed:", e.message));
 });
