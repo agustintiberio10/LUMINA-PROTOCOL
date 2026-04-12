@@ -33,6 +33,13 @@
 - ILIndexCover V1: `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93` **(DEPRECATED — replaced by V2)**
 - ExploitShield V1: `0x9870830c615d1b9c53dfee4136c4792de395b7a1` **(DEPRECATED — replaced by V2)**
 
+## Flash Insurance (pending deploy)
+- FlashVault: TBD
+- FlashBTCShield24h: TBD
+- FlashBTCShield48h: TBD
+- FlashETHShield24h: TBD
+- FlashETHShield48h: TBD
+
 ## External
 - USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
 - Aave V3 Pool: `0xA238Dd80C259a72e81d7e4664a9801593F98d1c5`

@@ -255,6 +255,53 @@ You don't need to do anything yourself, but if you want to monitor:
 
 ---
 
+## Flash Insurance (Ultra-short coverage)
+
+Flash Insurance provides ultra-short-term coverage (24h or 48h) for BTC and ETH.
+This is ideal for agents that need fast, lightweight protection during volatile
+windows — no long lock-ups, no complex parameters.
+
+**Available Flash products:**
+
+| Product        | productId   | Asset | Duration options          |
+|----------------|-------------|-------|---------------------------|
+| Flash BTC 24h  | `FLASH-BTC` | BTC   | 86400s (24h) or 172800s (48h) |
+| Flash ETH 24h  | `FLASH-ETH` | ETH   | 86400s (24h) or 172800s (48h) |
+
+### Get a Flash quote
+
+```bash
+curl -X POST https://lumina-protocol-production.up.railway.app/api/v2/quote \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productId": "FLASH-BTC",
+    "coverageAmount": 1000000000,
+    "durationSeconds": 86400,
+    "asset": "BTC",
+    "buyer": "0xYOUR_AGENT_WALLET"
+  }'
+```
+
+### Purchase a Flash policy
+
+```bash
+curl -X POST https://lumina-protocol-production.up.railway.app/api/v2/purchase \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -d '{
+    "productId": "FLASH-BTC",
+    "coverageAmount": 1000000000,
+    "durationSeconds": 86400,
+    "asset": "BTC"
+  }'
+```
+
+> **Note:** For 48-hour coverage, change `durationSeconds` to `172800`.
+> Flash products accept **only** 86400 (24h) or 172800 (48h) — other values
+> will be rejected.
+
+---
+
 ## Operational notes for autonomous agents
 
 - **Always handle the `error` field on a 200 response.** The fixed

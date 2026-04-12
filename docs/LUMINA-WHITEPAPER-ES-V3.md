@@ -366,6 +366,23 @@ La verificacion del trigger secundario la realiza el contrato **LuminaPhalaVerif
 
 Aave V3 esta excluido porque Lumina deposita los fondos de los vaults en Aave V3 para generar yield. Cubrir un exploit de Aave V3 crearia una dependencia circular: si Aave V3 es hackeado, los fondos para pagar el siniestro estarian comprometidos.
 
+### 4.5 Flash Insurance
+
+**Descripcion:** Flash Insurance es el producto de cobertura ultra-corta de Lumina, disenado para agentes de IA que necesitan proteccion rapida y ligera durante ventanas de alta volatilidad. A diferencia de los demas productos que requieren duraciones minimas de 7 dias o mas, Flash ofrece coberturas de exactamente **24 horas (86400 segundos)** o **48 horas (172800 segundos)**.
+
+Flash Insurance cubre BTC y ETH con los identificadores `FLASH-BTC` y `FLASH-ETH`. Es ideal para escenarios donde un agente detecta condiciones de mercado inusuales (anuncios macroeconomicos, liquidaciones masivas en cadena, eventos geopoliticos) y quiere proteger una posicion durante un periodo muy corto sin comprometerse a una poliza de semanas.
+
+**Parametros:**
+
+| Parametro        | FLASH-BTC                  | FLASH-ETH                  |
+|------------------|----------------------------|----------------------------|
+| Producto ID      | `FLASH-BTC`                | `FLASH-ETH`                |
+| Activo cubierto  | BTC                        | ETH                        |
+| Duracion         | 86400s (24h) o 172800s (48h) | 86400s (24h) o 172800s (48h) |
+| Contratos        | TBD (pendiente de deploy)  | TBD (pendiente de deploy)  |
+
+> **Estado:** Flash Insurance esta en fase de desarrollo. Los contratos aun no han sido desplegados en mainnet. La API aceptara los productIds `FLASH-BTC` y `FLASH-ETH` una vez que los contratos esten registrados en el CoverRouter.
+
 ---
 
 ## 5. VAULTS Y YIELD

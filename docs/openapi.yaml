@@ -190,7 +190,7 @@ components:
       properties:
         productId:
           type: string
-          description: "Short ID (BCS, EAS, DEPEG, IL, EXPLOIT) or full ID (BTCCAT-001, ETHAPOC-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001). BSS / BLACKSWAN-001 is accepted but always returns the deprecated error — use BCS for BTC or EAS for ETH instead."
+          description: "Short ID (BCS, EAS, DEPEG, IL, EXPLOIT, FLASH-BTC, FLASH-ETH) or full ID (BTCCAT-001, ETHAPOC-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001). BSS / BLACKSWAN-001 is accepted but always returns the deprecated error — use BCS for BTC or EAS for ETH instead. Flash products require durationSeconds of exactly 86400 or 172800."
           example: "BTCCAT-001"
         coverageAmount:
           type: integer
@@ -346,7 +346,7 @@ components:
         productId:
           type: string
           description: "Short product ID. BCS/EAS/DEPEG/IL/EXPLOIT are active. BSS is accepted by the API alias map but always rejected as deprecated (use BCS or EAS instead)."
-          enum: [BCS, EAS, DEPEG, IL, EXPLOIT, BSS]
+          enum: [BCS, EAS, DEPEG, IL, EXPLOIT, FLASH-BTC, FLASH-ETH, BSS]
           example: "BCS"
         coverageAmount:
           type: integer
@@ -354,7 +354,7 @@ components:
           example: 1000000000
         durationSeconds:
           type: integer
-          description: "Policy duration in seconds. Per-product limits: BCS 7-30d, EAS 7-30d, DEPEG 14-365d, IL 14-90d, EXPLOIT 90-365d. (BSS deprecated, no longer accepted.)"
+          description: "Policy duration in seconds. Per-product limits: BCS 7-30d, EAS 7-30d, DEPEG 14-365d, IL 14-90d, EXPLOIT 90-365d, FLASH-BTC/FLASH-ETH exactly 86400 (24h) or 172800 (48h). (BSS deprecated, no longer accepted.)"
           example: 1209600
 
     PurchaseResponse:
@@ -683,6 +683,8 @@ paths:
         - DEPEG: 14 - 365 days
         - IL: 14 - 90 days
         - EXPLOIT: 90 - 365 days
+        - FLASH-BTC: exactly 86400 (24h) or 172800 (48h)
+        - FLASH-ETH: exactly 86400 (24h) or 172800 (48h)
         - BSS: deprecated — request always returns the deprecated error.
 
         **Error responses:** error responses come back with HTTP 200 and an
@@ -800,7 +802,7 @@ paths:
                 unknownProduct:
                   summary: Unknown product
                   value:
-                    error: "Unknown product: XYZ. Valid: BCS, EAS, DEPEG, IL, EXPLOIT (or BTCCAT-001, ETHAPOC-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001). BSS / BLACKSWAN-001 is accepted but always returns the deprecated error."
+                    error: "Unknown product: XYZ. Valid: BCS, EAS, DEPEG, IL, EXPLOIT, FLASH-BTC, FLASH-ETH (or BTCCAT-001, ETHAPOC-001, DEPEG-STABLE-001, ILPROT-001, EXPLOIT-001). BSS / BLACKSWAN-001 is accepted but always returns the deprecated error."
                 durationTooShort:
                   summary: Duration too short
                   value:
@@ -849,6 +851,8 @@ paths:
         - DEPEG: 14 - 365 days
         - IL: 14 - 90 days
         - EXPLOIT: 90 - 365 days
+        - FLASH-BTC: exactly 86400 (24h) or 172800 (48h)
+        - FLASH-ETH: exactly 86400 (24h) or 172800 (48h)
         - BSS: deprecated — request always returns the deprecated error.
       operationId: postPurchase
       tags: [Coverage]
@@ -881,7 +885,7 @@ paths:
                 unknownProduct:
                   summary: Unknown product
                   value:
-                    error: "Unknown productId. Valid: BCS, EAS, DEPEG, IL, EXPLOIT (BSS deprecated)"
+                    error: "Unknown productId. Valid: BCS, EAS, DEPEG, IL, EXPLOIT, FLASH-BTC, FLASH-ETH (BSS deprecated)"
                 coverageRange:
                   summary: Coverage out of range
                   value:
