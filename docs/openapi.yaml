@@ -73,7 +73,7 @@ components:
         shield:
           type: string
           description: "Shield contract address"
-          example: "0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8"
+          example: "0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21"
         riskType:
           type: string
           enum: [VOLATILE, STABLE]
@@ -459,7 +459,7 @@ components:
                 example: "BCS"
               shieldAddress:
                 type: string
-                example: "0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8"
+                example: "0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21"
         lastUpdated:
           type: integer
           description: "Unix timestamp (ms) of last cache refresh"

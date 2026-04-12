@@ -11,8 +11,8 @@
 | **StableLong** | `0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c` | Performance fee |
 
 **NOT upgradeable (no proxy):**
-- LuminaOracle (`0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87`) - requires new deploy + Router.setOracle()
-- Shields (BSS, Depeg, IL, Exploit) - immutable, require redeploy if changed
+- LuminaOracleV2 (`0x87B576f688bE0E1d7d23A299f55b475658215105`) - requires new deploy + Router.setOracle()
+- Shields V2 (BCS, EAS, Depeg, IL, Exploit) - immutable, require redeploy if changed
 
 ## Governance
 

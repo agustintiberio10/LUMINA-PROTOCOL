@@ -1,7 +1,9 @@
+> **DEPRECATED (2026-04-06):** BlackSwanShield was split into BTCCatastropheShield (BCS) and ETHApocalypseShield (EAS). This document is kept for historical reference. See BCS/EAS specs for current parameters.
+
 # The Black Swan Shield — Especificación Técnica y Actuarial Completa
 
 ## Protocolo: Lumina Protocol
-## Producto: BLACKSWAN-001 (ex LIQSHIELD-001)
+## Producto: BLACKSWAN-001 (ex LIQSHIELD-001) — DEPRECATED
 ## Versión: 3.0 — Post-pivot catastrófico
 ## Chain: Base L2 (8453) | Settlement: USDC
 ## Modelo: M2M (Machine-to-Machine) — operado exclusivamente por Agentes de IA

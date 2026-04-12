@@ -7,7 +7,8 @@
 ## Core
 - CoverRouter: `0xd5f8678A0F2149B6342F9014CCe6d743234Ca025`
 - PolicyManager: `0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a`
-- LuminaOracle: `0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87`
+- LuminaOracleV2: `0x87B576f688bE0E1d7d23A299f55b475658215105` (active)
+- LuminaOracle V1: `0x4d1140ac8f8cb9d4fb4f16cae9c9cba13c44bc87` **(DEPRECATED — replaced by V2)**
 - EmergencyPause: `0xc7ac8c19c3f10f820d7e42f07e6e257bacc22876`
 - LuminaPhalaVerifier: `0x468b9D2E9043c80467B610bC290b698ae23adb9B`
 
@@ -17,14 +18,20 @@
 - StableShort (97d cooldown): `0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC`
 - StableLong (372d cooldown): `0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c`
 
-## Shields
+## Shields V2 (active — production)
+- BTCCatastropheShieldV2 (BCS): `0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21`
+- ETHApocalypseShieldV2 (EAS): `0x70f1c92EFcFe55e8d460aAa6d626779536b15128`
+- DepegShieldV2: `0x881f683291122c3A72bdD504F71ddCAf47d9AE0e`
+- ILIndexCoverV2: `0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a`
+- ExploitShieldV2: `0x63D340AE7229BB464bC801f225651341ebcD3693`
+
+## Shields V1 (deprecated — do not use for new integrations)
 - BlackSwanShield (BSS): `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e` **(DEPRECATED — split into BCS+EAS)**
-- BlackSwanShield (BSS, orphaned legacy deploy): `0x2926202bbe3f25f71ef17b25a20ebe8be028af5f` (NEVER registered in CoverRouter; superseded by 0x54CDc21D before launch)
-- DepegShield: `0x7578816a803d293bbb4dbea0efbed872842679d0`
-- ILIndexCover: `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93`
-- ExploitShield: `0x9870830c615d1b9c53dfee4136c4792de395b7a1`
-- BTCCatastropheShield (BCS): `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8` (deployed 2026-04-06, verified on Blockscout)
-- ETHApocalypseShield (EAS): `0xA755D134a0b2758E9b397E11E7132a243f672A3D` (deployed 2026-04-06, verified on Blockscout)
+- BTCCatastropheShield V1: `0x36e37899D9D89bf367FA66da6e3CebC726Df4ce8` **(DEPRECATED — replaced by V2)**
+- ETHApocalypseShield V1: `0xA755D134a0b2758E9b397E11E7132a243f672A3D` **(DEPRECATED — replaced by V2)**
+- DepegShield V1: `0x7578816a803d293bbb4dbea0efbed872842679d0` **(DEPRECATED — replaced by V2)**
+- ILIndexCover V1: `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93` **(DEPRECATED — replaced by V2)**
+- ExploitShield V1: `0x9870830c615d1b9c53dfee4136c4792de395b7a1` **(DEPRECATED — replaced by V2)**
 
 ## External
 - USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
