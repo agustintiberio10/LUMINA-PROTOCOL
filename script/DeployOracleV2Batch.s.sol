@@ -48,29 +48,29 @@ contract DeployOracleV2Batch is Script {
 
     // ─── Protocol addresses (copied from DeployFreshBatch.s.sol) ────────
     address internal constant COVER_ROUTER = 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025;
-    address internal constant TIMELOCK     = 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a;
-    address internal constant SAFE         = 0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD;
-    address internal constant ORACLE_KEY   = 0x933b15dd4F42bd2EE2794C1D188882aBCCDa977E;
+    address internal constant TIMELOCK = 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a;
+    address internal constant SAFE = 0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD;
+    address internal constant ORACLE_KEY = 0x933b15dd4F42bd2EE2794C1D188882aBCCDa977E;
     address internal constant SEQUENCER_UPTIME_FEED = 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433;
     address internal constant PHALA_VERIFIER = 0x468b9D2E9043c80467B610bC290b698ae23adb9B;
-    address internal constant AAVE_POOL      = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
+    address internal constant AAVE_POOL = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
 
     // ─── Chainlink price feeds (Base mainnet) ───────────────────────────
-    address internal constant BTC_FEED  = 0xCCADC697c55bbB68dc5bCdf8d3CBe83CdD4E071E; // BTC/USD (corrected)
-    address internal constant ETH_FEED  = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70; // ETH/USD
+    address internal constant BTC_FEED = 0xCCADC697c55bbB68dc5bCdf8d3CBe83CdD4E071E; // BTC/USD (corrected)
+    address internal constant ETH_FEED = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70; // ETH/USD
     address internal constant USDC_FEED = 0x7e860098F58bBFC8648a4311b374B1D669a2bc6B; // USDC/USD
     address internal constant USDT_FEED = 0xf19d560eB8d2ADf07BD6D13ed03e1D11215721F9; // USDT/USD
-    address internal constant DAI_FEED  = 0x591e79239a7d679378eC8c847e5038150364C78F; // DAI/USD
+    address internal constant DAI_FEED = 0x591e79239a7d679378eC8c847e5038150364C78F; // DAI/USD
 
     // ─── Heartbeats ─────────────────────────────────────────────────────
-    uint256 internal constant HB_CRYPTO = 1200;  // 20 min  (BTC, ETH)
+    uint256 internal constant HB_CRYPTO = 1200; // 20 min  (BTC, ETH)
     uint256 internal constant HB_STABLE = 86400; // 24 h    (USDC, USDT, DAI)
 
     function run() external {
         require(block.chainid == CHAIN_ID, "wrong chain");
 
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer    = vm.addr(deployerKey);
+        address deployer = vm.addr(deployerKey);
         console.log("Deployer:", deployer);
 
         vm.startBroadcast(deployerKey);
@@ -78,19 +78,15 @@ contract DeployOracleV2Batch is Script {
         // 1. Deploy LuminaOracleV2 — initial owner is the deployer so we
         //    can register feeds in this same broadcast. Ownership is
         //    transferred to the TimelockController at the end.
-        LuminaOracleV2 oracle = new LuminaOracleV2(
-            deployer,
-            ORACLE_KEY,
-            SEQUENCER_UPTIME_FEED
-        );
+        LuminaOracleV2 oracle = new LuminaOracleV2(deployer, ORACLE_KEY, SEQUENCER_UPTIME_FEED);
         console.log("LuminaOracleV2:", address(oracle));
 
         // 2. Register Chainlink feeds on the new oracle.
-        oracle.registerFeed(bytes32("BTC"),  BTC_FEED,  HB_CRYPTO);
-        oracle.registerFeed(bytes32("ETH"),  ETH_FEED,  HB_CRYPTO);
+        oracle.registerFeed(bytes32("BTC"), BTC_FEED, HB_CRYPTO);
+        oracle.registerFeed(bytes32("ETH"), ETH_FEED, HB_CRYPTO);
         oracle.registerFeed(bytes32("USDC"), USDC_FEED, HB_STABLE);
         oracle.registerFeed(bytes32("USDT"), USDT_FEED, HB_STABLE);
-        oracle.registerFeed(bytes32("DAI"),  DAI_FEED,  HB_STABLE);
+        oracle.registerFeed(bytes32("DAI"), DAI_FEED, HB_STABLE);
 
         // 3. Deploy V2 shields. router = live CoverRouter proxy, oracle = V2.
         BTCCatastropheShieldV2 bcs = new BTCCatastropheShieldV2(COVER_ROUTER, address(oracle));
@@ -105,12 +101,7 @@ contract DeployOracleV2Batch is Script {
         ILIndexCoverV2 il = new ILIndexCoverV2(COVER_ROUTER, address(oracle));
         console.log("ILIndexCoverV2:", address(il));
 
-        ExploitShieldV2 exploit = new ExploitShieldV2(
-            COVER_ROUTER,
-            address(oracle),
-            PHALA_VERIFIER,
-            AAVE_POOL
-        );
+        ExploitShieldV2 exploit = new ExploitShieldV2(COVER_ROUTER, address(oracle), PHALA_VERIFIER, AAVE_POOL);
         console.log("ExploitShieldV2:", address(exploit));
 
         // 4. Hand the oracle over to the Timelock. From now on any feed

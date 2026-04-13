@@ -256,7 +256,9 @@ contract MultisigOracleTest is Test {
 
     function _sortSigners3(address a, address b, address c) internal pure returns (address[] memory) {
         address[] memory arr = new address[](3);
-        arr[0] = a; arr[1] = b; arr[2] = c;
+        arr[0] = a;
+        arr[1] = b;
+        arr[2] = c;
         for (uint256 i = 0; i < 3; i++) {
             for (uint256 j = i + 1; j < 3; j++) {
                 if (uint160(arr[i]) > uint160(arr[j])) {
@@ -269,8 +271,13 @@ contract MultisigOracleTest is Test {
 
     function _sortSigners2(address a, address b) internal pure returns (address[] memory) {
         address[] memory arr = new address[](2);
-        if (uint160(a) < uint160(b)) { arr[0] = a; arr[1] = b; }
-        else { arr[0] = b; arr[1] = a; }
+        if (uint160(a) < uint160(b)) {
+            arr[0] = a;
+            arr[1] = b;
+        } else {
+            arr[0] = b;
+            arr[1] = a;
+        }
         return arr;
     }
 

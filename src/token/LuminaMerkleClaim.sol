@@ -43,11 +43,7 @@ contract LuminaMerkleClaim is Ownable {
         emit Claimed(msg.sender, toClaim);
     }
 
-    function claimable(address account, uint256 totalAmount, bytes32[] calldata proof)
-        external
-        view
-        returns (uint256)
-    {
+    function claimable(address account, uint256 totalAmount, bytes32[] calldata proof) external view returns (uint256) {
         bytes32 leaf = keccak256(abi.encodePacked(account, totalAmount));
         if (!MerkleProof.verify(proof, merkleRoot, leaf)) return 0;
 

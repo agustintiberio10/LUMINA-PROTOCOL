@@ -63,9 +63,9 @@ contract LuminaOracle is IOracle, Ownable {
     // ═══════════════════════════════════════════════════════════
 
     struct FeedConfig {
-        IAggregatorV3 feed;         // Chainlink aggregator
-        uint256 maxStaleness;       // Max seconds since last update (heartbeat)
-        bool active;                // Feed is registered and active
+        IAggregatorV3 feed; // Chainlink aggregator
+        uint256 maxStaleness; // Max seconds since last update (heartbeat)
+        bool active; // Feed is registered and active
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -108,15 +108,15 @@ contract LuminaOracle is IOracle, Ownable {
     // ═══════════════════════════════════════════════════════════
 
     error ZeroAddress(string param);
-    error ZeroValue(string param);              // [FIX] Dedicated error for non-address zero values
+    error ZeroValue(string param); // [FIX] Dedicated error for non-address zero values
     error FeedNotRegistered(bytes32 asset);
     error FeedAlreadyRegistered(bytes32 asset);
     error StalePriceAsset(bytes32 asset, uint256 updatedAt, uint256 maxStaleness);
     error InvalidPriceAsset(bytes32 asset, int256 price);
     error IncompleteRound(bytes32 asset, uint80 roundId, uint80 answeredInRound);
     error InvalidSignatureLength();
-    error SequencerDown();                      // [FIX] L2 sequencer is currently offline
-    error SequencerGracePeriodNotOver();         // [FIX] Sequencer restarted too recently
+    error SequencerDown(); // [FIX] L2 sequencer is currently offline
+    error SequencerGracePeriodNotOver(); // [FIX] Sequencer restarted too recently
 
     // ═══════════════════════════════════════════════════════════
     //  CONSTRUCTOR
@@ -128,11 +128,7 @@ contract LuminaOracle is IOracle, Ownable {
      * @param sequencerUptimeFeed_ Chainlink L2 Sequencer Uptime Feed on Base.
      *        Set to address(0) for testnet deployment (skips sequencer check).
      */
-    constructor(
-        address owner_,
-        address oracleKey_,
-        address sequencerUptimeFeed_
-    ) Ownable(owner_) {
+    constructor(address owner_, address oracleKey_, address sequencerUptimeFeed_) Ownable(owner_) {
         if (oracleKey_ == address(0)) revert ZeroAddress("oracleKey");
         _oracleKey = oracleKey_;
         _sequencerUptimeFeed = IAggregatorV3(sequencerUptimeFeed_);
@@ -157,13 +153,8 @@ contract LuminaOracle is IOracle, Ownable {
         FeedConfig storage config = _feeds[asset];
         if (!config.active) revert FeedNotRegistered(asset);
 
-        (
-            uint80 roundId,
-            int256 answer,
-            /* startedAt */,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = config.feed.latestRoundData();
+        (uint80 roundId, int256 answer,/* startedAt */, uint256 updatedAt, uint80 answeredInRound) =
+            config.feed.latestRoundData();
 
         // Validate price is positive
         if (answer <= 0) revert InvalidPriceAsset(asset, answer);
@@ -188,10 +179,7 @@ contract LuminaOracle is IOracle, Ownable {
     // ═══════════════════════════════════════════════════════════
 
     /// @inheritdoc IOracle
-    function verifySignature(
-        bytes32 digest,
-        bytes calldata signature
-    ) external view returns (address signer) {
+    function verifySignature(bytes32 digest, bytes calldata signature) external view returns (address signer) {
         // Multisig mode: if >1 signatures required, verify packed multisig
         if (requiredSignatures > 1) {
             if (verifyPackedMultisig(digest, signature)) {
@@ -203,7 +191,7 @@ contract LuminaOracle is IOracle, Ownable {
         // Single signer mode (backwards compatible)
         if (signature.length != 65) revert InvalidSignatureLength();
 
-        (address recovered, ECDSA.RecoverError err, ) = ECDSA.tryRecover(digest, signature);
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
 
         if (err != ECDSA.RecoverError.NoError) {
             return address(0);
@@ -222,10 +210,7 @@ contract LuminaOracle is IOracle, Ownable {
     // ═══════════════════════════════════════════════════════════
 
     /// @notice Verify N packed ECDSA signatures (each 65 bytes, ordered by signer address ascending)
-    function verifyPackedMultisig(
-        bytes32 dataHash,
-        bytes calldata packedSignatures
-    ) public view returns (bool) {
+    function verifyPackedMultisig(bytes32 dataHash, bytes calldata packedSignatures) public view returns (bool) {
         uint256 sigCount = packedSignatures.length / 65;
         require(sigCount >= requiredSignatures, "Not enough signatures");
         require(packedSignatures.length % 65 == 0, "Invalid signature length");
@@ -321,25 +306,17 @@ contract LuminaOracle is IOracle, Ownable {
      *          ETH/USD, BTC/USD: 1200 (20 min, Chainlink heartbeat on Base)
      *          USDC/USD, USDT/USD, DAI/USD: 86400 (24h, stablecoin feeds update less frequently)
      */
-    function registerFeed(
-        bytes32 asset,
-        address feed,
-        uint256 maxStaleness
-    ) external onlyOwner {
+    function registerFeed(bytes32 asset, address feed, uint256 maxStaleness) external onlyOwner {
         if (feed == address(0)) revert ZeroAddress("feed");
         if (_feeds[asset].active) revert FeedAlreadyRegistered(asset);
         if (maxStaleness == 0) revert ZeroValue("maxStaleness");
 
         // Verify feed is alive by doing a test read
         IAggregatorV3 aggregator = IAggregatorV3(feed);
-        (, int256 testPrice, , , ) = aggregator.latestRoundData();
+        (, int256 testPrice,,,) = aggregator.latestRoundData();
         if (testPrice <= 0) revert InvalidPriceAsset(asset, testPrice);
 
-        _feeds[asset] = FeedConfig({
-            feed: aggregator,
-            maxStaleness: maxStaleness,
-            active: true
-        });
+        _feeds[asset] = FeedConfig({feed: aggregator, maxStaleness: maxStaleness, active: true});
         _assetIds.push(asset);
 
         emit FeedRegistered(asset, feed, maxStaleness);
@@ -349,18 +326,14 @@ contract LuminaOracle is IOracle, Ownable {
      * @notice Update an existing feed's config (address and/or staleness)
      * @dev Use when Chainlink deploys new aggregator or heartbeat changes
      */
-    function updateFeed(
-        bytes32 asset,
-        address feed,
-        uint256 maxStaleness
-    ) external onlyOwner {
+    function updateFeed(bytes32 asset, address feed, uint256 maxStaleness) external onlyOwner {
         if (!_feeds[asset].active) revert FeedNotRegistered(asset);
         if (feed == address(0)) revert ZeroAddress("feed");
         if (maxStaleness == 0) revert ZeroValue("maxStaleness");
 
         // Test read on new feed
         IAggregatorV3 aggregator = IAggregatorV3(feed);
-        (, int256 testPrice, , , ) = aggregator.latestRoundData();
+        (, int256 testPrice,,,) = aggregator.latestRoundData();
         if (testPrice <= 0) revert InvalidPriceAsset(asset, testPrice);
 
         _feeds[asset].feed = aggregator;
@@ -385,11 +358,7 @@ contract LuminaOracle is IOracle, Ownable {
     // ═══════════════════════════════════════════════════════════
 
     /// @notice Get feed config for an asset
-    function getFeedConfig(bytes32 asset) external view returns (
-        address feed,
-        uint256 maxStaleness,
-        bool active
-    ) {
+    function getFeedConfig(bytes32 asset) external view returns (address feed, uint256 maxStaleness, bool active) {
         FeedConfig storage config = _feeds[asset];
         return (address(config.feed), config.maxStaleness, config.active);
     }
@@ -409,13 +378,11 @@ contract LuminaOracle is IOracle, Ownable {
      * @notice Get latest price WITH full Chainlink metadata (for off-chain consumers)
      * @dev Unlike getLatestPrice, this returns all round data for debugging/monitoring
      */
-    function getLatestRoundData(bytes32 asset) external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ) {
+    function getLatestRoundData(bytes32 asset)
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
         // [FIX M-8] Check L2 sequencer health (same as getLatestPrice)
         _checkSequencer();
 
@@ -460,9 +427,7 @@ contract LuminaOracle is IOracle, Ownable {
     function getSequencerDowntime(uint256 sinceTimestamp) external view returns (uint256 downtime) {
         if (address(_sequencerUptimeFeed) == address(0)) return 0;
 
-        try _sequencerUptimeFeed.latestRoundData() returns (
-            uint80, int256 status, uint256 startedAt, uint256, uint80
-        ) {
+        try _sequencerUptimeFeed.latestRoundData() returns (uint80, int256 status, uint256 startedAt, uint256, uint80) {
             if (status != 0) {
                 // Sequencer is currently DOWN
                 if (block.timestamp > sinceTimestamp) {
@@ -507,7 +472,7 @@ contract LuminaOracle is IOracle, Ownable {
         (
             /* uint80 roundId */,
             int256 status,
-            uint256 startedAt,              // [FIX R2] Use startedAt per Chainlink docs
+            uint256 startedAt, // [FIX R2] Use startedAt per Chainlink docs
             /* uint256 updatedAt */,
             /* uint80 answeredInRound */
         ) = _sequencerUptimeFeed.latestRoundData();

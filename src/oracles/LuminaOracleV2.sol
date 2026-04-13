@@ -87,14 +87,12 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
 
     // ── EIP-712 typehashes ────────────────────────────────────────────────
 
-    bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256(
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-    );
+    bytes32 public constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     /// @dev keccak256("PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)")
-    bytes32 public constant PRICE_PROOF_TYPEHASH = keccak256(
-        "PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)"
-    );
+    bytes32 public constant PRICE_PROOF_TYPEHASH =
+        keccak256("PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)");
 
     /// @dev keccak256("ExploitGovProof(int256 govTokenPrice,int256 govTokenPrice24hAgo,bytes32 protocolId,uint256 verifiedAt)")
     bytes32 public constant EXPLOIT_GOV_PROOF_TYPEHASH = keccak256(
@@ -165,11 +163,7 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
     //  CONSTRUCTOR
     // ═══════════════════════════════════════════════════════════
 
-    constructor(
-        address owner_,
-        address oracleKey_,
-        address sequencerUptimeFeed_
-    ) Ownable(owner_) {
+    constructor(address owner_, address oracleKey_, address sequencerUptimeFeed_) Ownable(owner_) {
         if (oracleKey_ == address(0)) revert ZeroAddress("oracleKey");
         _oracleKey = oracleKey_;
         _sequencerUptimeFeed = IAggregatorV3(sequencerUptimeFeed_);
@@ -201,13 +195,8 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
         FeedConfig storage config = _feeds[asset];
         if (!config.active) revert FeedNotRegistered(asset);
 
-        (
-            uint80 roundId,
-            int256 answer,
-            /* startedAt */,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = config.feed.latestRoundData();
+        (uint80 roundId, int256 answer,/* startedAt */, uint256 updatedAt, uint80 answeredInRound) =
+            config.feed.latestRoundData();
 
         if (answer <= 0) revert InvalidPriceAsset(asset, answer);
         if (answeredInRound < roundId) revert IncompleteRound(asset, roundId, answeredInRound);
@@ -222,10 +211,7 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
     //  IOracle — V1 SIGNATURE VERIFICATION (kept for compatibility)
     // ═══════════════════════════════════════════════════════════
 
-    function verifySignature(
-        bytes32 digest,
-        bytes calldata signature
-    ) external view returns (address signer) {
+    function verifySignature(bytes32 digest, bytes calldata signature) external view returns (address signer) {
         if (requiredSignatures > 1) {
             if (verifyPackedMultisig(digest, signature)) return _oracleKey;
             return address(0);
@@ -233,17 +219,14 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
 
         if (signature.length != 65) revert InvalidSignatureLength();
 
-        (address recovered, ECDSA.RecoverError err, ) = ECDSA.tryRecover(digest, signature);
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
         if (err != ECDSA.RecoverError.NoError) return address(0);
 
         if (authorizedSigners[recovered] || recovered == _oracleKey) return recovered;
         return address(0);
     }
 
-    function verifyPackedMultisig(
-        bytes32 dataHash,
-        bytes calldata packedSignatures
-    ) public view returns (bool) {
+    function verifyPackedMultisig(bytes32 dataHash, bytes calldata packedSignatures) public view returns (bool) {
         uint256 sigCount = packedSignatures.length / 65;
         require(sigCount >= requiredSignatures, "Not enough signatures");
         require(packedSignatures.length % 65 == 0, "Invalid signature length");
@@ -268,12 +251,11 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
     // ═══════════════════════════════════════════════════════════
 
     /// @inheritdoc IOracleV2
-    function verifyPriceProofEIP712(
-        int256 price,
-        bytes32 asset,
-        uint256 verifiedAt,
-        bytes calldata signature
-    ) external view returns (address signer) {
+    function verifyPriceProofEIP712(int256 price, bytes32 asset, uint256 verifiedAt, bytes calldata signature)
+        external
+        view
+        returns (address signer)
+    {
         bytes32 digest = priceProofDigest(price, asset, verifiedAt);
         return _verifyEip712(digest, signature);
     }
@@ -287,27 +269,15 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
         bytes calldata signature
     ) external view returns (address signer) {
         bytes32 structHash = keccak256(
-            abi.encode(
-                EXPLOIT_GOV_PROOF_TYPEHASH,
-                govTokenPrice,
-                govTokenPrice24hAgo,
-                protocolId,
-                verifiedAt
-            )
+            abi.encode(EXPLOIT_GOV_PROOF_TYPEHASH, govTokenPrice, govTokenPrice24hAgo, protocolId, verifiedAt)
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
         return _verifyEip712(digest, signature);
     }
 
     /// @inheritdoc IOracleV2
-    function priceProofDigest(
-        int256 price,
-        bytes32 asset,
-        uint256 verifiedAt
-    ) public view returns (bytes32) {
-        bytes32 structHash = keccak256(
-            abi.encode(PRICE_PROOF_TYPEHASH, price, asset, verifiedAt)
-        );
+    function priceProofDigest(int256 price, bytes32 asset, uint256 verifiedAt) public view returns (bytes32) {
+        bytes32 structHash = keccak256(abi.encode(PRICE_PROOF_TYPEHASH, price, asset, verifiedAt));
         return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
     }
 
@@ -319,13 +289,7 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
         uint256 verifiedAt
     ) external view returns (bytes32) {
         bytes32 structHash = keccak256(
-            abi.encode(
-                EXPLOIT_RECEIPT_PROOF_TYPEHASH,
-                receiptTokenDepegged,
-                contractPaused,
-                protocolId,
-                verifiedAt
-            )
+            abi.encode(EXPLOIT_RECEIPT_PROOF_TYPEHASH, receiptTokenDepegged, contractPaused, protocolId, verifiedAt)
         );
         return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
     }
@@ -340,7 +304,7 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
 
         if (signature.length != 65) revert InvalidSignatureLength();
 
-        (address recovered, ECDSA.RecoverError err, ) = ECDSA.tryRecover(digest, signature);
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
         if (err != ECDSA.RecoverError.NoError) return address(0);
 
         if (authorizedSigners[recovered] || recovered == _oracleKey) return recovered;
@@ -399,7 +363,7 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
         if (maxStaleness == 0) revert ZeroValue("maxStaleness");
 
         IAggregatorV3 aggregator = IAggregatorV3(feed);
-        (, int256 testPrice, , , ) = aggregator.latestRoundData();
+        (, int256 testPrice,,,) = aggregator.latestRoundData();
         if (testPrice <= 0) revert InvalidPriceAsset(asset, testPrice);
 
         _feeds[asset] = FeedConfig({feed: aggregator, maxStaleness: maxStaleness, active: true});
@@ -413,7 +377,7 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
         if (maxStaleness == 0) revert ZeroValue("maxStaleness");
 
         IAggregatorV3 aggregator = IAggregatorV3(feed);
-        (, int256 testPrice, , , ) = aggregator.latestRoundData();
+        (, int256 testPrice,,,) = aggregator.latestRoundData();
         if (testPrice <= 0) revert InvalidPriceAsset(asset, testPrice);
 
         _feeds[asset].feed = aggregator;
@@ -431,11 +395,7 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
     //  VIEWS
     // ═══════════════════════════════════════════════════════════
 
-    function getFeedConfig(bytes32 asset)
-        external
-        view
-        returns (address feed, uint256 maxStaleness, bool active)
-    {
+    function getFeedConfig(bytes32 asset) external view returns (address feed, uint256 maxStaleness, bool active) {
         FeedConfig storage config = _feeds[asset];
         return (address(config.feed), config.maxStaleness, config.active);
     }
@@ -472,9 +432,7 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
     function getSequencerDowntime(uint256 sinceTimestamp) external view returns (uint256 downtime) {
         if (address(_sequencerUptimeFeed) == address(0)) return 0;
 
-        try _sequencerUptimeFeed.latestRoundData() returns (
-            uint80, int256 status, uint256 startedAt, uint256, uint80
-        ) {
+        try _sequencerUptimeFeed.latestRoundData() returns (uint80, int256 status, uint256 startedAt, uint256, uint80) {
             if (status != 0) {
                 if (block.timestamp > sinceTimestamp) return block.timestamp - sinceTimestamp;
                 return MIN_DOWNTIME_EXTENSION;

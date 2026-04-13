@@ -20,13 +20,13 @@ import {EmergencyPause} from "./EmergencyPause.sol";
  * @author Lumina Protocol
  * @notice Single entry point for ALL agent interactions. UUPS upgradable.
  * @dev Version 6.0 — Post-pivot: 4 vaults, waterfall, cooldown, ALM.
- * 
+ *
  * KEY CHANGES (v6):
  *   - Vault selected by PolicyManager via waterfall (not from Shield)
  *   - policyVault mapping tracks which vault backs each policy
  *   - registerProduct takes riskType instead of vault address
  *   - Premium goes to the specific vault that backs the policy
- * 
+ *
  * RETAINED FROM PREVIOUS AUDITS:
  *   - SafeERC20, nonReentrant, whenNotPaused (purchases only)
  *   - Composite _policyResolved key: [productId][policyId]
@@ -37,12 +37,7 @@ import {EmergencyPause} from "./EmergencyPause.sol";
  *   - EIP-712 with fork detection
  *   - USDC 1:1 USD conversion (both 6 decimals, no oracle needed)
  */
-contract CoverRouter is
-    ICoverRouter,
-    UUPSUpgradeable,
-    OwnableUpgradeable,
-    ReentrancyGuardUpgradeable
-{
+contract CoverRouter is ICoverRouter, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     // ═══════════════════════════════════════════════════════════
@@ -56,7 +51,7 @@ contract CoverRouter is
     bool private _paused;
 
     mapping(uint256 => bool) private _usedNonces;
-    mapping(bytes32 => address) private _products;          // productId → Shield
+    mapping(bytes32 => address) private _products; // productId → Shield
     mapping(bytes32 => bool) private _productActive;
 
     bytes32 private _cachedDomainSeparator;
@@ -83,9 +78,9 @@ contract CoverRouter is
 
     // ═══ V3: Session Approval (buyer consent for relayer purchases) ═══
     struct RelayerSession {
-        uint256 maxAmount;      // max total USDC the relayer can spend on behalf of buyer
-        uint256 spent;          // total USDC spent so far in this session
-        uint256 deadline;       // session expires after this timestamp
+        uint256 maxAmount; // max total USDC the relayer can spend on behalf of buyer
+        uint256 spent; // total USDC spent so far in this session
+        uint256 deadline; // session expires after this timestamp
     }
     // buyer → relayer → session
     mapping(address => mapping(address => RelayerSession)) public relayerSessions;
@@ -168,30 +163,22 @@ contract CoverRouter is
     // ═══════════════════════════════════════════════════════════
 
     bytes32 private constant QUOTE_TYPEHASH = keccak256(
-        "SignedQuote("
-        "bytes32 productId,"
-        "uint256 coverageAmount,"
-        "uint256 premiumAmount,"
-        "uint32 durationSeconds,"
-        "bytes32 asset,"
-        "bytes32 stablecoin,"
-        "address protocol,"
-        "address buyer,"
-        "uint256 deadline,"
-        "uint256 nonce"
+        "SignedQuote(" "bytes32 productId," "uint256 coverageAmount," "uint256 premiumAmount," "uint32 durationSeconds,"
+        "bytes32 asset," "bytes32 stablecoin," "address protocol," "address buyer," "uint256 deadline," "uint256 nonce"
         ")"
     );
 
-    bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256(
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-    );
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     // ═══════════════════════════════════════════════════════════
     //  INITIALIZER
     // ═══════════════════════════════════════════════════════════
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(
         address owner_,
@@ -247,11 +234,13 @@ contract CoverRouter is
     //  AGENT OPERATIONS
     // ═══════════════════════════════════════════════════════════
 
-    function purchasePolicy(
-        SignedQuote calldata quote,
-        bytes calldata signature
-    ) external nonReentrant whenNotPaused whenProtocolNotPaused returns (PurchaseResult memory result) {
-
+    function purchasePolicy(SignedQuote calldata quote, bytes calldata signature)
+        external
+        nonReentrant
+        whenNotPaused
+        whenProtocolNotPaused
+        returns (PurchaseResult memory result)
+    {
         // ── CHECKS ──
         if (quote.buyer != msg.sender) revert BuyerMismatch(quote.buyer, msg.sender);
         if (block.timestamp > quote.deadline) revert QuoteExpired(quote.deadline, block.timestamp);
@@ -261,8 +250,9 @@ contract CoverRouter is
         _usedNonces[quote.nonce] = true;
 
         address shield = _products[quote.productId];
-        if (shield == address(0) || !_productActive[quote.productId])
+        if (shield == address(0) || !_productActive[quote.productId]) {
             revert ProductNotAvailable(quote.productId);
+        }
 
         // Verify EIP-712 signature
         bytes32 structHash = _hashQuote(quote);
@@ -293,12 +283,7 @@ contract CoverRouter is
         // 2. PolicyManager selects vault via waterfall + locks collateral
         //    NOW PASSES durationSeconds for ALM check
         IPolicyManager pm = IPolicyManager(_policyManager);
-        address vault = pm.recordAllocation(
-            quote.productId,
-            policyId,
-            quote.coverageAmount,
-            quote.durationSeconds
-        );
+        address vault = pm.recordAllocation(quote.productId, policyId, quote.coverageAmount, quote.durationSeconds);
 
         // 3. Store policy → vault mapping (needed for payout/cleanup)
         _policyVault[quote.productId][policyId] = vault;
@@ -336,20 +321,20 @@ contract CoverRouter is
         });
 
         emit PolicyPurchased(
-            policyId, quote.productId, quote.buyer, vault,
-            quote.coverageAmount, quote.premiumAmount, quote.durationSeconds
+            policyId,
+            quote.productId,
+            quote.buyer,
+            vault,
+            quote.coverageAmount,
+            quote.premiumAmount,
+            quote.durationSeconds
         );
     }
 
     /**
      * @notice Trigger payout — NOT paused (agents must always collect)
      */
-    function triggerPayout(
-        bytes32 productId,
-        uint256 policyId,
-        bytes calldata oracleProof
-    ) external nonReentrant {
-
+    function triggerPayout(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external nonReentrant {
         // ═══ Oracle Mitigation 3: Daily trigger rate limit ═══
         if (maxPayoutsPerDay > 0) {
             if (block.timestamp > lastPayoutCountReset + 1 days) {
@@ -394,7 +379,8 @@ contract CoverRouter is
             // ═══ Oracle Mitigation 1: Large payout delay ═══
             // [FIX DRAIN-8.1] Do NOT release allocation yet — collateral stays locked until execution
             if (largePayoutThreshold > 0 && usdcPayout > largePayoutThreshold) {
-                bytes32 payoutId = keccak256(abi.encodePacked(productId, policyId, pr.recipient, usdcPayout, block.timestamp));
+                bytes32 payoutId =
+                    keccak256(abi.encodePacked(productId, policyId, pr.recipient, usdcPayout, block.timestamp));
                 uint256 executeAfter = block.timestamp + largePayoutDelay;
                 scheduledPayouts[payoutId] = ScheduledPayout({
                     beneficiary: pr.recipient,
@@ -422,7 +408,8 @@ contract CoverRouter is
 
             // [FIX H-3] Execute payout first. Only release allocation if USDC actually left vault.
             // If Aave fails and payout is queued, allocation stays locked to prevent _freeAssets() inflation.
-            bool payoutSuccess = IVault(vault).executePayout(address(this), totalFromVault, productId, policyId, pr.recipient);
+            bool payoutSuccess =
+                IVault(vault).executePayout(address(this), totalFromVault, productId, policyId, pr.recipient);
 
             if (payoutSuccess) {
                 // USDC left the vault — safe to release allocation
@@ -462,8 +449,12 @@ contract CoverRouter is
 
         // [FIX L-1] Also accept EXPIRED status: _computeStatus now correctly returns
         // EXPIRED for non-finalized policies past expiresAt/cleanupAt.
-        if (status != IShield.PolicyStatus.ACTIVE && status != IShield.PolicyStatus.SETTLEMENT && status != IShield.PolicyStatus.EXPIRED)
+        if (
+            status != IShield.PolicyStatus.ACTIVE && status != IShield.PolicyStatus.SETTLEMENT
+                && status != IShield.PolicyStatus.EXPIRED
+        ) {
             revert InvalidPolicyForPayout(policyId);
+        }
         // [FIX M-9] Extend cleanup deadline by sequencer downtime
         uint256 downtime = IOracle(_oracle).getSequencerDowntime(info.expiresAt);
         if (block.timestamp <= info.cleanupAt + downtime) revert InvalidPolicyForPayout(policyId);
@@ -482,9 +473,10 @@ contract CoverRouter is
     //  ADMIN OPERATIONS
     // ═══════════════════════════════════════════════════════════
 
-    function registerProduct(
-        bytes32 productId, address shield, bytes32 riskType, uint16 maxAllocationBps
-    ) external onlyOwner {
+    function registerProduct(bytes32 productId, address shield, bytes32 riskType, uint16 maxAllocationBps)
+        external
+        onlyOwner
+    {
         if (_products[productId] != address(0)) revert ProductAlreadyRegistered(productId);
         if (shield == address(0)) revert ZeroAddress("shield");
         if (maxAllocationBps == 0 || maxAllocationBps > 10000) revert InvalidAllocationBps(maxAllocationBps);
@@ -520,7 +512,9 @@ contract CoverRouter is
         address oldShield = _products[productId];
         if (oldShield == address(0)) revert ProductNotAvailable(productId);
         // Defence-in-depth: verify the new shield reports the same productId.
-        if (IShield(newShield).productId() != productId) revert ProductIdMismatch(productId, IShield(newShield).productId());
+        if (IShield(newShield).productId() != productId) {
+            revert ProductIdMismatch(productId, IShield(newShield).productId());
+        }
         _products[productId] = newShield;
         IPolicyManager(_policyManager).updateProductShield(productId, newShield);
         emit ProductShieldUpdated(productId, oldShield, newShield);
@@ -586,12 +580,18 @@ contract CoverRouter is
 
     // ═══ Oracle Mitigation Setters ═══
 
-    function setLargePayoutThreshold(uint256 _threshold) external onlyOwner { largePayoutThreshold = _threshold; }
+    function setLargePayoutThreshold(uint256 _threshold) external onlyOwner {
+        largePayoutThreshold = _threshold;
+    }
+
     function setLargePayoutDelay(uint256 _delay) external onlyOwner {
         require(_delay >= 1 hours || _delay == 0, "Delay too short");
         largePayoutDelay = _delay;
     }
-    function setMaxPayoutsPerDay(uint256 _max) external onlyOwner { maxPayoutsPerDay = _max; }
+
+    function setMaxPayoutsPerDay(uint256 _max) external onlyOwner {
+        maxPayoutsPerDay = _max;
+    }
 
     function setEmergencyPause(address _emergencyPause) external onlyOwner {
         emergencyPause = _emergencyPause;
@@ -616,7 +616,8 @@ contract CoverRouter is
         uint256 totalFromVault = sp.amount + payoutFee;
 
         // [FIX H-3] Execute payout first. Only release allocation if USDC actually left vault.
-        bool payoutSuccess = IVault(sp.vault).executePayout(address(this), totalFromVault, sp.productId, sp.policyId, sp.beneficiary);
+        bool payoutSuccess =
+            IVault(sp.vault).executePayout(address(this), totalFromVault, sp.productId, sp.policyId, sp.beneficiary);
 
         if (payoutSuccess) {
             IPolicyManager(_policyManager).releaseAllocation(sp.productId, sp.policyId, sp.coverageAmount, sp.vault);
@@ -686,11 +687,7 @@ contract CoverRouter is
         require(maxAmount > 0, "Zero amount");
         require(deadline > block.timestamp, "Deadline in past");
 
-        relayerSessions[msg.sender][relayer] = RelayerSession({
-            maxAmount: maxAmount,
-            spent: 0,
-            deadline: deadline
-        });
+        relayerSessions[msg.sender][relayer] = RelayerSession({maxAmount: maxAmount, spent: 0, deadline: deadline});
 
         emit SessionApproved(msg.sender, relayer, maxAmount, deadline);
     }
@@ -704,11 +701,13 @@ contract CoverRouter is
      * @dev [FIX ACCESS-2.1] Requires buyer to have an active session for this relayer.
      *      Session limits max spending and has a deadline. Buyer calls approveSession() first.
      */
-    function purchasePolicyFor(
-        SignedQuote calldata quote,
-        bytes calldata signature
-    ) external nonReentrant whenNotPaused whenProtocolNotPaused returns (PurchaseResult memory result) {
-
+    function purchasePolicyFor(SignedQuote calldata quote, bytes calldata signature)
+        external
+        nonReentrant
+        whenNotPaused
+        whenProtocolNotPaused
+        returns (PurchaseResult memory result)
+    {
         // ── CHECKS ──
         if (!authorizedRelayers[msg.sender]) revert UnauthorizedRelayer(msg.sender);
         if (block.timestamp > quote.deadline) revert QuoteExpired(quote.deadline, block.timestamp);
@@ -718,8 +717,9 @@ contract CoverRouter is
         _usedNonces[quote.nonce] = true;
 
         address shield = _products[quote.productId];
-        if (shield == address(0) || !_productActive[quote.productId])
+        if (shield == address(0) || !_productActive[quote.productId]) {
             revert ProductNotAvailable(quote.productId);
+        }
 
         // Verify EIP-712 signature
         bytes32 structHash = _hashQuote(quote);
@@ -760,12 +760,7 @@ contract CoverRouter is
 
         // 2. PolicyManager selects vault via waterfall + locks collateral
         IPolicyManager pm = IPolicyManager(_policyManager);
-        address vault = pm.recordAllocation(
-            quote.productId,
-            policyId,
-            quote.coverageAmount,
-            quote.durationSeconds
-        );
+        address vault = pm.recordAllocation(quote.productId, policyId, quote.coverageAmount, quote.durationSeconds);
 
         // 3. Store policy → vault mapping (needed for payout/cleanup)
         _policyVault[quote.productId][policyId] = vault;
@@ -803,8 +798,13 @@ contract CoverRouter is
         });
 
         emit PolicyPurchased(
-            policyId, quote.productId, quote.buyer, vault,
-            quote.coverageAmount, quote.premiumAmount, quote.durationSeconds
+            policyId,
+            quote.productId,
+            quote.buyer,
+            vault,
+            quote.coverageAmount,
+            quote.premiumAmount,
+            quote.durationSeconds
         );
     }
 
@@ -812,9 +812,17 @@ contract CoverRouter is
     //  VIEWS
     // ═══════════════════════════════════════════════════════════
 
-    function oracle() external view returns (address) { return _oracle; }
-    function phalaVerifier() external view returns (address) { return _phalaVerifier; }
-    function policyManager() external view returns (address) { return _policyManager; }
+    function oracle() external view returns (address) {
+        return _oracle;
+    }
+
+    function phalaVerifier() external view returns (address) {
+        return _phalaVerifier;
+    }
+
+    function policyManager() external view returns (address) {
+        return _policyManager;
+    }
 
     function isProductAvailable(bytes32 productId) external view returns (bool) {
         return _products[productId] != address(0) && _productActive[productId];
@@ -828,11 +836,21 @@ contract CoverRouter is
         return _policyVault[productId][policyId];
     }
 
-    function protocolFeeBps() external view returns (uint16) { return _protocolFeeBps; }
-    function feeReceiver() external view returns (address) { return _feeReceiver; }
+    function protocolFeeBps() external view returns (uint16) {
+        return _protocolFeeBps;
+    }
 
-    function isNonceUsed(uint256 nonce) external view returns (bool) { return _usedNonces[nonce]; }
-    function isPaused() external view returns (bool) { return _paused; }
+    function feeReceiver() external view returns (address) {
+        return _feeReceiver;
+    }
+
+    function isNonceUsed(uint256 nonce) external view returns (bool) {
+        return _usedNonces[nonce];
+    }
+
+    function isPaused() external view returns (bool) {
+        return _paused;
+    }
 
     /// @notice Check if a policy has been resolved (paid out or cleaned up)
     function isPolicyResolved(bytes32 productId, uint256 policyId) external view returns (bool) {
@@ -849,17 +867,29 @@ contract CoverRouter is
     // ═══════════════════════════════════════════════════════════
 
     function _hashQuote(SignedQuote calldata q) internal pure returns (bytes32) {
-        return keccak256(abi.encode(
-            QUOTE_TYPEHASH, q.productId, q.coverageAmount, q.premiumAmount,
-            q.durationSeconds, q.asset, q.stablecoin, q.protocol,
-            q.buyer, q.deadline, q.nonce
-        ));
+        return keccak256(
+            abi.encode(
+                QUOTE_TYPEHASH,
+                q.productId,
+                q.coverageAmount,
+                q.premiumAmount,
+                q.durationSeconds,
+                q.asset,
+                q.stablecoin,
+                q.protocol,
+                q.buyer,
+                q.deadline,
+                q.nonce
+            )
+        );
     }
 
     function _computeDomainSeparator() internal view returns (bytes32) {
-        return keccak256(abi.encode(
-            EIP712_DOMAIN_TYPEHASH, keccak256("LuminaProtocol"), keccak256("1"), block.chainid, address(this)
-        ));
+        return keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH, keccak256("LuminaProtocol"), keccak256("1"), block.chainid, address(this)
+            )
+        );
     }
 
     /// @dev [M-2/M-3] USDC is pegged 1:1 to USD, both 6 decimals. No conversion needed.
@@ -872,5 +902,11 @@ contract CoverRouter is
         return usdAmount;
     }
 
-    function _authorizeUpgrade(address /* newImplementation */) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address /* newImplementation */
+    )
+        internal
+        override
+        onlyOwner
+    {}
 }

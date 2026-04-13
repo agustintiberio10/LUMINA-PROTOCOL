@@ -99,10 +99,10 @@ contract AltSeasonVestingTest is Test {
         amounts[0] = 10_000_000 * 1e18; // Seed
         amounts[1] = 10_000_000 * 1e18; // Strategic
         amounts[2] = 10_000_000 * 1e18; // Community
-        amounts[3] = 7_500_000 * 1e18;  // Founder 1
-        amounts[4] = 7_500_000 * 1e18;  // Founder 2
+        amounts[3] = 7_500_000 * 1e18; // Founder 1
+        amounts[4] = 7_500_000 * 1e18; // Founder 2
         amounts[5] = 15_000_000 * 1e18; // Ecosystem
-        amounts[6] = 5_000_000 * 1e18;  // Devs
+        amounts[6] = 5_000_000 * 1e18; // Devs
 
         // Deploy vesting first to know address, then deploy token
         // We need to predict the vesting address or deploy in order
@@ -115,9 +115,7 @@ contract AltSeasonVestingTest is Test {
 
         token = new LuminaToken(treasury, exitEngine, exchange, vestingAddr);
 
-        vesting = new AltSeasonVesting(
-            address(oracle), address(aavePool), address(token), usdc, recipients, amounts
-        );
+        vesting = new AltSeasonVesting(address(oracle), address(aavePool), address(token), usdc, recipients, amounts);
 
         require(address(vesting) == vestingAddr, "Address mismatch");
     }
@@ -134,7 +132,9 @@ contract AltSeasonVestingTest is Test {
 
     function test_constructor_validates_65M() public {
         uint256[] memory badAmounts = new uint256[](7);
-        for (uint256 i = 0; i < 7; i++) badAmounts[i] = 1e18;
+        for (uint256 i = 0; i < 7; i++) {
+            badAmounts[i] = 1e18;
+        }
 
         vm.expectRevert("Must be 65M total");
         new AltSeasonVesting(address(oracle), address(aavePool), address(token), usdc, recipients, badAmounts);
@@ -254,7 +254,7 @@ contract AltSeasonVestingTest is Test {
         assertEq(vesting.tranchesReleased(), 1);
 
         // Each recipient got 1/3 of their allocation
-        (,uint256 totalAmount, uint256 released) = vesting.getAllocation(0);
+        (, uint256 totalAmount, uint256 released) = vesting.getAllocation(0);
         assertEq(released, totalAmount / 3);
     }
 

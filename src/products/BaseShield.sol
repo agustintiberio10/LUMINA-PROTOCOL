@@ -23,7 +23,6 @@ import {IOracleV2} from "../interfaces/IOracleV2.sol";
  *      Gas-optimized for M2M: bytes32 reasons, no strings, immutables where possible.
  */
 abstract contract BaseShield is IShield {
-
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -65,15 +64,15 @@ abstract contract BaseShield is IShield {
     /// @dev Core policy data conforming to IShield.PolicyInfo
     struct CorePolicy {
         address insuredAgent;
-        uint256 coverageAmount;     // 6 decimals (USDC scale)
+        uint256 coverageAmount; // 6 decimals (USDC scale)
         uint256 premiumPaid;
         uint256 maxPayout;
         uint256 startTimestamp;
         uint256 waitingEndsAt;
         uint256 expiresAt;
         uint256 cleanupAt;
-        bool finalized;             // true once PAID_OUT or EXPIRED
-        PolicyStatus finalStatus;   // only meaningful when finalized == true
+        bool finalized; // true once PAID_OUT or EXPIRED
+        PolicyStatus finalStatus; // only meaningful when finalized == true
     }
 
     mapping(uint256 => CorePolicy) internal _policies;
@@ -106,9 +105,7 @@ abstract contract BaseShield is IShield {
     // ═══════════════════════════════════════════════════════════
 
     /// @inheritdoc IShield
-    function createPolicy(
-        CreatePolicyParams calldata params
-    ) external onlyRouter returns (uint256 policyId) {
+    function createPolicy(CreatePolicyParams calldata params) external onlyRouter returns (uint256 policyId) {
         // Validate duration
         (uint32 minD, uint32 maxD) = this.durationRange();
         if (params.durationSeconds < minD || params.durationSeconds > maxD) {
@@ -121,7 +118,9 @@ abstract contract BaseShield is IShield {
         }
 
         // Generate policyId (1-indexed)
-        unchecked { _policyCounter++; }
+        unchecked {
+            _policyCounter++;
+        }
         policyId = _policyCounter;
 
         // Compute maxPayout (product-specific)
@@ -155,16 +154,22 @@ abstract contract BaseShield is IShield {
         _totalActiveCoverage += params.coverageAmount;
 
         emit PolicyCreated(
-            policyId, params.buyer, params.coverageAmount,
-            params.premiumAmount, params.durationSeconds, waitEnds, expires
+            policyId,
+            params.buyer,
+            params.coverageAmount,
+            params.premiumAmount,
+            params.durationSeconds,
+            waitEnds,
+            expires
         );
     }
 
     /// @inheritdoc IShield
-    function verifyAndCalculate(
-        uint256 policyId,
-        bytes calldata oracleProof
-    ) external onlyRouter returns (PayoutResult memory result) {
+    function verifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
+        external
+        onlyRouter
+        returns (PayoutResult memory result)
+    {
         CorePolicy storage cp = _policies[policyId];
         if (cp.insuredAgent == address(0)) revert PolicyNotFound(policyId);
         if (cp.finalized) {
@@ -260,13 +265,19 @@ abstract contract BaseShield is IShield {
     }
 
     /// @inheritdoc IShield
-    function totalPolicies() external view returns (uint256) { return _policyCounter; }
+    function totalPolicies() external view returns (uint256) {
+        return _policyCounter;
+    }
 
     /// @inheritdoc IShield
-    function activePolicies() external view returns (uint256) { return _activePolicies; }
+    function activePolicies() external view returns (uint256) {
+        return _activePolicies;
+    }
 
     /// @inheritdoc IShield
-    function totalActiveCoverage() external view returns (uint256) { return _totalActiveCoverage; }
+    function totalActiveCoverage() external view returns (uint256) {
+        return _totalActiveCoverage;
+    }
 
     // ═══════════════════════════════════════════════════════════
     //  INTERNAL — STATUS COMPUTATION
@@ -314,10 +325,7 @@ abstract contract BaseShield is IShield {
      * @param signature Oracle signature over dataHash
      * @return true if signature is from the authorized oracle key
      */
-    function _verifyOracleSignature(
-        bytes32 dataHash,
-        bytes memory signature
-    ) internal view returns (bool) {
+    function _verifyOracleSignature(bytes32 dataHash, bytes memory signature) internal view returns (bool) {
         address signer = IOracle(oracle).verifySignature(dataHash, signature);
         return signer == IOracle(oracle).oracleKey();
     }
@@ -336,12 +344,11 @@ abstract contract BaseShield is IShield {
      *         Requires the bound `oracle` to implement IOracle V2 (i.e.,
      *         LuminaOracleV2 or later). V1 oracles will revert.
      */
-    function _verifyPriceProofEIP712(
-        int256 price,
-        bytes32 asset,
-        uint256 verifiedAt,
-        bytes memory signature
-    ) internal view returns (bool) {
+    function _verifyPriceProofEIP712(int256 price, bytes32 asset, uint256 verifiedAt, bytes memory signature)
+        internal
+        view
+        returns (bool)
+    {
         address signer = IOracleV2(oracle).verifyPriceProofEIP712(price, asset, verifiedAt, signature);
         return signer != address(0);
     }
@@ -357,9 +364,8 @@ abstract contract BaseShield is IShield {
         uint256 verifiedAt,
         bytes memory signature
     ) internal view returns (bool) {
-        address signer = IOracleV2(oracle).verifyExploitGovProofEIP712(
-            govTokenPrice, govTokenPrice24hAgo, protocolId, verifiedAt, signature
-        );
+        address signer = IOracleV2(oracle)
+            .verifyExploitGovProofEIP712(govTokenPrice, govTokenPrice24hAgo, protocolId, verifiedAt, signature);
         return signer != address(0);
     }
 
@@ -371,16 +377,17 @@ abstract contract BaseShield is IShield {
     function _doCreatePolicy(uint256 policyId, CreatePolicyParams calldata params) internal virtual;
 
     /// @dev Verify trigger + calculate payout. Must set triggered, payoutAmount, reason.
-    function _doVerifyAndCalculate(
-        uint256 policyId,
-        bytes calldata oracleProof
-    ) internal virtual returns (PayoutResult memory);
+    function _doVerifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
+        internal
+        virtual
+        returns (PayoutResult memory);
 
     /// @dev Calculate maxPayout for this product (e.g., coverage * 80% for BSS)
-    function _calculateMaxPayout(
-        uint256 coverageAmount,
-        CreatePolicyParams calldata params
-    ) internal view virtual returns (uint256);
+    function _calculateMaxPayout(uint256 coverageAmount, CreatePolicyParams calldata params)
+        internal
+        view
+        virtual
+        returns (uint256);
 
     /// @dev Return cleanupAt. Default: expiresAt + CLAIM_GRACE_PERIOD.
     ///      [FIX] Grace period prevents bots from cleaning up before agents can claim

@@ -7,7 +7,6 @@ import {LuminaOracle} from "../src/oracles/LuminaOracle.sol";
 import {LuminaPhalaVerifier} from "../src/oracles/LuminaPhalaVerifier.sol";
 
 contract DeployLumina is Script {
-
     // Deployer = owner = fee receiver for testnet
     // Oracle key = deployer key for testnet (signs quotes)
     // Phala worker = deployer key for testnet (signs attestations)
@@ -30,9 +29,9 @@ contract DeployLumina is Script {
         // 2. Oracle (non-upgradeable)
         // ═══════════════════════════════════════════
         LuminaOracle oracle = new LuminaOracle(
-            deployer,           // owner
-            deployer,           // oracleKey (deployer signs quotes on testnet)
-            address(0)          // no sequencer feed on testnet
+            deployer, // owner
+            deployer, // oracleKey (deployer signs quotes on testnet)
+            address(0) // no sequencer feed on testnet
         );
         console.log("LuminaOracle:", address(oracle));
 
@@ -40,8 +39,8 @@ contract DeployLumina is Script {
         // 3. PhalaVerifier (non-upgradeable)
         // ═══════════════════════════════════════════
         LuminaPhalaVerifier phala = new LuminaPhalaVerifier(
-            deployer,           // owner
-            deployer            // initial worker (deployer signs attestations on testnet)
+            deployer, // owner
+            deployer // initial worker (deployer signs attestations on testnet)
         );
         console.log("PhalaVerifier:", address(phala));
 

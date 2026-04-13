@@ -38,7 +38,6 @@ import {ILMath} from "../libraries/ILMath.sol";
  * @dev Non-upgradeable. Extends BaseShield. Uses ILMath for sqrt and IL calculation.
  */
 contract ILIndexCoverV2 is BaseShield {
-
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -46,10 +45,10 @@ contract ILIndexCoverV2 is BaseShield {
     bytes32 public constant PRODUCT_ID = keccak256("ILPROT-001");
     bytes32 public constant RISK_TYPE = keccak256("VOLATILE");
 
-    uint16 public constant MAX_ALLOCATION_BPS = 2000;    // 20%
+    uint16 public constant MAX_ALLOCATION_BPS = 2000; // 20%
     uint32 public constant MIN_DURATION = 14 days;
     uint32 public constant MAX_DURATION = 90 days;
-    uint32 public constant WAITING_PERIOD_ = 0;          // No waiting (trigger is relative)
+    uint32 public constant WAITING_PERIOD_ = 0; // No waiting (trigger is relative)
     uint32 public constant SETTLEMENT_WINDOW = 48 hours;
 
     /// @notice Deductible: 2% restable (200 BPS)
@@ -73,7 +72,7 @@ contract ILIndexCoverV2 is BaseShield {
     // ═══════════════════════════════════════════════════════════
 
     struct ILData {
-        int256 strikePrice;     // ETH/USD at policy issuance (Chainlink 8 decimals)
+        int256 strikePrice; // ETH/USD at policy issuance (Chainlink 8 decimals)
     }
 
     mapping(uint256 => ILData) private _ilData;
@@ -90,29 +89,37 @@ contract ILIndexCoverV2 is BaseShield {
     //  CONSTRUCTOR
     // ═══════════════════════════════════════════════════════════
 
-    constructor(
-        address router_,
-        address oracle_
-    ) BaseShield(router_, oracle_) {}
+    constructor(address router_, address oracle_) BaseShield(router_, oracle_) {}
 
     // ═══════════════════════════════════════════════════════════
     //  METADATA (IShield)
     // ═══════════════════════════════════════════════════════════
 
-    function productId() external pure returns (bytes32) { return PRODUCT_ID; }
-    function riskType() external pure returns (bytes32) { return RISK_TYPE; }
-    function maxAllocationBps() external pure returns (uint16) { return MAX_ALLOCATION_BPS; }
-    function durationRange() public pure returns (uint32, uint32) { return (MIN_DURATION, MAX_DURATION); }
-    function waitingPeriod() public pure returns (uint32) { return WAITING_PERIOD_; }
+    function productId() external pure returns (bytes32) {
+        return PRODUCT_ID;
+    }
+
+    function riskType() external pure returns (bytes32) {
+        return RISK_TYPE;
+    }
+
+    function maxAllocationBps() external pure returns (uint16) {
+        return MAX_ALLOCATION_BPS;
+    }
+
+    function durationRange() public pure returns (uint32, uint32) {
+        return (MIN_DURATION, MAX_DURATION);
+    }
+
+    function waitingPeriod() public pure returns (uint32) {
+        return WAITING_PERIOD_;
+    }
 
     // ═══════════════════════════════════════════════════════════
     //  PRODUCT-SPECIFIC LOGIC
     // ═══════════════════════════════════════════════════════════
 
-    function _doCreatePolicy(
-        uint256 policyId,
-        CreatePolicyParams calldata params
-    ) internal override {
+    function _doCreatePolicy(uint256 policyId, CreatePolicyParams calldata params) internal override {
         // Validate asset is ETH (BTC extension future)
         if (params.asset != "ETH") revert InvalidPrice(0);
 
@@ -120,22 +127,22 @@ contract ILIndexCoverV2 is BaseShield {
         int256 currentPrice = IOracle(oracle).getLatestPrice(params.asset);
         if (currentPrice <= 0) revert InvalidPrice(currentPrice);
 
-        _ilData[policyId] = ILData({
-            strikePrice: currentPrice
-        });
+        _ilData[policyId] = ILData({strikePrice: currentPrice});
     }
 
-    function _doVerifyAndCalculate(
-        uint256 policyId,
-        bytes calldata oracleProof
-    ) internal view override returns (PayoutResult memory result) {
+    function _doVerifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
+        internal
+        view
+        override
+        returns (PayoutResult memory result)
+    {
         ILData storage data = _ilData[policyId];
         CorePolicy storage cp = _policies[policyId];
 
         // [FIX] Decode oracle proof WITH asset identifier.
         // Previously missing asset binding — cross-asset proof replay was possible.
-        (int256 verifiedPrice, bytes32 proofAsset, uint256 verifiedAt, bytes memory signature)
-            = abi.decode(oracleProof, (int256, bytes32, uint256, bytes));
+        (int256 verifiedPrice, bytes32 proofAsset, uint256 verifiedAt, bytes memory signature) =
+            abi.decode(oracleProof, (int256, bytes32, uint256, bytes));
 
         // [V2] Verify EIP-712 typed PriceProof signature (domain-separated)
         if (!_verifyPriceProofEIP712(verifiedPrice, proofAsset, verifiedAt, signature)) {
@@ -173,10 +180,7 @@ contract ILIndexCoverV2 is BaseShield {
         if (ilBps <= DEDUCTIBLE_BPS) {
             // IL below deductible — no payout
             result = PayoutResult({
-                triggered: false,
-                payoutAmount: 0,
-                recipient: cp.insuredAgent,
-                reason: "IL_BELOW_DEDUCTIBLE"
+                triggered: false, payoutAmount: 0, recipient: cp.insuredAgent, reason: "IL_BELOW_DEDUCTIBLE"
             });
             return result;
         }
@@ -193,17 +197,19 @@ contract ILIndexCoverV2 is BaseShield {
         }
 
         result = PayoutResult({
-            triggered: true,
-            payoutAmount: payout,
-            recipient: cp.insuredAgent,
-            reason: "IMPERMANENT_LOSS"
+            triggered: true, payoutAmount: payout, recipient: cp.insuredAgent, reason: "IMPERMANENT_LOSS"
         });
     }
 
     function _calculateMaxPayout(
         uint256 coverageAmount,
         CreatePolicyParams calldata /* params */
-    ) internal pure override returns (uint256) {
+    )
+        internal
+        pure
+        override
+        returns (uint256)
+    {
         // Cap: coverage × 13% net IL × 90% = coverage × 11.7%
         return (coverageAmount * MAX_PAYOUT_BPS) / BPS;
     }
@@ -242,10 +248,11 @@ contract ILIndexCoverV2 is BaseShield {
      * @return ilNetBps IL net of deductible in basis points
      * @return estimatedPayout Estimated payout in USDC (6 decimals)
      */
-    function previewIL(
-        uint256 policyId,
-        uint256 currentPrice
-    ) external view returns (uint256 ilBps, uint256 ilNetBps, uint256 estimatedPayout) {
+    function previewIL(uint256 policyId, uint256 currentPrice)
+        external
+        view
+        returns (uint256 ilBps, uint256 ilNetBps, uint256 estimatedPayout)
+    {
         ILData storage data = _ilData[policyId];
         CorePolicy storage cp = _policies[policyId];
         if (cp.insuredAgent == address(0)) revert PolicyNotFound(policyId);

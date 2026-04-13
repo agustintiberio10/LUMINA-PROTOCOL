@@ -38,12 +38,7 @@ contract MockOracleFlash {
     }
 
     /// @dev Always returns a non-zero address to pass EIP-712 verification in shields
-    function verifyPriceProofEIP712(
-        int256,
-        bytes32,
-        uint256,
-        bytes calldata
-    ) external view returns (address) {
+    function verifyPriceProofEIP712(int256, bytes32, uint256, bytes calldata) external view returns (address) {
         return oracleKey;
     }
 
@@ -70,7 +65,7 @@ contract FlashInsuranceTest is Test {
     address policyManager = address(0xE);
 
     int256 constant BTC_PRICE = 50_000_00000000; // $50,000 (8 decimals)
-    int256 constant ETH_PRICE = 3_000_00000000;  // $3,000 (8 decimals)
+    int256 constant ETH_PRICE = 3_000_00000000; // $3,000 (8 decimals)
 
     function setUp() public {
         // Deploy mock oracle
@@ -91,8 +86,7 @@ contract FlashInsuranceTest is Test {
 
         FlashVault impl = new FlashVault();
         bytes memory initData = abi.encodeCall(
-            FlashVault.initialize,
-            (owner, address(usdc), router, policyManager, address(aavePool), address(aToken))
+            FlashVault.initialize, (owner, address(usdc), router, policyManager, address(aavePool), address(aToken))
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         vault = FlashVault(address(proxy));
@@ -233,7 +227,9 @@ contract FlashInsuranceTest is Test {
 
         bytes memory proof = _buildProof(notCrashPrice, "BTC", verifiedAt);
         vm.prank(router);
-        vm.expectRevert(abi.encodeWithSelector(IShield.TriggerNotMet.selector, policyId, bytes32("PRICE_ABOVE_TRIGGER")));
+        vm.expectRevert(
+            abi.encodeWithSelector(IShield.TriggerNotMet.selector, policyId, bytes32("PRICE_ABOVE_TRIGGER"))
+        );
         btc24.verifyAndCalculate(policyId, proof);
     }
 
@@ -293,7 +289,9 @@ contract FlashInsuranceTest is Test {
         // Submit proof with ETH asset on BTC shield
         bytes memory proof = _buildProof(crashPrice, "ETH", verifiedAt);
         vm.prank(router);
-        vm.expectRevert(abi.encodeWithSelector(FlashBTCShield24h.AssetMismatch.selector, bytes32("BTC"), bytes32("ETH")));
+        vm.expectRevert(
+            abi.encodeWithSelector(FlashBTCShield24h.AssetMismatch.selector, bytes32("BTC"), bytes32("ETH"))
+        );
         btc24.verifyAndCalculate(policyId, proof);
     }
 
@@ -337,7 +335,9 @@ contract FlashInsuranceTest is Test {
 
         bytes memory proof = _buildProof(notCrashPrice, "BTC", verifiedAt);
         vm.prank(router);
-        vm.expectRevert(abi.encodeWithSelector(IShield.TriggerNotMet.selector, policyId, bytes32("PRICE_ABOVE_TRIGGER")));
+        vm.expectRevert(
+            abi.encodeWithSelector(IShield.TriggerNotMet.selector, policyId, bytes32("PRICE_ABOVE_TRIGGER"))
+        );
         btc48.verifyAndCalculate(policyId, proof);
     }
 
@@ -381,7 +381,9 @@ contract FlashInsuranceTest is Test {
 
         bytes memory proof = _buildProof(notCrashPrice, "ETH", verifiedAt);
         vm.prank(router);
-        vm.expectRevert(abi.encodeWithSelector(IShield.TriggerNotMet.selector, policyId, bytes32("PRICE_ABOVE_TRIGGER")));
+        vm.expectRevert(
+            abi.encodeWithSelector(IShield.TriggerNotMet.selector, policyId, bytes32("PRICE_ABOVE_TRIGGER"))
+        );
         eth24.verifyAndCalculate(policyId, proof);
     }
 
@@ -425,7 +427,9 @@ contract FlashInsuranceTest is Test {
 
         bytes memory proof = _buildProof(notCrashPrice, "ETH", verifiedAt);
         vm.prank(router);
-        vm.expectRevert(abi.encodeWithSelector(IShield.TriggerNotMet.selector, policyId, bytes32("PRICE_ABOVE_TRIGGER")));
+        vm.expectRevert(
+            abi.encodeWithSelector(IShield.TriggerNotMet.selector, policyId, bytes32("PRICE_ABOVE_TRIGGER"))
+        );
         eth48.verifyAndCalculate(policyId, proof);
     }
 

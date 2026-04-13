@@ -19,7 +19,6 @@ import {ExploitShield} from "../src/products/ExploitShield.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract DeployUUPS is Script {
-
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
@@ -60,8 +59,7 @@ contract DeployUUPS is Script {
         // ═══════════════════════════════════════════
         CoverRouter routerImpl = new CoverRouter();
         bytes memory routerData = abi.encodeCall(
-            CoverRouter.initialize,
-            (deployer, oracle, phala, address(pmProxy), usdc, true, feeReceiver, feeBps)
+            CoverRouter.initialize, (deployer, oracle, phala, address(pmProxy), usdc, true, feeReceiver, feeBps)
         );
         ERC1967Proxy routerProxy = new ERC1967Proxy(address(routerImpl), routerData);
         console.log("CoverRouter proxy:", address(routerProxy));
@@ -80,8 +78,7 @@ contract DeployUUPS is Script {
         // Volatile Short (30d cooldown)
         VolatileShortVault vsImpl = new VolatileShortVault();
         bytes memory vsData = abi.encodeCall(
-            VolatileShortVault.initialize,
-            (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
+            VolatileShortVault.initialize, (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
         );
         ERC1967Proxy vsProxy = new ERC1967Proxy(address(vsImpl), vsData);
         console.log("VolatileShort proxy:", address(vsProxy));
@@ -89,8 +86,7 @@ contract DeployUUPS is Script {
         // Volatile Long (90d cooldown)
         VolatileLongVault vlImpl = new VolatileLongVault();
         bytes memory vlData = abi.encodeCall(
-            VolatileLongVault.initialize,
-            (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
+            VolatileLongVault.initialize, (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
         );
         ERC1967Proxy vlProxy = new ERC1967Proxy(address(vlImpl), vlData);
         console.log("VolatileLong proxy:", address(vlProxy));
@@ -98,8 +94,7 @@ contract DeployUUPS is Script {
         // Stable Short (90d cooldown)
         StableShortVault ssImpl = new StableShortVault();
         bytes memory ssData = abi.encodeCall(
-            StableShortVault.initialize,
-            (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
+            StableShortVault.initialize, (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
         );
         ERC1967Proxy ssProxy = new ERC1967Proxy(address(ssImpl), ssData);
         console.log("StableShort proxy:", address(ssProxy));
@@ -107,8 +102,7 @@ contract DeployUUPS is Script {
         // Stable Long (365d cooldown)
         StableLongVault slImpl = new StableLongVault();
         bytes memory slData = abi.encodeCall(
-            StableLongVault.initialize,
-            (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
+            StableLongVault.initialize, (deployer, usdc, address(routerProxy), address(pmProxy), aavePool, aBasUsdc)
         );
         ERC1967Proxy slProxy = new ERC1967Proxy(address(slImpl), slData);
         console.log("StableLong proxy:", address(slProxy));

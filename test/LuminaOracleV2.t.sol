@@ -18,12 +18,9 @@ contract LuminaOracleV2Test is Test {
     bytes32 constant BTC_ASSET = bytes32("BTC");
 
     // EIP-712 typehashes (mirrors the contract constants — re-derived for safety)
-    bytes32 constant EIP712_DOMAIN_TYPEHASH = keccak256(
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-    );
-    bytes32 constant PRICE_PROOF_TYPEHASH = keccak256(
-        "PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)"
-    );
+    bytes32 constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 constant PRICE_PROOF_TYPEHASH = keccak256("PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)");
     bytes32 constant EXPLOIT_GOV_PROOF_TYPEHASH = keccak256(
         "ExploitGovProof(int256 govTokenPrice,int256 govTokenPrice24hAgo,bytes32 protocolId,uint256 verifiedAt)"
     );
@@ -76,13 +73,7 @@ contract LuminaOracleV2Test is Test {
     ) internal pure returns (bytes32) {
         bytes32 ds = _domainSeparator(verifyingContract, chainId);
         bytes32 structHash = keccak256(
-            abi.encode(
-                EXPLOIT_GOV_PROOF_TYPEHASH,
-                govTokenPrice,
-                govTokenPrice24hAgo,
-                protocolId,
-                verifiedAt
-            )
+            abi.encode(EXPLOIT_GOV_PROOF_TYPEHASH, govTokenPrice, govTokenPrice24hAgo, protocolId, verifiedAt)
         );
         return keccak256(abi.encodePacked("\x19\x01", ds, structHash));
     }
@@ -97,13 +88,7 @@ contract LuminaOracleV2Test is Test {
     ) internal pure returns (bytes32) {
         bytes32 ds = _domainSeparator(verifyingContract, chainId);
         bytes32 structHash = keccak256(
-            abi.encode(
-                EXPLOIT_RECEIPT_PROOF_TYPEHASH,
-                receiptTokenDepegged,
-                contractPaused,
-                protocolId,
-                verifiedAt
-            )
+            abi.encode(EXPLOIT_RECEIPT_PROOF_TYPEHASH, receiptTokenDepegged, contractPaused, protocolId, verifiedAt)
         );
         return keccak256(abi.encodePacked("\x19\x01", ds, structHash));
     }
@@ -195,19 +180,15 @@ contract LuminaOracleV2Test is Test {
     // ═══════════════════════════════════════════════════════════
 
     function test_verifyExploitGovProofEIP712_valid() public {
-        int256 govNow = 1_00000000;            // $1 with 8 decimals
-        int256 gov24h = 3_00000000;            // $3 with 8 decimals
+        int256 govNow = 1_00000000; // $1 with 8 decimals
+        int256 gov24h = 3_00000000; // $3 with 8 decimals
         bytes32 protocolId = bytes32("AAVE");
         uint256 verifiedAt = block.timestamp;
 
-        bytes32 digest = _exploitGovProofDigest(
-            address(oracle), block.chainid, govNow, gov24h, protocolId, verifiedAt
-        );
+        bytes32 digest = _exploitGovProofDigest(address(oracle), block.chainid, govNow, gov24h, protocolId, verifiedAt);
         bytes memory sig = _sign(oracleKeyPriv, digest);
 
-        address signer = oracle.verifyExploitGovProofEIP712(
-            govNow, gov24h, protocolId, verifiedAt, sig
-        );
+        address signer = oracle.verifyExploitGovProofEIP712(govNow, gov24h, protocolId, verifiedAt, sig);
         assertEq(signer, oracleKeyAddr, "signer should match oracleKey");
     }
 
@@ -218,9 +199,8 @@ contract LuminaOracleV2Test is Test {
         uint256 verifiedAt = 1_700_000_000;
 
         bytes32 onChain = oracle.exploitReceiptProofDigest(depegged, paused, protocolId, verifiedAt);
-        bytes32 manual = _exploitReceiptProofDigest(
-            address(oracle), block.chainid, depegged, paused, protocolId, verifiedAt
-        );
+        bytes32 manual =
+            _exploitReceiptProofDigest(address(oracle), block.chainid, depegged, paused, protocolId, verifiedAt);
 
         assertEq(onChain, manual, "exploit-receipt digest must match manual EIP-712 construction");
     }

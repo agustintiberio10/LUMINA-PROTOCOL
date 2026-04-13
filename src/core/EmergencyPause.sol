@@ -28,7 +28,6 @@ import {IOracle} from "../interfaces/IOracle.sol";
  *   - triggerPayout and cleanupExpiredPolicy still work (claims must always be processable)
  */
 contract EmergencyPause is Ownable {
-
     /// @notice True if the entire protocol is paused
     bool public protocolPaused;
 

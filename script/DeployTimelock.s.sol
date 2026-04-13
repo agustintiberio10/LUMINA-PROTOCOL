@@ -18,10 +18,10 @@ contract DeployTimelock is Script {
         vm.startBroadcast(deployerKey);
 
         TimelockController timelock = new TimelockController(
-            172800,     // 48 hours minimum delay
-            proposers,  // only Gnosis Safe can propose
-            executors,  // only Gnosis Safe can execute
-            address(0)  // no admin — cannot bypass timelock
+            172800, // 48 hours minimum delay
+            proposers, // only Gnosis Safe can propose
+            executors, // only Gnosis Safe can execute
+            address(0) // no admin — cannot bypass timelock
         );
 
         vm.stopBroadcast();

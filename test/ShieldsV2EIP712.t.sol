@@ -19,7 +19,7 @@ contract ShieldsV2EIP712Test is Test {
     uint256 oracleKeyPriv;
 
     address router = address(0xD1);
-    address buyer  = address(0xBEEF);
+    address buyer = address(0xBEEF);
 
     // Fake Chainlink aggregators (any non-zero address will do — we mock calls to them).
     address btcFeed = address(0xB7C);
@@ -27,15 +27,12 @@ contract ShieldsV2EIP712Test is Test {
 
     // Prices in Chainlink 8-decimal scale.
     int256 constant BTC_STRIKE = 50_000_00000000; // $50,000
-    int256 constant ETH_STRIKE = 3_000_00000000;  // $3,000
+    int256 constant ETH_STRIKE = 3_000_00000000; // $3,000
 
     // EIP-712 constants (re-declared for manual digest construction)
-    bytes32 constant EIP712_DOMAIN_TYPEHASH = keccak256(
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-    );
-    bytes32 constant PRICE_PROOF_TYPEHASH = keccak256(
-        "PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)"
-    );
+    bytes32 constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 constant PRICE_PROOF_TYPEHASH = keccak256("PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)");
 
     function setUp() public {
         (oracleKeyAddr, oracleKeyPriv) = makeAddrAndKey("oracleKey");
@@ -114,12 +111,11 @@ contract ShieldsV2EIP712Test is Test {
 
     /// @dev Builds an oracle proof payload encoded the way the shield expects:
     ///      abi.encode(int256 verifiedPrice, bytes32 asset, uint256 verifiedAt, bytes signature)
-    function _buildProof(
-        int256 price,
-        bytes32 asset,
-        uint256 verifiedAt,
-        bytes memory signature
-    ) internal pure returns (bytes memory) {
+    function _buildProof(int256 price, bytes32 asset, uint256 verifiedAt, bytes memory signature)
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encode(price, asset, verifiedAt, signature);
     }
 
@@ -164,9 +160,7 @@ contract ShieldsV2EIP712Test is Test {
         // Build digest against chainId = 1 instead of block.chainid.
         uint256 wrongChainId = 1;
         vm.assume(wrongChainId != block.chainid);
-        bytes32 wrongDigest = _priceProofDigest(
-            address(oracle), wrongChainId, crashPrice, bytes32("BTC"), verifiedAt
-        );
+        bytes32 wrongDigest = _priceProofDigest(address(oracle), wrongChainId, crashPrice, bytes32("BTC"), verifiedAt);
         bytes memory sig = _sign(oracleKeyPriv, wrongDigest);
         bytes memory proof = _buildProof(crashPrice, bytes32("BTC"), verifiedAt, sig);
 
@@ -186,9 +180,7 @@ contract ShieldsV2EIP712Test is Test {
 
         // Build digest against a fake verifyingContract (different oracle).
         address fakeOracle = address(0xBAD0);
-        bytes32 wrongDigest = _priceProofDigest(
-            fakeOracle, block.chainid, crashPrice, bytes32("BTC"), verifiedAt
-        );
+        bytes32 wrongDigest = _priceProofDigest(fakeOracle, block.chainid, crashPrice, bytes32("BTC"), verifiedAt);
         bytes memory sig = _sign(oracleKeyPriv, wrongDigest);
         bytes memory proof = _buildProof(crashPrice, bytes32("BTC"), verifiedAt, sig);
 
@@ -235,9 +227,7 @@ contract ShieldsV2EIP712Test is Test {
 
         uint256 wrongChainId = 1;
         vm.assume(wrongChainId != block.chainid);
-        bytes32 wrongDigest = _priceProofDigest(
-            address(oracle), wrongChainId, crashPrice, bytes32("ETH"), verifiedAt
-        );
+        bytes32 wrongDigest = _priceProofDigest(address(oracle), wrongChainId, crashPrice, bytes32("ETH"), verifiedAt);
         bytes memory sig = _sign(oracleKeyPriv, wrongDigest);
         bytes memory proof = _buildProof(crashPrice, bytes32("ETH"), verifiedAt, sig);
 

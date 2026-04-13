@@ -5,9 +5,9 @@ pragma solidity ^0.8.20;
  * @title IVault
  * @author Lumina Protocol
  * @notice Mega Pool Vault interface — Cooldown pattern, Soulbound shares.
- * 
+ *
  * 🔴 INMUTABLE — Changing this requires redeploying all vaults.
- * 
+ *
  * DESIGN (post-pivot):
  *   - 4 vaults: VolatileShort(30d), VolatileLong(90d), StableShort(90d), StableLong(365d)
  *   - LP deposits indefinitely — no lock from deposit time
@@ -23,25 +23,24 @@ pragma solidity ^0.8.20;
  *   Cooldown (new): LP enters → stays indefinitely → requests exit → cooldown X days → exits. Always backs X day policies until exit requested.
  */
 interface IVault {
-
     // ═══════════════════════════════════════════════════════════
     //  STRUCTS
     // ═══════════════════════════════════════════════════════════
 
     /// @notice Withdrawal request state for an LP
     struct WithdrawalRequest {
-        uint256 shares;             // How many shares the LP wants to withdraw
-        uint256 cooldownEnd;        // Timestamp when cooldown expires (0 = no active request)
+        uint256 shares; // How many shares the LP wants to withdraw
+        uint256 cooldownEnd; // Timestamp when cooldown expires (0 = no active request)
     }
 
     /// @notice Vault state snapshot
     struct VaultState {
-        uint256 totalAssets;        // Total USDC in vault (USD value)
-        uint256 allocatedAssets;    // Locked backing active policies
-        uint256 freeAssets;         // Available for new policies or withdrawals
-        uint256 totalShares;        // Total shares outstanding
-        uint256 utilizationBps;     // (allocated / total) × 10000
-        uint32 cooldownDuration;    // This vault's cooldown in seconds
+        uint256 totalAssets; // Total USDC in vault (USD value)
+        uint256 allocatedAssets; // Locked backing active policies
+        uint256 freeAssets; // Available for new policies or withdrawals
+        uint256 totalShares; // Total shares outstanding
+        uint256 utilizationBps; // (allocated / total) × 10000
+        uint32 cooldownDuration; // This vault's cooldown in seconds
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -54,7 +53,9 @@ interface IVault {
     event WithdrawalCompleted(address indexed lp, uint256 assets, uint256 shares);
     event CollateralLocked(uint256 amount, bytes32 indexed productId, uint256 indexed policyId);
     event CollateralUnlocked(uint256 amount, bytes32 indexed productId, uint256 indexed policyId);
-    event PayoutExecuted(address indexed recipient, uint256 amount, bytes32 indexed productId, uint256 indexed policyId);
+    event PayoutExecuted(
+        address indexed recipient, uint256 amount, bytes32 indexed productId, uint256 indexed policyId
+    );
     event PremiumReceived(uint256 amount, bytes32 indexed productId, uint256 indexed policyId);
 
     // ═══════════════════════════════════════════════════════════
@@ -118,7 +119,9 @@ interface IVault {
     //  PAYOUT + PREMIUM (only CoverRouter)
     // ═══════════════════════════════════════════════════════════
 
-    function executePayout(address recipient, uint256 amount, bytes32 productId, uint256 policyId, address beneficiary) external returns (bool);
+    function executePayout(address recipient, uint256 amount, bytes32 productId, uint256 policyId, address beneficiary)
+        external
+        returns (bool);
     function receivePremium(uint256 amount, bytes32 productId, uint256 policyId) external returns (bool);
 
     // ═══════════════════════════════════════════════════════════

@@ -91,7 +91,7 @@ abstract contract BaseVault is
     bool public payoutsPaused;
 
     // ═══ Performance Fee (3% on positive yield at withdrawal) ═══
-    uint16 public performanceFeeBps;         // 300 = 3%
+    uint16 public performanceFeeBps; // 300 = 3%
     address public feeReceiver;
     mapping(address => uint256) public userCostBasisPerShare; // WAD precision (1e18)
 
@@ -127,7 +127,9 @@ abstract contract BaseVault is
     // ═══════════════════════════════════════════════════════════
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     function __BaseVault_init(
         address owner_,
@@ -210,7 +212,12 @@ abstract contract BaseVault is
     // ═══════════════════════════════════════════════════════════
 
     /// @inheritdoc IVault
-    function depositAssets(uint256 assets, address receiver) external nonReentrant whenProtocolNotPaused returns (uint256 shares) {
+    function depositAssets(uint256 assets, address receiver)
+        external
+        nonReentrant
+        whenProtocolNotPaused
+        returns (uint256 shares)
+    {
         if (assets < MIN_DEPOSIT) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
@@ -227,10 +234,7 @@ abstract contract BaseVault is
 
         uint256 cooldownEnd = block.timestamp + _cooldownDuration;
 
-        _withdrawalRequests[msg.sender] = WithdrawalRequest({
-            shares: shares,
-            cooldownEnd: cooldownEnd
-        });
+        _withdrawalRequests[msg.sender] = WithdrawalRequest({shares: shares, cooldownEnd: cooldownEnd});
 
         // [GM-1] Track pending as SHARES — value computed in real-time in _freeAssets()
         _pendingWithdrawalShares += shares;
@@ -257,9 +261,7 @@ abstract contract BaseVault is
         assets = convertToAssets(shares);
 
         // Check: enough non-allocated USDC to pay this withdrawal?
-        uint256 nonAllocated = totalAssets() > _allocatedAssets
-            ? totalAssets() - _allocatedAssets
-            : 0;
+        uint256 nonAllocated = totalAssets() > _allocatedAssets ? totalAssets() - _allocatedAssets : 0;
         if (assets > nonAllocated) revert InsufficientLiquidity(assets, nonAllocated);
 
         // Daily withdraw limit
@@ -333,17 +335,23 @@ abstract contract BaseVault is
         if (balanceOf(msg.sender) < shares) revert InsufficientShares(shares, balanceOf(msg.sender));
 
         uint256 totalPending = _getPendingShares(msg.sender);
-        if (totalPending + shares > balanceOf(msg.sender))
+        if (totalPending + shares > balanceOf(msg.sender)) {
             revert InsufficientShares(shares, balanceOf(msg.sender) - totalPending);
+        }
 
         uint256 cooldownEnd = block.timestamp + _cooldownDuration;
-        _withdrawalQueue[msg.sender].push(WithdrawalRequest({ shares: shares, cooldownEnd: cooldownEnd }));
+        _withdrawalQueue[msg.sender].push(WithdrawalRequest({shares: shares, cooldownEnd: cooldownEnd}));
         _pendingQueueShares += shares;
 
         emit WithdrawalRequested(msg.sender, shares, cooldownEnd);
     }
 
-    function completeWithdrawalV2(address receiver) external nonReentrant whenProtocolNotPaused returns (uint256 assets) {
+    function completeWithdrawalV2(address receiver)
+        external
+        nonReentrant
+        whenProtocolNotPaused
+        returns (uint256 assets)
+    {
         require(!withdrawalsPaused, "Withdrawals paused"); // [H-2]
 
         WithdrawalRequest[] storage queue = _withdrawalQueue[msg.sender];
@@ -439,11 +447,11 @@ abstract contract BaseVault is
     // ═══════════════════════════════════════════════════════════
 
     /// @inheritdoc IVault
-    function lockCollateral(
-        uint256 amount,
-        bytes32 productId,
-        uint256 policyId
-    ) external onlyPolicyManager returns (bool) {
+    function lockCollateral(uint256 amount, bytes32 productId, uint256 policyId)
+        external
+        onlyPolicyManager
+        returns (bool)
+    {
         if (amount == 0) revert ZeroAmount();
 
         uint256 total = totalAssets();
@@ -454,11 +462,7 @@ abstract contract BaseVault is
 
         uint256 newUtilBps = ((_allocatedAssets + amount) * BPS) / total;
         if (newUtilBps > MAX_UTILIZATION_BPS) {
-            revert UtilizationTooHigh(
-                (_allocatedAssets * BPS) / total,
-                newUtilBps,
-                MAX_UTILIZATION_BPS
-            );
+            revert UtilizationTooHigh((_allocatedAssets * BPS) / total, newUtilBps, MAX_UTILIZATION_BPS);
         }
 
         _allocatedAssets += amount;
@@ -468,11 +472,11 @@ abstract contract BaseVault is
     }
 
     /// @inheritdoc IVault
-    function unlockCollateral(
-        uint256 amount,
-        bytes32 productId,
-        uint256 policyId
-    ) external onlyPolicyManager returns (bool) {
+    function unlockCollateral(uint256 amount, bytes32 productId, uint256 policyId)
+        external
+        onlyPolicyManager
+        returns (bool)
+    {
         if (amount > _allocatedAssets) {
             amount = _allocatedAssets;
         }
@@ -504,9 +508,14 @@ abstract contract BaseVault is
         bytes32 productId,
         uint256 policyId,
         address beneficiary
-    // [FIX Option-E] No whenNotPaused — approved payouts ALWAYS execute regardless of pause state.
-    // Admin uses targeted cancelScheduledPayout for fraud, not blanket pause.
-    ) external onlyRouter nonReentrant returns (bool) {
+        // [FIX Option-E] No whenNotPaused — approved payouts ALWAYS execute regardless of pause state.
+        // Admin uses targeted cancelScheduledPayout for fraud, not blanket pause.
+    )
+        external
+        onlyRouter
+        nonReentrant
+        returns (bool)
+    {
         if (amount == 0) return true;
         if (recipient == address(0)) revert ZeroAddress();
         if (beneficiary == address(0)) revert ZeroAddress();
@@ -525,11 +534,7 @@ abstract contract BaseVault is
     }
 
     /// @inheritdoc IVault
-    function receivePremium(
-        uint256 amount,
-        bytes32 productId,
-        uint256 policyId
-    ) external onlyRouter returns (bool) {
+    function receivePremium(uint256 amount, bytes32 productId, uint256 policyId) external onlyRouter returns (bool) {
         if (amount == 0) return true;
 
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
@@ -624,20 +629,73 @@ abstract contract BaseVault is
     }
 
     // ═══ Security Admin ═══
-    function pause() external onlyOwner { _pause(); }
-    function unpause() external onlyOwner { _unpause(); }
-    function pauseDeposits() external onlyOwner { depositsPaused = true; emit DepositsPaused(true); }
-    function unpauseDeposits() external onlyOwner { depositsPaused = false; emit DepositsPaused(false); }
-    function pauseWithdrawals() external onlyOwner { withdrawalsPaused = true; emit WithdrawalsPaused(true); }
-    function unpauseWithdrawals() external onlyOwner { withdrawalsPaused = false; emit WithdrawalsPaused(false); }
-    function setMaxTotalDeposit(uint256 _max) external onlyOwner { maxTotalDeposit = _max; emit MaxTotalDepositUpdated(_max); }
-    function setMaxDepositPerUser(uint256 _max) external onlyOwner { maxDepositPerUser = _max; emit MaxDepositPerUserUpdated(_max); }
-    function setMaxPayoutPerTx(uint256 _max) external onlyOwner { maxPayoutPerTx = _max; emit MaxPayoutPerTxUpdated(_max); }
-    function setDailyWithdrawLimit(uint256 _bps) external onlyOwner { dailyWithdrawLimit = _bps; emit DailyWithdrawLimitUpdated(_bps); }
-    function setPerformanceFee(uint16 _bps) external onlyOwner { require(_bps <= 1000, "Max 10%"); performanceFeeBps = _bps; }
-    function setFeeReceiver(address _receiver) external onlyOwner { require(_receiver != address(0), "Zero address"); feeReceiver = _receiver; }
-    function pausePayouts() external onlyOwner { payoutsPaused = true; emit PayoutsPaused(msg.sender); }
-    function unpausePayouts() external onlyOwner { payoutsPaused = false; emit PayoutsUnpaused(msg.sender); }
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    function pauseDeposits() external onlyOwner {
+        depositsPaused = true;
+        emit DepositsPaused(true);
+    }
+
+    function unpauseDeposits() external onlyOwner {
+        depositsPaused = false;
+        emit DepositsPaused(false);
+    }
+
+    function pauseWithdrawals() external onlyOwner {
+        withdrawalsPaused = true;
+        emit WithdrawalsPaused(true);
+    }
+
+    function unpauseWithdrawals() external onlyOwner {
+        withdrawalsPaused = false;
+        emit WithdrawalsPaused(false);
+    }
+
+    function setMaxTotalDeposit(uint256 _max) external onlyOwner {
+        maxTotalDeposit = _max;
+        emit MaxTotalDepositUpdated(_max);
+    }
+
+    function setMaxDepositPerUser(uint256 _max) external onlyOwner {
+        maxDepositPerUser = _max;
+        emit MaxDepositPerUserUpdated(_max);
+    }
+
+    function setMaxPayoutPerTx(uint256 _max) external onlyOwner {
+        maxPayoutPerTx = _max;
+        emit MaxPayoutPerTxUpdated(_max);
+    }
+
+    function setDailyWithdrawLimit(uint256 _bps) external onlyOwner {
+        dailyWithdrawLimit = _bps;
+        emit DailyWithdrawLimitUpdated(_bps);
+    }
+
+    function setPerformanceFee(uint16 _bps) external onlyOwner {
+        require(_bps <= 1000, "Max 10%");
+        performanceFeeBps = _bps;
+    }
+
+    function setFeeReceiver(address _receiver) external onlyOwner {
+        require(_receiver != address(0), "Zero address");
+        feeReceiver = _receiver;
+    }
+
+    function pausePayouts() external onlyOwner {
+        payoutsPaused = true;
+        emit PayoutsPaused(msg.sender);
+    }
+
+    function unpausePayouts() external onlyOwner {
+        payoutsPaused = false;
+        emit PayoutsUnpaused(msg.sender);
+    }
 
     function emergencyWithdrawFromAave() external onlyOwner nonReentrant {
         uint256 aBalance = aToken.balanceOf(address(this));
@@ -665,7 +723,13 @@ abstract contract BaseVault is
         return total - unavailable;
     }
 
-    function _authorizeUpgrade(address /* newImplementation */) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address /* newImplementation */
+    )
+        internal
+        override
+        onlyOwner
+    {}
 
     function _aaveHealthCheck() internal view returns (bool) {
         try aToken.balanceOf(address(this)) returns (uint256) {

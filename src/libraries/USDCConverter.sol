@@ -30,7 +30,6 @@ import {IOracle} from "../interfaces/IOracle.sol";
  *   - Oracle price: 8 decimals (Chainlink standard)
  */
 library USDCConverter {
-
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -39,7 +38,7 @@ library USDCConverter {
     uint256 internal constant USD_DECIMALS = 1e6;
     uint256 internal constant ORACLE_DECIMALS = 1e8;
 
-    uint256 internal constant MIN_USDC_PRICE = 95_000_000;  // $0.95 in 8 decimals
+    uint256 internal constant MIN_USDC_PRICE = 95_000_000; // $0.95 in 8 decimals
     uint256 internal constant MAX_USDC_PRICE = 150_000_000; // $1.50 in 8 decimals
     uint256 internal constant FALLBACK_PRICE = 100_000_000; // $1.00 in 8 decimals
 
@@ -63,11 +62,11 @@ library USDCConverter {
      * @param usdcAsset   Asset identifier for USDC feed (e.g., "USDC")
      * @return usdcAmount Amount in USDC tokens (6 decimals)
      */
-    function usdToUSDCStrict(
-        uint256 usdAmount,
-        IOracle oracle,
-        bytes32 usdcAsset
-    ) internal view returns (uint256 usdcAmount) {
+    function usdToUSDCStrict(uint256 usdAmount, IOracle oracle, bytes32 usdcAsset)
+        internal
+        view
+        returns (uint256 usdcAmount)
+    {
         if (usdAmount == 0) revert ZeroAmount();
         if (usdcAsset == bytes32(0)) revert USDCFeedNotSet();
 
@@ -92,11 +91,11 @@ library USDCConverter {
      * @param usdcAsset   Asset identifier for USDC feed
      * @return usdAmount  Amount in USD (6 decimals)
      */
-    function usdcToUSDStrict(
-        uint256 usdcAmount,
-        IOracle oracle,
-        bytes32 usdcAsset
-    ) internal view returns (uint256 usdAmount) {
+    function usdcToUSDStrict(uint256 usdcAmount, IOracle oracle, bytes32 usdcAsset)
+        internal
+        view
+        returns (uint256 usdAmount)
+    {
         if (usdcAmount == 0) revert ZeroAmount();
         if (usdcAsset == bytes32(0)) revert USDCFeedNotSet();
 
@@ -123,11 +122,11 @@ library USDCConverter {
      * @return usdcAmount Amount in USDC tokens (6 decimals)
      * @return usedFallback True if fallback price was used
      */
-    function usdToUSDCSafe(
-        uint256 usdAmount,
-        IOracle oracle,
-        bytes32 usdcAsset
-    ) internal view returns (uint256 usdcAmount, bool usedFallback) {
+    function usdToUSDCSafe(uint256 usdAmount, IOracle oracle, bytes32 usdcAsset)
+        internal
+        view
+        returns (uint256 usdcAmount, bool usedFallback)
+    {
         if (usdAmount == 0) return (0, false);
 
         uint256 price = FALLBACK_PRICE;
@@ -161,10 +160,7 @@ library USDCConverter {
      * @param usdcPrice  Current USDC price (8 decimals)
      * @return usdValue  USD value (6 decimals)
      */
-    function usdcValueInUSD(
-        uint256 usdcAmount,
-        uint256 usdcPrice
-    ) internal pure returns (uint256 usdValue) {
+    function usdcValueInUSD(uint256 usdcAmount, uint256 usdcPrice) internal pure returns (uint256 usdValue) {
         usdValue = (usdcAmount * usdcPrice) / ORACLE_DECIMALS;
     }
 
@@ -175,10 +171,11 @@ library USDCConverter {
      * @return safe         True if price change is within bounds
      * @return dropBps      Drop in basis points (0 if no drop)
      */
-    function isUSDCPriceSafe(
-        uint256 currentPrice,
-        uint256 previousPrice
-    ) internal pure returns (bool safe, uint256 dropBps) {
+    function isUSDCPriceSafe(uint256 currentPrice, uint256 previousPrice)
+        internal
+        pure
+        returns (bool safe, uint256 dropBps)
+    {
         if (previousPrice == 0) return (false, 0);
 
         if (currentPrice > previousPrice) {

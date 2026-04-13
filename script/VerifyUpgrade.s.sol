@@ -22,14 +22,13 @@ interface IVaultCheck {
  *   forge script script/VerifyUpgrade.s.sol --rpc-url https://mainnet.base.org
  */
 contract VerifyUpgrade is Script {
-
     address constant TIMELOCK = 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a;
 
     address constant COVER_ROUTER = 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025;
-    address constant VOL_SHORT    = 0xbd44547581b92805aAECc40EB2809352b9b2880d;
-    address constant VOL_LONG     = 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904;
+    address constant VOL_SHORT = 0xbd44547581b92805aAECc40EB2809352b9b2880d;
+    address constant VOL_LONG = 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904;
     address constant STABLE_SHORT = 0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC;
-    address constant STABLE_LONG  = 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c;
+    address constant STABLE_LONG = 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c;
 
     function run() external view {
         console.log("=== POST-UPGRADE VERIFICATION ===");

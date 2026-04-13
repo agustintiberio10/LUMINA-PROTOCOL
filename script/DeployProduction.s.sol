@@ -27,21 +27,20 @@ import {ExploitShield} from "../src/products/ExploitShield.sol";
  *     --rpc-url https://mainnet.base.org --broadcast
  */
 contract DeployProduction is Script {
-
     // ═══ External addresses (Base Mainnet) ═══
-    address constant USDC           = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address constant AAVE_POOL      = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
-    address constant AAVE_AUSDC     = 0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB;
-    address constant SEQ_UPTIME     = 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant AAVE_POOL = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
+    address constant AAVE_AUSDC = 0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB;
+    address constant SEQ_UPTIME = 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433;
 
     // ═══ Keys (rotated) ═══
-    address constant ORACLE_KEY     = 0x933b15dd4F42bd2EE2794C1D188882aBCCDa977E;
-    address constant RELAYER        = 0xEdA7774A071a8DDa0c8c98037Cb542A1ee6aC7Eb;
+    address constant ORACLE_KEY = 0x933b15dd4F42bd2EE2794C1D188882aBCCDa977E;
+    address constant RELAYER = 0xEdA7774A071a8DDa0c8c98037Cb542A1ee6aC7Eb;
 
     // ═══ Governance ═══
-    address constant FEE_RECEIVER   = 0x2b4D825417f568231e809E31B9332ED146760337;
-    address constant TIMELOCK       = 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a;
-    uint16  constant FEE_BPS        = 300; // 3%
+    address constant FEE_RECEIVER = 0x2b4D825417f568231e809E31B9332ED146760337;
+    address constant TIMELOCK = 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a;
+    uint16 constant FEE_BPS = 300; // 3%
 
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -183,16 +182,9 @@ contract DeployProduction is Script {
         console.log("=============================================");
     }
 
-    function _deployVault(
-        address impl,
-        address owner,
-        address router,
-        address pm
-    ) internal returns (address) {
-        bytes memory data = abi.encodeCall(
-            VolatileShortVault.initialize,
-            (owner, USDC, router, pm, AAVE_POOL, AAVE_AUSDC)
-        );
+    function _deployVault(address impl, address owner, address router, address pm) internal returns (address) {
+        bytes memory data =
+            abi.encodeCall(VolatileShortVault.initialize, (owner, USDC, router, pm, AAVE_POOL, AAVE_AUSDC));
         ERC1967Proxy proxy = new ERC1967Proxy(impl, data);
         return address(proxy);
     }

@@ -72,17 +72,16 @@ contract CorrelationGroupsTest is Test {
         // Deploy StableShort vault (UUPS)
         StableShortVault ssImpl = new StableShortVault();
         bytes memory ssData = abi.encodeCall(
-            StableShortVault.initialize,
-            (owner, address(usdc), router, address(pm), address(aavePool), address(aToken))
+            StableShortVault.initialize, (owner, address(usdc), router, address(pm), address(aavePool), address(aToken))
         );
         ERC1967Proxy ssProxy = new ERC1967Proxy(address(ssImpl), ssData);
         stableShort = StableShortVault(address(ssProxy));
 
         // Register products (as router, since registerProduct allows owner OR router)
         vm.startPrank(owner);
-        pm.registerProduct(BSS_ID, address(0x1), VOLATILE, 7000);   // 70% individual cap
-        pm.registerProduct(IL_ID, address(0x2), VOLATILE, 7000);    // 70% individual cap
-        pm.registerProduct(DEPEG_ID, address(0x3), STABLE, 5000);   // 50% individual cap
+        pm.registerProduct(BSS_ID, address(0x1), VOLATILE, 7000); // 70% individual cap
+        pm.registerProduct(IL_ID, address(0x2), VOLATILE, 7000); // 70% individual cap
+        pm.registerProduct(DEPEG_ID, address(0x3), STABLE, 5000); // 50% individual cap
         pm.registerProduct(EXPLOIT_ID, address(0x4), STABLE, 5000); // 50% individual cap
 
         // Register vaults

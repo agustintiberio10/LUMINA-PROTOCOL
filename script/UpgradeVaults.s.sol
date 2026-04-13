@@ -10,7 +10,6 @@ import {StableLongVault} from "../src/vaults/StableLongVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract UpgradeVaults is Script {
-
     // Proxy addresses from DeployUUPS
     address constant VS_PROXY = 0x2D7D735f71638730cbe9A143227A00Fa64E94E88;
     address constant VL_PROXY = 0xDf30548d46e77015A4dDA82D3c263e81a60B075c;

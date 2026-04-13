@@ -8,18 +8,18 @@ pragma solidity ^0.8.20;
  *         Used to VERIFY off-chain quotes, not to calculate them.
  *         The off-chain Pricing API calculates the premium; the Shield verifies
  *         that the premium the agent paid is within acceptable bounds.
- * 
+ *
  * 🔴 INMUTABLE — Embedded via `using PremiumMath for uint256` in products.
  *    If there's a bug, every product using it must be redeployed.
- * 
+ *
  * FORMULA:
  *   Premium = Coverage × P_base × RiskMult × DurationDiscount × M(U) × (Duration / SECONDS_PER_YEAR)
- * 
+ *
  * KINK MODEL — M(U):
  *   U ≤ U_kink (80%): M(U) = 1 + (U / U_kink × R_slope1)
  *   U > U_kink (80%): M(U) = 1 + R_slope1 + ((U - U_kink) / (1 - U_kink) × R_slope2)
  *   U > 95%: REJECT (no policy issued)
- * 
+ *
  * INTERNAL MATH:
  *   All intermediate calculations use WAD (1e18) precision to avoid truncation.
  *   Inputs and outputs use the decimals appropriate to their context:
@@ -30,7 +30,6 @@ pragma solidity ^0.8.20;
  *     - premium output: 6 decimals (USDC format)
  */
 library PremiumMath {
-
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -203,11 +202,11 @@ library PremiumMath {
      * @param toleranceBps    Acceptable deviation in bps (e.g. 100 = 1%)
      * @return valid          True if premiumPaid is within tolerance of expected
      */
-    function verifyPremium(
-        uint256 premiumPaid,
-        uint256 expectedPremium,
-        uint256 toleranceBps
-    ) internal pure returns (bool valid) {
+    function verifyPremium(uint256 premiumPaid, uint256 expectedPremium, uint256 toleranceBps)
+        internal
+        pure
+        returns (bool valid)
+    {
         if (expectedPremium == 0) return premiumPaid == 0;
 
         uint256 tolerance = (expectedPremium * toleranceBps) / BPS;
@@ -233,11 +232,11 @@ library PremiumMath {
      * @param totalAssets     Total vault assets
      * @return bps            Utilization in basis points (0-10000, or max for empty vault)
      */
-    function calculateUtilization(
-        uint256 allocatedAssets,
-        uint256 requestedAmount,
-        uint256 totalAssets
-    ) internal pure returns (uint256 bps) {
+    function calculateUtilization(uint256 allocatedAssets, uint256 requestedAmount, uint256 totalAssets)
+        internal
+        pure
+        returns (uint256 bps)
+    {
         if (totalAssets == 0) {
             // Empty vault: any request > 0 = infinite utilization (reject)
             // Zero request on empty vault = 0% utilization (no harm)
@@ -253,11 +252,11 @@ library PremiumMath {
      * @param totalAssets     Total vault assets
      * @return allowed        True if utilization after allocation would be ≤ 95%
      */
-    function isUtilizationAllowed(
-        uint256 allocatedAssets,
-        uint256 requestedAmount,
-        uint256 totalAssets
-    ) internal pure returns (bool allowed) {
+    function isUtilizationAllowed(uint256 allocatedAssets, uint256 requestedAmount, uint256 totalAssets)
+        internal
+        pure
+        returns (bool allowed)
+    {
         uint256 newUtilization = calculateUtilization(allocatedAssets, requestedAmount, totalAssets);
         allowed = newUtilization <= U_MAX;
     }

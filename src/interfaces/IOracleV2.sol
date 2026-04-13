@@ -21,12 +21,10 @@ interface IOracleV2 is IOracle {
      * @dev    typehash: keccak256("PriceProof(int256 price,bytes32 asset,uint256 verifiedAt)")
      *         Returns the recovered signer (or address(0) on any failure).
      */
-    function verifyPriceProofEIP712(
-        int256 price,
-        bytes32 asset,
-        uint256 verifiedAt,
-        bytes calldata signature
-    ) external view returns (address signer);
+    function verifyPriceProofEIP712(int256 price, bytes32 asset, uint256 verifiedAt, bytes calldata signature)
+        external
+        view
+        returns (address signer);
 
     /**
      * @notice Verify an EIP-712 typed ExploitGovProof signature.
@@ -42,11 +40,7 @@ interface IOracleV2 is IOracle {
     ) external view returns (address signer);
 
     /// @notice On-chain helper: build the EIP-712 digest for a PriceProof.
-    function priceProofDigest(
-        int256 price,
-        bytes32 asset,
-        uint256 verifiedAt
-    ) external view returns (bytes32);
+    function priceProofDigest(int256 price, bytes32 asset, uint256 verifiedAt) external view returns (bytes32);
 
     /**
      * @notice On-chain helper: EIP-712 digest for the ExploitShield receipt-state

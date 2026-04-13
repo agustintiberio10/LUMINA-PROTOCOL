@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<!--
+  ⚠️ IMPORTANT: Protocol data in this file must match lib/lumina-config.ts
+  If you change any address, parameter, or product detail, update BOTH files.
+  Source of truth: lib/lumina-config.ts
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lumina - Agent Setup Tutorial</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7}
+.container{max-width:800px;margin:0 auto;padding:40px 20px}
+h1{color:#22d3ee;font-size:2rem;margin-bottom:8px}
+h2{color:#a78bfa;font-size:1.3rem;margin:40px 0 16px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.1)}
+p{margin-bottom:16px;color:rgba(255,255,255,0.7)}
+.subtitle{color:rgba(255,255,255,0.5);font-size:0.95rem;margin-bottom:32px}
+.step{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;margin-bottom:20px}
+.step-number{display:inline-block;background:rgba(34,211,238,0.15);color:#22d3ee;width:32px;height:32px;border-radius:50%;text-align:center;line-height:32px;font-weight:bold;font-size:0.9rem;margin-right:12px}
+.step-title{font-size:1.1rem;font-weight:600;color:white;display:inline}
+code{background:rgba(255,255,255,0.08);padding:2px 8px;border-radius:4px;font-family:'SF Mono','Fira Code',monospace;font-size:0.85rem;color:#22d3ee}
+pre{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;overflow-x:auto;margin:12px 0 16px;font-family:'SF Mono','Fira Code',monospace;font-size:0.8rem;line-height:1.6;color:rgba(255,255,255,0.8)}
+.warning{background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3);border-radius:8px;padding:16px;margin:16px 0}
+.warning-title{color:#eab308;font-weight:600;margin-bottom:4px}
+.success{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:16px;margin:16px 0}
+.success-title{color:#22c55e;font-weight:600;margin-bottom:4px}
+.info{background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;padding:16px;margin:16px 0}
+a{color:#22d3ee;text-decoration:none}
+a:hover{text-decoration:underline}
+.back-link{display:inline-block;margin-bottom:24px;color:rgba(255,255,255,0.4);font-size:0.9rem}
+table{width:100%;border-collapse:collapse;margin:16px 0}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.1);font-size:0.85rem}
+th{color:rgba(255,255,255,0.5);font-weight:500}
+.killswitch{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:16px;margin:16px 0}
+.killswitch-title{color:#ef4444;font-weight:600;margin-bottom:4px;font-size:1rem}
+</style>
+</head>
+<body>
+<div class="container">
+<a href="/" class="back-link">&larr; Back to Lumina</a>
+<h1>Connect Your AI Agent to Lumina</h1>
+<p class="subtitle">From zero to insured in 10 minutes. No blockchain knowledge needed.</p>
+
+<div style="display:flex;justify-content:center;gap:20px;margin:20px 0;font-size:0.85rem">
+  <span style="color:#22d3ee">&#9312; Connect</span>
+  <span style="color:rgba(255,255,255,0.2)">&mdash;</span>
+  <span style="color:rgba(255,255,255,0.4)">&#9313; Approve</span>
+  <span style="color:rgba(255,255,255,0.2)">&mdash;</span>
+  <span style="color:rgba(255,255,255,0.4)">&#9314; Configure</span>
+  <span style="color:rgba(255,255,255,0.2)">&mdash;</span>
+  <span style="color:rgba(255,255,255,0.4)">&#9315; Test</span>
+</div>
+
+<div class="info">
+<p><strong>Think of it like this:</strong> You give your AI agent a credit card (API Key) with a spending limit (Approve). The agent decides when to buy insurance for protection, or when to deposit into Lumina vaults to generate yield — all based on rules you define.</p>
+</div>
+
+<h2>What You Need</h2>
+<table>
+<tr><th>Item</th><th>What It Is</th><th>Where to Get It</th></tr>
+<tr><td>Wallet</td><td>MetaMask, Coinbase Wallet, or Rainbow</td><td><a href="https://metamask.io">metamask.io</a></td></tr>
+<tr><td>USDC</td><td>USDC stablecoin by Circle</td><td><a href="https://coinbase.com">coinbase.com</a></td></tr>
+<tr><td>ETH on Base</td><td>For one-time approval (~$0.01)</td><td>Bridge or buy on Base</td></tr>
+</table>
+
+<h2>Step 1: Create Your API Key</h2>
+<div class="step">
+<span class="step-number">1</span>
+<span class="step-title">Get your key (shown only once!)</span>
+
+<div style="margin-bottom:24px;padding:20px;border:2px solid rgba(34,211,238,0.4);border-radius:12px;background:rgba(34,211,238,0.03)">
+<p style="color:#22d3ee;font-size:0.8rem;margin-bottom:6px;font-weight:500">&rarr; Step 1 of 2: Connect your wallet</p>
+
+<div id="wallet-disconnected-new" style="display:block;margin-top:8px">
+<button onclick="handleConnectWallet()" style="background:linear-gradient(135deg,#00e5ff,#7c4dff);color:white;border:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%">
+&#x1F517; Connect Wallet
+</button>
+</div>
+
+<div id="wallet-connected-new" style="display:none;margin-top:8px">
+<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(0,229,255,0.08);padding:12px 16px;border-radius:8px;border:1px solid rgba(0,229,255,0.3)">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="color:#00e5ff;font-size:14px">&#x25CF;</span>
+<span id="wallet-addr-new" style="color:white;font-weight:600;font-size:15px"></span>
+<span style="background:#1a3a2a;color:#4ade80;padding:2px 8px;border-radius:4px;font-size:12px">Base &#x2713;</span>
+</div>
+<button onclick="handleDisconnectWallet()" style="background:transparent;color:#ff5555;border:1px solid rgba(255,85,85,0.4);padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer">Disconnect</button>
+</div>
+</div>
+
+<div id="step1-widget" style="display:none">
+<!-- Old widget hidden — replaced by wallet-disconnected-new/wallet-connected-new above -->
+</div>
+</div>
+
+<p style="color:#22d3ee;font-size:0.8rem;margin-top:16px;margin-bottom:6px;font-weight:500">&rarr; Step 2 of 2: Generate your key</p>
+<div id="generate-section" style="display:none;margin-top:16px">
+<button id="btn-generate" style="background:#a78bfa;color:#0a0a0f;border:none;padding:10px 24px;border-radius:8px;font-weight:600;font-size:0.95rem;cursor:pointer">Generate API Key</button>
+<span id="generate-status" style="margin-left:12px;color:rgba(255,255,255,0.5);font-size:0.85rem"></span>
+</div>
+
+<div id="key-result" style="display:none;margin-top:16px">
+<div style="display:flex;gap:8px;align-items:center">
+<input id="key-output" type="text" readonly style="flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(34,211,238,0.4);border-radius:6px;padding:10px 12px;color:#22d3ee;font-family:'SF Mono','Fira Code',monospace;font-size:0.85rem">
+<button id="btn-copy" style="background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);padding:10px 16px;border-radius:6px;font-weight:600;font-size:0.85rem;cursor:pointer;white-space:nowrap">Copy</button>
+</div>
+<div class="warning" style="margin-top:12px">
+<p class="warning-title">&#x26A0;&#xFE0F; Save this key NOW</p>
+<p>The API Key is shown only once. If you lose it, you'll need to generate a new one.</p>
+</div>
+</div>
+
+<div id="step1-error" style="display:none;margin-top:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:12px">
+<p id="step1-error-msg" style="color:#ef4444;margin:0"></p>
+</div>
+
+<details style="margin-top:16px">
+<summary style="color:rgba(255,255,255,0.5);cursor:pointer;font-size:0.85rem">For developers: alternative method (terminal) &#x25B8;</summary>
+<p style="margin-top:8px;color:rgba(255,255,255,0.5);font-size:0.85rem">Replace YOUR_WALLET with your actual wallet address:</p>
+<pre>curl -X POST https://lumina-protocol-production.up.railway.app/api/v2/keys/create \
+  -H "Content-Type: application/json" \
+  -d '{"wallet":"YOUR_WALLET_ADDRESS","label":"my-agent"}'</pre>
+</details>
+
+</div>
+
+<!-- Network Info Modal -->
+<div id="network-info-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+<div style="max-width:480px;width:90%;background:#12121a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px">
+<h3 style="color:white;font-size:1.1rem;margin-bottom:16px">About Base Network</h3>
+<p style="color:rgba(255,255,255,0.7);font-size:0.85rem;line-height:1.7;margin-bottom:12px">Lumina Protocol runs on Base — a Layer 2 network built on Ethereum by Coinbase. It's faster and cheaper than Ethereum mainnet. Your agent operates exclusively on this network.</p>
+<p style="color:rgba(255,255,255,0.7);font-size:0.85rem;line-height:1.7;margin-bottom:12px">To use Lumina, your wallet must be connected to Base Mainnet (Chain ID: 8453). If you don't have Base configured, click "Switch to Base" and MetaMask will set it up automatically.</p>
+<p style="color:rgba(255,255,255,0.7);font-size:0.85rem;line-height:1.7;margin-bottom:20px">You'll need a small amount of ETH on Base (~$0.01) for transaction fees, plus USDC (available at <a href="https://coinbase.com" target="_blank">coinbase.com</a>).</p>
+<div style="text-align:right">
+<button id="btn-got-it" style="background:#22d3ee;color:#0a0a0f;border:none;padding:8px 20px;border-radius:8px;font-weight:600;font-size:0.85rem;cursor:pointer">Got it</button>
+</div>
+</div>
+</div>
+
+<h2>Step 2: Approve USDC Spending</h2>
+<div class="step">
+<span class="step-number">2</span>
+<span class="step-title">Set your spending limit</span>
+
+<div id="approve-widget" style="margin-top:16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:20px">
+
+<div id="approve-no-wallet" style="color:rgba(255,255,255,0.4);font-size:0.9rem">&#x2B06; Connect your wallet in Step 1 first</div>
+
+<div id="approve-form" style="display:none">
+
+<div id="mode-toggle" style="display:flex;gap:0;margin-bottom:16px">
+<button id="mode-insurance" style="flex:1;padding:10px 16px;border:1px solid #22d3ee;border-radius:8px 0 0 8px;background:rgba(34,211,238,0.15);color:#22d3ee;font-weight:600;font-size:0.85rem;cursor:pointer">&#x1F6E1; Buy Insurance</button>
+<button id="mode-yield" style="flex:1;padding:10px 16px;border:1px solid rgba(255,255,255,0.2);border-left:none;border-radius:0 8px 8px 0;background:transparent;color:rgba(255,255,255,0.5);font-weight:600;font-size:0.85rem;cursor:pointer">&#x1F4B0; Earn Yield</button>
+</div>
+
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+<label id="approve-label" style="color:rgba(255,255,255,0.8);font-size:0.95rem;font-weight:500">What's the maximum your agent can spend on insurance?</label>
+<span id="tooltip-trigger" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.5);font-size:11px;cursor:help;position:relative;flex-shrink:0">i
+<span id="tooltip-box" style="display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1a1a2e;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:12px;font-size:12px;color:rgba(255,255,255,0.7);width:300px;line-height:1.5;font-weight:400;z-index:10;pointer-events:none"></span>
+</span>
+</div>
+
+<div style="display:flex;align-items:center;gap:0;margin-bottom:10px">
+<span style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-right:none;border-radius:6px 0 0 6px;padding:10px 12px;color:rgba(255,255,255,0.5);font-size:0.95rem">$</span>
+<input id="approve-amount" type="number" min="0" placeholder="Enter amount in USD" style="flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:0 6px 6px 0;padding:10px 12px;color:white;font-size:0.95rem;outline:none">
+</div>
+
+<div style="margin-top:8px;margin-bottom:8px">
+<button id="btn-unlimited" style="background:transparent;border:1px solid rgba(234,179,8,0.5);color:#eab308;font-size:13px;padding:6px 16px;border-radius:8px;cursor:pointer">&#x26A1; No Limit (Unlimited)</button>
+<span id="unlimited-badge" style="display:none;margin-left:10px;color:#eab308;font-size:13px;font-weight:600">UNLIMITED MODE</span>
+</div>
+
+<div id="vault-checkboxes" style="display:none;margin-bottom:16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:14px">
+<p style="color:rgba(255,255,255,0.6);font-size:0.85rem;margin-bottom:10px;font-weight:500">Select vaults to approve:</p>
+<label style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.7);font-size:0.85rem;margin-bottom:6px;cursor:pointer">
+<input type="checkbox" class="vault-cb" data-vault="0xbd44547581b92805aAECc40EB2809352b9b2880d" data-name="Volatile Short" checked style="accent-color:#22d3ee"> Volatile Short (30d)</label>
+<label style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.7);font-size:0.85rem;margin-bottom:6px;cursor:pointer">
+<input type="checkbox" class="vault-cb" data-vault="0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904" data-name="Volatile Long" checked style="accent-color:#22d3ee"> Volatile Long (90d)</label>
+<label style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.7);font-size:0.85rem;margin-bottom:6px;cursor:pointer">
+<input type="checkbox" class="vault-cb" data-vault="0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC" data-name="Stable Short" checked style="accent-color:#22d3ee"> Stable Short (90d)</label>
+<label style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.7);font-size:0.85rem;cursor:pointer">
+<input type="checkbox" class="vault-cb" data-vault="0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c" data-name="Stable Long" checked style="accent-color:#22d3ee"> Stable Long (365d)</label>
+</div>
+
+<button id="btn-approve" style="background:#22d3ee;color:#0a0a0f;border:none;padding:10px 24px;border-radius:8px;font-weight:600;font-size:0.95rem;cursor:not-allowed;opacity:0.5" disabled>Approve with MetaMask</button>
+
+<div id="approve-success" style="display:none;margin-top:14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:14px">
+<div id="approve-success-msg" style="color:#22c55e;margin:0;font-weight:500"></div>
+</div>
+
+<div id="approve-error" style="display:none;margin-top:14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:12px">
+<p id="approve-error-msg" style="color:#ef4444;margin:0"></p>
+</div>
+
+</div>
+
+</div>
+
+<!-- Confirm Modal -->
+<div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+<div style="max-width:480px;width:90%;background:#12121a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px">
+<h3 style="color:white;font-size:1.2rem;margin-bottom:16px">Confirm Approval</h3>
+<p id="modal-amount" style="color:#22d3ee;font-size:2rem;font-weight:700;margin-bottom:4px"></p>
+<p id="modal-words" style="color:rgba(255,255,255,0.5);font-size:0.95rem;margin-bottom:16px;text-transform:capitalize"></p>
+<p id="modal-explain" style="color:rgba(255,255,255,0.6);font-size:0.85rem;line-height:1.6;margin-bottom:20px"></p>
+<hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin-bottom:20px">
+<div style="display:flex;gap:12px;justify-content:flex-end">
+<button id="modal-cancel" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:10px 20px;border-radius:8px;font-size:0.9rem;cursor:pointer">Cancel</button>
+<button id="modal-confirm" style="background:#22d3ee;color:#0a0a0f;border:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:0.9rem;cursor:pointer">Confirm & Sign</button>
+</div>
+</div>
+</div>
+
+<!-- Unlimited Modal -->
+<div id="unlimited-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+<div style="max-width:480px;width:90%;background:#12121a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px">
+<h3 style="color:#eab308;font-size:1.2rem;margin-bottom:16px">&#x26A0;&#xFE0F; Unlimited Approval</h3>
+<p style="color:rgba(255,255,255,0.7);font-size:0.9rem;line-height:1.6;margin-bottom:20px">You are about to grant UNLIMITED spending permission. This means the approved contract can spend ALL your USDC with no cap. This is common in DeFi but carries risk: if the contract were ever compromised, all your approved USDC could be at risk.</p>
+<label style="display:flex;align-items:center;gap:10px;color:rgba(255,255,255,0.7);font-size:0.85rem;margin-bottom:20px;cursor:pointer">
+<input type="checkbox" id="unlimited-checkbox" style="accent-color:#eab308"> I understand the risks of unlimited approval
+</label>
+<hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin-bottom:20px">
+<div style="display:flex;gap:12px;justify-content:flex-end">
+<button id="unlimited-cancel" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:10px 20px;border-radius:8px;font-size:0.9rem;cursor:pointer">Cancel</button>
+<button id="unlimited-confirm" style="background:#eab308;color:#0a0a0f;border:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:0.9rem;cursor:not-allowed;opacity:0.5" disabled>Confirm Unlimited</button>
+</div>
+</div>
+</div>
+
+<p id="approve-explainer" style="margin-top:14px;font-size:13px;color:rgba(255,255,255,0.5);line-height:1.6">This tells your USDC: "Lumina can charge me up to $X for insurance." You control the limit and can revoke it anytime by setting it to 0.</p>
+
+<details style="margin-top:16px">
+<summary style="color:rgba(255,255,255,0.5);cursor:pointer;font-size:0.85rem">For developers: alternative method (terminal) &#x25B8;</summary>
+<pre style="margin-top:8px">cast send 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  "approve(address,uint256)" \
+  0xd5f8678A0F2149B6342F9014CCe6d743234Ca025 \
+  10000000000 \
+  --rpc-url YOUR_RPC_URL --interactive</pre>
+<div class="info">
+<p><strong>This is your risk limit.</strong> 10000000000 in 6 decimals = $10,000 max. Your agent cannot spend more than this. Revoke anytime by setting to 0.</p>
+</div>
+</details>
+
+</div>
+
+<h2>Step 3: Give Your Agent the Key + SKILL File</h2>
+<div class="step">
+<span class="step-number">3</span>
+<span class="step-title">Two things your agent needs</span>
+
+<p style="color:#22d3ee;font-size:0.8rem;font-weight:500;margin-top:16px;margin-bottom:8px">3a — What is an AI Agent?</p>
+<div style="margin-top:0;margin-bottom:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px">
+<h4 style="color:white;font-size:1rem;margin-bottom:12px">What is an AI Agent?</h4>
+<p style="color:rgba(255,255,255,0.6);font-size:0.85rem;line-height:1.6;margin-bottom:16px">An AI agent is a ChatGPT, Claude, or custom bot that can take actions on your behalf. In Lumina, your agent monitors markets and buys insurance automatically — you just set the rules.</p>
+
+<p style="color:rgba(255,255,255,0.5);font-size:0.85rem;font-weight:600;margin-bottom:12px">Don't have an agent yet? Here are 3 easy ways to start:</p>
+
+<div style="margin-bottom:12px;padding:14px;background:rgba(34,211,238,0.05);border:1px solid rgba(34,211,238,0.15);border-radius:8px">
+<p style="color:#22d3ee;font-size:0.85rem;font-weight:600;margin-bottom:6px">💬 Option A — ChatGPT or Claude (easiest, 2 minutes)</p>
+<ol style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.8;margin:0;padding-left:20px">
+<li>Open <a href="https://chat.openai.com" target="_blank">ChatGPT</a> or <a href="https://claude.ai" target="_blank">Claude</a></li>
+<li>Start a new conversation</li>
+<li>Paste the SKILL file content (download below)</li>
+<li>Tell it: <em>"My Lumina API key is: lum_xxxxx. You are now my insurance agent."</em></li>
+<li>That's it — the AI now knows how to use Lumina</li>
+</ol>
+</div>
+
+<div style="margin-bottom:12px;padding:14px;background:rgba(167,139,250,0.05);border:1px solid rgba(167,139,250,0.15);border-radius:8px">
+<p style="color:#a78bfa;font-size:0.85rem;font-weight:600;margin-bottom:6px">🤖 Option B — Claude Code (automated setup)</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin:0">Go back to the main page and click "Getting Started" → "Auto-Setup (Claude Code)". Copy the setup prompt and paste it into Claude Code terminal. It configures everything automatically.</p>
+</div>
+
+<div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:8px">
+<p style="color:rgba(255,255,255,0.7);font-size:0.85rem;font-weight:600;margin-bottom:6px">🔧 Option C — Custom Agent (developers)</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin:0">If you're building with ElizaOS, LangChain, or a custom framework: set LUMINA_API_KEY as an environment variable, include the SKILL file in your agent's knowledge base, and use the API endpoints documented in the SKILL file.</p>
+</div>
+
+<div style="margin-top:12px;padding:14px;background:rgba(124,77,255,0.08);border:1px solid rgba(124,77,255,0.3);border-radius:8px">
+<p style="color:#7c4dff;font-size:0.85rem;font-weight:600;margin-bottom:6px">&#x1F512; Option D — OWS Wallet (most secure)</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin-bottom:8px">For autonomous agents running 24/7. Uses <a href="https://openwallet.sh" target="_blank" style="color:#22d3ee">Open Wallet Standard</a> for policy-gated signing — your private key is encrypted and every transaction is validated before signing.</p>
+<ol style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.8;margin:0;padding-left:20px">
+<li>Install OWS: <code>curl -fsSL https://openwallet.sh/install.sh | bash</code></li>
+<li>Run setup: <code>git clone https://github.com/org-lumina/LUMINA-PROTOCOL.git && cd LUMINA-PROTOCOL/ows && ./setup-lumina-agent.sh my-agent</code></li>
+<li>Save the <code>ows_key_xxx</code> token and fund the wallet with USDC + ETH on Base</li>
+<li>Your agent now has: Base-only restriction, contract allowlist, $10K/day limit, auto-expiry</li>
+</ol>
+<p style="color:rgba(255,255,255,0.3);font-size:0.75rem;margin-top:8px;margin-bottom:0">Requires Linux or macOS. <a href="https://github.com/org-lumina/LUMINA-PROTOCOL/blob/main/docs/OWS-INTEGRATION.md" target="_blank" style="color:#7c4dff">Full OWS documentation &#x2192;</a></p>
+</div>
+</div>
+
+<div id="step3-grid" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+<!-- Card A: The Key -->
+<div style="grid-column:1/-1"><p style="color:#22d3ee;font-size:0.8rem;font-weight:500;margin:0 0 -8px 0">3b — The Key</p></div>
+<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(34,211,238,0.2);border-radius:16px;padding:24px">
+<h4 style="color:white;font-size:1rem;margin-bottom:4px">&#x1F511; The Key (API Key)</h4>
+<p style="color:rgba(255,255,255,0.4);font-size:0.8rem;margin-bottom:12px">Your agent's authorization to spend</p>
+<p style="color:rgba(255,255,255,0.6);font-size:0.85rem;line-height:1.6;margin-bottom:14px">Give this key to your AI agent so it can authenticate with Lumina. How you do it depends on your agent:</p>
+
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:14px;margin-bottom:10px">
+<p style="color:rgba(255,255,255,0.7);font-size:0.85rem;font-weight:600;margin-bottom:6px">&#x1F4AC; Using ChatGPT or Claude?</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin:0">Paste your API key directly in the chat along with the SKILL file. Tell your agent: <em>"My Lumina API key is: lum_xxxxx. Use it for all Lumina API calls."</em></p>
+</div>
+
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:14px;margin-bottom:10px">
+<p style="color:rgba(255,255,255,0.7);font-size:0.85rem;font-weight:600;margin-bottom:6px">&#x1F916; Using ElizaOS or a custom framework?</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin-bottom:8px">Set it as an environment variable:</p>
+<div style="display:flex;align-items:center;gap:8px">
+<code id="env-code" style="flex:1;display:block;padding:10px 12px;font-size:0.8rem">LUMINA_API_KEY=lum_your_key</code>
+<button class="btn-copy-step3" data-text="LUMINA_API_KEY=lum_your_key" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap">Copy</button>
+</div>
+</div>
+
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:14px;margin-bottom:12px">
+<p style="color:rgba(255,255,255,0.7);font-size:0.85rem;font-weight:600;margin-bottom:6px">&#x1F527; Building your own agent?</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin-bottom:8px">Include the key in the X-API-Key header of every API call:</p>
+<div style="display:flex;align-items:center;gap:8px">
+<code style="flex:1;display:block;padding:10px 12px;font-size:0.8rem">-H "X-API-Key: lum_your_key"</code>
+<button class="btn-copy-step3" data-text='-H "X-API-Key: lum_your_key"' style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap">Copy</button>
+</div>
+</div>
+
+<div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:8px;padding:10px 14px">
+<p style="color:#eab308;font-size:0.8rem;margin:0;line-height:1.5">&#x26A0;&#xFE0F; Keep your API key secret. Anyone with this key can make your agent spend USDC. Never share it publicly.</p>
+</div>
+</div>
+
+<!-- Card B: The Map -->
+<div style="grid-column:1/-1"><p style="color:#22d3ee;font-size:0.8rem;font-weight:500;margin:0 0 -8px 0">3c — The Map</p></div>
+<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(167,139,250,0.2);border-radius:16px;padding:24px">
+<h4 style="color:white;font-size:1rem;margin-bottom:4px">&#x1F9E0; The Map (SKILL File)</h4>
+<p style="color:rgba(255,255,255,0.4);font-size:0.8rem;margin-bottom:12px">Your agent's knowledge of Lumina</p>
+<p style="color:rgba(255,255,255,0.6);font-size:0.85rem;line-height:1.6;margin-bottom:16px">This file teaches your agent everything: products, endpoints, pricing, and rules. Without it, your agent doesn't know Lumina exists.</p>
+<a href="/LUMINA-SKILL.txt" download style="display:block;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.3);color:#a78bfa;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:600;text-align:center;text-decoration:none;width:100%">&#x1F4E5; Download LUMINA-SKILL.txt</a>
+<p style="color:rgba(255,255,255,0.35);font-size:0.75rem;margin-top:10px;margin-bottom:0">&#x1F4A1; Tip: Paste this file into your agent's chat (ChatGPT, Claude, or any LLM) so it learns the protocol rules automatically.</p>
+</div>
+
+</div>
+
+<!-- Verification Zone -->
+<div style="margin-top:20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px">
+<h4 style="color:white;font-size:0.95rem;margin-bottom:14px">&#x2705; Checklist before moving to Step 4</h4>
+<label class="step3-check" data-key="saved_key" style="display:flex;align-items:center;gap:10px;color:rgba(255,255,255,0.7);font-size:0.85rem;margin-bottom:8px;cursor:pointer">
+<input type="checkbox" style="accent-color:#22c55e;width:16px;height:16px"> <span>I saved my API Key somewhere safe</span>
+</label>
+<label class="step3-check" data-key="downloaded_skill" style="display:flex;align-items:center;gap:10px;color:rgba(255,255,255,0.7);font-size:0.85rem;margin-bottom:8px;cursor:pointer">
+<input type="checkbox" style="accent-color:#22c55e;width:16px;height:16px"> <span>I downloaded the SKILL file</span>
+</label>
+<label class="step3-check" data-key="gave_to_agent" style="display:flex;align-items:center;gap:10px;color:rgba(255,255,255,0.7);font-size:0.85rem;margin-bottom:8px;cursor:pointer">
+<input type="checkbox" style="accent-color:#22c55e;width:16px;height:16px"> <span>I gave both to my AI agent</span>
+</label>
+<div id="step3-complete" style="display:none;margin-top:12px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:12px;transition:opacity 0.3s ease">
+<p style="color:#22c55e;margin:0;font-weight:500">&#x1F389; Your agent is ready for its first test! Proceed to Step 4.</p>
+</div>
+</div>
+
+</div>
+
+<style>
+@media (max-width: 640px) {
+  #step3-grid { grid-template-columns: 1fr !important; }
+}
+</style>
+
+<h2>Step 4: Test — Buy Your First Policy</h2>
+<div class="step">
+<span class="step-number">4</span>
+<span class="step-title">Verify Everything Works</span>
+<p style="margin-top:12px;color:rgba(255,255,255,0.6);font-size:0.9rem">Your agent is ready! Here's how to test:</p>
+
+<div style="margin-top:16px;margin-bottom:12px;padding:14px;background:rgba(34,211,238,0.05);border:1px solid rgba(34,211,238,0.15);border-radius:8px">
+<p style="color:#22d3ee;font-size:0.85rem;font-weight:600;margin-bottom:6px">💬 Using ChatGPT or Claude?</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin:0">Tell your agent: <em>"Buy a BTC Catastrophe Shield (BTCCAT-001) for $100, 7 days duration, asset BTC."</em> Your agent will call the Lumina API and respond with a confirmation including the policy ID.</p>
+</div>
+
+<div style="margin-bottom:12px;padding:14px;background:rgba(167,139,250,0.05);border:1px solid rgba(167,139,250,0.15);border-radius:8px">
+<p style="color:#a78bfa;font-size:0.85rem;font-weight:600;margin-bottom:6px">🤖 Using Claude Code?</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin:0">The auto-setup already ran a test purchase. Check the output for <code>"success": true</code>.</p>
+</div>
+
+<details style="margin-bottom:16px">
+<summary style="color:rgba(255,255,255,0.4);cursor:pointer;font-size:0.8rem">🔧 For developers: test with curl</summary>
+<pre style="margin-top:8px">curl -X POST https://lumina-protocol-production.up.railway.app/api/v2/purchase \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: lum_your_key_here" \
+  -d '{"productId":"BTCCAT-001","coverageAmount":100000000,"durationSeconds":604800,"asset":"BTC"}'</pre>
+<p style="color:rgba(255,255,255,0.4);font-size:0.8rem">This buys $100 BTC Catastrophe Shield for 7 days. Note: <code>"asset":"BTC"</code> is required for BCS/EAS. Use <code>"stablecoin":"USDT"</code> for DEPEG.</p>
+</details>
+
+<p style="color:rgba(255,255,255,0.5);font-size:0.85rem;margin-bottom:12px">After your first purchase, check the Dashboard to see your active policy.</p>
+
+<button onclick="finishSetup()" style="display:block;width:100%;background:linear-gradient(135deg,#00e5ff,#7c4dff);color:white;border:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;margin-top:16px">
+✅ Setup Complete — Back to Lumina →
+</button>
+<script>
+function finishSetup() {
+  localStorage.setItem('lumina_disclaimer_accepted', 'true');
+  window.location.href = '/';
+}
+</script>
+</div>
+
+<h2>Emergency Stop (Kill Switch)</h2>
+<div class="killswitch">
+<p class="killswitch-title">If something goes wrong — revoke the approval:</p>
+<p>Set the approval to 0. This instantly stops all purchases.</p>
+
+<div style="margin-top:14px;padding:14px;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.2);border-radius:8px;margin-bottom:12px">
+<p style="color:#ef4444;font-size:0.9rem;font-weight:600;margin-bottom:6px">Option 1 — Use this page (easiest)</p>
+<ol style="color:rgba(255,255,255,0.6);font-size:0.85rem;line-height:1.8;margin:0;padding-left:20px">
+<li>Connect your wallet in Step 1 above</li>
+<li>Go to Step 2, set the amount to <strong>$0</strong></li>
+<li>Click <strong>Approve with MetaMask</strong></li>
+</ol>
+</div>
+
+<div style="padding:14px;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.2);border-radius:8px;margin-bottom:14px">
+<p style="color:#ef4444;font-size:0.9rem;font-weight:600;margin-bottom:6px">Option 2 — Use Basescan</p>
+<ol style="color:rgba(255,255,255,0.6);font-size:0.85rem;line-height:1.8;margin:0;padding-left:20px">
+<li>Go to the <a href="https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913#writeContract" target="_blank" style="color:#22d3ee">USDC contract write page on Basescan</a></li>
+<li>Connect your wallet on Basescan</li>
+<li>Call <code>approve()</code> with:<br>
+<code>spender</code> = <code>0xd5f8678A0F2149B6342F9014CCe6d743234Ca025</code> (CoverRouter)<br>
+<code>amount</code> = <code>0</code></li>
+</ol>
+</div>
+
+<div style="margin-top:12px;padding:14px;background:rgba(124,77,255,0.05);border:1px solid rgba(124,77,255,0.2);border-radius:8px">
+<p style="color:#7c4dff;font-size:0.85rem;font-weight:600;margin-bottom:6px">Option 3 — Revoke OWS key (if using OWS)</p>
+<p style="color:rgba(255,255,255,0.5);font-size:0.8rem;line-height:1.6;margin-bottom:6px">If your agent uses OWS, revoke its API key:</p>
+<code style="display:block;background:rgba(255,255,255,0.05);padding:10px 12px;border-radius:6px;color:#22d3ee;font-size:0.8rem">ows key revoke --name my-agent-key</code>
+<p style="color:rgba(255,255,255,0.3);font-size:0.75rem;margin-top:6px;margin-bottom:0">This instantly disables the agent's signing capability. The wallet and funds are unaffected.</p>
+</div>
+
+<p style="color:rgba(255,255,255,0.5);font-size:0.85rem;font-style:italic;margin:0">Both options instantly revoke your agent's ability to spend USDC. No private key needed.</p>
+</div>
+
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(0,212,255,0.2);border-radius:16px;padding:0;margin-top:40px;box-shadow:0 -2px 20px rgba(0,212,255,0.05);overflow:hidden">
+<div style="height:3px;width:100%;background:linear-gradient(90deg,#00d4ff,transparent)"></div>
+<div style="padding:32px">
+<h2 style="margin-top:0;border:none;padding:0;color:#00d4ff">&#x1F6E1; Insurance Products</h2>
+<p style="color:rgba(255,255,255,0.5);font-size:0.9rem;margin-bottom:20px">Parametric coverage for your AI agent's portfolio. Your agent buys these policies via the API to protect against specific risks.</p>
+<p style="color:rgba(255,255,255,0.4);font-size:0.8rem;margin-bottom:8px">Quick reference — <a href="https://www.lumina-org.com/#products" style="color:#22d3ee">view full details on the main page</a></p>
+<div style="overflow-x:auto">
+<table class="table-insurance" style="width:100%">
+<tr><th>Product</th><th>API productId</th><th>Required field</th><th>Protects Against</th><th>Duration</th><th>Deductible</th></tr>
+<tr><td>BTC Catastrophe Shield</td><td><code>BTCCAT-001</code></td><td><code>"asset":"BTC"</code></td><td>BTC crash &#x2265;50%</td><td>7-30d</td><td>20%</td></tr>
+<tr><td>ETH Apocalypse Shield</td><td><code>ETHAPOC-001</code></td><td><code>"asset":"ETH"</code></td><td>ETH crash &#x2265;60%</td><td>7-30d</td><td>20%</td></tr>
+<tr><td>Depeg Shield</td><td><code>DEPEG</code></td><td><code>"stablecoin":"USDT"</code></td><td>USDT or DAI loses peg</td><td>14-365d</td><td>USDT:15% / DAI:12%</td></tr>
+<tr><td>IL Index Cover</td><td><code>IL</code></td><td><code>"asset":"ETH"</code></td><td>Impermanent loss</td><td>14-90d</td><td>2%</td></tr>
+<tr><td>Exploit Shield</td><td><code>EXPLOIT</code></td><td><code>"asset":"ETH"</code></td><td>External protocol hacks (excl. Aave)</td><td>90-365d</td><td>10%</td></tr>
+</table>
+</div>
+<p style="color:rgba(255,255,255,0.4);font-size:0.8rem;margin-top:12px;margin-bottom:0">Your agent decides when to buy based on market conditions. Policies are purchased and claimed automatically via the API. You only set the spending limit.</p>
+
+<div class="warning" style="margin-top:16px">
+<p class="warning-title">&#x26A0;&#xFE0F; Important for API calls</p>
+<p style="font-size:0.85rem">The wallet that approved USDC on-chain must be the EXACT same wallet registered with your API key. If they differ, purchases will fail with "Wallet mismatch". Always include the <code>"asset"</code> field in quote/purchase requests (see table above).</p>
+</div>
+</div>
+</div>
+
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(139,92,246,0.2);border-radius:16px;padding:0;margin-top:24px;box-shadow:0 -2px 20px rgba(139,92,246,0.05);overflow:hidden">
+<div style="height:3px;width:100%;background:linear-gradient(90deg,#8b5cf6,transparent)"></div>
+<div style="padding:32px">
+<h2 style="margin-top:0;border:none;padding:0;color:#8b5cf6">&#x1F4B0; Yield Vaults</h2>
+<p style="color:rgba(255,255,255,0.5);font-size:0.9rem;margin-bottom:20px">Deposit USDC into vaults to earn yield from insurance premiums. Your agent manages deposits and withdrawals.</p>
+<div style="overflow-x:auto">
+<table class="table-vaults" style="width:100%">
+<tr><th>Vault</th><th>Lockup</th><th>Risk Profile</th><th>What it covers</th></tr>
+<tr><td><strong>Volatile Short</strong></td><td>37 days</td><td><span style="background:rgba(234,179,8,0.1);color:#eab308;padding:2px 8px;border-radius:4px;font-size:11px">Higher risk/yield</span></td><td>BCS + EAS + IL claims</td></tr>
+<tr><td><strong>Volatile Long</strong></td><td>97 days</td><td><span style="background:rgba(234,179,8,0.1);color:#eab308;padding:2px 8px;border-radius:4px;font-size:11px">Higher risk/yield</span></td><td>BCS + EAS + IL claims</td></tr>
+<tr><td><strong>Stable Short</strong></td><td>97 days</td><td><span style="background:rgba(34,197,94,0.1);color:#22c55e;padding:2px 8px;border-radius:4px;font-size:11px">Lower risk/yield</span></td><td>DEPEG + EXPLOIT claims</td></tr>
+<tr><td><strong>Stable Long</strong></td><td>372 days</td><td><span style="background:rgba(34,197,94,0.1);color:#22c55e;padding:2px 8px;border-radius:4px;font-size:11px">Lower risk/yield</span></td><td>DEPEG + EXPLOIT claims</td></tr>
+</table>
+</div>
+<p style="color:rgba(255,255,255,0.4);font-size:0.8rem;margin-top:12px;margin-bottom:0">Yield = Aave V3 lending APY (~3-5%, variable) + insurance premiums. Your USDC is deposited into Aave V3, the largest lending protocol in DeFi. Longer lockups generally offer higher yields. Your agent monitors APY and manages positions through the API.</p>
+</div>
+</div>
+
+<style>
+.table-insurance th{background:rgba(0,212,255,0.05);text-transform:uppercase;font-size:11px;letter-spacing:1px;color:rgba(255,255,255,0.5);padding:12px 16px}
+.table-insurance td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.2s}
+.table-insurance tr:hover td{background:rgba(0,212,255,0.03)}
+.table-vaults th{background:rgba(139,92,246,0.05);text-transform:uppercase;font-size:11px;letter-spacing:1px;color:rgba(255,255,255,0.5);padding:12px 16px}
+.table-vaults td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.2s}
+.table-vaults tr:hover td{background:rgba(139,92,246,0.03)}
+</style>
+
+<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;margin-top:24px">
+<h2 style="margin-top:0;border:none;padding:0;color:rgba(255,255,255,0.6)">&#x1F4CB; Contract Addresses (Base Mainnet)</h2>
+<p style="color:rgba(255,255,255,0.4);font-size:0.8rem;margin-bottom:16px">All contracts verified on <a href="https://basescan.org" target="_blank">Basescan</a>. Chain ID: 8453.</p>
+<table style="font-size:0.8rem">
+<tr><th>Contract</th><th>Address</th></tr>
+<tr><td>CoverRouter</td><td><code><a href="https://basescan.org/address/0xd5f8678A0F2149B6342F9014CCe6d743234Ca025" target="_blank" style="color:#22d3ee">0xd5f8678A...Ca025</a></code></td></tr>
+<tr><td>PolicyManager</td><td><code><a href="https://basescan.org/address/0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a" target="_blank" style="color:#22d3ee">0xCCA07e...0162a</a></code></td></tr>
+<tr><td>LuminaOracleV2</td><td><code><a href="https://basescan.org/address/0x87B576f688bE0E1d7d23A299f55b475658215105" target="_blank" style="color:#22d3ee">0x87B576...15105</a></code></td></tr>
+<tr><td>USDC</td><td><code><a href="https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" target="_blank" style="color:#22d3ee">0x833589...02913</a></code></td></tr>
+<tr><td colspan="2" style="color:rgba(255,255,255,0.3);padding-top:8px;font-style:italic">Shields V2</td></tr>
+<tr><td>BCS (BTCCatastropheShieldV2)</td><td><code style="font-size:0.75rem">0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21</code></td></tr>
+<tr><td>EAS (ETHApocalypseShieldV2)</td><td><code style="font-size:0.75rem">0x70f1c92EFcFe55e8d460aAa6d626779536b15128</code></td></tr>
+<tr><td>Depeg (DepegShieldV2)</td><td><code style="font-size:0.75rem">0x881f683291122c3A72bdD504F71ddCAf47d9AE0e</code></td></tr>
+<tr><td>IL (ILIndexCoverV2)</td><td><code style="font-size:0.75rem">0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a</code></td></tr>
+<tr><td>Exploit (ExploitShieldV2)</td><td><code style="font-size:0.75rem">0x63D340AE7229BB464bC801f225651341ebcD3693</code></td></tr>
+<tr><td colspan="2" style="color:rgba(255,255,255,0.3);padding-top:8px;font-style:italic">Governance</td></tr>
+<tr><td>TimelockController</td><td><code style="font-size:0.75rem">0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a</code></td></tr>
+<tr><td>Gnosis Safe (2/3)</td><td><code style="font-size:0.75rem">0xa17e8b7f985022BC3c607e9c4858A1C264b33cFD</code></td></tr>
+</table>
+<p style="color:rgba(255,255,255,0.3);font-size:0.75rem;margin-top:12px;margin-bottom:0">Full documentation: <a href="/LUMINA-SKILL.txt" style="color:#22d3ee">SKILL File</a> &middot; <a href="https://github.com/org-lumina/LUMINA-PROTOCOL" target="_blank" style="color:#22d3ee">GitHub</a> &middot; 240 tests passing &middot; Solidity 0.8.20</p>
+</div>
+
+<h2>Need Help?</h2>
+<p>Email <a href="mailto:support@lumina-org.com">support@lumina-org.com</a> or visit the <a href="/dashboard">Dashboard</a>.</p>
+<p style="margin-top:40px;color:rgba(255,255,255,0.3);font-size:0.8rem">Lumina Protocol — Insurance for the Machine Economy &middot; Last updated: April 12, 2026</p>
+</div>
+
+<script>
+// ============================================================
+// LUMINA TUTORIAL — UNIFIED WALLET + APPROVE LOGIC
+// ============================================================
+
+(function() {
+  'use strict';
+
+  // --- Constants ---
+  const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+  const COVER_ROUTER = '0xd5f8678A0F2149B6342F9014CCe6d743234Ca025';
+  const BASE_CHAIN_ID = '0x2105';
+  const UINT256_MAX = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+
+  const VAULTS = [
+    { address: '0xbd44547581b92805aAECc40EB2809352b9b2880d', name: 'Volatile Short' },
+    { address: '0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904', name: 'Volatile Long' },
+    { address: '0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC', name: 'Stable Short' },
+    { address: '0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c', name: 'Stable Long' }
+  ];
+
+  const TOOLTIP_INSURANCE = '\uD83D\uDCB3 Your limit, your control: This amount is the maximum \'allowance\' your AI Agent is permitted to use. If the Agent detects a risk and wants to buy $100 of insurance but you only approved $50, the purchase will be blocked. You own the money; the Agent is just the manager.';
+  const TOOLTIP_YIELD = '\uD83D\uDCB0 Your deposit cap: This is the maximum amount each vault is allowed to receive from your agent. The agent can deposit and withdraw within this limit. You can adjust or revoke each vault\'s permission separately.';
+
+  // --- State ---
+  let connectedAddress = null;
+  let isOnBase = false;
+  let currentMode = 'insurance';
+  let isUnlimited = false;
+
+  // --- Provider ---
+  function getWalletProvider() {
+    if (!window.ethereum) return null;
+    return window.ethereum;
+  }
+
+  // --- Helpers ---
+  function truncateAddress(addr) {
+    return addr.slice(0, 6) + '...' + addr.slice(-4);
+  }
+
+  function encodeApprove(spender, amountBigInt) {
+    const selector = '0x095ea7b3';
+    const addr = spender.toLowerCase().replace('0x', '').padStart(64, '0');
+    const amt = amountBigInt.toString(16).padStart(64, '0');
+    return selector + addr + amt;
+  }
+
+  async function switchToBase() {
+    const provider = getWalletProvider();
+    if (!provider) return;
+    try {
+      await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: BASE_CHAIN_ID }] });
+    } catch (err) {
+      if (err.code === 4902) {
+        await provider.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: BASE_CHAIN_ID,
+            chainName: 'Base',
+            nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+            rpcUrls: ['https://mainnet.base.org'],
+            blockExplorerUrls: ['https://basescan.org']
+          }]
+        });
+      } else { throw err; }
+    }
+  }
+
+  function numberToWords(n) {
+    if (n === 0) return 'zero dollars';
+    const ones = ['','one','two','three','four','five','six','seven','eight','nine',
+      'ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+    const tens = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+    function chunk(num) {
+      if (num === 0) return '';
+      if (num < 20) return ones[num];
+      if (num < 100) return tens[Math.floor(num/10)] + (num%10 ? ' ' + ones[num%10] : '');
+      return ones[Math.floor(num/100)] + ' hundred' + (num%100 ? ' ' + chunk(num%100) : '');
+    }
+    const parts = [];
+    const scales = [[1000000000,'billion'],[1000000,'million'],[1000,'thousand']];
+    let rem = Math.round(Math.abs(n));
+    for (const [s, label] of scales) {
+      if (rem >= s) { parts.push(chunk(Math.floor(rem/s)) + ' ' + label); rem = rem % s; }
+    }
+    if (rem > 0) parts.push(chunk(rem));
+    return (n < 0 ? 'negative ' : '') + parts.join(' ') + ' dollars';
+  }
+
+  // ============================================================
+  // STEP 1 — WALLET CONNECTION
+  // ============================================================
+
+  const step1Widget = document.getElementById('step1-widget');
+  const generateSection = document.getElementById('generate-section');
+  const btnGenerate = document.getElementById('btn-generate');
+  const generateStatus = document.getElementById('generate-status');
+  const keyResult = document.getElementById('key-result');
+  const keyOutput = document.getElementById('key-output');
+  const btnCopy = document.getElementById('btn-copy');
+  const step1Error = document.getElementById('step1-error');
+  const step1ErrorMsg = document.getElementById('step1-error-msg');
+  const networkInfoModal = document.getElementById('network-info-modal');
+  const btnGotIt = document.getElementById('btn-got-it');
+
+  // --- Render functions ---
+
+  function renderNoMetaMask() {
+    step1Widget.innerHTML = '';
+    step1Error.style.display = 'block';
+    step1ErrorMsg.textContent = 'No wallet detected. Please install MetaMask, Phantom, or Coinbase Wallet.';
+    generateSection.style.display = 'none';
+    updateStep2State();
+  }
+
+  function renderDisconnected() {
+    connectedAddress = null;
+    isOnBase = false;
+    step1Widget.innerHTML = '';
+    // Sync with new prominent buttons
+    if (typeof showWalletDisconnected === 'function') showWalletDisconnected();
+    generateSection.style.display = 'none';
+    step1Error.style.display = 'none';
+    updateStep2State();
+  }
+
+  function renderConnectedWrongNetwork(address) {
+    connectedAddress = address;
+    isOnBase = false;
+    step1Widget.innerHTML = '';
+    // Show connected in new UI but warn about wrong network
+    if (typeof showWalletConnected === 'function') showWalletConnected(address);
+    // Show wrong network alert below
+    step1Error.style.display = 'block';
+    step1ErrorMsg.textContent = 'Wrong network — please switch to Base Mainnet. Click Connect Wallet again to switch.';
+    generateSection.style.display = 'none';
+    updateStep2State();
+  }
+
+  function renderConnectedBase(address) {
+    connectedAddress = address;
+    isOnBase = true;
+    step1Widget.innerHTML = '';
+    // Sync with new prominent buttons
+    if (typeof showWalletConnected === 'function') showWalletConnected(address);
+    generateSection.style.display = 'block';
+    step1Error.style.display = 'none';
+    updateStep2State();
+  }
+
+  function showStep1Error(msg) {
+    step1Error.style.display = 'block';
+    step1ErrorMsg.textContent = msg || 'An error occurred';
+  }
+
+  // --- Actions ---
+
+  async function connectWallet() {
+    const provider = getWalletProvider();
+    if (!provider) return;
+    const btn = document.getElementById('btn-connect');
+    if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
+    try {
+      const accounts = await provider.request({ method: 'eth_requestAccounts' });
+      localStorage.setItem('lumina_wallet', accounts[0]);
+      await checkAndRenderNetwork(accounts[0]);
+    } catch (err) {
+      renderDisconnected();
+      showStep1Error(err.message || 'Connection rejected');
+    }
+  }
+
+  function disconnectWallet() {
+    localStorage.removeItem('lumina_wallet');
+    renderDisconnected();
+  }
+
+  async function checkAndRenderNetwork(address) {
+    const provider = getWalletProvider();
+    if (!provider) return;
+    const chainId = await provider.request({ method: 'eth_chainId' });
+    if (chainId === BASE_CHAIN_ID) {
+      renderConnectedBase(address);
+    } else {
+      renderConnectedWrongNetwork(address);
+    }
+  }
+
+  // --- Generate API Key ---
+
+  btnGenerate.addEventListener('click', async () => {
+    if (!isOnBase || !connectedAddress) return;
+    btnGenerate.disabled = true;
+    generateStatus.textContent = 'Generating...';
+    step1Error.style.display = 'none';
+    try {
+      const res = await fetch('https://lumina-protocol-production.up.railway.app/api/v2/keys/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet: connectedAddress, label: 'mi-agente' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || 'Request failed (' + res.status + ')');
+      const key = data.apiKey || data.key || data.api_key || JSON.stringify(data);
+      keyOutput.value = key;
+      keyResult.style.display = 'block';
+      generateSection.style.display = 'none';
+    } catch (e) {
+      showStep1Error(e.message || 'Failed to generate API key');
+      btnGenerate.disabled = false;
+      generateStatus.textContent = '';
+    }
+  });
+
+  btnCopy.addEventListener('click', () => {
+    navigator.clipboard.writeText(keyOutput.value).then(() => {
+      btnCopy.textContent = 'Copied!';
+      setTimeout(() => { btnCopy.textContent = 'Copy'; }, 2000);
+    });
+  });
+
+  // --- Network Info Modal ---
+  btnGotIt.addEventListener('click', () => { networkInfoModal.style.display = 'none'; });
+  networkInfoModal.addEventListener('click', (e) => { if (e.target === networkInfoModal) networkInfoModal.style.display = 'none'; });
+
+  // ============================================================
+  // STEP 2 — APPROVE LOGIC
+  // ============================================================
+
+  const approveNoWallet = document.getElementById('approve-no-wallet');
+  const approveForm = document.getElementById('approve-form');
+  const approveAmount = document.getElementById('approve-amount');
+  const btnApprove = document.getElementById('btn-approve');
+  const approveSuccess = document.getElementById('approve-success');
+  const approveSuccessMsg = document.getElementById('approve-success-msg');
+  const approveError = document.getElementById('approve-error');
+  const approveErrorMsg = document.getElementById('approve-error-msg');
+  const tooltipTrigger = document.getElementById('tooltip-trigger');
+  const tooltipBox = document.getElementById('tooltip-box');
+  const modeInsurance = document.getElementById('mode-insurance');
+  const modeYield = document.getElementById('mode-yield');
+  const approveLabel = document.getElementById('approve-label');
+  const approveExplainer = document.getElementById('approve-explainer');
+  const vaultCheckboxes = document.getElementById('vault-checkboxes');
+  const confirmModal = document.getElementById('confirm-modal');
+  const modalAmount = document.getElementById('modal-amount');
+  const modalWords = document.getElementById('modal-words');
+  const modalExplain = document.getElementById('modal-explain');
+  const modalCancel = document.getElementById('modal-cancel');
+  const modalConfirm = document.getElementById('modal-confirm');
+  const btnUnlimited = document.getElementById('btn-unlimited');
+  const unlimitedBadge = document.getElementById('unlimited-badge');
+  const unlimitedModal = document.getElementById('unlimited-modal');
+  const unlimitedCheckbox = document.getElementById('unlimited-checkbox');
+  const unlimitedCancel = document.getElementById('unlimited-cancel');
+  const unlimitedConfirmBtn = document.getElementById('unlimited-confirm');
+
+  function updateStep2State() {
+    if (!connectedAddress) {
+      approveNoWallet.textContent = '\u2B06 Connect your wallet in Step 1 first';
+      approveNoWallet.style.display = 'block';
+      approveForm.style.display = 'none';
+    } else if (!isOnBase) {
+      approveNoWallet.textContent = '\u2B06 Switch to Base network first';
+      approveNoWallet.style.display = 'block';
+      approveForm.style.display = 'none';
+    } else {
+      approveNoWallet.style.display = 'none';
+      approveForm.style.display = 'block';
+    }
+  }
+
+  // Tooltip
+  tooltipBox.textContent = TOOLTIP_INSURANCE;
+  tooltipTrigger.addEventListener('mouseenter', () => { tooltipBox.style.display = 'block'; });
+  tooltipTrigger.addEventListener('mouseleave', () => { tooltipBox.style.display = 'none'; });
+
+  // Mode toggle
+  function updateMode(mode) {
+    currentMode = mode;
+    if (mode === 'insurance') {
+      modeInsurance.style.background = 'rgba(34,211,238,0.15)';
+      modeInsurance.style.color = '#22d3ee';
+      modeInsurance.style.borderColor = '#22d3ee';
+      modeYield.style.background = 'transparent';
+      modeYield.style.color = 'rgba(255,255,255,0.5)';
+      modeYield.style.borderColor = 'rgba(255,255,255,0.2)';
+      approveLabel.textContent = "What's the maximum your agent can spend on insurance?";
+      tooltipBox.textContent = TOOLTIP_INSURANCE;
+      approveExplainer.textContent = 'This tells your USDC: "Lumina can charge me up to $X for insurance." You control the limit and can revoke it anytime by setting it to 0.';
+      vaultCheckboxes.style.display = 'none';
+    } else {
+      modeYield.style.background = 'rgba(34,211,238,0.15)';
+      modeYield.style.color = '#22d3ee';
+      modeYield.style.borderColor = '#22d3ee';
+      modeInsurance.style.background = 'transparent';
+      modeInsurance.style.color = 'rgba(255,255,255,0.5)';
+      modeInsurance.style.borderColor = 'rgba(255,255,255,0.2)';
+      approveLabel.textContent = "What's the maximum your agent can deposit into vaults?";
+      tooltipBox.textContent = TOOLTIP_YIELD;
+      approveExplainer.textContent = 'This tells your USDC: "Lumina vaults can hold up to $X of my deposit." Each vault gets its own approval. You can revoke any vault individually.';
+      vaultCheckboxes.style.display = 'block';
+    }
+    updateApproveBtnText();
+    approveSuccess.style.display = 'none';
+    approveError.style.display = 'none';
+  }
+
+  modeInsurance.addEventListener('click', () => updateMode('insurance'));
+  modeYield.addEventListener('click', () => updateMode('yield'));
+
+  // Vault checkboxes
+  function getSelectedVaults() {
+    return Array.from(document.querySelectorAll('.vault-cb:checked')).map(cb => ({
+      address: cb.getAttribute('data-vault'),
+      name: cb.getAttribute('data-name')
+    }));
+  }
+
+  document.querySelectorAll('.vault-cb').forEach(cb => {
+    cb.addEventListener('change', updateApproveBtnText);
+  });
+
+  // Approve button text
+  function updateApproveBtnText() {
+    if (currentMode === 'insurance') {
+      btnApprove.textContent = 'Approve with MetaMask';
+    } else {
+      const count = getSelectedVaults().length;
+      btnApprove.textContent = 'Approve with MetaMask (' + count + ' vault' + (count !== 1 ? 's' : '') + ')';
+    }
+  }
+
+  // Approve button state
+  function updateApproveBtnState() {
+    if (isUnlimited) {
+      btnApprove.disabled = true; btnApprove.style.opacity = '0.5'; btnApprove.style.cursor = 'not-allowed';
+      return;
+    }
+    const val = parseFloat(approveAmount.value);
+    if (val > 0) {
+      btnApprove.disabled = false; btnApprove.style.opacity = '1'; btnApprove.style.cursor = 'pointer';
+    } else {
+      btnApprove.disabled = true; btnApprove.style.opacity = '0.5'; btnApprove.style.cursor = 'not-allowed';
+    }
+  }
+
+  function exitUnlimitedMode() {
+    isUnlimited = false;
+    unlimitedBadge.style.display = 'none';
+    approveAmount.disabled = false;
+    approveAmount.value = '';
+    approveAmount.placeholder = 'Enter amount in USD';
+    updateApproveBtnState();
+  }
+
+  approveAmount.addEventListener('input', () => {
+    if (isUnlimited) exitUnlimitedMode();
+    updateApproveBtnState();
+  });
+
+  // --- Confirm Modal ---
+  function showConfirmModal() {
+    const usdAmount = parseFloat(approveAmount.value);
+    modalAmount.textContent = '$' + usdAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USDC';
+    modalWords.textContent = numberToWords(usdAmount);
+    if (currentMode === 'insurance') {
+      modalExplain.textContent = 'You are approving Lumina CoverRouter (insurance purchases) to spend up to this amount of your USDC. You can change or revoke this limit at any time.';
+    } else {
+      const names = getSelectedVaults().map(v => v.name).join(', ');
+      modalExplain.textContent = 'You are approving Lumina Vaults (' + names + ') to spend up to this amount of your USDC. You can change or revoke this limit at any time.';
+    }
+    confirmModal.style.display = 'flex';
+  }
+
+  function hideConfirmModal() { confirmModal.style.display = 'none'; }
+
+  btnApprove.addEventListener('click', () => {
+    if (btnApprove.disabled) return;
+    approveError.style.display = 'none';
+    approveSuccess.style.display = 'none';
+    if (currentMode === 'yield' && getSelectedVaults().length === 0) {
+      approveError.style.display = 'block';
+      approveErrorMsg.textContent = 'Please select at least one vault';
+      return;
+    }
+    showConfirmModal();
+  });
+
+  modalCancel.addEventListener('click', hideConfirmModal);
+  confirmModal.addEventListener('click', (e) => { if (e.target === confirmModal) hideConfirmModal(); });
+
+  modalConfirm.addEventListener('click', async () => {
+    const provider = getWalletProvider();
+    if (!provider) return;
+    const usdAmount = parseFloat(approveAmount.value);
+    modalConfirm.disabled = true;
+    modalConfirm.textContent = 'Signing...';
+    try {
+      const amountRaw = BigInt(Math.round(usdAmount)) * 1000000n;
+      if (currentMode === 'insurance') {
+        const calldata = encodeApprove(COVER_ROUTER, amountRaw);
+        await provider.request({ method: 'eth_sendTransaction', params: [{ from: connectedAddress, to: USDC_ADDRESS, data: calldata }] });
+        hideConfirmModal();
+        approveSuccess.style.display = 'block';
+        approveSuccessMsg.innerHTML = '\u2705 Allowance set: $' + Math.round(usdAmount).toLocaleString() + ' USDC. Your agent can now spend up to this amount.';
+      } else {
+        const vaults = getSelectedVaults();
+        const results = [];
+        for (let i = 0; i < vaults.length; i++) {
+          modalConfirm.textContent = 'Signing vault ' + (i+1) + '/' + vaults.length + '...';
+          const calldata = encodeApprove(vaults[i].address, amountRaw);
+          await provider.request({ method: 'eth_sendTransaction', params: [{ from: connectedAddress, to: USDC_ADDRESS, data: calldata }] });
+          results.push('\u2705 ' + vaults[i].name + ': $' + Math.round(usdAmount).toLocaleString() + ' approved');
+        }
+        hideConfirmModal();
+        approveSuccess.style.display = 'block';
+        approveSuccessMsg.innerHTML = results.join('<br>');
+      }
+      btnApprove.textContent = 'Approved';
+      btnApprove.style.background = 'rgba(34,197,94,0.3)';
+      btnApprove.style.color = '#22c55e';
+      btnApprove.disabled = true;
+      btnApprove.style.opacity = '1';
+    } catch (e) {
+      hideConfirmModal();
+      approveError.style.display = 'block';
+      approveErrorMsg.textContent = e.message || 'Transaction failed';
+      updateApproveBtnText();
+    }
+    modalConfirm.disabled = false;
+    modalConfirm.textContent = 'Confirm & Sign';
+  });
+
+  // --- Unlimited flow ---
+  btnUnlimited.addEventListener('click', () => {
+    unlimitedCheckbox.checked = false;
+    unlimitedConfirmBtn.disabled = true;
+    unlimitedConfirmBtn.style.opacity = '0.5';
+    unlimitedConfirmBtn.style.cursor = 'not-allowed';
+    unlimitedModal.style.display = 'flex';
+  });
+
+  unlimitedCheckbox.addEventListener('change', () => {
+    unlimitedConfirmBtn.disabled = !unlimitedCheckbox.checked;
+    unlimitedConfirmBtn.style.opacity = unlimitedCheckbox.checked ? '1' : '0.5';
+    unlimitedConfirmBtn.style.cursor = unlimitedCheckbox.checked ? 'pointer' : 'not-allowed';
+  });
+
+  unlimitedCancel.addEventListener('click', () => { unlimitedModal.style.display = 'none'; });
+  unlimitedModal.addEventListener('click', (e) => { if (e.target === unlimitedModal) unlimitedModal.style.display = 'none'; });
+
+  unlimitedConfirmBtn.addEventListener('click', async () => {
+    const provider = getWalletProvider();
+    if (!provider) return;
+    unlimitedModal.style.display = 'none';
+    isUnlimited = true;
+    approveAmount.value = '';
+    approveAmount.disabled = true;
+    approveAmount.placeholder = 'Unlimited';
+    unlimitedBadge.style.display = 'inline';
+    btnApprove.disabled = true;
+    btnApprove.style.opacity = '0.5';
+    approveError.style.display = 'none';
+    approveSuccess.style.display = 'none';
+
+    try {
+      if (currentMode === 'insurance') {
+        const calldata = encodeApprove(COVER_ROUTER, UINT256_MAX);
+        await provider.request({ method: 'eth_sendTransaction', params: [{ from: connectedAddress, to: USDC_ADDRESS, data: calldata }] });
+        approveSuccess.style.display = 'block';
+        approveSuccessMsg.innerHTML = '\u2705 Unlimited allowance set. Your agent has no spending cap. You can set a specific limit anytime.';
+      } else {
+        const vaults = getSelectedVaults();
+        if (vaults.length === 0) {
+          approveError.style.display = 'block';
+          approveErrorMsg.textContent = 'Please select at least one vault';
+          exitUnlimitedMode();
+          return;
+        }
+        const results = [];
+        for (let i = 0; i < vaults.length; i++) {
+          const calldata = encodeApprove(vaults[i].address, UINT256_MAX);
+          await provider.request({ method: 'eth_sendTransaction', params: [{ from: connectedAddress, to: USDC_ADDRESS, data: calldata }] });
+          results.push('\u2705 ' + vaults[i].name + ': Unlimited approved');
+        }
+        approveSuccess.style.display = 'block';
+        approveSuccessMsg.innerHTML = results.join('<br>');
+      }
+      btnApprove.textContent = 'Approved';
+      btnApprove.style.background = 'rgba(34,197,94,0.3)';
+      btnApprove.style.color = '#22c55e';
+      btnApprove.style.opacity = '1';
+    } catch (e) {
+      approveError.style.display = 'block';
+      approveErrorMsg.textContent = e.message || 'Transaction failed';
+      exitUnlimitedMode();
+      updateApproveBtnText();
+    }
+  });
+
+  // ============================================================
+  // STEP 3 — COPY + CHECKLIST
+  // ============================================================
+
+  document.querySelectorAll('.btn-copy-step3').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const text = btn.getAttribute('data-text');
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '\u2713 Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      });
+    });
+  });
+
+  const step3Complete = document.getElementById('step3-complete');
+  const step3Checks = document.querySelectorAll('.step3-check');
+
+  function updateStep3Checklist() {
+    let allChecked = true;
+    step3Checks.forEach(label => {
+      const cb = label.querySelector('input');
+      const span = label.querySelector('span');
+      const key = 'lumina_check_' + label.getAttribute('data-key');
+      localStorage.setItem(key, cb.checked ? '1' : '0');
+      if (cb.checked) {
+        span.style.color = '#22c55e';
+        span.style.textDecoration = 'line-through';
+      } else {
+        span.style.color = 'rgba(255,255,255,0.7)';
+        span.style.textDecoration = 'none';
+        allChecked = false;
+      }
+    });
+    step3Complete.style.display = allChecked ? 'block' : 'none';
+  }
+
+  // Restore from localStorage
+  step3Checks.forEach(label => {
+    const cb = label.querySelector('input');
+    const key = 'lumina_check_' + label.getAttribute('data-key');
+    if (localStorage.getItem(key) === '1') cb.checked = true;
+    cb.addEventListener('change', updateStep3Checklist);
+  });
+  updateStep3Checklist();
+
+  // ============================================================
+  // INITIALIZATION
+  // ============================================================
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const provider = getWalletProvider();
+
+    if (!provider) {
+      renderNoMetaMask();
+      return;
+    }
+
+    // Check for active account WITHOUT opening popup
+    try {
+      const accounts = await provider.request({ method: 'eth_accounts' });
+
+      if (accounts.length === 0) {
+        localStorage.removeItem('lumina_wallet');
+        renderDisconnected();
+      } else {
+        localStorage.setItem('lumina_wallet', accounts[0]);
+        await checkAndRenderNetwork(accounts[0]);
+      }
+    } catch (e) {
+      renderDisconnected();
+    }
+
+    // Listeners
+    provider.on('accountsChanged', (accounts) => {
+      if (accounts.length === 0) {
+        localStorage.removeItem('lumina_wallet');
+        renderDisconnected();
+      } else {
+        localStorage.setItem('lumina_wallet', accounts[0]);
+        checkAndRenderNetwork(accounts[0]);
+      }
+    });
+
+    provider.on('chainChanged', async () => {
+      try {
+        const accs = await provider.request({ method: 'eth_accounts' });
+        if (accs.length > 0) checkAndRenderNetwork(accs[0]);
+      } catch(e) {}
+    });
+  });
+
+  // Fallback: if DOMContentLoaded already fired
+  if (document.readyState !== 'loading') {
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+  }
+
+})();
+
+// ════════════════════════════════════════════════════════════
+// PROMINENT WALLET CONNECT/DISCONNECT (Step 1 top buttons)
+// ════════════════════════════════════════════════════════════
+
+async function handleConnectWallet() {
+  if (!window.ethereum) {
+    alert('No wallet detected. Please install MetaMask, Phantom, or Coinbase Wallet.');
+    window.open('https://metamask.io', '_blank');
+    return;
+  }
+  try {
+    var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!accounts || accounts.length === 0) return;
+    var chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    if (chainId !== '0x2105') {
+      try {
+        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2105' }] });
+      } catch (e) {
+        if (e.code === 4902) {
+          await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: '0x2105', chainName: 'Base', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://mainnet.base.org'], blockExplorerUrls: ['https://basescan.org'] }] });
+        } else {
+          alert('Please switch to Base network');
+          return;
+        }
+      }
+    }
+    var addr = accounts[0];
+    localStorage.setItem('lumina_wallet', addr);
+    showWalletConnected(addr);
+    // Also trigger the existing tutorial wallet logic
+    window.dispatchEvent(new Event('lumina-wallet-connected'));
+  } catch (err) {
+    if (err.code !== 4001) alert('Connection failed. Please try again.');
+  }
+}
+
+function handleDisconnectWallet() {
+  localStorage.removeItem('lumina_wallet');
+  showWalletDisconnected();
+  window.dispatchEvent(new Event('lumina-wallet-disconnected'));
+}
+
+function showWalletConnected(addr) {
+  var el1 = document.getElementById('wallet-disconnected-new');
+  var el2 = document.getElementById('wallet-connected-new');
+  var el3 = document.getElementById('wallet-addr-new');
+  if (el1) el1.style.display = 'none';
+  if (el2) el2.style.display = 'block';
+  if (el3) el3.textContent = addr.slice(0,6) + '...' + addr.slice(-4);
+}
+
+function showWalletDisconnected() {
+  var el1 = document.getElementById('wallet-disconnected-new');
+  var el2 = document.getElementById('wallet-connected-new');
+  if (el1) el1.style.display = 'block';
+  if (el2) el2.style.display = 'none';
+}
+
+// Auto-reconnect on page load
+(function() {
+  var saved = localStorage.getItem('lumina_wallet');
+  if (saved && window.ethereum) {
+    window.ethereum.request({ method: 'eth_accounts' }).then(function(accounts) {
+      if (accounts.length > 0 && accounts[0].toLowerCase() === saved.toLowerCase()) {
+        showWalletConnected(accounts[0]);
+      }
+    }).catch(function() {});
+  }
+})();
+</script>
+</body>
+</html>

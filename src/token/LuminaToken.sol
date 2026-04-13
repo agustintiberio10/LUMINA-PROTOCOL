@@ -9,12 +9,9 @@ contract LuminaToken is ERC20, ERC20Burnable, AccessControl {
     uint256 public constant MAX_SUPPLY = 100_000_000 * 1e18;
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
-    constructor(
-        address treasury,
-        address exitEngineReserve,
-        address exchangeReserve,
-        address altSeasonVesting
-    ) ERC20("Lumina Protocol", "LUMINA") {
+    constructor(address treasury, address exitEngineReserve, address exchangeReserve, address altSeasonVesting)
+        ERC20("Lumina Protocol", "LUMINA")
+    {
         require(treasury != address(0), "Zero treasury");
         require(exitEngineReserve != address(0), "Zero exitEngine");
         require(exchangeReserve != address(0), "Zero exchange");

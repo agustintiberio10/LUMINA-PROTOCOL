@@ -12,9 +12,9 @@ import {IVault} from "../interfaces/IVault.sol";
  * @author Lumina Protocol
  * @notice The brain of Lumina — connects products to vaults via waterfall.
  *         Enforces MaxAllocation per product, correlation group caps, and ALM.
- * 
+ *
  * 🟡 UPGRADABLE via UUPS.
- * 
+ *
  * KEY RESPONSIBILITIES:
  *   1. Product registry: which products exist and their risk type
  *   2. Vault registry: which vaults exist, their cooldown, and waterfall priority
@@ -23,20 +23,16 @@ import {IVault} from "../interfaces/IVault.sol";
  *   5. Allocation caps: per-product MaxAllocation + correlation group caps
  *   6. recordAllocation: RE-VERIFIES all caps internally (TOCTOU defense)
  *   7. Tracks which vault backs each allocation (for release)
- * 
+ *
  * WATERFALL LOGIC:
  *   Agent wants Depeg 30d policy → PM tries StableShort (90d, priority 0)
  *   If StableShort full → tries StableLong (365d, priority 1)
  *   If all full → rejects
- *   
+ *
  *   Always tries shortest-cooldown vault first (cheapest for the protocol).
  *   Overflow into longer vaults is a feature: long LPs earn extra premia.
  */
-contract PolicyManager is
-    IPolicyManager,
-    UUPSUpgradeable,
-    OwnableUpgradeable
-{
+contract PolicyManager is IPolicyManager, UUPSUpgradeable, OwnableUpgradeable {
     // ═══════════════════════════════════════════════════════════
     //  STORAGE — 🔴 NEVER reorder. Only APPEND.
     // ═══════════════════════════════════════════════════════════
@@ -110,7 +106,9 @@ contract PolicyManager is
     // ═══════════════════════════════════════════════════════════
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(address owner_, address router_) external initializer {
         if (owner_ == address(0)) revert ZeroAddress("owner");
@@ -143,12 +141,7 @@ contract PolicyManager is
     /// @inheritdoc IPolicyManager
     /// @dev [FIX] Allows both owner (admin) AND router to register products.
     ///      Router calls this atomically during CoverRouter.registerProduct().
-    function registerProduct(
-        bytes32 productId,
-        address shield,
-        bytes32 riskType,
-        uint16 maxAllocationBps
-    ) external {
+    function registerProduct(bytes32 productId, address shield, bytes32 riskType, uint16 maxAllocationBps) external {
         if (msg.sender != owner() && msg.sender != _router) revert OnlyAdmin();
         if (_products[productId].shield != address(0)) revert ProductAlreadyExists(productId);
         if (shield == address(0)) revert ZeroAddress("shield");
@@ -202,21 +195,15 @@ contract PolicyManager is
     // ═══════════════════════════════════════════════════════════
 
     /// @inheritdoc IPolicyManager
-    function registerVault(
-        address vault,
-        bytes32 riskType,
-        uint32 cooldownDuration,
-        uint8 priority
-    ) external onlyAdmin {
+    function registerVault(address vault, bytes32 riskType, uint32 cooldownDuration, uint8 priority)
+        external
+        onlyAdmin
+    {
         if (vault == address(0)) revert ZeroAddress("vault");
         if (_vaults[vault].vault != address(0)) revert VaultAlreadyRegistered(vault);
 
         _vaults[vault] = VaultRegistration({
-            vault: vault,
-            riskType: riskType,
-            cooldownDuration: cooldownDuration,
-            priority: priority,
-            active: true
+            vault: vault, riskType: riskType, cooldownDuration: cooldownDuration, priority: priority, active: true
         });
 
         // Insert into sorted array by priority (ascending: 0 = first tried)
@@ -256,10 +243,7 @@ contract PolicyManager is
     function createCorrelationGroup(bytes32 groupId, uint16 maxAllocationBps) external onlyAdmin {
         if (_correlationGroups[groupId].maxAllocationBps != 0) revert GroupNotFound(groupId); // reuse error: group already exists
         _correlationGroups[groupId] = CorrelationGroup({
-            groupId: groupId,
-            maxAllocationBps: maxAllocationBps,
-            currentAllocated: 0,
-            productIds: new bytes32[](0)
+            groupId: groupId, maxAllocationBps: maxAllocationBps, currentAllocated: 0, productIds: new bytes32[](0)
         });
         _correlationGroupIds.push(groupId);
         emit CorrelationGroupCreated(groupId, maxAllocationBps);
@@ -320,11 +304,11 @@ contract PolicyManager is
      * @dev View function for pre-checking. The Router calls this before purchase.
      *      Does NOT lock anything — just checks if allocation would succeed.
      */
-    function canAllocate(
-        bytes32 productId,
-        uint256 amount,
-        uint32 policyDurationSeconds
-    ) external view returns (bool allowed, address vault, bytes32 reason) {
+    function canAllocate(bytes32 productId, uint256 amount, uint32 policyDurationSeconds)
+        external
+        view
+        returns (bool allowed, address vault, bytes32 reason)
+    {
         ProductRegistration storage prod = _products[productId];
         if (prod.shield == address(0)) return (false, address(0), "PRODUCT_NOT_FOUND");
         if (!prod.active) return (false, address(0), "PRODUCT_NOT_ACTIVE");
@@ -360,12 +344,11 @@ contract PolicyManager is
      * @dev MUST re-verify all caps internally (TOCTOU defense).
      *      This is the ONLY function that actually locks collateral.
      */
-    function recordAllocation(
-        bytes32 productId,
-        uint256 policyId,
-        uint256 amount,
-        uint32 policyDurationSeconds
-    ) external onlyRouter returns (address vault) {
+    function recordAllocation(bytes32 productId, uint256 policyId, uint256 amount, uint32 policyDurationSeconds)
+        external
+        onlyRouter
+        returns (address vault)
+    {
         // Prevent double allocation for same policy
         if (_policyAllocations[productId][policyId].vault != address(0)) {
             revert PolicyAlreadyAllocated(productId, policyId);
@@ -379,9 +362,8 @@ contract PolicyManager is
         // RE-VERIFY per-product cap (TOCTOU defense)
         uint256 productMaxAllowed = _getProductMaxAllowed(productId);
         if (_productAllocated[productId] + amount > productMaxAllowed) {
-            uint256 available = productMaxAllowed > _productAllocated[productId]
-                ? productMaxAllowed - _productAllocated[productId]
-                : 0;
+            uint256 available =
+                productMaxAllowed > _productAllocated[productId] ? productMaxAllowed - _productAllocated[productId] : 0;
             revert MaxAllocationExceeded(productId, amount, available);
         }
 
@@ -391,9 +373,7 @@ contract PolicyManager is
             CorrelationGroup storage group = _correlationGroups[groups[i]];
             uint256 groupMax = _getGroupMaxAllowed(groups[i]);
             if (group.currentAllocated + amount > groupMax) {
-                uint256 groupAvailable = groupMax > group.currentAllocated
-                    ? groupMax - group.currentAllocated
-                    : 0;
+                uint256 groupAvailable = groupMax > group.currentAllocated ? groupMax - group.currentAllocated : 0;
                 revert CorrelationGroupCapExceeded(groups[i], amount, groupAvailable);
             }
         }
@@ -414,10 +394,7 @@ contract PolicyManager is
         }
 
         // Store allocation record (needed for releaseAllocation)
-        _policyAllocations[productId][policyId] = AllocationRecord({
-            vault: vault,
-            amount: amount
-        });
+        _policyAllocations[productId][policyId] = AllocationRecord({vault: vault, amount: amount});
 
         // ── INTERACTION ──
 
@@ -432,12 +409,7 @@ contract PolicyManager is
      * @dev Called by Router when policy expires or pays out.
      *      Unlocks collateral in the specific vault that backed the policy.
      */
-    function releaseAllocation(
-        bytes32 productId,
-        uint256 policyId,
-        uint256 amount,
-        address vault
-    ) external onlyRouter {
+    function releaseAllocation(bytes32 productId, uint256 policyId, uint256 amount, address vault) external onlyRouter {
         AllocationRecord storage record = _policyAllocations[productId][policyId];
 
         // Use stored vault if caller passes address(0) or wrong vault
@@ -574,11 +546,11 @@ contract PolicyManager is
      * @param policyDurationSeconds Policy duration (for ALM)
      * @return vault Address of chosen vault, or address(0) if none found
      */
-    function _findVault(
-        bytes32 riskType,
-        uint256 amount,
-        uint32 policyDurationSeconds
-    ) internal view returns (address vault) {
+    function _findVault(bytes32 riskType, uint256 amount, uint32 policyDurationSeconds)
+        internal
+        view
+        returns (address vault)
+    {
         address[] storage candidates = _vaultsByRiskType[riskType];
 
         for (uint256 i = 0; i < candidates.length; i++) {
@@ -649,7 +621,8 @@ contract PolicyManager is
             // Check if already counted this riskType
             bool alreadyCounted = false;
             for (uint256 k = 0; k < seenCount; k++) {
-                if (seenRiskTypes[k] == rt) { alreadyCounted = true; break; }
+                if (seenRiskTypes[k] == rt) alreadyCounted = true;
+                break;
             }
             if (alreadyCounted) continue;
 
@@ -668,5 +641,11 @@ contract PolicyManager is
     //  UUPS
     // ═══════════════════════════════════════════════════════════
 
-    function _authorizeUpgrade(address /* newImplementation */) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address /* newImplementation */
+    )
+        internal
+        override
+        onlyOwner
+    {}
 }

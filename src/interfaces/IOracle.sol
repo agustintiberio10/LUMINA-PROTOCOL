@@ -17,7 +17,6 @@ pragma solidity ^0.8.20;
  *   - All Shields: verifySignature() for oracle-signed TWAP proofs at claim time
  */
 interface IOracle {
-
     // ═══════════════════════════════════════════════════════════
     //  PRICE READING
     // ═══════════════════════════════════════════════════════════
@@ -42,10 +41,7 @@ interface IOracle {
      * @param signature 65-byte ECDSA signature (r, s, v)
      * @return signer Recovered signer address
      */
-    function verifySignature(
-        bytes32 digest,
-        bytes calldata signature
-    ) external view returns (address signer);
+    function verifySignature(bytes32 digest, bytes calldata signature) external view returns (address signer);
 
     /**
      * @notice Return the authorized oracle signing key

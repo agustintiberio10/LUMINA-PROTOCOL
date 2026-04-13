@@ -41,7 +41,7 @@ contract ETHApocalypseShieldTest is Test {
 
     function setUp() public {
         oracle = new MockOracleEAS(oracleKey);
-        oracle.setPrice("ETH", 3_000_00000000);  // $3,000 in 8 decimals
+        oracle.setPrice("ETH", 3_000_00000000); // $3,000 in 8 decimals
         oracle.setPrice("BTC", 50_000_00000000); // $50,000 in 8 decimals
 
         shield = new ETHApocalypseShield(router, address(oracle));

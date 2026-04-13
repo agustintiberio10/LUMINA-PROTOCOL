@@ -29,7 +29,6 @@ import {BaseShield} from "./BaseShield.sol";
  * @dev Non-upgradeable. Extends BaseShield for shared policy management.
  */
 contract ETHApocalypseShieldV2 is BaseShield {
-
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -37,15 +36,15 @@ contract ETHApocalypseShieldV2 is BaseShield {
     bytes32 public constant PRODUCT_ID = keccak256("ETHAPOC-001");
     bytes32 public constant RISK_TYPE = keccak256("VOLATILE");
 
-    uint16 public constant MAX_ALLOCATION_BPS = 2500;   // 25%
+    uint16 public constant MAX_ALLOCATION_BPS = 2500; // 25%
     uint32 public constant MIN_DURATION = 7 days;
     uint32 public constant MAX_DURATION = 30 days;
     // [FIX C-3] 1h waiting period. On Base L2 (2s blocks), this is ~1800 blocks.
     // Sufficient for technical front-running prevention. Macro speculation handled by oracle.
     uint32 public constant WAITING_PERIOD = 1 hours;
 
-    uint256 public constant DEDUCTIBLE_BPS = 2000;       // 20% deductible → 80% max payout
-    uint256 public constant TRIGGER_DROP_BPS = 6000;      // 60% drop
+    uint256 public constant DEDUCTIBLE_BPS = 2000; // 20% deductible → 80% max payout
+    uint256 public constant TRIGGER_DROP_BPS = 6000; // 60% drop
     uint256 private constant BPS = 10_000;
 
     /// @notice Max age of oracle proof (prevents stale proofs)
@@ -56,9 +55,9 @@ contract ETHApocalypseShieldV2 is BaseShield {
     // ═══════════════════════════════════════════════════════════
 
     struct BSSData {
-        bytes32 asset;          // "ETH"
-        int256 strikePrice;     // Price at issuance (Chainlink 8 decimals)
-        int256 triggerPrice;    // strikePrice × 40 / 100
+        bytes32 asset; // "ETH"
+        int256 strikePrice; // Price at issuance (Chainlink 8 decimals)
+        int256 triggerPrice; // strikePrice × 40 / 100
     }
 
     mapping(uint256 => BSSData) private _bssData;
@@ -76,29 +75,37 @@ contract ETHApocalypseShieldV2 is BaseShield {
     //  CONSTRUCTOR
     // ═══════════════════════════════════════════════════════════
 
-    constructor(
-        address router_,
-        address oracle_
-    ) BaseShield(router_, oracle_) {}
+    constructor(address router_, address oracle_) BaseShield(router_, oracle_) {}
 
     // ═══════════════════════════════════════════════════════════
     //  METADATA (IShield)
     // ═══════════════════════════════════════════════════════════
 
-    function productId() external pure returns (bytes32) { return PRODUCT_ID; }
-    function riskType() external pure returns (bytes32) { return RISK_TYPE; }
-    function maxAllocationBps() external pure returns (uint16) { return MAX_ALLOCATION_BPS; }
-    function durationRange() public pure returns (uint32, uint32) { return (MIN_DURATION, MAX_DURATION); }
-    function waitingPeriod() public pure returns (uint32) { return WAITING_PERIOD; }
+    function productId() external pure returns (bytes32) {
+        return PRODUCT_ID;
+    }
+
+    function riskType() external pure returns (bytes32) {
+        return RISK_TYPE;
+    }
+
+    function maxAllocationBps() external pure returns (uint16) {
+        return MAX_ALLOCATION_BPS;
+    }
+
+    function durationRange() public pure returns (uint32, uint32) {
+        return (MIN_DURATION, MAX_DURATION);
+    }
+
+    function waitingPeriod() public pure returns (uint32) {
+        return WAITING_PERIOD;
+    }
 
     // ═══════════════════════════════════════════════════════════
     //  PRODUCT-SPECIFIC LOGIC (BaseShield overrides)
     // ═══════════════════════════════════════════════════════════
 
-    function _doCreatePolicy(
-        uint256 policyId,
-        CreatePolicyParams calldata params
-    ) internal override {
+    function _doCreatePolicy(uint256 policyId, CreatePolicyParams calldata params) internal override {
         // Validate asset is ETH only
         if (params.asset != "ETH") revert InvalidAsset(params.asset);
 
@@ -109,23 +116,21 @@ contract ETHApocalypseShieldV2 is BaseShield {
         // Calculate trigger price: strikePrice × (1 - 0.60) = strikePrice × 40 / 100
         int256 trigger = (currentPrice * 40) / 100;
 
-        _bssData[policyId] = BSSData({
-            asset: params.asset,
-            strikePrice: currentPrice,
-            triggerPrice: trigger
-        });
+        _bssData[policyId] = BSSData({asset: params.asset, strikePrice: currentPrice, triggerPrice: trigger});
     }
 
-    function _doVerifyAndCalculate(
-        uint256 policyId,
-        bytes calldata oracleProof
-    ) internal view override returns (PayoutResult memory result) {
+    function _doVerifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
+        internal
+        view
+        override
+        returns (PayoutResult memory result)
+    {
         BSSData storage data = _bssData[policyId];
         CorePolicy storage cp = _policies[policyId];
 
         // Decode oracle proof
-        (int256 verifiedPrice, bytes32 proofAsset, uint256 verifiedAt, bytes memory signature)
-            = abi.decode(oracleProof, (int256, bytes32, uint256, bytes));
+        (int256 verifiedPrice, bytes32 proofAsset, uint256 verifiedAt, bytes memory signature) =
+            abi.decode(oracleProof, (int256, bytes32, uint256, bytes));
 
         // [V2] Verify EIP-712 typed PriceProof signature (domain-separated)
         if (!_verifyPriceProofEIP712(verifiedPrice, proofAsset, verifiedAt, signature)) {
@@ -157,17 +162,19 @@ contract ETHApocalypseShieldV2 is BaseShield {
 
         // Trigger met — binary payout at 80% of coverage
         result = PayoutResult({
-            triggered: true,
-            payoutAmount: cp.maxPayout,
-            recipient: cp.insuredAgent,
-            reason: "ETHAPOC_CRASH"
+            triggered: true, payoutAmount: cp.maxPayout, recipient: cp.insuredAgent, reason: "ETHAPOC_CRASH"
         });
     }
 
     function _calculateMaxPayout(
         uint256 coverageAmount,
         CreatePolicyParams calldata /* params */
-    ) internal pure override returns (uint256) {
+    )
+        internal
+        pure
+        override
+        returns (uint256)
+    {
         // 80% of coverage (20% deductible)
         return (coverageAmount * (BPS - DEDUCTIBLE_BPS)) / BPS;
     }

@@ -23,11 +23,10 @@ import {IShield} from "../src/interfaces/IShield.sol";
  *   DEPLOYER_PRIVATE_KEY — private key of the deployer (also the oracle signer)
  */
 contract TestClaim is Script {
-
     // ── Deployed addresses ──────────────────────────────────────
     address constant COVER_ROUTER = 0x5755af9cd293b9A0a798B7e2e816eAbE659750C0;
-    address constant BSS_SHIELD   = 0x149e1d0474a7c212a5eAA78432863B01b98479d8;
-    address constant MOCK_USDC    = 0x8a342233cFC95F4AeB11c2855BFF1f441241E8d1;
+    address constant BSS_SHIELD = 0x149e1d0474a7c212a5eAA78432863B01b98479d8;
+    address constant MOCK_USDC = 0x8a342233cFC95F4AeB11c2855BFF1f441241E8d1;
 
     // ── BSS product ID ──────────────────────────────────────────
     bytes32 constant BSS_PRODUCT_ID = keccak256("BLACKSWAN-001");
@@ -39,8 +38,8 @@ contract TestClaim is Script {
     // Mirrors BlackSwanShield.BSSData
     struct BSSData {
         bytes32 asset;
-        int256  strikePrice;
-        int256  triggerPrice;
+        int256 strikePrice;
+        int256 triggerPrice;
     }
 
     function run() external {
@@ -67,9 +66,7 @@ contract TestClaim is Script {
         // 3. Read BSS-specific data (strikePrice, triggerPrice)
         // ────────────────────────────────────────────────────────
         // Call getBSSData(uint256) on BSS_SHIELD
-        (bool ok, bytes memory ret) = BSS_SHIELD.staticcall(
-            abi.encodeWithSignature("getBSSData(uint256)", POLICY_ID)
-        );
+        (bool ok, bytes memory ret) = BSS_SHIELD.staticcall(abi.encodeWithSignature("getBSSData(uint256)", POLICY_ID));
         require(ok, "getBSSData call failed");
         BSSData memory bss = abi.decode(ret, (BSSData));
 
@@ -86,8 +83,8 @@ contract TestClaim is Script {
         // ────────────────────────────────────────────────────────
         // verifiedPrice must be BELOW triggerPrice to trigger payout
         int256 verifiedPrice = (bss.strikePrice * 60) / 100; // 60% of strike (well below 70% trigger)
-        bytes32 proofAsset   = bss.asset;                     // Must match policy asset
-        uint256 verifiedAt   = block.timestamp;               // Must be within coverage period & fresh
+        bytes32 proofAsset = bss.asset; // Must match policy asset
+        uint256 verifiedAt = block.timestamp; // Must be within coverage period & fresh
 
         console.log("=== Oracle Proof ===");
         console.logInt(verifiedPrice);
@@ -142,9 +139,9 @@ contract TestClaim is Script {
         // 10. Calculate and log payout breakdown
         // ────────────────────────────────────────────────────────
         uint256 grossPayout = info.maxPayout; // BSS pays 80% of coverage (binary)
-        uint256 fee         = (grossPayout * 300) / 10_000; // 3% protocol fee
-        uint256 netPayout   = grossPayout - fee;
-        uint256 actualNet   = balAfter - balBefore;
+        uint256 fee = (grossPayout * 300) / 10_000; // 3% protocol fee
+        uint256 netPayout = grossPayout - fee;
+        uint256 actualNet = balAfter - balBefore;
 
         console.log("=== Payout Breakdown ===");
         console.log("Gross Payout (maxPayout): ", grossPayout);

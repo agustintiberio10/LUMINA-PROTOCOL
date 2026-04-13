@@ -28,7 +28,6 @@ import {BaseShield} from "./BaseShield.sol";
  * @dev Non-upgradeable. Extends BaseShield.
  */
 contract DepegShield is BaseShield {
-
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -36,34 +35,34 @@ contract DepegShield is BaseShield {
     bytes32 public constant PRODUCT_ID = keccak256("DEPEG-STABLE-001");
     bytes32 public constant RISK_TYPE = keccak256("STABLE");
 
-    uint16 public constant MAX_ALLOCATION_BPS = 2000;    // 20%
+    uint16 public constant MAX_ALLOCATION_BPS = 2000; // 20%
     uint32 public constant MIN_DURATION = 14 days;
     uint32 public constant MAX_DURATION = 365 days;
-    uint32 public constant WAITING = 1 days;             // 24h waiting period
+    uint32 public constant WAITING = 1 days; // 24h waiting period
 
     /// @notice Trigger price: $0.95 in Chainlink 8-decimal format
-    int256 public constant TRIGGER_PRICE = 95_000_000;   // $0.95 × 1e8
+    int256 public constant TRIGGER_PRICE = 95_000_000; // $0.95 × 1e8
 
     uint256 private constant BPS = 10_000;
     uint256 public constant MAX_PROOF_AGE = 30 minutes;
 
     // Stablecoin identifiers (bytes32 for gas)
     bytes32 public constant USDC = "USDC";
-    bytes32 public constant DAI  = "DAI";
+    bytes32 public constant DAI = "DAI";
     bytes32 public constant USDT = "USDT";
 
     // Deductibles per stablecoin (in BPS)
-    uint16 public constant USDC_DEDUCTIBLE_BPS = 1000;   // 10%
-    uint16 public constant DAI_DEDUCTIBLE_BPS  = 1200;   // 12%
-    uint16 public constant USDT_DEDUCTIBLE_BPS = 1500;   // 15%
+    uint16 public constant USDC_DEDUCTIBLE_BPS = 1000; // 10%
+    uint16 public constant DAI_DEDUCTIBLE_BPS = 1200; // 12%
+    uint16 public constant USDT_DEDUCTIBLE_BPS = 1500; // 15%
 
     // ═══════════════════════════════════════════════════════════
     //  PRODUCT-SPECIFIC STORAGE
     // ═══════════════════════════════════════════════════════════
 
     struct DepegData {
-        bytes32 stablecoin;     // "USDC", "DAI", or "USDT"
-        uint16 deductibleBps;   // 1000, 1200, or 1500
+        bytes32 stablecoin; // "USDC", "DAI", or "USDT"
+        uint16 deductibleBps; // 1000, 1200, or 1500
     }
 
     mapping(uint256 => DepegData) private _depegData;
@@ -82,50 +81,57 @@ contract DepegShield is BaseShield {
     //  CONSTRUCTOR
     // ═══════════════════════════════════════════════════════════
 
-    constructor(
-        address router_,
-        address oracle_
-    ) BaseShield(router_, oracle_) {}
+    constructor(address router_, address oracle_) BaseShield(router_, oracle_) {}
 
     // ═══════════════════════════════════════════════════════════
     //  METADATA (IShield)
     // ═══════════════════════════════════════════════════════════
 
-    function productId() external pure returns (bytes32) { return PRODUCT_ID; }
-    function riskType() external pure returns (bytes32) { return RISK_TYPE; }
-    function maxAllocationBps() external pure returns (uint16) { return MAX_ALLOCATION_BPS; }
-    function durationRange() public pure returns (uint32, uint32) { return (MIN_DURATION, MAX_DURATION); }
-    function waitingPeriod() public pure returns (uint32) { return WAITING; }
+    function productId() external pure returns (bytes32) {
+        return PRODUCT_ID;
+    }
+
+    function riskType() external pure returns (bytes32) {
+        return RISK_TYPE;
+    }
+
+    function maxAllocationBps() external pure returns (uint16) {
+        return MAX_ALLOCATION_BPS;
+    }
+
+    function durationRange() public pure returns (uint32, uint32) {
+        return (MIN_DURATION, MAX_DURATION);
+    }
+
+    function waitingPeriod() public pure returns (uint32) {
+        return WAITING;
+    }
 
     // ═══════════════════════════════════════════════════════════
     //  PRODUCT-SPECIFIC LOGIC
     // ═══════════════════════════════════════════════════════════
 
-    function _doCreatePolicy(
-        uint256 policyId,
-        CreatePolicyParams calldata params
-    ) internal override {
+    function _doCreatePolicy(uint256 policyId, CreatePolicyParams calldata params) internal override {
         // USDC excluded: settlement token cannot be insured against its own depeg
         if (params.stablecoin == USDC) revert ExcludedStablecoin(params.stablecoin);
 
         uint16 deductible = _getDeductible(params.stablecoin);
 
-        _depegData[policyId] = DepegData({
-            stablecoin: params.stablecoin,
-            deductibleBps: deductible
-        });
+        _depegData[policyId] = DepegData({stablecoin: params.stablecoin, deductibleBps: deductible});
     }
 
-    function _doVerifyAndCalculate(
-        uint256 policyId,
-        bytes calldata oracleProof
-    ) internal view override returns (PayoutResult memory result) {
+    function _doVerifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
+        internal
+        view
+        override
+        returns (PayoutResult memory result)
+    {
         DepegData storage data = _depegData[policyId];
         CorePolicy storage cp = _policies[policyId];
 
         // Decode oracle proof (off-chain verified TWAP 30 min or 5 consecutive rounds)
-        (int256 verifiedPrice, bytes32 proofStablecoin, uint256 verifiedAt, bytes memory signature)
-            = abi.decode(oracleProof, (int256, bytes32, uint256, bytes));
+        (int256 verifiedPrice, bytes32 proofStablecoin, uint256 verifiedAt, bytes memory signature) =
+            abi.decode(oracleProof, (int256, bytes32, uint256, bytes));
 
         // Verify signature
         bytes32 dataHash = keccak256(abi.encode(verifiedPrice, proofStablecoin, verifiedAt));
@@ -157,17 +163,16 @@ contract DepegShield is BaseShield {
 
         // Trigger met — binary payout
         result = PayoutResult({
-            triggered: true,
-            payoutAmount: cp.maxPayout,
-            recipient: cp.insuredAgent,
-            reason: "STABLECOIN_DEPEG"
+            triggered: true, payoutAmount: cp.maxPayout, recipient: cp.insuredAgent, reason: "STABLECOIN_DEPEG"
         });
     }
 
-    function _calculateMaxPayout(
-        uint256 coverageAmount,
-        CreatePolicyParams calldata params
-    ) internal pure override returns (uint256) {
+    function _calculateMaxPayout(uint256 coverageAmount, CreatePolicyParams calldata params)
+        internal
+        pure
+        override
+        returns (uint256)
+    {
         uint16 deductible = _getDeductible(params.stablecoin);
         return (coverageAmount * (BPS - deductible)) / BPS;
     }
@@ -179,7 +184,7 @@ contract DepegShield is BaseShield {
     function _getDeductible(bytes32 stablecoin) internal pure returns (uint16) {
         // [M-4] USDC excluded: settlement token cannot be insured against its own depeg
         if (stablecoin == USDC) revert ExcludedStablecoin(stablecoin);
-        if (stablecoin == DAI)  return DAI_DEDUCTIBLE_BPS;
+        if (stablecoin == DAI) return DAI_DEDUCTIBLE_BPS;
         if (stablecoin == USDT) return USDT_DEDUCTIBLE_BPS;
         revert InvalidStablecoin(stablecoin);
     }

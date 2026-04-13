@@ -53,8 +53,7 @@ contract DeployToken is Script {
         LuminaToken token = new LuminaToken(treasury, exitEngineReserve, exchangeReserve, predictedVesting);
 
         // Step 2: Deploy AltSeasonVesting — must land at predictedVesting address
-        AltSeasonVesting vesting =
-            new AltSeasonVesting(ORACLE_V2, AAVE_POOL, address(token), USDC, recipients, amounts);
+        AltSeasonVesting vesting = new AltSeasonVesting(ORACLE_V2, AAVE_POOL, address(token), USDC, recipients, amounts);
         require(address(vesting) == predictedVesting, "Vesting address mismatch");
 
         // Step 3: Deploy PriceOracle

@@ -12,9 +12,15 @@ import {BaseVault} from "./BaseVault.sol";
  */
 contract FlashVault is BaseVault {
     function initialize(
-        address owner_, address asset_, address router_, address policyManager_,
-        address aavePool_, address aToken_
+        address owner_,
+        address asset_,
+        address router_,
+        address policyManager_,
+        address aavePool_,
+        address aToken_
     ) external initializer {
-        __BaseVault_init(owner_, asset_, "Lumina FlashVault", "lmFLASH", router_, policyManager_, 604800, aavePool_, aToken_);
+        __BaseVault_init(
+            owner_, asset_, "Lumina FlashVault", "lmFLASH", router_, policyManager_, 604800, aavePool_, aToken_
+        );
     }
 }

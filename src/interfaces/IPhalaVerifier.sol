@@ -13,15 +13,11 @@ pragma solidity ^0.8.20;
  *   3. On-chain: verifyAttestation recovers signer, checks it's an authorized worker.
  */
 interface IPhalaVerifier {
-
     /**
      * @notice Verify an attestation was produced by an authorized Phala TEE worker
      * @param dataHash keccak256 of the encoded attestation data
      * @param attestation 65-byte ECDSA signature from the TEE worker
      * @return valid True if signature is from an authorized worker
      */
-    function verifyAttestation(
-        bytes32 dataHash,
-        bytes calldata attestation
-    ) external view returns (bool valid);
+    function verifyAttestation(bytes32 dataHash, bytes calldata attestation) external view returns (bool valid);
 }

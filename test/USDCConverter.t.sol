@@ -10,8 +10,13 @@ contract MockPriceOracle {
     int256 private _price;
     bool private _shouldRevert;
 
-    function setPrice(int256 price_) external { _price = price_; }
-    function setShouldRevert(bool v) external { _shouldRevert = v; }
+    function setPrice(int256 price_) external {
+        _price = price_;
+    }
+
+    function setShouldRevert(bool v) external {
+        _shouldRevert = v;
+    }
 
     function getLatestPrice(bytes32) external view returns (int256) {
         if (_shouldRevert) revert("Oracle down");
@@ -33,7 +38,11 @@ contract ConverterHarness {
         return USDCConverter.usdToUSDCStrict(usdAmount, oracle, asset);
     }
 
-    function safeConvert(uint256 usdAmount, IOracle oracle, bytes32 asset) external view returns (uint256 amount, bool fallback_) {
+    function safeConvert(uint256 usdAmount, IOracle oracle, bytes32 asset)
+        external
+        view
+        returns (uint256 amount, bool fallback_)
+    {
         return USDCConverter.usdToUSDCSafe(usdAmount, oracle, asset);
     }
 

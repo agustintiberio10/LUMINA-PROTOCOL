@@ -8,42 +8,41 @@ pragma solidity ^0.8.20;
  *         Computes IL using the standard Uniswap V2 (50/50) formula,
  *         applies the restable deductible (first 2% not covered),
  *         and calculates the payout amount.
- * 
+ *
  * 🔴 INMUTABLE — Embedded in ILIndexCover.sol via `using ILMath for uint256`.
  *    If there's a bug in the IL formula, ILIndexCover must be redeployed.
- * 
+ *
  * FORMULA (Uniswap V2, constant product x*y=k, 50/50 pool):
  *
  *   priceRatio = priceAtExpiry / priceAtPurchase
  *   IL = 1 - (2 × √priceRatio) / (1 + priceRatio)
- * 
+ *
  *   IL is always ≥ 0 (we express it as a positive loss percentage).
  *   IL = 0 when priceRatio = 1 (no price change).
  *   IL is symmetric: a 2x up and a 2x down give the same IL (~5.72%).
- * 
+ *
  * PAYOUT:
  *   ilNet = max(0, IL - deductibleWad)          // Restable: first 2% not covered
  *   rawPayout = coverage × ilNet × payoutRate    // payoutRate = 0.90 (90%)
  *   maxPayout = coverage × maxILCap × payoutRate // maxILCap = 0.13 (13%)
  *   payout = min(rawPayout, maxPayout)
- * 
+ *
  * EXAMPLE ($50K coverage, ETH goes from $3000 to $2100 = -30%):
  *   priceRatio = 2100/3000 = 0.70
  *   IL = 1 - 2×√0.70 / (1+0.70) = 1 - 2×0.8367 / 1.70 = 1 - 0.9843 = 0.0157 = 1.57%
  *   ilNet = max(0, 1.57% - 2%) = 0%  → No payout (IL below deductible)
- * 
+ *
  * EXAMPLE ($50K coverage, ETH goes from $3000 to $1500 = -50%):
  *   priceRatio = 1500/3000 = 0.50
  *   IL = 1 - 2×√0.50 / (1+0.50) = 1 - 2×0.7071 / 1.50 = 1 - 0.9428 = 0.0572 = 5.72%
  *   ilNet = max(0, 5.72% - 2%) = 3.72%
  *   payout = $50,000 × 3.72% × 90% = $1,674
- * 
+ *
  * INTERNAL MATH:
  *   All intermediate calculations use WAD (1e18) precision.
  *   Square root uses the Babylonian method (gas-efficient for uint256).
  */
 library ILMath {
-
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
@@ -83,10 +82,7 @@ library ILMath {
      * @param priceAtExpiry   Price at settlement (8 decimals, Chainlink)
      * @return ilWad          Impermanent Loss as positive value in WAD (0 = no IL)
      */
-    function calculateIL(
-        uint256 priceAtPurchase,
-        uint256 priceAtExpiry
-    ) internal pure returns (uint256 ilWad) {
+    function calculateIL(uint256 priceAtPurchase, uint256 priceAtExpiry) internal pure returns (uint256 ilWad) {
         if (priceAtPurchase == 0) revert ZeroPrice();
         if (priceAtExpiry == 0) revert ZeroPrice();
 
@@ -146,7 +142,7 @@ library ILMath {
      * @dev ilNet = max(0, IL - deductible)
      *      "Restable" means the protocol only pays IL EXCEEDING the deductible,
      *      not the full IL once the deductible is passed.
-     * 
+     *
      *      Example with 2% deductible:
      *        IL = 1.5% → ilNet = 0% (below deductible, no payout)
      *        IL = 3.0% → ilNet = 1.0% (only the excess above 2%)
@@ -156,10 +152,7 @@ library ILMath {
      * @param deductibleWad  Deductible in WAD (default: 2e16 = 2%)
      * @return ilNetWad      Net IL after deductible in WAD
      */
-    function applyDeductible(
-        uint256 ilWad,
-        uint256 deductibleWad
-    ) internal pure returns (uint256 ilNetWad) {
+    function applyDeductible(uint256 ilWad, uint256 deductibleWad) internal pure returns (uint256 ilNetWad) {
         if (ilWad <= deductibleWad) return 0;
         ilNetWad = ilWad - deductibleWad;
     }
@@ -190,11 +183,7 @@ library ILMath {
         uint256 deductibleWad,
         uint256 payoutRateWad,
         uint256 maxILCapWad
-    ) internal pure returns (
-        uint256 payoutAmount,
-        uint256 ilWad,
-        uint256 ilNetWad
-    ) {
+    ) internal pure returns (uint256 payoutAmount, uint256 ilWad, uint256 ilNetWad) {
         if (coverageAmount == 0) revert ZeroCoverage();
 
         // Step 1: Calculate gross IL
@@ -222,15 +211,11 @@ library ILMath {
      * @notice Convenience: calculate payout with default parameters
      * @dev Uses: deductible 2%, payout rate 90%, max IL cap 13%
      */
-    function calculatePayoutDefault(
-        uint256 priceAtPurchase,
-        uint256 priceAtExpiry,
-        uint256 coverageAmount
-    ) internal pure returns (
-        uint256 payoutAmount,
-        uint256 ilWad,
-        uint256 ilNetWad
-    ) {
+    function calculatePayoutDefault(uint256 priceAtPurchase, uint256 priceAtExpiry, uint256 coverageAmount)
+        internal
+        pure
+        returns (uint256 payoutAmount, uint256 ilWad, uint256 ilNetWad)
+    {
         return calculatePayout(
             priceAtPurchase,
             priceAtExpiry,

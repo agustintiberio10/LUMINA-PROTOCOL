@@ -6,29 +6,28 @@ pragma solidity ^0.8.20;
  * @author Lumina Protocol
  * @notice Allocation controller — bridge between products and vaults.
  *         Now handles WATERFALL vault selection and ALM (Asset-Liability Matching).
- * 
+ *
  * 🔴 INMUTABLE — Interface cannot change without redeploying.
  * 🟡 UPGRADABLE — Implementation is UUPS, logic can be improved.
- * 
+ *
  * POST-PIVOT CHANGES:
  *   - Products no longer have a fixed vault. PM selects vault via waterfall.
  *   - recordAllocation() returns the chosen vault address (Router needs it for premium).
  *   - ALM check: policy duration must fit within vault's cooldown capacity.
  *   - 4 vaults: VolatileShort(30d), VolatileLong(90d), StableShort(90d), StableLong(365d)
- * 
+ *
  * WATERFALL:
  *   Policy of 14 days, riskType "STABLE":
  *     1. Try StableShort (90d cooldown, 90d ≥ 14d ✓) — if capacity, use it
  *     2. If full → Try StableLong (365d cooldown, 365d ≥ 14d ✓)
  *     3. If all full → reject
- * 
+ *
  * CORRELATION GROUPS (unchanged):
  *   GROUP_ETH_CRASH: BSS + IL combined cap
  *   GROUP_STABLECOIN: Depeg cap
  *   GROUP_SMART_CONTRACT: Exploit cap
  */
 interface IPolicyManager {
-
     // ═══════════════════════════════════════════════════════════
     //  STRUCTS
     // ═══════════════════════════════════════════════════════════
@@ -36,7 +35,7 @@ interface IPolicyManager {
     struct ProductRegistration {
         bytes32 productId;
         address shield;
-        bytes32 riskType;           // "VOLATILE" or "STABLE"
+        bytes32 riskType; // "VOLATILE" or "STABLE"
         uint16 maxAllocationBps;
         bytes32[] correlationGroups;
         bool active;
@@ -44,10 +43,10 @@ interface IPolicyManager {
 
     /// @notice A vault registered in the waterfall
     struct VaultRegistration {
-        address vault;              // Vault contract address
-        bytes32 riskType;           // "VOLATILE" or "STABLE"
-        uint32 cooldownDuration;    // Vault's cooldown in seconds (30d, 90d, 365d)
-        uint8 priority;             // Waterfall order: 0 = try first (shortest), 1 = next, etc.
+        address vault; // Vault contract address
+        bytes32 riskType; // "VOLATILE" or "STABLE"
+        uint32 cooldownDuration; // Vault's cooldown in seconds (30d, 90d, 365d)
+        uint8 priority; // Waterfall order: 0 = try first (shortest), 1 = next, etc.
         bool active;
     }
 
@@ -68,23 +67,29 @@ interface IPolicyManager {
 
     /// @notice Result of waterfall allocation — tells Router which vault was chosen
     struct AllocationResult {
-        address vault;              // Vault that will back this policy
-        uint256 policyId;           // Not used in PM, passed through for reference
-        uint256 amount;             // Amount allocated
+        address vault; // Vault that will back this policy
+        uint256 policyId; // Not used in PM, passed through for reference
+        uint256 amount; // Amount allocated
     }
 
     // ═══════════════════════════════════════════════════════════
     //  EVENTS
     // ═══════════════════════════════════════════════════════════
 
-    event ProductRegistered(bytes32 indexed productId, address indexed shield, bytes32 riskType, uint16 maxAllocationBps);
+    event ProductRegistered(
+        bytes32 indexed productId, address indexed shield, bytes32 riskType, uint16 maxAllocationBps
+    );
     event ProductShieldUpdated(bytes32 indexed productId, address indexed oldShield, address indexed newShield);
     event VaultRegistered(address indexed vault, bytes32 riskType, uint32 cooldownDuration, uint8 priority);
     event ProductStatusChanged(bytes32 indexed productId, bool active);
     event CorrelationGroupCreated(bytes32 indexed groupId, uint16 maxAllocationBps);
     event ProductAddedToGroup(bytes32 indexed productId, bytes32 indexed groupId);
-    event AllocationRecorded(bytes32 indexed productId, uint256 indexed policyId, address indexed vault, uint256 amount);
-    event AllocationReleased(bytes32 indexed productId, uint256 indexed policyId, address indexed vault, uint256 amount);
+    event AllocationRecorded(
+        bytes32 indexed productId, uint256 indexed policyId, address indexed vault, uint256 amount
+    );
+    event AllocationReleased(
+        bytes32 indexed productId, uint256 indexed policyId, address indexed vault, uint256 amount
+    );
 
     // ═══════════════════════════════════════════════════════════
     //  ERRORS
@@ -140,11 +145,10 @@ interface IPolicyManager {
      * @return vault Address of the vault that would back this policy
      * @return reason bytes32 reason if not allowed
      */
-    function canAllocate(
-        bytes32 productId,
-        uint256 amount,
-        uint32 policyDurationSeconds
-    ) external view returns (bool allowed, address vault, bytes32 reason);
+    function canAllocate(bytes32 productId, uint256 amount, uint32 policyDurationSeconds)
+        external
+        view
+        returns (bool allowed, address vault, bytes32 reason);
 
     /**
      * @notice Record allocation via waterfall — locks collateral in the chosen vault
@@ -156,12 +160,9 @@ interface IPolicyManager {
      * @param policyDurationSeconds Policy duration (for ALM)
      * @return vault Address of the vault that backs this policy
      */
-    function recordAllocation(
-        bytes32 productId,
-        uint256 policyId,
-        uint256 amount,
-        uint32 policyDurationSeconds
-    ) external returns (address vault);
+    function recordAllocation(bytes32 productId, uint256 policyId, uint256 amount, uint32 policyDurationSeconds)
+        external
+        returns (address vault);
 
     /**
      * @notice Release allocation — unlocks collateral in the specific vault
@@ -170,12 +171,7 @@ interface IPolicyManager {
      * @param amount Coverage amount to release
      * @param vault Address of the vault to unlock from
      */
-    function releaseAllocation(
-        bytes32 productId,
-        uint256 policyId,
-        uint256 amount,
-        address vault
-    ) external;
+    function releaseAllocation(bytes32 productId, uint256 policyId, uint256 amount, address vault) external;
 
     // ═══════════════════════════════════════════════════════════
     //  VIEWS

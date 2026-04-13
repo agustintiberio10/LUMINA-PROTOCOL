@@ -27,8 +27,7 @@ contract DeployFlash is Script {
         // ═══ 1. Deploy FlashVault (UUPS proxy) ═══
         FlashVault vaultImpl = new FlashVault();
         bytes memory vaultData = abi.encodeCall(
-            FlashVault.initialize,
-            (deployer, USDC, COVER_ROUTER, POLICY_MANAGER, AAVE_POOL, AAVE_AUSDC)
+            FlashVault.initialize, (deployer, USDC, COVER_ROUTER, POLICY_MANAGER, AAVE_POOL, AAVE_AUSDC)
         );
         ERC1967Proxy vaultProxy = new ERC1967Proxy(address(vaultImpl), vaultData);
         FlashVault vault = FlashVault(address(vaultProxy));

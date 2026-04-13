@@ -40,14 +40,13 @@ import {ExploitShield} from "../src/products/ExploitShield.sol";
  *     --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast -vvvv
  */
 contract DeployLuminaTest is Script {
-
     // Fee config
     address constant FEE_RECEIVER = 0x2b4D825417f568231e809E31B9332ED146760337;
-    uint16  constant FEE_BPS      = 300; // 3%
+    uint16 constant FEE_BPS = 300; // 3%
 
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer    = vm.addr(deployerKey);
+        address deployer = vm.addr(deployerKey);
 
         console.log("=== Lumina Protocol Full Testnet Deploy ===");
         console.log("Deployer:", deployer);
@@ -82,9 +81,9 @@ contract DeployLuminaTest is Script {
         // ═══════════════════════════════════════════════════════════
 
         LuminaOracle oracle = new LuminaOracle(
-            deployer,           // owner
-            deployer,           // oracleKey (deployer signs quotes on testnet)
-            address(0)          // no sequencer feed on testnet
+            deployer, // owner
+            deployer, // oracleKey (deployer signs quotes on testnet)
+            address(0) // no sequencer feed on testnet
         );
         console.log("LuminaOracle:", address(oracle));
 
@@ -94,8 +93,8 @@ contract DeployLuminaTest is Script {
         // ═══════════════════════════════════════════════════════════
 
         LuminaPhalaVerifier phala = new LuminaPhalaVerifier(
-            deployer,           // owner
-            deployer            // initialWorker (deployer acts as TEE on testnet)
+            deployer, // owner
+            deployer // initialWorker (deployer acts as TEE on testnet)
         );
         console.log("LuminaPhalaVerifier:", address(phala));
 
@@ -128,14 +127,14 @@ contract DeployLuminaTest is Script {
         bytes memory routerData = abi.encodeCall(
             CoverRouter.initialize,
             (
-                deployer,                   // owner
-                address(oracle),            // oracle
-                address(phala),             // phalaVerifier
-                policyManagerAddr,          // policyManager
-                address(usdc),              // usdcToken
-                true,                       // isTestnet
-                FEE_RECEIVER,               // feeReceiver
-                FEE_BPS                     // feeBps (300 = 3%)
+                deployer, // owner
+                address(oracle), // oracle
+                address(phala), // phalaVerifier
+                policyManagerAddr, // policyManager
+                address(usdc), // usdcToken
+                true, // isTestnet
+                FEE_RECEIVER, // feeReceiver
+                FEE_BPS // feeBps (300 = 3%)
             )
         );
         ERC1967Proxy routerProxy = new ERC1967Proxy(address(routerImpl), routerData);
@@ -267,16 +266,16 @@ contract DeployLuminaTest is Script {
 
         PolicyManager pm = PolicyManager(policyManagerAddr);
 
-        pm.registerVault(volatileShortAddr, keccak256("VOLATILE"), 37 days,  1);
+        pm.registerVault(volatileShortAddr, keccak256("VOLATILE"), 37 days, 1);
         console.log("Registered vault: VolatileShort (VOLATILE, 37d, priority 1)");
 
-        pm.registerVault(volatileLongAddr,  keccak256("VOLATILE"), 97 days,  2);
+        pm.registerVault(volatileLongAddr, keccak256("VOLATILE"), 97 days, 2);
         console.log("Registered vault: VolatileLong (VOLATILE, 97d, priority 2)");
 
-        pm.registerVault(stableShortAddr,   keccak256("STABLE"),   97 days,  1);
+        pm.registerVault(stableShortAddr, keccak256("STABLE"), 97 days, 1);
         console.log("Registered vault: StableShort (STABLE, 97d, priority 1)");
 
-        pm.registerVault(stableLongAddr,    keccak256("STABLE"),   372 days, 2);
+        pm.registerVault(stableLongAddr, keccak256("STABLE"), 372 days, 2);
         console.log("Registered vault: StableLong (STABLE, 372d, priority 2)");
 
         // ═══════════════════════════════════════════════════════════

@@ -42,7 +42,7 @@ contract BTCCatastropheShieldTest is Test {
     function setUp() public {
         oracle = new MockOracleBCS(oracleKey);
         oracle.setPrice("BTC", 50_000_00000000); // $50,000 in 8 decimals
-        oracle.setPrice("ETH", 3_000_00000000);  // $3,000 in 8 decimals
+        oracle.setPrice("ETH", 3_000_00000000); // $3,000 in 8 decimals
 
         shield = new BTCCatastropheShield(router, address(oracle));
     }

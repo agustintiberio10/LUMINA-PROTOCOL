@@ -90,15 +90,12 @@ contract LuminaPhalaVerifier is IPhalaVerifier, Ownable {
     // ═══════════════════════════════════════════════════════════
 
     /// @inheritdoc IPhalaVerifier
-    function verifyAttestation(
-        bytes32 dataHash,
-        bytes calldata attestation
-    ) external view returns (bool valid) {
+    function verifyAttestation(bytes32 dataHash, bytes calldata attestation) external view returns (bool valid) {
         // Attestation must be a 65-byte ECDSA signature
         if (attestation.length != 65) return false;
 
         // Recover signer
-        (address recovered, ECDSA.RecoverError err, ) = ECDSA.tryRecover(dataHash, attestation);
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(dataHash, attestation);
 
         if (err != ECDSA.RecoverError.NoError) return false;
 

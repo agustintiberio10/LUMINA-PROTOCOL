@@ -33,7 +33,8 @@ contract WithdrawalQueueV2Test is Test {
         // Deploy vault via proxy
         VolatileShortVault impl = new VolatileShortVault();
         bytes memory initData = abi.encodeCall(
-            VolatileShortVault.initialize, (owner, address(usdc), router, policyManager, address(aavePool), address(aToken))
+            VolatileShortVault.initialize,
+            (owner, address(usdc), router, policyManager, address(aavePool), address(aToken))
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         vault = VolatileShortVault(address(proxy));

@@ -21,27 +21,26 @@ import {IShield} from "../src/interfaces/IShield.sol";
  *   DEPLOYER_PRIVATE_KEY — private key of the deployer (also the oracle signer)
  */
 contract TestFullSimulation is Script {
-
     // ═══════════════════════════════════════════════════════════════
     //  DEPLOYED ADDRESSES (test deployment on Base Mainnet)
     // ═══════════════════════════════════════════════════════════════
 
-    address constant COVER_ROUTER     = 0x5755af9cd293b9A0a798B7e2e816eAbE659750C0;
-    address constant MOCK_USDC        = 0x8a342233cFC95F4AeB11c2855BFF1f441241E8d1;
-    address constant VOLATILE_SHORT   = 0xe74d19551cbB809AaDcAb568c0E150B6BF0e3354;
-    address constant POLICY_MANAGER   = 0x5B337325b854a68Cd262aa2b6fE48EBe18073902;
-    address constant BSS_SHIELD       = 0x149e1d0474a7c212a5eAA78432863B01b98479d8;
-    address constant DEPEG_SHIELD     = 0xaD1EB669b4a9DC6C9432B904F65B360962E1d381;
-    address constant IL_INDEX_SHIELD  = 0xc2262311eD02E9c937cBC33F34426D5D9134F6CF;
-    address constant EXPLOIT_SHIELD   = 0x931427cED326eB49a3E5268b9b3e713Eb2EC5440;
+    address constant COVER_ROUTER = 0x5755af9cd293b9A0a798B7e2e816eAbE659750C0;
+    address constant MOCK_USDC = 0x8a342233cFC95F4AeB11c2855BFF1f441241E8d1;
+    address constant VOLATILE_SHORT = 0xe74d19551cbB809AaDcAb568c0E150B6BF0e3354;
+    address constant POLICY_MANAGER = 0x5B337325b854a68Cd262aa2b6fE48EBe18073902;
+    address constant BSS_SHIELD = 0x149e1d0474a7c212a5eAA78432863B01b98479d8;
+    address constant DEPEG_SHIELD = 0xaD1EB669b4a9DC6C9432B904F65B360962E1d381;
+    address constant IL_INDEX_SHIELD = 0xc2262311eD02E9c937cBC33F34426D5D9134F6CF;
+    address constant EXPLOIT_SHIELD = 0x931427cED326eB49a3E5268b9b3e713Eb2EC5440;
 
     // ═══════════════════════════════════════════════════════════════
     //  PRODUCT IDs (must match on-chain registrations)
     // ═══════════════════════════════════════════════════════════════
 
-    bytes32 constant BSS_PRODUCT_ID     = keccak256("BLACKSWAN-001");
-    bytes32 constant DEPEG_PRODUCT_ID   = keccak256("DEPEG-STABLE-001");
-    bytes32 constant IL_PRODUCT_ID      = keccak256("ILPROT-001");
+    bytes32 constant BSS_PRODUCT_ID = keccak256("BLACKSWAN-001");
+    bytes32 constant DEPEG_PRODUCT_ID = keccak256("DEPEG-STABLE-001");
+    bytes32 constant IL_PRODUCT_ID = keccak256("ILPROT-001");
     bytes32 constant EXPLOIT_PRODUCT_ID = keccak256("EXPLOIT-001");
 
     // ═══════════════════════════════════════════════════════════════
@@ -49,39 +48,29 @@ contract TestFullSimulation is Script {
     // ═══════════════════════════════════════════════════════════════
 
     bytes32 constant QUOTE_TYPEHASH = keccak256(
-        "SignedQuote("
-        "bytes32 productId,"
-        "uint256 coverageAmount,"
-        "uint256 premiumAmount,"
-        "uint32 durationSeconds,"
-        "bytes32 asset,"
-        "bytes32 stablecoin,"
-        "address protocol,"
-        "address buyer,"
-        "uint256 deadline,"
-        "uint256 nonce"
+        "SignedQuote(" "bytes32 productId," "uint256 coverageAmount," "uint256 premiumAmount," "uint32 durationSeconds,"
+        "bytes32 asset," "bytes32 stablecoin," "address protocol," "address buyer," "uint256 deadline," "uint256 nonce"
         ")"
     );
 
-    bytes32 constant EIP712_DOMAIN_TYPEHASH = keccak256(
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-    );
+    bytes32 constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     // ═══════════════════════════════════════════════════════════════
     //  PREMIUM MATH CONSTANTS (mirror PremiumMath.sol)
     // ═══════════════════════════════════════════════════════════════
 
-    uint256 constant WAD              = 1e18;
+    uint256 constant WAD = 1e18;
     uint256 constant SECONDS_PER_YEAR = 31_536_000;
-    uint256 constant U_KINK           = 8000;
-    uint256 constant R_SLOPE1_WAD     = 5e17;
-    uint256 constant R_SLOPE2_WAD     = 3e18;
-    uint256 constant U_MAX            = 9500;
-    uint256 constant BPS              = 10_000;
+    uint256 constant U_KINK = 8000;
+    uint256 constant R_SLOPE1_WAD = 5e17;
+    uint256 constant R_SLOPE2_WAD = 3e18;
+    uint256 constant U_MAX = 9500;
+    uint256 constant BPS = 10_000;
 
     // BSS pricing params
-    uint256 constant BSS_P_BASE_BPS            = 2200;
-    uint256 constant BSS_RISK_MULT_BPS         = 10_000;
+    uint256 constant BSS_P_BASE_BPS = 2200;
+    uint256 constant BSS_RISK_MULT_BPS = 10_000;
     uint256 constant BSS_DURATION_DISCOUNT_BPS = 10_000;
 
     // ═══════════════════════════════════════════════════════════════
@@ -90,8 +79,8 @@ contract TestFullSimulation is Script {
 
     struct BSSData {
         bytes32 asset;
-        int256  strikePrice;
-        int256  triggerPrice;
+        int256 strikePrice;
+        int256 triggerPrice;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -162,16 +151,16 @@ contract TestFullSimulation is Script {
             // Sign and purchase
             uint256 nonce = _nextNonce();
             ICoverRouter.SignedQuote memory quote = ICoverRouter.SignedQuote({
-                productId:       BSS_PRODUCT_ID,
-                coverageAmount:  coverageAmount,
-                premiumAmount:   premium,
+                productId: BSS_PRODUCT_ID,
+                coverageAmount: coverageAmount,
+                premiumAmount: premium,
                 durationSeconds: duration,
-                asset:           bytes32("ETH"),
-                stablecoin:      bytes32("USDC"),
-                protocol:        address(0),
-                buyer:           deployer,
-                deadline:        block.timestamp + 300,
-                nonce:           nonce
+                asset: bytes32("ETH"),
+                stablecoin: bytes32("USDC"),
+                protocol: address(0),
+                buyer: deployer,
+                deadline: block.timestamp + 300,
+                nonce: nonce
             });
 
             bytes memory sig = _signQuote(quote, deployerKey);
@@ -213,13 +202,13 @@ contract TestFullSimulation is Script {
         console.log("--- DEPEG Policy ---");
         {
             uint256 depegCoverage = 500_000_000; // $500
-            uint32 depegDuration = 2_592_000;    // 30 days
+            uint32 depegDuration = 2_592_000; // 30 days
             uint256 depegPremium = _calculatePremium(
                 depegCoverage,
                 2200, // P_base (placeholder — same kink model)
                 10_000,
                 10_000,
-                0,    // Use 0 utilization as approximation
+                0, // Use 0 utilization as approximation
                 depegDuration
             );
             // Ensure premium passes minimum check (>= coverage/1000)
@@ -227,16 +216,16 @@ contract TestFullSimulation is Script {
             if (depegPremium < minPremium) depegPremium = minPremium;
 
             ICoverRouter.SignedQuote memory depegQuote = ICoverRouter.SignedQuote({
-                productId:       DEPEG_PRODUCT_ID,
-                coverageAmount:  depegCoverage,
-                premiumAmount:   depegPremium,
+                productId: DEPEG_PRODUCT_ID,
+                coverageAmount: depegCoverage,
+                premiumAmount: depegPremium,
                 durationSeconds: depegDuration,
-                asset:           bytes32("USDT"),       // asset = USDT for Depeg
-                stablecoin:      bytes32("USDT"),       // stablecoin = USDT
-                protocol:        address(0),
-                buyer:           deployer,
-                deadline:        block.timestamp + 300,
-                nonce:           _nextNonce()
+                asset: bytes32("USDT"), // asset = USDT for Depeg
+                stablecoin: bytes32("USDT"), // stablecoin = USDT
+                protocol: address(0),
+                buyer: deployer,
+                deadline: block.timestamp + 300,
+                nonce: _nextNonce()
             });
 
             bytes memory depegSig = _signQuote(depegQuote, deployerKey);
@@ -261,24 +250,22 @@ contract TestFullSimulation is Script {
         console.log("--- IL INDEX Policy ---");
         {
             uint256 ilCoverage = 1_000_000_000; // $1,000
-            uint32 ilDuration = 2_592_000;      // 30 days
-            uint256 ilPremium = _calculatePremium(
-                ilCoverage, 2200, 10_000, 10_000, 0, ilDuration
-            );
+            uint32 ilDuration = 2_592_000; // 30 days
+            uint256 ilPremium = _calculatePremium(ilCoverage, 2200, 10_000, 10_000, 0, ilDuration);
             uint256 minPremium = ilCoverage / 1000;
             if (ilPremium < minPremium) ilPremium = minPremium;
 
             ICoverRouter.SignedQuote memory ilQuote = ICoverRouter.SignedQuote({
-                productId:       IL_PRODUCT_ID,
-                coverageAmount:  ilCoverage,
-                premiumAmount:   ilPremium,
+                productId: IL_PRODUCT_ID,
+                coverageAmount: ilCoverage,
+                premiumAmount: ilPremium,
                 durationSeconds: ilDuration,
-                asset:           bytes32("ETH"),
-                stablecoin:      bytes32("USDC"),
-                protocol:        address(0),
-                buyer:           deployer,
-                deadline:        block.timestamp + 300,
-                nonce:           _nextNonce()
+                asset: bytes32("ETH"),
+                stablecoin: bytes32("USDC"),
+                protocol: address(0),
+                buyer: deployer,
+                deadline: block.timestamp + 300,
+                nonce: _nextNonce()
             });
 
             bytes memory ilSig = _signQuote(ilQuote, deployerKey);
@@ -303,24 +290,22 @@ contract TestFullSimulation is Script {
         console.log("--- EXPLOIT Policy ---");
         {
             uint256 exploitCoverage = 2_000_000_000; // $2,000
-            uint32 exploitDuration = 7_776_000;      // 90 days
-            uint256 exploitPremium = _calculatePremium(
-                exploitCoverage, 2200, 10_000, 10_000, 0, exploitDuration
-            );
+            uint32 exploitDuration = 7_776_000; // 90 days
+            uint256 exploitPremium = _calculatePremium(exploitCoverage, 2200, 10_000, 10_000, 0, exploitDuration);
             uint256 minPremium = exploitCoverage / 1000;
             if (exploitPremium < minPremium) exploitPremium = minPremium;
 
             ICoverRouter.SignedQuote memory exploitQuote = ICoverRouter.SignedQuote({
-                productId:       EXPLOIT_PRODUCT_ID,
-                coverageAmount:  exploitCoverage,
-                premiumAmount:   exploitPremium,
+                productId: EXPLOIT_PRODUCT_ID,
+                coverageAmount: exploitCoverage,
+                premiumAmount: exploitPremium,
                 durationSeconds: exploitDuration,
-                asset:           bytes32("ETH"),        // repurposed as protocolId
-                stablecoin:      bytes32("USDC"),
-                protocol:        address(1),            // dummy non-Aave address
-                buyer:           deployer,
-                deadline:        block.timestamp + 300,
-                nonce:           _nextNonce()
+                asset: bytes32("ETH"), // repurposed as protocolId
+                stablecoin: bytes32("USDC"),
+                protocol: address(1), // dummy non-Aave address
+                buyer: deployer,
+                deadline: block.timestamp + 300,
+                nonce: _nextNonce()
             });
 
             bytes memory exploitSig = _signQuote(exploitQuote, deployerKey);
@@ -404,9 +389,8 @@ contract TestFullSimulation is Script {
             console.log("Status (enum):   ", uint256(pInfo.status));
 
             // Read BSS data (strikePrice, triggerPrice)
-            (bool ok, bytes memory ret) = BSS_SHIELD.staticcall(
-                abi.encodeWithSignature("getBSSData(uint256)", claimPolicyId)
-            );
+            (bool ok, bytes memory ret) =
+                BSS_SHIELD.staticcall(abi.encodeWithSignature("getBSSData(uint256)", claimPolicyId));
             require(ok, "getBSSData call failed");
             BSSData memory bss = abi.decode(ret, (BSSData));
 
@@ -497,40 +481,35 @@ contract TestFullSimulation is Script {
     //  HELPER: EIP-712 Signing
     // ═══════════════════════════════════════════════════════════════
 
-    function _signQuote(
-        ICoverRouter.SignedQuote memory quote,
-        uint256 signerKey
-    ) internal view returns (bytes memory signature) {
+    function _signQuote(ICoverRouter.SignedQuote memory quote, uint256 signerKey)
+        internal
+        view
+        returns (bytes memory signature)
+    {
         // Struct hash
-        bytes32 structHash = keccak256(abi.encode(
-            QUOTE_TYPEHASH,
-            quote.productId,
-            quote.coverageAmount,
-            quote.premiumAmount,
-            quote.durationSeconds,
-            quote.asset,
-            quote.stablecoin,
-            quote.protocol,
-            quote.buyer,
-            quote.deadline,
-            quote.nonce
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                QUOTE_TYPEHASH,
+                quote.productId,
+                quote.coverageAmount,
+                quote.premiumAmount,
+                quote.durationSeconds,
+                quote.asset,
+                quote.stablecoin,
+                quote.protocol,
+                quote.buyer,
+                quote.deadline,
+                quote.nonce
+            )
+        );
 
         // Domain separator
-        bytes32 domainSep = keccak256(abi.encode(
-            EIP712_DOMAIN_TYPEHASH,
-            keccak256("LuminaProtocol"),
-            keccak256("1"),
-            block.chainid,
-            COVER_ROUTER
-        ));
+        bytes32 domainSep = keccak256(
+            abi.encode(EIP712_DOMAIN_TYPEHASH, keccak256("LuminaProtocol"), keccak256("1"), block.chainid, COVER_ROUTER)
+        );
 
         // EIP-712 digest
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            domainSep,
-            structHash
-        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSep, structHash));
 
         // Sign
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);

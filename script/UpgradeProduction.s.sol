@@ -28,13 +28,12 @@ import {StableLongVault} from "../src/vaults/StableLongVault.sol";
  *   DEPLOYER_PRIVATE_KEY=0x... forge script script/UpgradeProduction.s.sol --rpc-url https://mainnet.base.org --broadcast
  */
 contract UpgradeProduction is Script {
-
     // Production proxy addresses
     address constant COVER_ROUTER_PROXY = 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025;
-    address constant VOL_SHORT_PROXY    = 0xbd44547581b92805aAECc40EB2809352b9b2880d;
-    address constant VOL_LONG_PROXY     = 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904;
+    address constant VOL_SHORT_PROXY = 0xbd44547581b92805aAECc40EB2809352b9b2880d;
+    address constant VOL_LONG_PROXY = 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904;
     address constant STABLE_SHORT_PROXY = 0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC;
-    address constant STABLE_LONG_PROXY  = 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c;
+    address constant STABLE_LONG_PROXY = 0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c;
 
     // Governance
     address constant TIMELOCK = 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a;
@@ -68,7 +67,8 @@ contract UpgradeProduction is Script {
         console.log("=== UPGRADE CALLDATA (for Gnosis Safe -> TimelockController) ===");
         console.log("");
 
-        bytes memory routerUpgrade = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", address(newRouterImpl), "");
+        bytes memory routerUpgrade =
+            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", address(newRouterImpl), "");
         console.log("CoverRouter upgradeToAndCall data:");
         console.logBytes(routerUpgrade);
 
