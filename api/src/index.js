@@ -73,7 +73,39 @@ const VAULTS = {
   VOLATILE_LONG:  process.env.VAULT_VOL_LONG  || "0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904",
   STABLE_SHORT:   process.env.VAULT_STABLE_SHORT || "0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC",
   STABLE_LONG:    process.env.VAULT_STABLE_LONG  || "0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c",
+  FLASH_VAULT:    process.env.FLASH_VAULT || "0x65D22E9BfE79306433Bf93Da9B0e5b626b8D021b",
 };
+
+// ═══════════════════════════════════════════════════════════
+//  AAVE V3 SUPPLY RATE CACHE — refreshes every 4 hours
+// ═══════════════════════════════════════════════════════════
+const AAVE_POOL = process.env.AAVE_POOL || "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5";
+const USDC_ADDRESS = process.env.USDC_ADDRESS || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const AAVE_CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+let _aaveSupplyAPY = 0.0266; // fallback ~2.66% (real rate as of 2026-04-13)
+let _aaveSupplyAPYUpdatedAt = 0;
+
+async function refreshAaveSupplyRate() {
+  try {
+    const aavePool = new ethers.Contract(AAVE_POOL, [
+      "function getReserveData(address asset) view returns (uint256,uint128,uint128,uint128,uint128,uint128,uint40,uint16,address,address,address,address,uint128,uint128,uint128)"
+    ], provider);
+    const data = await aavePool.getReserveData(USDC_ADDRESS);
+    // Field index 2 = currentLiquidityRate (supply rate) in RAY (27 decimals)
+    const liquidityRateRay = BigInt(data[2].toString());
+    // Convert RAY to percentage: rate / 1e27
+    _aaveSupplyAPY = Number(liquidityRateRay) / 1e27;
+    _aaveSupplyAPYUpdatedAt = Date.now();
+    console.log(`[Aave] Supply rate refreshed: ${(_aaveSupplyAPY * 100).toFixed(3)}% APY`);
+  } catch (err) {
+    console.error("[Aave] Failed to refresh supply rate:", err.message || err);
+    // Keep previous value as fallback
+  }
+}
+
+// Refresh on startup and every 4 hours
+refreshAaveSupplyRate();
+setInterval(refreshAaveSupplyRate, AAVE_CACHE_TTL_MS);
 
 const SHIELDS = {
   BSS:     process.env.SHIELD_BSS     || "0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e", // DEPRECATED — registered in CoverRouter
@@ -834,7 +866,13 @@ app.post("/api/v2/purchase", authenticateApiKey, async (req, res) => {
 
 // GET /api/v2/health
 app.get("/api/v2/health", (_req, res) => {
-  res.json({ status: "ok", chain: CHAIN_ID, version: "2.0.0" });
+  res.json({
+    status: "ok",
+    chain: CHAIN_ID,
+    version: "2.1.0",
+    aaveSupplyAPY: Math.round(_aaveSupplyAPY * 10000) / 100,
+    aaveSupplyAPYUpdatedAt: _aaveSupplyAPYUpdatedAt ? new Date(_aaveSupplyAPYUpdatedAt).toISOString() : null,
+  });
 });
 
 // GET /api/v2/products
@@ -987,12 +1025,15 @@ app.get("/api/v2/vaults", async (_req, res) => {
         const cooldown = Number(state.cooldownDuration);
 
         const utilization = totalAssets > 0 ? allocated / totalAssets : 0;
-        const riskType = name.startsWith("STABLE") ? "STABLE" : "VOLATILE";
-        // Use average pBase for vault-level APY estimate (VOLATILE=750, STABLE=325)
-        const avgPBase = riskType === "VOLATILE" ? 750 : 325;
+        const riskType = name.startsWith("STABLE") ? "STABLE" : (name === "FLASH_VAULT" ? "FLASH" : "VOLATILE");
+        // Use average pBase for vault-level APY estimate
+        let avgPBase;
+        if (name === "FLASH_VAULT") avgPBase = 11300; // Flash products pBase
+        else if (riskType === "VOLATILE") avgPBase = 750;
+        else avgPBase = 325;
         const premiumRate = calculatePremiumRate(utilization, avgPBase);
-        const usdyBaseAPY = 0.0355; // 3.55%
-        const estimatedAPY = usdyBaseAPY + premiumRate * utilization;
+        const aaveBaseAPY = _aaveSupplyAPY; // Real Aave V3 rate, refreshed every 4h
+        const estimatedAPY = aaveBaseAPY + premiumRate * utilization;
 
         results.push({
           name,
@@ -1021,7 +1062,12 @@ app.get("/api/v2/vaults", async (_req, res) => {
         await new Promise((r) => setTimeout(r, 150));
       }
     }
-    res.json({ vaults: results, partial: anyFailed });
+    res.json({
+      vaults: results,
+      partial: anyFailed,
+      aaveSupplyAPY: Math.round(_aaveSupplyAPY * 10000) / 100, // percentage, e.g. 2.66
+      aaveSupplyAPYUpdatedAt: _aaveSupplyAPYUpdatedAt ? new Date(_aaveSupplyAPYUpdatedAt).toISOString() : null,
+    });
   } catch (err) {
     console.error("[Vaults] error:", err);
     const msg = err && (err.shortMessage || err.message) || String(err);
