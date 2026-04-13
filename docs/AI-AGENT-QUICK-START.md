@@ -7,9 +7,10 @@ inspect, and (eventually) claim a Lumina insurance policy on Base mainnet.
 **API base:** `https://lumina-protocol-production.up.railway.app`
 **Settlement token:** USDC at `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6 decimals)
 
-> **Operational status (2026-04-08):** All 5 products (BCS `BTCCAT-001`,
+> **Operational status (2026-04-12):** 5 core products (BCS `BTCCAT-001`,
 > EAS `ETHAPOC-001`, DEPEG `DEPEG-STABLE-001`, IL `ILPROT-001`, EXPLOIT
 > `EXPLOIT-001`) are registered and ACTIVE in the on-chain CoverRouter.
+> 2 Flash products (Flash BTC `FLASH-BTC`, Flash ETH `FLASH-ETH`) pending deploy.
 > BSS (`BLACKSWAN-001`) is deprecated and `/quote` will reject it with
 > the deprecated message. Vaults are still being seeded with USDC, so
 > `/quote` may return `VAULT_EMPTY` for any product until liquidity is
@@ -265,8 +266,8 @@ windows — no long lock-ups, no complex parameters.
 
 | Product        | productId   | Asset | Duration options          |
 |----------------|-------------|-------|---------------------------|
-| Flash BTC 24h  | `FLASH-BTC` | BTC   | 86400s (24h) or 172800s (48h) |
-| Flash ETH 24h  | `FLASH-ETH` | ETH   | 86400s (24h) or 172800s (48h) |
+| Flash BTC      | `FLASH-BTC` | BTC   | 86400s (24h) or 172800s (48h) |
+| Flash ETH      | `FLASH-ETH` | ETH   | 86400s (24h) or 172800s (48h) |
 
 ### Get a Flash quote
 

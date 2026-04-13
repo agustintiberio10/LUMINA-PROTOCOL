@@ -180,7 +180,7 @@ const PRODUCTS = [
     riskType: "VOLATILE",
     vaults: [VAULTS.VOLATILE_SHORT, VAULTS.VOLATILE_LONG],
     pBase: 850,           // 8.5% — market-calibrated for V2 Kink Model (March 2026)
-    minDuration: 30 * 86400,
+    minDuration: 14 * 86400,
     maxDuration: 90 * 86400,
     deductible: 200,      // 2% IL trigger
     assets: ["ETH", "BTC"],
@@ -194,7 +194,7 @@ const PRODUCTS = [
     riskType: "STABLE",
     vaults: [VAULTS.STABLE_SHORT, VAULTS.STABLE_LONG],
     pBase: 400,           // 4.0% — market-calibrated for V2 Kink Model (March 2026)
-    minDuration: 30 * 86400,
+    minDuration: 90 * 86400,
     maxDuration: 365 * 86400,
     deductible: 0,
     assets: [],

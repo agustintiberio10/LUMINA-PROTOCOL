@@ -502,7 +502,7 @@ Lumina Protocol genera ingresos a traves de un modelo de comision dual, simple y
 | Evento                        | Fee      | Descripcion                                         |
 |-------------------------------|----------|------------------------------------------------------|
 | Compra de poliza (premium)    | 3%       | El 3% de la prima va al protocolo, el 97% al vault  |
-| Pago de siniestro (payout)    | 3%       | El 3% del payout va al protocolo, el 97% al agente  |
+| Pago de siniestro (payout)    | 3%       | El agente recibe el 100% del payout. El 3% se cobra del vault por separado  |
 | Retiro de vault (withdrawal)  | **3% performance** | Sobre el rendimiento positivo (ganancia sobre el deposito original) |
 
 ### 7.2 Fee Receiver
