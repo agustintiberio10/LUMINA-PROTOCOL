@@ -47,7 +47,8 @@ app.use("/api/v2/keys", rateLimit({
 app.use("/api/v2/purchase", rateLimit({
   windowMs: 60 * 1000,
   max: 30,
-  keyGenerator: (req) => req.headers["x-api-key"] || req.ip,
+  keyGenerator: (req) => req.headers["x-api-key"] || "unknown",
+  validate: { xForwardedForHeader: false, default: true },
   message: { error: "Purchase rate limit exceeded" }
 }));
 
