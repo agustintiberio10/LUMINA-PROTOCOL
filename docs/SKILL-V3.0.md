@@ -801,7 +801,7 @@ Vaults:
   VolatileLong:      0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904
   StableShort:       0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC
   StableLong:        0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c
-  FlashVault:          TBD (post-deploy)
+  FlashVault:          0x65D22E9BfE79306433Bf93Da9B0e5b626b8D021b
 
 Shields V2 (production):
   BCS (BTCCAT-001):  0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21  (BTCCatastropheShieldV2)
@@ -809,10 +809,10 @@ Shields V2 (production):
   Depeg:             0x881f683291122c3A72bdD504F71ddCAf47d9AE0e  (DepegShieldV2)
   ILIndex:           0x01Df7f2953dce5be3afFb72CB9F059f3D3eE9e5a  (ILIndexCoverV2)
   Exploit:           0x63D340AE7229BB464bC801f225651341ebcD3693  (ExploitShieldV2)
-  FlashBTCShield24h:   TBD
-  FlashBTCShield48h:   TBD
-  FlashETHShield24h:   TBD
-  FlashETHShield48h:   TBD
+  FlashBTCShield24h:   0x1A6b379dA1C5F804aa0D89e57ce05424219ce933
+  FlashBTCShield48h:   0xcEDe02A77F1708342a7225D41d2b18A70b5FDDc7
+  FlashETHShield24h:   0x5304f6732a51995651f1B666525CFeC5Af74A541
+  FlashETHShield48h:   0xA81FD43540679A39660960268585e876732ce19E
 
 Shields V1 (deprecated):
   BSS:               0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e  (DEPRECATED — split into BCS+EAS)
