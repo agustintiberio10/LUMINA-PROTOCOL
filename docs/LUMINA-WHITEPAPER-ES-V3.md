@@ -379,9 +379,9 @@ Flash Insurance cubre BTC y ETH con los identificadores `FLASH-BTC` y `FLASH-ETH
 | Producto ID      | `FLASH-BTC`                | `FLASH-ETH`                |
 | Activo cubierto  | BTC                        | ETH                        |
 | Duracion         | 86400s (24h) o 172800s (48h) | 86400s (24h) o 172800s (48h) |
-| Contratos        | TBD (pendiente de deploy)  | TBD (pendiente de deploy)  |
+| Contratos        | FlashBTCShield24h: `0x1A6b379dA1C5F804aa0D89e57ce05424219ce933`, FlashBTCShield48h: `0xcEDe02A77F1708342a7225D41d2b18A70b5FDDc7` | FlashETHShield24h: `0x5304f6732a51995651f1B666525CFeC5Af74A541`, FlashETHShield48h: `0xA81FD43540679A39660960268585e876732ce19E` |
 
-> **Estado:** Flash Insurance esta en fase de desarrollo. Los contratos aun no han sido desplegados en mainnet. La API aceptara los productIds `FLASH-BTC` y `FLASH-ETH` una vez que los contratos esten registrados en el CoverRouter.
+> **Estado:** Flash Insurance fue desplegado en Base mainnet el 2026-04-13. FlashVault: `0x65D22E9BfE79306433Bf93Da9B0e5b626b8D021b`. Los 6 contratos estan verificados en BaseScan. Pendiente: registro en CoverRouter via Safe multisig.
 
 ---
 

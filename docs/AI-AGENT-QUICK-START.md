@@ -10,7 +10,7 @@ inspect, and (eventually) claim a Lumina insurance policy on Base mainnet.
 > **Operational status (2026-04-12):** 5 core products (BCS `BTCCAT-001`,
 > EAS `ETHAPOC-001`, DEPEG `DEPEG-STABLE-001`, IL `ILPROT-001`, EXPLOIT
 > `EXPLOIT-001`) are registered and ACTIVE in the on-chain CoverRouter.
-> 2 Flash products (Flash BTC `FLASH-BTC`, Flash ETH `FLASH-ETH`) pending deploy.
+> 2 Flash products (Flash BTC `FLASH-BTC`, Flash ETH `FLASH-ETH`) deployed 2026-04-13, pending Safe registration.
 > BSS (`BLACKSWAN-001`) is deprecated and `/quote` will reject it with
 > the deprecated message. Vaults are still being seeded with USDC, so
 > `/quote` may return `VAULT_EMPTY` for any product until liquidity is

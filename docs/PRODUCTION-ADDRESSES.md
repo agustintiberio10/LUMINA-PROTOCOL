@@ -33,7 +33,7 @@
 - ILIndexCover V1: `0x2ac0d2a9889a8a4143727a0240de3fed4650dd93` **(DEPRECATED — replaced by V2)**
 - ExploitShield V1: `0x9870830c615d1b9c53dfee4136c4792de395b7a1` **(DEPRECATED — replaced by V2)**
 
-## Flash Insurance (pending deploy)
+## Flash Insurance (deployed 2026-04-13)
 - FlashVault: `0x65D22E9BfE79306433Bf93Da9B0e5b626b8D021b`
 - FlashBTCShield24h: `0x1A6b379dA1C5F804aa0D89e57ce05424219ce933`
 - FlashBTCShield48h: `0xcEDe02A77F1708342a7225D41d2b18A70b5FDDc7`
