@@ -7,6 +7,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IExpirable} from "./IExpirable.sol";
 
 // ═══════ Minimal interfaces for NFTs created by other agents ═══════
 
@@ -69,6 +70,7 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
 
     uint256 public constant MAX_DISCOUNT_BPS = 5000; // 50% max
     uint256 public constant MIN_SELL_AGE = 300; // 5 minutes — flash loan protection
+    uint256 public constant MIN_TIME_BEFORE_EXPIRY = 1800; // 30 minutes
     uint256 public constant MAX_PRICE_AGE = 86400; // 24 hours — oracle staleness limit
 
     // ═══════ Events ═══════
@@ -186,6 +188,11 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         IVaultShareNFT.Position memory position = vaultShareNFT.getPosition(nftTokenId);
         uint256 discountBps = vaultDiscountBps[position.vault];
         require(discountBps > 0, "No discount set for vault");
+
+        // Expiry buffer check — reject NFTs that expire within 30 minutes
+        try IExpirable(address(vaultShareNFT)).getExpiresAt(nftTokenId) returns (uint256 expiresAt) {
+            if (expiresAt > 0) require(expiresAt > block.timestamp + MIN_TIME_BEFORE_EXPIRY, "Expires too soon");
+        } catch {}
 
         // FIX 2: Flash loan protection — position must be at least MIN_SELL_AGE old
         require(block.timestamp - position.depositedAt >= MIN_SELL_AGE, "Position too recent");

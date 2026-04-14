@@ -5,6 +5,7 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {IExpirable} from "./IExpirable.sol";
 
 /**
  * @title PolicyNFT
@@ -15,7 +16,7 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
  *      tokenId == policyId (1:1 mapping). No PolicyManager dependency.
  *      Simple mint/burn/transfer with minter access control.
  */
-contract PolicyNFT is ERC721, Ownable {
+contract PolicyNFT is ERC721, Ownable, IExpirable {
     using Strings for uint256;
     using Strings for address;
 
@@ -97,6 +98,12 @@ contract PolicyNFT is ERC721, Ownable {
         } catch {
             return false;
         }
+    }
+
+    /// @notice Returns 0 — PolicyNFT does not store on-chain expiry data.
+    ///         The marketplace checks isValid() separately for policy validity.
+    function getExpiresAt(uint256 tokenId) external view override returns (uint256) {
+        return 0;
     }
 
     // ═══════════════════════════════════════════════════════════

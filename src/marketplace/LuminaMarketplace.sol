@@ -6,6 +6,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IExpirable} from "./IExpirable.sol";
 
 interface IPolicyNFT {
     function isValid(uint256 tokenId) external view returns (bool);
@@ -43,6 +44,7 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
 
     uint256 public feeBps = 200; // 2 %
     uint256 public constant MAX_FEE_BPS = 500; // 5 % cap
+    uint256 public constant MIN_TIME_BEFORE_EXPIRY = 1800; // 30 minutes
 
     ILuminaToken public immutable luminaToken;
 
@@ -91,6 +93,11 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
     function list(address nftContract, uint256 tokenId, uint256 priceInLumina) external nonReentrant whenNotPaused {
         if (!approvedNFTs[nftContract]) revert NFTNotAllowed();
         if (priceInLumina == 0) revert PriceZero();
+
+        // Expiry buffer check — reject NFTs that expire within 30 minutes
+        try IExpirable(nftContract).getExpiresAt(tokenId) returns (uint256 expiresAt) {
+            if (expiresAt > 0) require(expiresAt > block.timestamp + MIN_TIME_BEFORE_EXPIRY, "Expires too soon");
+        } catch {}
 
         // Transfer NFT into escrow
         IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
@@ -148,6 +155,11 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
     function buy(uint256 listingId) external nonReentrant whenNotPaused {
         Listing storage l = listings[listingId];
         if (!l.active) revert ListingNotActive();
+
+        // Expiry buffer check — reject NFTs that expire within 30 minutes
+        try IExpirable(l.nftContract).getExpiresAt(l.tokenId) returns (uint256 expiresAt) {
+            if (expiresAt > 0) require(expiresAt > block.timestamp + MIN_TIME_BEFORE_EXPIRY, "Expires too soon");
+        } catch {}
 
         // If NFT is a PolicyNFT, verify policy is still valid
         if (l.nftContract == address(policyNFT)) {

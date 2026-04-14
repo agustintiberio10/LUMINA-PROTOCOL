@@ -5,6 +5,7 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {IExpirable} from "./IExpirable.sol";
 
 /// @notice Minimal ERC-4626 view interface for convertToAssets
 interface IERC4626View {
@@ -20,7 +21,7 @@ interface IERC4626View {
  *      Each NFT tracks the vault address, share amount, and deposit timestamp.
  *      getValue() queries the vault's convertToAssets() for real-time valuation.
  */
-contract VaultShareNFT is ERC721, Ownable {
+contract VaultShareNFT is ERC721, Ownable, IExpirable {
     using Strings for uint256;
     using Strings for address;
 
@@ -140,6 +141,11 @@ contract VaultShareNFT is ERC721, Ownable {
         Position memory pos = positions[tokenId];
         if (pos.vault == address(0)) revert TokenDoesNotExist(tokenId);
         return pos;
+    }
+
+    /// @notice Returns 0 — VaultShareNFT does not store on-chain expiry data.
+    function getExpiresAt(uint256 tokenId) external view override returns (uint256) {
+        return 0;
     }
 
     // ═══════════════════════════════════════════════════════════
