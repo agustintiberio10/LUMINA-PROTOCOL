@@ -402,7 +402,7 @@ MULTI-PRODUCT STRATEGY:
 5. VAULTS (for liquidity providers)
 ════════════════════════════════════════════════════════════
 
-Four vaults, each with a different risk profile and cooldown period:
+Five vaults, each with a different risk profile and cooldown period:
 
 | Vault          | Cooldown | Products              | Est. APY     | Address                                    |
 |----------------|----------|-----------------------|--------------|--------------------------------------------|

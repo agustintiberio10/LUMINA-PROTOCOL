@@ -37,7 +37,7 @@ Lumina Protocol es la primera infraestructura de seguro parametrico descentraliz
 
 A diferencia del seguro tradicional, que requiere que un humano presente un reclamo, un comite lo revise y semanas de espera para recibir el pago, Lumina utiliza triggers matematicos verificados por oracles. Si la condicion se cumple (por ejemplo, ETH cae un 30%), el pago es instantaneo y automatico. Sin reclamos. Sin disputas. Sin esperar a humanos.
 
-El protocolo ofrece **4 productos de seguro** (Black Swan Shield, Depeg Shield, IL Index Cover, Exploit Shield), **4 vaults de liquidez** (VolatileShort, VolatileLong, StableShort, StableLong) y opera a traves de **13 contratos inteligentes** desplegados en produccion. Los contratos Core (CoverRouter, PolicyManager), vaults y shields usan proxies UUPS actualizables bajo TimelockController; los contratos Oracle (LuminaOracleV2, LuminaPhalaVerifier) son **NO actualizables** (Ownable) y su reemplazo requiere re-despliegue.
+El protocolo ofrece **7 productos de seguro** (BTC Catastrophe Shield, ETH Apocalypse Shield, Depeg Shield, IL Index Cover, Exploit Shield, Flash BTC, Flash ETH), **5 vaults de liquidez** (VolatileShort, VolatileLong, StableShort, StableLong) y opera a traves de **13 contratos inteligentes** desplegados en produccion. Los contratos Core (CoverRouter, PolicyManager), vaults y shields usan proxies UUPS actualizables bajo TimelockController; los contratos Oracle (LuminaOracleV2, LuminaPhalaVerifier) son **NO actualizables** (Ownable) y su reemplazo requiere re-despliegue.
 
 Cada flujo de interaccion comienza de la misma forma: **el humano, a traves de su agente de IA**, instruye la operacion deseada. El agente ejecuta la transaccion on-chain de forma autonoma, interactuando con la API de Lumina y los contratos del protocolo sin intervencion manual.
 
@@ -66,7 +66,7 @@ Los protocolos de seguro DeFi existentes fueron disenados para humanos. Requiere
 | Colateralizacion                  | Pool compartido        | Pool compartido       | Por riesgo           | **1:1 por poliza**            |
 | Red                               | Ethereum L1            | Multi-chain           | Polygon              | **Base L2**                   |
 | Liquidacion                       | ETH/DAI                | Multi-token           | USDC                 | **USDC (Circle)**             |
-| Productos                         | Smart Contract Cover   | Varios                | Clima/Parametrico    | **4 productos DeFi**          |
+| Productos                         | Smart Contract Cover   | Varios                | Clima/Parametrico    | **7 productos DeFi**          |
 
 ### 2.3 Como Funciona Lumina
 
@@ -381,7 +381,7 @@ Flash Insurance cubre BTC y ETH con los identificadores `FLASH-BTC` y `FLASH-ETH
 | Duracion         | 86400s (24h) o 172800s (48h) | 86400s (24h) o 172800s (48h) |
 | Contratos        | FlashBTCShield24h: `0x1A6b379dA1C5F804aa0D89e57ce05424219ce933`, FlashBTCShield48h: `0xcEDe02A77F1708342a7225D41d2b18A70b5FDDc7` | FlashETHShield24h: `0x5304f6732a51995651f1B666525CFeC5Af74A541`, FlashETHShield48h: `0xA81FD43540679A39660960268585e876732ce19E` |
 
-> **Estado:** Flash Insurance fue desplegado en Base mainnet el 2026-04-13. FlashVault: `0x65D22E9BfE79306433Bf93Da9B0e5b626b8D021b`. Los 6 contratos estan verificados en BaseScan. Pendiente: registro en CoverRouter via Safe multisig.
+> **Estado:** Flash Insurance fue desplegado en Base mainnet el 2026-04-13. FlashVault: `0x65D22E9BfE79306433Bf93Da9B0e5b626b8D021b`. Los 6 contratos estan verificados en BaseScan. Registrado y activo en CoverRouter desde 2026-04-13.
 
 ---
 
@@ -662,8 +662,8 @@ Un escenario sistemico (crash de mercado + depeg + exploit simultaneos) podria g
 
 ### Fase 1 -- Lanzamiento (Actual, Q1 2026)
 
-- 4 productos de seguro operativos: BSS, Depeg, IL Index, Exploit
-- 4 vaults de liquidez con yield Aave V3
+- 7 productos de seguro operativos: BCS, EAS, Depeg, IL Index, Exploit, Flash BTC, Flash ETH
+- 5 vaults de liquidez con yield Aave V3
 - Despliegue en Base L2 (Chain 8453)
 - 13 contratos en produccion (core/vaults/shields con UUPS; oracle y PhalaVerifier NO actualizables)
 - Oracle con Chainlink feeds (precio spot verificado via EIP-712) y verificacion ECDSA de workers Phala

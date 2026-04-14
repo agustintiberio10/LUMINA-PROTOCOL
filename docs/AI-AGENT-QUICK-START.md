@@ -10,7 +10,7 @@ inspect, and (eventually) claim a Lumina insurance policy on Base mainnet.
 > **Operational status (2026-04-12):** 5 core products (BCS `BTCCAT-001`,
 > EAS `ETHAPOC-001`, DEPEG `DEPEG-STABLE-001`, IL `ILPROT-001`, EXPLOIT
 > `EXPLOIT-001`) are registered and ACTIVE in the on-chain CoverRouter.
-> 2 Flash products (Flash BTC `FLASH-BTC`, Flash ETH `FLASH-ETH`) deployed 2026-04-13, pending Safe registration.
+> 2 Flash products (Flash BTC `FLASH-BTC`, Flash ETH `FLASH-ETH`) deployed 2026-04-13, registered and ACTIVE on-chain since 2026-04-13.
 > BSS (`BLACKSWAN-001`) is deprecated and `/quote` will reject it with
 > the deprecated message. Vaults are still being seeded with USDC, so
 > `/quote` may return `VAULT_EMPTY` for any product until liquidity is
@@ -339,8 +339,13 @@ Vaults:
   VolatileLong        0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904
   StableShort         0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC
   StableLong          0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c
+  FlashVault          0x65D22E9BfE79306433Bf93Da9B0e5b626b8D021b
 
 Active shields:
   BCS (BTCCAT-001)    0x6E0A46B268e4aD9648CdAbD9A4b2B20B79E5ab21
   EAS (ETHAPOC-001)   0x70f1c92EFcFe55e8d460aAa6d626779536b15128
+  FlashBTCShield24h   0x1A6b379dA1C5F804aa0D89e57ce05424219ce933
+  FlashBTCShield48h   0xcEDe02A77F1708342a7225D41d2b18A70b5FDDc7
+  FlashETHShield24h   0x5304f6732a51995651f1B666525CFeC5Af74A541
+  FlashETHShield48h   0xA81FD43540679A39660960268585e876732ce19E
 ```
