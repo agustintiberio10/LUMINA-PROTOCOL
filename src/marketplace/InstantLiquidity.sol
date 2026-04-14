@@ -35,6 +35,13 @@ interface IPolicyNFT is IERC721 {
 interface ILuminaPriceOracle {
     /// @notice Convert USD amount (6 decimals) to LUMINA (18 decimals)
     function usdToLumina(uint256 usdAmount6dec) external view returns (uint256);
+
+    /// @notice Get the current LUMINA price in USD (6 decimals)
+    function getPrice() external view returns (uint256);
+}
+
+interface ILuminaToken is IERC20 {
+    function burnByRole(address account, uint256 amount) external;
 }
 
 /// @title InstantLiquidity
@@ -56,8 +63,8 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
     mapping(address => uint256) public vaultDiscountBps; // vault address → discount (e.g. 3000 = 30%)
     mapping(bytes32 => uint256) public policyDiscountBps; // productId → discount
 
-    uint256 public dailyBudgetUsd; // in 6 decimals (USDC format)
-    uint256 public dailySpentUsd; // in 6 decimals
+    uint256 public dailyBudgetUsd6dec; // in 6 decimals (USDC format)
+    uint256 public dailySpentUsd6dec; // in 6 decimals
     uint256 public lastResetDay; // day number for daily reset
 
     bool public buyingVaults;
@@ -110,7 +117,7 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
     }
 
     function setDailyBudget(uint256 amountUsd6dec) external onlyOwner {
-        dailyBudgetUsd = amountUsd6dec;
+        dailyBudgetUsd6dec = amountUsd6dec;
         emit BudgetUpdated(amountUsd6dec);
     }
 
@@ -195,8 +202,8 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         uint256 usdValue = fullValue * (10_000 - discountBps) / 10_000;
 
         _checkAndResetDaily();
-        require(dailySpentUsd + usdValue <= dailyBudgetUsd, "Daily budget exceeded");
-        dailySpentUsd += usdValue;
+        require(dailySpentUsd6dec + usdValue <= dailyBudgetUsd6dec, "Daily budget exceeded");
+        dailySpentUsd6dec += usdValue;
 
         uint256 luminaAmount = priceOracle.usdToLumina(usdValue);
         require(luminaAmount > 0, "Quote is zero");
@@ -225,8 +232,8 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         uint256 usdValue = remainingUsd * (10_000 - discountBps) / 10_000;
 
         _checkAndResetDaily();
-        require(dailySpentUsd + usdValue <= dailyBudgetUsd, "Daily budget exceeded");
-        dailySpentUsd += usdValue;
+        require(dailySpentUsd6dec + usdValue <= dailyBudgetUsd6dec, "Daily budget exceeded");
+        dailySpentUsd6dec += usdValue;
 
         uint256 luminaAmount = priceOracle.usdToLumina(usdValue);
         require(luminaAmount > 0, "Quote is zero");
@@ -247,7 +254,7 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
     function _checkAndResetDaily() internal {
         uint256 currentDay = block.timestamp / 1 days;
         if (currentDay > lastResetDay) {
-            dailySpentUsd = 0;
+            dailySpentUsd6dec = 0;
             lastResetDay = currentDay;
         }
     }

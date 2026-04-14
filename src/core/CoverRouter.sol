@@ -14,6 +14,11 @@ import {IPhalaVerifier} from "../interfaces/IPhalaVerifier.sol";
 import {IPolicyManager} from "../interfaces/IPolicyManager.sol";
 import {IVault} from "../interfaces/IVault.sol";
 import {EmergencyPause} from "./EmergencyPause.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
+interface IPolicyNFT {
+    function mint(address to, uint256 policyId) external;
+}
 
 /**
  * @title CoverRouter
@@ -115,8 +120,11 @@ contract CoverRouter is ICoverRouter, UUPSUpgradeable, OwnableUpgradeable, Reent
     /// @notice Weekly veto tracking: weekNumber => count
     mapping(uint256 => uint256) public weeklyVetoCount;
 
+    /// @notice PolicyNFT contract for auto-minting (0 = disabled, backward compatible)
+    address public policyNFT;
+
     /// @dev Storage gap for future UUPS upgrades
-    uint256[48] private __gap_router;
+    uint256[47] private __gap_router;
 
     // ═══════════════════════════════════════════════════════════
     //  EVENTS (additional, not in interface)
@@ -320,6 +328,11 @@ contract CoverRouter is ICoverRouter, UUPSUpgradeable, OwnableUpgradeable, Reent
             expiresAt: info.expiresAt
         });
 
+        // Auto-mint PolicyNFT if configured
+        if (policyNFT != address(0)) {
+            try IPolicyNFT(policyNFT).mint(msg.sender, policyId) {} catch {}
+        }
+
         emit PolicyPurchased(
             policyId,
             quote.productId,
@@ -421,8 +434,16 @@ contract CoverRouter is ICoverRouter, UUPSUpgradeable, OwnableUpgradeable, Reent
                     emit FeeCollected(productId, policyId, payoutFee, "CLAIM");
                 }
 
-                // Full payout → agent (100% of calculated payout)
-                IERC20(_usdcToken).safeTransfer(pr.recipient, usdcPayout);
+                // If PolicyNFT exists, pay the NFT holder instead of original buyer
+                address payoutRecipient = info.insuredAgent;
+                if (policyNFT != address(0)) {
+                    try IERC721(policyNFT).ownerOf(policyId) returns (address nftHolder) {
+                        if (nftHolder != address(0)) payoutRecipient = nftHolder;
+                    } catch {}
+                }
+
+                // Full payout → agent/NFT holder (100% of calculated payout)
+                IERC20(_usdcToken).safeTransfer(payoutRecipient, usdcPayout);
             }
             // else: payout queued in vault's pendingPayouts. Allocation stays locked.
             // Agent claims via vault.claimPendingPayout() when Aave recovers.
@@ -595,6 +616,10 @@ contract CoverRouter is ICoverRouter, UUPSUpgradeable, OwnableUpgradeable, Reent
 
     function setEmergencyPause(address _emergencyPause) external onlyOwner {
         emergencyPause = _emergencyPause;
+    }
+
+    function setPolicyNFT(address nft) external onlyOwner {
+        policyNFT = nft;
     }
 
     // ═══ Oracle Mitigation: Scheduled Payout Management ═══
@@ -796,6 +821,11 @@ contract CoverRouter is ICoverRouter, UUPSUpgradeable, OwnableUpgradeable, Reent
             startsAt: info.waitingEndsAt,
             expiresAt: info.expiresAt
         });
+
+        // Auto-mint PolicyNFT if configured
+        if (policyNFT != address(0)) {
+            try IPolicyNFT(policyNFT).mint(quote.buyer, policyId) {} catch {}
+        }
 
         emit PolicyPurchased(
             policyId,

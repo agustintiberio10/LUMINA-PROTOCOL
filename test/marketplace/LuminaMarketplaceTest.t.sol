@@ -71,9 +71,12 @@ contract LuminaMarketplaceTest is Test {
         vaultNFT = new VaultShareNFT();
         vault = new MarketMockVault();
 
+        // Authorize this test contract as a minter so we can mint NFTs
+        vaultNFT.setMinter(address(this), true);
+
         // Whitelist the VaultShareNFT
         vm.prank(admin);
-        marketplace.setAllowedNFT(address(vaultNFT), true);
+        marketplace.setApprovedNFT(address(vaultNFT), true);
 
         // Give seller vault shares and wrap into NFT
         vault.mint(seller, 500e18);
@@ -84,8 +87,7 @@ contract LuminaMarketplaceTest is Test {
     }
 
     function _mintAndListNFT() internal returns (uint256 listingId, uint256 tokenId) {
-        vm.prank(seller);
-        tokenId = vaultNFT.wrap(address(vault), 100e18);
+        tokenId = vaultNFT.mint(seller, address(vault), 100e18);
 
         vm.prank(seller);
         vaultNFT.approve(address(marketplace), tokenId);

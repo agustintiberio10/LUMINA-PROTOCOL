@@ -20,10 +20,12 @@ interface ILuminaToken is IERC20 {
 contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
     // ──────────────────────────── Types ────────────────────────────
     struct Listing {
-        address seller;
+        uint256 id;
         address nftContract;
         uint256 tokenId;
+        address seller;
         uint256 priceInLumina;
+        uint256 createdAt;
         bool active;
     }
 
@@ -36,7 +38,7 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
 
     ILuminaToken public immutable luminaToken;
 
-    mapping(address => bool) public allowedNFTContracts;
+    mapping(address => bool) public approvedNFTs;
 
     address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
@@ -77,7 +79,7 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
      * @param priceInLumina Sale price denominated in LUMINA (wei units).
      */
     function list(address nftContract, uint256 tokenId, uint256 priceInLumina) external whenNotPaused {
-        if (!allowedNFTContracts[nftContract]) revert NFTNotAllowed();
+        if (!approvedNFTs[nftContract]) revert NFTNotAllowed();
         if (priceInLumina == 0) revert PriceZero();
 
         // Transfer NFT into escrow
@@ -85,7 +87,13 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
 
         uint256 listingId = nextListingId++;
         listings[listingId] = Listing({
-            seller: msg.sender, nftContract: nftContract, tokenId: tokenId, priceInLumina: priceInLumina, active: true
+            id: listingId,
+            nftContract: nftContract,
+            tokenId: tokenId,
+            seller: msg.sender,
+            priceInLumina: priceInLumina,
+            createdAt: block.timestamp,
+            active: true
         });
 
         emit Listed(listingId, msg.sender, nftContract, tokenId, priceInLumina);
@@ -116,7 +124,7 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
 
         l.active = false;
 
-        IERC721(l.nftContract).transferFrom(address(this), msg.sender, l.tokenId);
+        IERC721(l.nftContract).transferFrom(address(this), l.seller, l.tokenId);
 
         emit Cancelled(listingId);
     }
@@ -176,8 +184,8 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
         emit FeeUpdated(oldFee, newFee);
     }
 
-    function setAllowedNFT(address nft, bool allowed) external onlyOwner {
-        allowedNFTContracts[nft] = allowed;
+    function setApprovedNFT(address nft, bool allowed) external onlyOwner {
+        approvedNFTs[nft] = allowed;
     }
 
     function pause() external onlyOwner {

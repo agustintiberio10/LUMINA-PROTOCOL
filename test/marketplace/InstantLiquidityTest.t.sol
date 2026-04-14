@@ -156,7 +156,7 @@ contract InstantLiquidityTest is Test {
     function test_set_daily_budget() public {
         vm.prank(admin);
         il.setDailyBudget(200_000e6);
-        assertEq(il.dailyBudgetUsd(), 200_000e6);
+        assertEq(il.dailyBudgetUsd6dec(), 200_000e6);
     }
 
     // ──────────────── Quote tests ────────────────
@@ -207,7 +207,7 @@ contract InstantLiquidityTest is Test {
         vm.prank(seller);
         il.sellVaultNFT(tokenId);
 
-        assertEq(il.dailySpentUsd(), 700e6);
+        assertEq(il.dailySpentUsd6dec(), 700e6);
     }
 
     function test_daily_limit_reverts() public {
@@ -234,7 +234,7 @@ contract InstantLiquidityTest is Test {
         vm.prank(seller);
         il.sellVaultNFT(tokenId1);
 
-        assertEq(il.dailySpentUsd(), 700e6);
+        assertEq(il.dailySpentUsd6dec(), 700e6);
 
         // Advance 1 day
         vm.warp(block.timestamp + 1 days);
@@ -248,7 +248,7 @@ contract InstantLiquidityTest is Test {
 
         // After reset, only the new sale's discounted amount
         // 500e6 * 7000 / 10000 = 350e6
-        assertEq(il.dailySpentUsd(), 350e6);
+        assertEq(il.dailySpentUsd6dec(), 350e6);
     }
 
     // ──────────────── Buying disabled tests ────────────────

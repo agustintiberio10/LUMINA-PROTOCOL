@@ -14,6 +14,10 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {IVault} from "../interfaces/IVault.sol";
 import {EmergencyPause} from "../core/EmergencyPause.sol";
 
+interface IVaultShareNFT {
+    function mint(address to, address vault, uint256 shares) external;
+}
+
 /**
  * @title BaseVault
  * @author Lumina Protocol
@@ -82,8 +86,11 @@ abstract contract BaseVault is
     uint256 public lastWithdrawReset;
     uint256 public dailyWithdrawSnapshot; // [M-1] totalAssets at start of day
 
-    /// @dev Storage gap for future upgrades (reduced from 50 to 46: 4 slots used post-gap)
-    uint256[46] private __gap;
+    /// @notice VaultShareNFT contract for auto-minting (0 = disabled, backward compatible)
+    address public vaultShareNFT;
+
+    /// @dev Storage gap for future upgrades (reduced from 50 to 45: 5 slots used post-gap)
+    uint256[45] private __gap;
 
     // ═══ Oracle Mitigation: Payout-specific pause ═══
     // DEPRECATED: Not used in executePayout. Kept for storage layout compatibility only.
@@ -224,6 +231,11 @@ abstract contract BaseVault is
         shares = deposit(assets, receiver);
 
         emit Deposited(receiver, assets, shares);
+
+        // Auto-mint VaultShareNFT if configured
+        if (vaultShareNFT != address(0)) {
+            try IVaultShareNFT(vaultShareNFT).mint(receiver, address(this), shares) {} catch {}
+        }
     }
 
     /// @inheritdoc IVault
@@ -614,6 +626,10 @@ abstract contract BaseVault is
 
     function setEmergencyPause(address _emergencyPause) external onlyOwner {
         emergencyPause = _emergencyPause;
+    }
+
+    function setVaultShareNFT(address nft) external onlyOwner {
+        vaultShareNFT = nft;
     }
 
     function setPolicyManager(address newPolicyManager) external onlyOwner {

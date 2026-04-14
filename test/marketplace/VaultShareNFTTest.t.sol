@@ -37,6 +37,8 @@ contract VaultShareNFTTest is Test {
     VaultShareNFT public nft;
     MockVault public vault;
 
+    address public admin = address(this);
+    address public minterAddr = makeAddr("minterAddr");
     address public lp1 = makeAddr("lp1");
     address public lp2 = makeAddr("lp2");
     address public other = makeAddr("other");
@@ -47,66 +49,63 @@ contract VaultShareNFTTest is Test {
         nft = new VaultShareNFT();
         vault = new MockVault();
 
-        // Give LP1 and LP2 vault shares
-        vault.mint(lp1, 500e18);
-        vault.mint(lp2, 300e18);
+        // Authorize minter
+        nft.setMinter(minterAddr, true);
     }
 
-    function test_wrap() public {
-        vm.prank(lp1);
-        uint256 tokenId = nft.wrap(address(vault), SHARES);
+    function test_mint() public {
+        vm.prank(minterAddr);
+        uint256 tokenId = nft.mint(lp1, address(vault), SHARES);
 
         assertEq(nft.ownerOf(tokenId), lp1);
         assertEq(tokenId, 0);
 
-        (address v, uint256 shares, address depositor, uint256 ts) = nft.getPositionData(tokenId);
-        assertEq(v, address(vault));
-        assertEq(shares, SHARES);
-        assertEq(depositor, lp1);
-        assertEq(ts, block.timestamp);
+        VaultShareNFT.Position memory pos = nft.getPosition(tokenId);
+        assertEq(pos.vault, address(vault));
+        assertEq(pos.shares, SHARES);
+        assertEq(pos.depositedAt, block.timestamp);
     }
 
-    function test_wrap_insufficient_shares_reverts() public {
-        vm.prank(other); // other has 0 shares
-        vm.expectRevert(abi.encodeWithSelector(VaultShareNFT.InsufficientShareBalance.selector, SHARES, 0));
-        nft.wrap(address(vault), SHARES);
+    function test_mint_not_minter_reverts() public {
+        vm.prank(other);
+        vm.expectRevert(abi.encodeWithSelector(VaultShareNFT.NotMinter.selector, other));
+        nft.mint(lp1, address(vault), SHARES);
     }
 
-    function test_wrap_zero_shares_reverts() public {
-        vm.prank(lp1);
-        vm.expectRevert(VaultShareNFT.ZeroShares.selector);
-        nft.wrap(address(vault), 0);
-    }
-
-    function test_wrap_zero_address_reverts() public {
-        vm.prank(lp1);
-        vm.expectRevert(VaultShareNFT.ZeroAddress.selector);
-        nft.wrap(address(0), SHARES);
-    }
-
-    function test_unwrap() public {
-        vm.prank(lp1);
-        uint256 tokenId = nft.wrap(address(vault), SHARES);
+    function test_burn_by_holder() public {
+        vm.prank(minterAddr);
+        uint256 tokenId = nft.mint(lp1, address(vault), SHARES);
 
         vm.prank(lp1);
-        nft.unwrap(tokenId);
+        nft.burn(tokenId);
 
         vm.expectRevert(); // ownerOf reverts for burned token
         nft.ownerOf(tokenId);
     }
 
-    function test_unwrap_not_holder_reverts() public {
-        vm.prank(lp1);
-        uint256 tokenId = nft.wrap(address(vault), SHARES);
+    function test_burn_by_minter() public {
+        vm.prank(minterAddr);
+        uint256 tokenId = nft.mint(lp1, address(vault), SHARES);
+
+        vm.prank(minterAddr);
+        nft.burn(tokenId);
+
+        vm.expectRevert();
+        nft.ownerOf(tokenId);
+    }
+
+    function test_burn_not_holder_or_minter_reverts() public {
+        vm.prank(minterAddr);
+        uint256 tokenId = nft.mint(lp1, address(vault), SHARES);
 
         vm.prank(other);
-        vm.expectRevert(abi.encodeWithSelector(VaultShareNFT.NotTokenOwner.selector, tokenId, other));
-        nft.unwrap(tokenId);
+        vm.expectRevert(abi.encodeWithSelector(VaultShareNFT.NotHolderOrMinter.selector, other, tokenId));
+        nft.burn(tokenId);
     }
 
     function test_get_value() public {
-        vm.prank(lp1);
-        uint256 tokenId = nft.wrap(address(vault), SHARES);
+        vm.prank(minterAddr);
+        uint256 tokenId = nft.mint(lp1, address(vault), SHARES);
 
         // 100e18 shares * 1e6 / 1e18 = 100e6 USDC value
         uint256 value = nft.getValue(tokenId);
@@ -119,8 +118,8 @@ contract VaultShareNFTTest is Test {
     }
 
     function test_transfer_nft() public {
-        vm.prank(lp1);
-        uint256 tokenId = nft.wrap(address(vault), SHARES);
+        vm.prank(minterAddr);
+        uint256 tokenId = nft.mint(lp1, address(vault), SHARES);
 
         vm.prank(lp1);
         nft.transferFrom(lp1, other, tokenId);
@@ -128,12 +127,12 @@ contract VaultShareNFTTest is Test {
         assertEq(nft.ownerOf(tokenId), other);
     }
 
-    function test_multiple_wraps() public {
-        vm.prank(lp1);
-        uint256 tokenId0 = nft.wrap(address(vault), 200e18);
+    function test_multiple_mints() public {
+        vm.prank(minterAddr);
+        uint256 tokenId0 = nft.mint(lp1, address(vault), 200e18);
 
-        vm.prank(lp2);
-        uint256 tokenId1 = nft.wrap(address(vault), 150e18);
+        vm.prank(minterAddr);
+        uint256 tokenId1 = nft.mint(lp2, address(vault), 150e18);
 
         assertEq(tokenId0, 0);
         assertEq(tokenId1, 1);
@@ -142,8 +141,8 @@ contract VaultShareNFTTest is Test {
     }
 
     function test_token_uri() public {
-        vm.prank(lp1);
-        uint256 tokenId = nft.wrap(address(vault), SHARES);
+        vm.prank(minterAddr);
+        uint256 tokenId = nft.mint(lp1, address(vault), SHARES);
 
         string memory uri = nft.tokenURI(tokenId);
         assertTrue(bytes(uri).length > 0);
@@ -155,8 +154,23 @@ contract VaultShareNFTTest is Test {
         }
     }
 
-    function test_get_position_data_nonexistent_reverts() public {
+    function test_get_position_nonexistent_reverts() public {
         vm.expectRevert(abi.encodeWithSelector(VaultShareNFT.TokenDoesNotExist.selector, 999));
-        nft.getPositionData(999);
+        nft.getPosition(999);
+    }
+
+    function test_setMinter() public {
+        address newMinter = makeAddr("newMinter");
+        nft.setMinter(newMinter, true);
+        assertTrue(nft.minters(newMinter));
+
+        nft.setMinter(newMinter, false);
+        assertFalse(nft.minters(newMinter));
+    }
+
+    function test_setMinter_not_owner_reverts() public {
+        vm.prank(other);
+        vm.expectRevert();
+        nft.setMinter(other, true);
     }
 }
