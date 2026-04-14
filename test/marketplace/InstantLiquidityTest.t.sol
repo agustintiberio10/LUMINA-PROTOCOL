@@ -16,27 +16,30 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 contract ILMockVaultShareNFT is ERC721 {
     uint256 public nextId;
 
-    struct TokenData {
+    struct Position {
         address vault;
-        uint256 valueUsd6dec;
+        uint256 shares;
+        uint256 depositedAt;
     }
 
-    mapping(uint256 => TokenData) public tokenData;
+    mapping(uint256 => Position) public positions;
+    mapping(uint256 => uint256) public valueOverride;
 
     constructor() ERC721("Mock VaultShare NFT", "mvsNFT") {}
 
     function mintTo(address to, address vault, uint256 valueUsd6dec) external returns (uint256 id) {
         id = nextId++;
-        tokenData[id] = TokenData(vault, valueUsd6dec);
+        positions[id] = Position(vault, valueUsd6dec, block.timestamp > 301 ? block.timestamp - 301 : 0);
+        valueOverride[id] = valueUsd6dec;
         _mint(to, id);
     }
 
     function getValue(uint256 tokenId) external view returns (uint256) {
-        return tokenData[tokenId].valueUsd6dec;
+        return valueOverride[tokenId];
     }
 
-    function getVault(uint256 tokenId) external view returns (address) {
-        return tokenData[tokenId].vault;
+    function getPosition(uint256 tokenId) external view returns (Position memory) {
+        return positions[tokenId];
     }
 }
 
@@ -47,40 +50,19 @@ contract ILMockVaultShareNFT is ERC721 {
 contract ILMockPolicyNFT is ERC721 {
     uint256 public nextId;
 
-    struct PolicyData {
-        bytes32 productId;
-        uint256 premium6dec;
-        uint256 startTime;
-        uint256 endTime;
-    }
-
-    mapping(uint256 => PolicyData) public policyData;
-
     constructor() ERC721("Mock Policy NFT", "mpNFT") {}
 
-    function mintTo(address to, bytes32 productId, uint256 premium6dec, uint256 startTime, uint256 endTime)
-        external
-        returns (uint256 id)
-    {
+    function mintTo(address to) external returns (uint256 id) {
         id = nextId++;
-        policyData[id] = PolicyData(productId, premium6dec, startTime, endTime);
         _mint(to, id);
     }
 
-    function getPremium(uint256 tokenId) external view returns (uint256) {
-        return policyData[tokenId].premium6dec;
-    }
-
-    function getProductId(uint256 tokenId) external view returns (bytes32) {
-        return policyData[tokenId].productId;
-    }
-
-    function getStartTime(uint256 tokenId) external view returns (uint256) {
-        return policyData[tokenId].startTime;
-    }
-
-    function getEndTime(uint256 tokenId) external view returns (uint256) {
-        return policyData[tokenId].endTime;
+    function isValid(uint256 tokenId) external view returns (bool) {
+        try this.ownerOf(tokenId) returns (address) {
+            return true;
+        } catch {
+            return false;
+        }
     }
 }
 
@@ -103,8 +85,6 @@ contract InstantLiquidityTest is Test {
 
     address public seller = makeAddr("seller");
     address public mockVaultAddr = makeAddr("mockVault");
-
-    bytes32 public constant PRODUCT_ID = keccak256("BSS_ETH");
 
     // Oracle price: $0.04 per LUMINA = 40000 (6 decimals)
     uint256 public constant LUMINA_PRICE = 40000;
@@ -132,10 +112,12 @@ contract InstantLiquidityTest is Test {
         vm.startPrank(admin);
         il.setDailyBudget(100_000e6); // $100k daily budget
         il.setVaultDiscount(mockVaultAddr, 3000); // 30% discount
-        il.setPolicyDiscount(PRODUCT_ID, 2000); // 20% discount
         il.setBuyingVaults(true);
-        il.setBuyingPolicies(true);
+        il.refreshPriceTimestamp();
         vm.stopPrank();
+
+        // Warp past MIN_SELL_AGE so minted NFTs are old enough to sell
+        vm.warp(block.timestamp + 301);
     }
 
     // ──────────────── Admin tests ────────────────
@@ -238,6 +220,10 @@ contract InstantLiquidityTest is Test {
 
         // Advance 1 day
         vm.warp(block.timestamp + 1 days);
+
+        // Refresh oracle price timestamp after warp
+        vm.prank(admin);
+        il.refreshPriceTimestamp();
 
         // Sell another NFT - daily should have reset
         uint256 tokenId2 = vaultNFT.mintTo(seller, mockVaultAddr, 500e6);

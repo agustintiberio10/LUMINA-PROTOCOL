@@ -87,6 +87,11 @@ abstract contract BaseVault is
     uint256 public dailyWithdrawSnapshot; // [M-1] totalAssets at start of day
 
     /// @notice VaultShareNFT contract for auto-minting (0 = disabled, backward compatible)
+    /// @dev LIMITATION (V1): VaultShareNFT holders cannot redeem directly via the NFT.
+    ///      The original depositor must complete withdrawal through the standard flow.
+    ///      The NFT represents claim rights (tradeable on marketplace), not direct redemption.
+    ///      A future redeemByNFT() would require modifying soulbound transfer logic and
+    ///      adding tokenId-to-withdrawal tracking. Acceptable for V1 marketplace.
     address public vaultShareNFT;
 
     /// @dev Storage gap for future upgrades (reduced from 50 to 45: 5 slots used post-gap)
@@ -335,6 +340,14 @@ abstract contract BaseVault is
                 emit WithdrawalQueued(feeReceiver, perfFee);
             }
         }
+
+        // ── VaultShareNFT burn on withdrawal ──
+        // We don't track which NFT tokenId corresponds to which withdrawal request,
+        // so we cannot auto-burn the VaultShareNFT here. By design, the NFT represents
+        // the LP position, not a specific withdrawal. After completing withdrawal,
+        // the holder should call VaultShareNFT.burn(tokenId) manually.
+        // If the holder has zero remaining shares, their NFT is effectively worthless
+        // and should be burned for cleanliness.
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -432,6 +445,14 @@ abstract contract BaseVault is
                 emit WithdrawalQueued(feeReceiver, perfFee);
             }
         }
+
+        // ── VaultShareNFT burn on withdrawal ──
+        // We don't track which NFT tokenId corresponds to which withdrawal request,
+        // so we cannot auto-burn the VaultShareNFT here. By design, the NFT represents
+        // the LP position, not a specific withdrawal. After completing withdrawal,
+        // the holder should call VaultShareNFT.burn(tokenId) manually.
+        // If the holder has zero remaining shares, their NFT is effectively worthless
+        // and should be burned for cleanliness.
     }
 
     function cancelWithdrawalV2(uint256 index) external nonReentrant {

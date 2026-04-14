@@ -7,6 +7,14 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+interface IPolicyNFT {
+    function isValid(uint256 tokenId) external view returns (bool);
+}
+
+interface IVaultShareNFT {
+    function getValue(uint256 tokenId) external view returns (uint256);
+}
+
 interface ILuminaToken is IERC20 {
     function burnByRole(address account, uint256 amount) external;
     function BURNER_ROLE() external view returns (bytes32);
@@ -39,6 +47,8 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
     ILuminaToken public immutable luminaToken;
 
     mapping(address => bool) public approvedNFTs;
+
+    address public policyNFT;
 
     address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
@@ -78,7 +88,7 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
      * @param tokenId     Token ID to list.
      * @param priceInLumina Sale price denominated in LUMINA (wei units).
      */
-    function list(address nftContract, uint256 tokenId, uint256 priceInLumina) external whenNotPaused {
+    function list(address nftContract, uint256 tokenId, uint256 priceInLumina) external nonReentrant whenNotPaused {
         if (!approvedNFTs[nftContract]) revert NFTNotAllowed();
         if (priceInLumina == 0) revert PriceZero();
 
@@ -139,6 +149,11 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
         Listing storage l = listings[listingId];
         if (!l.active) revert ListingNotActive();
 
+        // If NFT is a PolicyNFT, verify policy is still valid
+        if (l.nftContract == address(policyNFT)) {
+            require(IPolicyNFT(l.nftContract).isValid(l.tokenId), "Policy expired or invalid");
+        }
+
         l.active = false;
 
         uint256 price = l.priceInLumina;
@@ -184,6 +199,10 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
         emit FeeUpdated(oldFee, newFee);
     }
 
+    function setPolicyNFT(address _policyNFT) external onlyOwner {
+        policyNFT = _policyNFT;
+    }
+
     function setApprovedNFT(address nft, bool allowed) external onlyOwner {
         approvedNFTs[nft] = allowed;
     }
@@ -200,6 +219,22 @@ contract LuminaMarketplace is Ownable, ReentrancyGuard, Pausable {
 
     function getListing(uint256 id) external view returns (Listing memory) {
         return listings[id];
+    }
+
+    function getListingDetails(uint256 listingId)
+        external
+        view
+        returns (Listing memory listing, bool isPolicyNFT, bool policyValid, uint256 vaultValue)
+    {
+        listing = listings[listingId];
+        isPolicyNFT = (listing.nftContract == policyNFT);
+        if (isPolicyNFT && policyNFT != address(0)) {
+            policyValid = IPolicyNFT(listing.nftContract).isValid(listing.tokenId);
+        }
+        // For VaultShareNFT, try to read value
+        try IVaultShareNFT(listing.nftContract).getValue(listing.tokenId) returns (uint256 val) {
+            vaultValue = val;
+        } catch {}
     }
 
     /**

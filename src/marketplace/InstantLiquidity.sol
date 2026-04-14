@@ -11,25 +11,22 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 // ═══════ Minimal interfaces for NFTs created by other agents ═══════
 
 interface IVaultShareNFT is IERC721 {
+    struct Position {
+        address vault;
+        uint256 shares;
+        uint256 depositedAt;
+    }
+
     /// @notice Returns the USD value (6 decimals) of a vault share NFT
     function getValue(uint256 tokenId) external view returns (uint256 usdValue6dec);
 
-    /// @notice Returns the vault address associated with a token
-    function getVault(uint256 tokenId) external view returns (address vault);
+    /// @notice Returns the full position data for a token
+    function getPosition(uint256 tokenId) external view returns (Position memory);
 }
 
 interface IPolicyNFT is IERC721 {
-    /// @notice Returns the premium paid for the policy (6 decimals USD)
-    function getPremium(uint256 tokenId) external view returns (uint256 premium6dec);
-
-    /// @notice Returns the product identifier for the policy
-    function getProductId(uint256 tokenId) external view returns (bytes32 productId);
-
-    /// @notice Returns the start timestamp of the policy
-    function getStartTime(uint256 tokenId) external view returns (uint256 startTime);
-
-    /// @notice Returns the end timestamp of the policy
-    function getEndTime(uint256 tokenId) external view returns (uint256 endTime);
+    /// @notice Check if a policy NFT is valid (exists)
+    function isValid(uint256 tokenId) external view returns (bool);
 }
 
 interface ILuminaPriceOracle {
@@ -61,27 +58,27 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
     // ═══════ State ═══════
 
     mapping(address => uint256) public vaultDiscountBps; // vault address → discount (e.g. 3000 = 30%)
-    mapping(bytes32 => uint256) public policyDiscountBps; // productId → discount
 
     uint256 public dailyBudgetUsd6dec; // in 6 decimals (USDC format)
     uint256 public dailySpentUsd6dec; // in 6 decimals
     uint256 public lastResetDay; // day number for daily reset
 
     bool public buyingVaults;
-    bool public buyingPolicies;
+
+    uint256 public lastPriceUpdate; // timestamp of last admin price update
 
     uint256 public constant MAX_DISCOUNT_BPS = 5000; // 50% max
+    uint256 public constant MIN_SELL_AGE = 300; // 5 minutes — flash loan protection
+    uint256 public constant MAX_PRICE_AGE = 86400; // 24 hours — oracle staleness limit
 
     // ═══════ Events ═══════
 
     event VaultNFTSold(
         address indexed seller, uint256 indexed tokenId, uint256 luminaAmount, uint256 usdValue, uint256 discountBps
     );
-    event PolicyNFTSold(
-        address indexed seller, uint256 indexed tokenId, uint256 luminaAmount, uint256 usdValue, uint256 discountBps
-    );
     event DiscountUpdated(string nftType, bytes32 indexed key, uint256 discountBps);
     event BudgetUpdated(uint256 newBudgetUsd);
+    event PriceUpdated(uint256 timestamp);
 
     // ═══════ Constructor ═══════
 
@@ -99,6 +96,7 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         policyNFT = IPolicyNFT(_policyNFT);
 
         lastResetDay = block.timestamp / 1 days;
+        lastPriceUpdate = block.timestamp;
     }
 
     // ═══════ Admin Functions ═══════
@@ -110,12 +108,6 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         emit DiscountUpdated("vault", bytes32(uint256(uint160(vault))), discountBps);
     }
 
-    function setPolicyDiscount(bytes32 productId, uint256 discountBps) external onlyOwner {
-        require(discountBps <= MAX_DISCOUNT_BPS, "Discount exceeds max");
-        policyDiscountBps[productId] = discountBps;
-        emit DiscountUpdated("policy", productId, discountBps);
-    }
-
     function setDailyBudget(uint256 amountUsd6dec) external onlyOwner {
         dailyBudgetUsd6dec = amountUsd6dec;
         emit BudgetUpdated(amountUsd6dec);
@@ -125,8 +117,12 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         buyingVaults = enabled;
     }
 
-    function setBuyingPolicies(bool enabled) external onlyOwner {
-        buyingPolicies = enabled;
+    /// @notice Admin must call this periodically to confirm oracle price is fresh
+    function refreshPriceTimestamp() external onlyOwner {
+        uint256 price = priceOracle.getPrice();
+        require(price > 0, "Oracle price zero");
+        lastPriceUpdate = block.timestamp;
+        emit PriceUpdated(block.timestamp);
     }
 
     function depositLumina(uint256 amount) external onlyOwner {
@@ -159,8 +155,8 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         view
         returns (uint256 luminaAmount, uint256 usdValue, uint256 discountBps)
     {
-        address vault = vaultShareNFT.getVault(nftTokenId);
-        discountBps = vaultDiscountBps[vault];
+        IVaultShareNFT.Position memory position = vaultShareNFT.getPosition(nftTokenId);
+        discountBps = vaultDiscountBps[position.vault];
         require(discountBps > 0, "No discount set for vault");
 
         uint256 fullValue = vaultShareNFT.getValue(nftTokenId);
@@ -168,23 +164,15 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         luminaAmount = priceOracle.usdToLumina(usdValue);
     }
 
-    /// @notice Get a quote for selling a Policy NFT to the protocol
-    /// @param nftTokenId The token ID of the Policy NFT
-    /// @return luminaAmount Amount of LUMINA the seller would receive (18 dec)
-    /// @return usdValue The discounted USD value (6 dec)
-    /// @return discountBps The discount applied in basis points
-    function getQuotePolicy(uint256 nftTokenId)
+    /// @notice Policy NFT instant liquidity is not yet supported
+    function getQuotePolicy(
+        uint256 /* nftTokenId */
+    )
         external
-        view
-        returns (uint256 luminaAmount, uint256 usdValue, uint256 discountBps)
+        pure
+        returns (uint256, uint256, uint256)
     {
-        bytes32 productId = policyNFT.getProductId(nftTokenId);
-        discountBps = policyDiscountBps[productId];
-        require(discountBps > 0, "No discount set for product");
-
-        uint256 remainingUsd = _getPolicyRemainingValue(nftTokenId);
-        usdValue = remainingUsd * (10_000 - discountBps) / 10_000;
-        luminaAmount = priceOracle.usdToLumina(usdValue);
+        revert("Not yet supported");
     }
 
     // ═══════ Seller Functions ═══════
@@ -194,9 +182,18 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
     function sellVaultNFT(uint256 nftTokenId) external nonReentrant whenNotPaused {
         require(buyingVaults, "Vault buying disabled");
 
-        address vault = vaultShareNFT.getVault(nftTokenId);
-        uint256 discountBps = vaultDiscountBps[vault];
+        // FIX 1: Use getPosition() instead of non-existent getVault()
+        IVaultShareNFT.Position memory position = vaultShareNFT.getPosition(nftTokenId);
+        uint256 discountBps = vaultDiscountBps[position.vault];
         require(discountBps > 0, "No discount set for vault");
+
+        // FIX 2: Flash loan protection — position must be at least MIN_SELL_AGE old
+        require(block.timestamp - position.depositedAt >= MIN_SELL_AGE, "Position too recent");
+
+        // FIX 3: Oracle staleness check
+        uint256 price = priceOracle.getPrice();
+        require(price > 0, "Oracle price zero");
+        require(block.timestamp - lastPriceUpdate <= MAX_PRICE_AGE, "Oracle price stale");
 
         uint256 fullValue = vaultShareNFT.getValue(nftTokenId);
         uint256 usdValue = fullValue * (10_000 - discountBps) / 10_000;
@@ -218,34 +215,14 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
         emit VaultNFTSold(msg.sender, nftTokenId, luminaAmount, usdValue, discountBps);
     }
 
-    /// @notice Sell a Policy NFT to the protocol for instant LUMINA
-    /// @param nftTokenId The token ID of the Policy NFT to sell
-    function sellPolicyNFT(uint256 nftTokenId) external nonReentrant whenNotPaused {
-        require(buyingPolicies, "Policy buying disabled");
-
-        bytes32 productId = policyNFT.getProductId(nftTokenId);
-        uint256 discountBps = policyDiscountBps[productId];
-        require(discountBps > 0, "No discount set for product");
-
-        uint256 remainingUsd = _getPolicyRemainingValue(nftTokenId);
-        require(remainingUsd > 0, "Policy has no remaining value");
-        uint256 usdValue = remainingUsd * (10_000 - discountBps) / 10_000;
-
-        _checkAndResetDaily();
-        require(dailySpentUsd6dec + usdValue <= dailyBudgetUsd6dec, "Daily budget exceeded");
-        dailySpentUsd6dec += usdValue;
-
-        uint256 luminaAmount = priceOracle.usdToLumina(usdValue);
-        require(luminaAmount > 0, "Quote is zero");
-        require(luminaToken.balanceOf(address(this)) >= luminaAmount, "Insufficient LUMINA balance");
-
-        // Transfer NFT from seller to this contract
-        policyNFT.transferFrom(msg.sender, address(this), nftTokenId);
-
-        // Pay seller in LUMINA
-        luminaToken.safeTransfer(msg.sender, luminaAmount);
-
-        emit PolicyNFTSold(msg.sender, nftTokenId, luminaAmount, usdValue, discountBps);
+    /// @notice Policy NFT instant liquidity is not yet supported
+    function sellPolicyNFT(
+        uint256 /* nftTokenId */
+    )
+        external
+        pure
+    {
+        revert("Not yet supported");
     }
 
     // ═══════ Internal Functions ═══════
@@ -257,20 +234,5 @@ contract InstantLiquidity is Ownable, ReentrancyGuard, Pausable {
             dailySpentUsd6dec = 0;
             lastResetDay = currentDay;
         }
-    }
-
-    /// @dev Calculates remaining value of a policy: premium * timeRemaining / totalDuration
-    function _getPolicyRemainingValue(uint256 nftTokenId) internal view returns (uint256) {
-        uint256 premium = policyNFT.getPremium(nftTokenId);
-        uint256 startTime = policyNFT.getStartTime(nftTokenId);
-        uint256 endTime = policyNFT.getEndTime(nftTokenId);
-
-        require(endTime > startTime, "Invalid policy duration");
-        if (block.timestamp >= endTime) return 0;
-
-        uint256 totalDuration = endTime - startTime;
-        uint256 timeRemaining = endTime - block.timestamp;
-
-        return premium * timeRemaining / totalDuration;
     }
 }
