@@ -59,7 +59,6 @@ Step 3 — Get a price quote:
   Note: Quotes expire in 5 minutes (300 seconds).
   Required "asset" field: "BTC" for BCS, "ETH" for EAS/IL/EXPLOIT.
   Required "stablecoin" field for DEPEG: "USDT" or "DAI" (not "USDC").
-  Note: Quotes expire in 5 minutes (300 seconds).
 
 Step 4 — Buy a policy:
   curl -X POST https://lumina-protocol-production.up.railway.app/api/v2/purchase \
@@ -595,7 +594,7 @@ COMMON ERRORS AND REMEDIES:
 10. SECURITY
 ════════════════════════════════════════════════════════════
 
-Smart Contracts: 240 tests passing. Solidity 0.8.20. CEI pattern. SafeERC20. ReentrancyGuard.
+Smart Contracts: 282 tests passing. Solidity 0.8.20. CEI pattern. SafeERC20. ReentrancyGuard.
 Governance: TimelockController (delay configurable, currently 0 — pending increase to 48h) + Gnosis Safe (2-of-3 multisig).
 Oracle: LuminaOracleV2 — NOT upgradeable (Ownable). Multisig-capable (N-of-M). Chainlink spot price verified via EIP-712 signed proof. L2 sequencer uptime check (1h grace).
 PhalaVerifier: LuminaPhalaVerifier — NOT upgradeable (Ownable, admin-curated worker EOA list). Phala worker ECDSA signature verification (admin-curated worker list — not hardware attestation).
@@ -697,6 +696,15 @@ policies = requests.get(f"{API}/policies", params={
     "buyer": "0xYourAgentWallet"
 }).json()
 
+# 5. Flash BTC 24h quote example
+flash_quote = requests.post(f"{API}/quote", json={
+    "productId": "FLASH-BTC",
+    "coverageAmount": 10000000000,
+    "durationSeconds": 86400,
+    "asset": "BTC",
+    "buyer": "0xYourAgentWallet"
+}).json()
+
 
 JAVASCRIPT (Node.js / fetch):
 
@@ -731,6 +739,19 @@ const purchaseRes = await fetch(`${API}/purchase`, {
 });
 const policy = await purchaseRes.json();
 
+// 4. Flash ETH 48h quote example
+const flashQuote = await fetch(`${API}/quote`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    productId: "FLASH-ETH",
+    coverageAmount: 10000000000,
+    durationSeconds: 172800,
+    asset: "ETH",
+    buyer: "0xYourWallet"
+  })
+});
+
 
 VAULT INTERACTION (ethers.js — on-chain, not API):
 
@@ -755,7 +776,8 @@ const VAULTS = {
   VolatileShort: "0xbd44547581b92805aAECc40EB2809352b9b2880d",
   VolatileLong:  "0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904",
   StableShort:   "0x429b6d7d6a6d8A62F616598349Ef3C251e2d54fC",
-  StableLong:    "0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c"
+  StableLong:    "0x1778240E1d69BEBC8c0988BF1948336AA0Ea321c",
+  FlashVault:    "0x65D22E9BfE79306433Bf93Da9B0e5b626b8D021b"
 };
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
@@ -843,6 +865,6 @@ Sales: labs@lumina-org.com
 VERIFICATION
 ════════════════════════════════════════════════════════════
 
-Every data point in this SKILL was extracted from the source code on April 12, 2026.
+Every data point in this SKILL was extracted from the source code on April 13, 2026.
 Sources: api/src/index.js, src/libraries/PremiumMath.sol, src/core/CoverRouter.sol,
-src/vaults/BaseVault.sol, src/products/*.sol, docs/PRODUCTION-ADDRESSES.md, lib/lumina-config.ts
+src/vaults/BaseVault.sol, src/products/*.sol (including Flash shields), docs/PRODUCTION-ADDRESSES.md, lib/lumina-config.ts
