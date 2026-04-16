@@ -10,6 +10,11 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 /// @dev Distribution: 82% BondVault | 5% LBP | 10% Founder | 3% Treasury
 ///      No mint function. Supply only decreases via burn.
 ///      BURNER_ROLE allows the TWAPBurner contract to burn tokens.
+///
+///      [L-10] WARNING: Renouncing DEFAULT_ADMIN_ROLE permanently locks
+///      BURNER_ROLE management. If TWAPBurner is ever replaced, the new
+///      burner cannot be granted the role. Only renounce after final
+///      TWAPBurner deployment is confirmed stable.
 contract LuminaTokenV2 is ERC20, ERC20Burnable, AccessControl {
     uint256 public constant MAX_SUPPLY = 100_000_000 * 1e18;
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");

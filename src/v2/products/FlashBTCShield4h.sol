@@ -16,6 +16,10 @@ import {BaseShield} from "../../products/BaseShield.sol";
  * PAYOUT: Binary — 80% of coverage (20% deductible).
  * DURATION: Fixed 4h. No waiting period.
  * ASSET: BTC only.
+ *
+ * @dev [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
+ *      BaseShield.onlyRouter restricts createPolicy() to the router address.
+ *      In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
  */
 contract FlashBTCShield4h is BaseShield {
     bytes32 public constant PRODUCT_ID = keccak256("FLASHBTC4H-001");

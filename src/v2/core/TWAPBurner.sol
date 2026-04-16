@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title TWAPBurner
 /// @notice Receives USDC from premiums and marketplace fees.
@@ -31,11 +32,23 @@ interface IBurnable {
     function burn(uint256 amount) external;
 }
 
+/// @dev [H-2] IPriceOracle used by CapacityOracle — enables slippage protection in executeBurn.
+interface IPriceOracle {
+    function getLuminaPrice() external view returns (uint256);
+}
+
 contract TWAPBurner is Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20; // [M-3] SafeERC20 for recoverToken
+
     // ═══════ IMMUTABLES ═══════
     IERC20 public immutable usdc;
     IERC20 public immutable lumina;
     ISwapRouter public immutable swapRouter;
+
+    // ═══════ [H-2] SLIPPAGE PROTECTION ═══════
+    /// @notice Optional CapacityOracle address. When set, executeBurn derives
+    ///         amountOutMin from the oracle price × (1 - maxSlippageBps).
+    address public capacityOracle;
 
     // ═══════ CONFIG (adjustable by owner = Gnosis Safe) ═══════
     uint24 public poolFee = 10000;           // 1% fee tier (new volatile token)
@@ -116,11 +129,23 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         // Approve router
         usdc.approve(address(swapRouter), amountToSwap);
 
-        // Calculate minimum output with slippage protection
-        // We don't know the exact price here, so we use 0 for amountOutMinimum
-        // and rely on the Uniswap pool's built-in price impact protection
-        // In production, a keeper with off-chain price feed would set this properly
-        uint256 amountOutMin = 0; // keeper should set via separate function in prod
+        // [H-2] Slippage protection via CapacityOracle.
+        // Compute expected LUMINA out from oracle price and apply maxSlippageBps.
+        // Falls back to 0 (Uniswap-only protection) if oracle not set yet,
+        // to avoid locking the burner if oracle deploys after.
+        uint256 amountOutMin = 0;
+        if (capacityOracle != address(0)) {
+            try IPriceOracle(capacityOracle).getLuminaPrice() returns (uint256 oraclePrice) {
+                if (oraclePrice > 0) {
+                    // amountToSwap is 6-dec USDC. Scale to 18-dec USD: × 1e12.
+                    // Expected LUMINA (18-dec) = (USDC18 × 1e18) / price(18-dec).
+                    uint256 expectedOut = (amountToSwap * 1e12 * 1e18) / oraclePrice;
+                    amountOutMin = (expectedOut * (10_000 - maxSlippageBps)) / 10_000;
+                }
+            } catch {
+                // Oracle reverted — fall back to amountOutMin = 0
+            }
+        }
 
         // Execute swap: USDC → LUMINA
         uint256 luminaReceived = swapRouter.exactInputSingle(
@@ -187,6 +212,13 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         authorizedSenders[sender] = authorized;
     }
 
+    /// @notice [H-2] Set the CapacityOracle address. Enables slippage protection on executeBurn.
+    function setCapacityOracle(address _oracle) external onlyOwner {
+        require(_oracle != address(0), "Zero oracle");
+        capacityOracle = _oracle;
+        emit ConfigUpdated("capacityOracle", uint256(uint160(_oracle)));
+    }
+
     // ═══════ VIEW FUNCTIONS ═══════
 
     function pendingUSDC() external view returns (uint256) {
@@ -222,6 +254,6 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     function recoverToken(address token, uint256 amount) external onlyOwner {
         require(token != address(usdc), "Cannot recover USDC");
         require(token != address(lumina), "Cannot recover LUMINA");
-        IERC20(token).transfer(owner(), amount);
+        IERC20(token).safeTransfer(owner(), amount); // [M-3] SafeERC20
     }
 }

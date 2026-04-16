@@ -17,6 +17,10 @@ import {BaseShield} from "../../products/BaseShield.sol";
  * PAYOUT: Binary — 80% of coverage (20% deductible).
  * DURATION: Fixed 7 days. No waiting period.
  * ASSET: USDC (for reference only; does not read Chainlink).
+ *
+ * @dev [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
+ *      BaseShield.onlyRouter restricts createPolicy() to the router address.
+ *      In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
  */
 
 interface IAaveV3Pool {

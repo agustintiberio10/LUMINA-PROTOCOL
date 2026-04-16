@@ -156,7 +156,8 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         usdc.safeTransferFrom(payer, address(this), premium);
 
         // Send 100% to TWAPBurner for burn
-        usdc.approve(address(twapBurner), premium);
+        // [M-4] Use forceApprove to handle USDC-style approve-from-nonzero race.
+        usdc.forceApprove(address(twapBurner), premium);
         twapBurner.receivePremium(premium);
 
         // Record policy in PolicyManager
@@ -184,6 +185,7 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         uint32 _durationSeconds,
         bool _active
     ) external onlyOwner {
+        require(_durationSeconds > 0, "Duration must be > 0"); // [L-?] prevents duration=0 sentinel confusion
         if (products[_productId].durationSeconds == 0) {
             productList.push(_productId);
         }

@@ -24,8 +24,9 @@ interface IUniswapV3Pool {
 contract CapacityOracle is Ownable {
     // ═══════ STATE ═══════
     address public pool;               // Uniswap V3 LUMINA/USDC pool
-    address public luminaToken;
-    address public usdcToken;
+    // [M-7] luminaToken and usdcToken are set once in constructor, never rewritten → immutable
+    address public immutable luminaToken;
+    address public immutable usdcToken;
     uint32 public twapWindow = 1800;   // 30 minutes default
     uint256 public emergencyPrice;     // fallback price if TWAP fails (18 decimals)
     bool public isToken0Lumina;        // whether LUMINA is token0 in the pool

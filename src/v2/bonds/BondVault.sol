@@ -39,10 +39,12 @@ contract BondVault is ReentrancyGuard {
     uint256 public constant MIN_PRICE = 0.005e18;         // $0.005 circuit breaker
     uint256 public constant RESET_PRICE = 0.008e18;       // $0.008 hysteresis reset
     uint256 public constant MIN_REDEEM_PRICE = 0.001e18;  // absolute floor for redemption
+    uint256 public constant BREAKER_COOLDOWN = 1 hours;   // [H-3] min wait between breaker trigger and reset
 
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds
     bool public paused; // circuit breaker — only blocks new issuance, NEVER blocks redemption
+    uint256 public lastBreakerTriggerTime; // [H-3] timestamp of most recent breaker activation
 
     // ═══════ EVENTS ═══════
     event BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount);
@@ -89,6 +91,7 @@ contract BondVault is ReentrancyGuard {
         uint256 currentPrice = priceOracle.getLuminaPrice();
         if (currentPrice < MIN_PRICE) {
             paused = true;
+            lastBreakerTriggerTime = block.timestamp; // [H-3] record activation time
             emit CircuitBreakerTriggered(currentPrice);
             revert("Price below circuit breaker");
         }
@@ -142,9 +145,14 @@ contract BondVault is ReentrancyGuard {
     // ═══════ CIRCUIT BREAKER ═══════
 
     /// @notice Reset circuit breaker when price recovers to $0.008 (hysteresis).
-    /// @dev Anyone can call. Permissionless.
+    /// @dev [H-3] Permissionless but enforces BREAKER_COOLDOWN (1 hour) between trigger
+    ///      and reset to prevent flap-attacks on thin-liquidity spot flashes.
     function resetCircuitBreaker() external {
         require(paused, "Not paused");
+        require(
+            block.timestamp >= lastBreakerTriggerTime + BREAKER_COOLDOWN,
+            "Cooldown active"
+        );
         uint256 currentPrice = priceOracle.getLuminaPrice();
         require(currentPrice >= RESET_PRICE, "Price not recovered enough");
         paused = false;

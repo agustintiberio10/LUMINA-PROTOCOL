@@ -32,8 +32,7 @@ interface IShieldV2 {
         bytes32 asset;
         bytes32 stablecoin;
         address protocol;
-        uint256 deadline;
-        uint256 nonce;
+        bytes extraData; // [C-1] aligned with IShield.CreatePolicyParams
     }
 
     struct PayoutResult {
@@ -46,7 +45,8 @@ interface IShieldV2 {
 
 contract PolicyManagerV2 is Ownable {
     // ═══════ STATE ═══════
-    IBondVault public bondVault;
+    // [L-9] immutable: bondVault is set-once at construction, never rewritten
+    IBondVault public immutable bondVault;
     address public router; // only CoverRouterV2 can call
 
     // Product registry
@@ -144,7 +144,12 @@ contract PolicyManagerV2 is Ownable {
         uint256 available = bondVault.availableCapacityUSD();
         if (available < payoutAmount) revert InsufficientCapacity(payoutAmount, available);
 
+        // [M-1] CEI: increment counters BEFORE external call
+        totalPolicies++;
+        activePolicies++;
+
         // Create policy in the shield
+        // [C-1] CreatePolicyParams struct now matches IShield (extraData as bytes)
         address shield = productShield[productId];
         policyId = IShieldV2(shield).createPolicy(
             IShieldV2.CreatePolicyParams({
@@ -155,12 +160,11 @@ contract PolicyManagerV2 is Ownable {
                 asset: asset,
                 stablecoin: "USDC",
                 protocol: address(0),
-                deadline: block.timestamp + 300, // 5 min
-                nonce: totalPolicies + 1
+                extraData: ""
             })
         );
 
-        // Record locally
+        // Record locally (must happen after external call to obtain policyId)
         uint256 expiresAt = block.timestamp + durationSeconds;
         policies[productId][policyId] = PolicyRecord({
             productId: productId,
@@ -174,9 +178,6 @@ contract PolicyManagerV2 is Ownable {
             triggered: false,
             expired: false
         });
-
-        totalPolicies++;
-        activePolicies++;
 
         emit PolicyCreated(productId, policyId, buyer, coverageAmount, premiumAmount, payoutAmount);
     }
@@ -197,22 +198,23 @@ contract PolicyManagerV2 is Ownable {
         require(!pr.triggered, "Already triggered");
         require(!pr.expired, "Already expired");
 
-        // Verify trigger with the shield
-        address shield = pr.shield;
-        IShieldV2.PayoutResult memory result = IShieldV2(shield).verifyAndCalculate(policyId, oracleProof);
-
-        require(result.triggered, "Trigger not met");
-
-        // Mark as triggered
+        // [M-1] CEI: effects BEFORE interactions.
+        // If any external call below reverts, all effects revert too (atomic).
         pr.triggered = true;
         activePolicies--;
         totalTriggers++;
 
-        // Issue bond via BondVault (payout is in USD)
-        // Convert from USDC 6 decimals to whole USD for BondVault
+        // [M-6] Enforce non-zero USD payout before external call
         uint256 payoutUSD = pr.payoutAmount / 1e6;
-        bondVault.issueBond(pr.buyer, payoutUSD);
+        require(payoutUSD > 0, "Payout too small for bond issuance");
         totalBondsIssuedUSD += payoutUSD;
+
+        // External interactions (last)
+        address shield = pr.shield;
+        IShieldV2.PayoutResult memory result = IShieldV2(shield).verifyAndCalculate(policyId, oracleProof);
+        require(result.triggered, "Trigger not met");
+
+        bondVault.issueBond(pr.buyer, payoutUSD);
 
         emit PolicyTriggered(productId, policyId, pr.buyer, payoutUSD, result.reason);
     }
