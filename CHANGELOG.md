@@ -16,7 +16,7 @@
 - FounderVesting (AltSeason conditions)
 - TreasuryVesting (6-month lock)
 - 5 new shield contracts (Flash 1h, 4h, Micro Depeg, Rate Shock)
-- SKILL V4.0 as single source of truth
+- SKILL V4.1 as single source of truth
 
 ### Archived
 - 6 vault contracts

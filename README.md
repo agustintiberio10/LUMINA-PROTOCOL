@@ -18,11 +18,11 @@ Parametric risk speculation for humans and AI agents on Base L2.
 - `src/` — Active V2 contracts (ClaimBond model)
 - `src/v2/` — New contracts (in development)
 - `api/` — REST API (Railway)
-- `docs/` — Current documentation (SKILL V4.0)
+- `docs/` — Current documentation (SKILL V4.1)
 - `archive/` — V1 vault model (preserved for transparency)
 
 ## Documentation
-See [SKILL V4.0](docs/SKILL-V4.0.md) for the complete protocol specification.
+See [SKILL V4.1](docs/SKILL-V4.1.md) for the complete protocol specification.
 
 ## Chain
 Base L2 (Chain ID: 8453)
