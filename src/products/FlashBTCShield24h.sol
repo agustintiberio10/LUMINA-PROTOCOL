@@ -8,11 +8,11 @@ import {BaseShield} from "./BaseShield.sol";
 /**
  * @title FlashBTCShield24h
  * @author Lumina Protocol
- * @notice Parametric insurance: pays 80% if BTC drops >18% within a fixed 24h window.
+ * @notice Parametric insurance: pays 80% if BTC drops >10% within a fixed 24h window.
  *
  * PRODUCT: FLASHBTC24-001
  * RISK TYPE: VOLATILE
- * TRIGGER: Price drops >18% from the exact price at policy issuance block.
+ * TRIGGER: Price drops >10% from the exact price at policy issuance block.
  *          Verified via EIP-712 typed PriceProof signed by the oracle backend
  *          over the latest Chainlink round.
  * PAYOUT: Binary — 80% of coverage (20% deductible).
@@ -42,7 +42,7 @@ contract FlashBTCShield24h is BaseShield {
     uint32 public constant WAITING_PERIOD = 0; // No waiting period
 
     uint256 public constant DEDUCTIBLE_BPS = 2000; // 20% deductible → 80% max payout
-    uint256 public constant TRIGGER_DROP_BPS = 1800; // 18% drop
+    uint256 public constant TRIGGER_DROP_BPS = 1000; // 10% drop
     uint256 private constant BPS = 10_000;
 
     /// @notice Max age of oracle proof (prevents stale proofs)
@@ -55,7 +55,7 @@ contract FlashBTCShield24h is BaseShield {
     struct BSSData {
         bytes32 asset; // "BTC"
         int256 strikePrice; // Price at issuance (Chainlink 8 decimals)
-        int256 triggerPrice; // strikePrice × (100 - 18) / 100
+        int256 triggerPrice; // strikePrice × (100 - 10) / 100
     }
 
     mapping(uint256 => BSSData) private _bssData;
@@ -111,7 +111,7 @@ contract FlashBTCShield24h is BaseShield {
         int256 currentPrice = IOracle(oracle).getLatestPrice(params.asset);
         if (currentPrice <= 0) revert InvalidOracleProof();
 
-        // Calculate trigger price: strikePrice × (100 - 18) / 100 = strikePrice × 82 / 100
+        // Calculate trigger price: strikePrice × (100 - 10) / 100 = strikePrice × 90 / 100
         int256 trigger = (currentPrice * int256(BPS - TRIGGER_DROP_BPS)) / int256(BPS);
 
         _bssData[policyId] = BSSData({asset: params.asset, strikePrice: currentPrice, triggerPrice: trigger});
@@ -158,7 +158,7 @@ contract FlashBTCShield24h is BaseShield {
 
         // Trigger met — binary payout at 80% of coverage
         result = PayoutResult({
-            triggered: true, payoutAmount: cp.maxPayout, recipient: cp.insuredAgent, reason: "FLASHBTC24_CRASH"
+            triggered: true, payoutAmount: cp.maxPayout, recipient: cp.insuredAgent, reason: "FLASHBTC24_DROP10"
         });
     }
 

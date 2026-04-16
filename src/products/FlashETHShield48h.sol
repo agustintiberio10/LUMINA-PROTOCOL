@@ -42,7 +42,7 @@ contract FlashETHShield48h is BaseShield {
     uint32 public constant WAITING_PERIOD = 0; // No waiting period
 
     uint256 public constant DEDUCTIBLE_BPS = 2000; // 20% deductible → 80% max payout
-    uint256 public constant TRIGGER_DROP_BPS = 2800; // 28% drop
+    uint256 public constant TRIGGER_DROP_BPS = 1800; // 18% drop
     uint256 private constant BPS = 10_000;
 
     /// @notice Max age of oracle proof (prevents stale proofs)
@@ -55,7 +55,7 @@ contract FlashETHShield48h is BaseShield {
     struct BSSData {
         bytes32 asset; // "ETH"
         int256 strikePrice; // Price at issuance (Chainlink 8 decimals)
-        int256 triggerPrice; // strikePrice × (100 - 28) / 100
+        int256 triggerPrice; // strikePrice × (100 - 18) / 100
     }
 
     mapping(uint256 => BSSData) private _bssData;
@@ -158,7 +158,7 @@ contract FlashETHShield48h is BaseShield {
 
         // Trigger met — binary payout at 80% of coverage
         result = PayoutResult({
-            triggered: true, payoutAmount: cp.maxPayout, recipient: cp.insuredAgent, reason: "FLASHETH48_CRASH"
+            triggered: true, payoutAmount: cp.maxPayout, recipient: cp.insuredAgent, reason: "FLASHETH48_DROP18"
         });
     }
 
