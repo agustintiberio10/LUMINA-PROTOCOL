@@ -30,7 +30,7 @@
 
 | Type | Count | Recommendation |
 |------|-------|---------------|
-| SKILL files | 6 versions across repos | Keep only LUMINA-PROTOCOL/docs/SKILL-V3.0.md as source of truth |
+| SKILL files | 6 versions across repos | Keep only LUMINA-PROTOCOL/docs/SKILL-V4.0.md as source of truth |
 | Whitepapers | 4 duplicate PDFs with (1)(2)(3) suffixes | Delete duplicates |
 | Security reports | 4 copies in landing public/ | Delete from public/ (keep in LP/docs/) |
 | Whitepaper ES V3 md | 3 copies (LP docs, landing public, landing public (1)) | Keep 1, delete rest |
