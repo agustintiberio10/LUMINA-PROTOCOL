@@ -140,9 +140,12 @@ contract PolicyManagerV2 is Ownable {
         if (!productActive[productId]) revert ProductNotActive(productId);
 
         // Check BondVault capacity (can we back this policy if it triggers?)
-        uint256 payoutAmount = (coverageAmount * 8000) / 10000; // 80% payout
-        uint256 available = bondVault.availableCapacityUSD();
-        if (available < payoutAmount) revert InsufficientCapacity(payoutAmount, available);
+        // [SR3] Compare in MATCHING units. payoutAmount is USDC 6-dec; availableCapacityUSD
+        // returns INTEGER dollars. Convert payout to integer $ for the comparison.
+        uint256 payoutAmount = (coverageAmount * 8000) / 10000; // 6-dec USDC
+        uint256 payoutUSD = payoutAmount / 1e6;                 // integer dollars
+        uint256 available = bondVault.availableCapacityUSD();   // integer dollars
+        if (available < payoutUSD) revert InsufficientCapacity(payoutUSD, available);
 
         // [M-1] CEI: increment counters BEFORE external call
         totalPolicies++;
