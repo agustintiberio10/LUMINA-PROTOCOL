@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.0.0] - April 2026 — ClaimBond Pivot
+### Breaking Changes
+- Complete model change from vault-based insurance to ClaimBond speculation
+- All vault contracts archived (see `archive/v1-vault-model/`)
+- 11 old product shields archived, 9 new products
+- New token (LuminaTokenV2) with 82/10/5/3 distribution
+- 100% premium burn (was vault-based yield distribution)
+
+### Added
+- ClaimBond model (ERC-1155, 24-month maturity, USD-denominated)
+- BondVault (immutable, no owner)
+- TWAPBurner (distributed buy & burn)
+- CapacityOracle (dynamic capacity formula)
+- FounderVesting (AltSeason conditions)
+- TreasuryVesting (6-month lock)
+- 5 new shield contracts (Flash 1h, 4h, Micro Depeg, Rate Shock)
+- SKILL V4.0 as single source of truth
+
+### Archived
+- 6 vault contracts
+- 11 old shield contracts
+- InstantLiquidity, VaultShareNFT, old LuminaMarketplace
+- LuminaToken V1, AltSeasonVesting, LuminaMerkleClaim
+- All V1 documentation moved to `archive/`
+
 ## [Unreleased] — V2 Oracle Migration
 ### Added
 - **LuminaOracleV2** with EIP-712 domain-separated proof verification. The EIP-712 domain pins every proof to (`chainId = 8453`, `verifyingContract = LuminaOracleV2 address`), eliminating cross-chain and cross-contract replay vectors identified in the oracle audit.
