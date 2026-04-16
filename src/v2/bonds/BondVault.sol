@@ -89,17 +89,15 @@ contract BondVault is ReentrancyGuard {
         require(usdPayout > 0, "Zero payout");
 
         uint256 currentPrice = priceOracle.getLuminaPrice();
-        if (currentPrice < MIN_PRICE) {
-            paused = true;
-            lastBreakerTriggerTime = block.timestamp; // [H-3] record activation time
-            emit CircuitBreakerTriggered(currentPrice);
-            revert("Price below circuit breaker");
-        }
+        // [SR3] Price-below-floor: revert only (state change before revert would be
+        // discarded by EVM). Persistent pause is via the separate triggerBreaker() fn.
+        require(currentPrice >= MIN_PRICE, "Price below circuit breaker");
 
         uint256 reserveBalance = lumina.balanceOf(address(this));
         uint256 reserveValueUSD = (reserveBalance * currentPrice) / 1e18;
         uint256 maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000;
-        require(totalCommittedUSD + usdPayout <= maxCommitUSD, "Exceeds capacity");
+        // [V3/SR2] Compare in matching 18-dec USD-wei units.
+        require(totalCommittedUSD + (usdPayout * 1e18) <= maxCommitUSD, "Exceeds capacity");
 
         uint256 maturityTimestamp = block.timestamp + BOND_MATURITY_SECONDS;
         uint256 epochId = _timestampToEpoch(maturityTimestamp);
@@ -151,6 +149,19 @@ contract BondVault is ReentrancyGuard {
     }
 
     // ═══════ CIRCUIT BREAKER ═══════
+
+    /// @notice [SR3] Permissionless trigger for persistent pause.
+    /// @dev Anyone can call. If current price is below MIN_PRICE, sets paused=true.
+    ///      This is separate from issueBond() because a revert inside issueBond
+    ///      would discard the state change. This function lets the state persist.
+    function triggerBreaker() external {
+        require(!paused, "Already paused");
+        uint256 currentPrice = priceOracle.getLuminaPrice();
+        require(currentPrice < MIN_PRICE, "Price above floor");
+        paused = true;
+        lastBreakerTriggerTime = block.timestamp;
+        emit CircuitBreakerTriggered(currentPrice);
+    }
 
     /// @notice Reset circuit breaker when price recovers to $0.008 (hysteresis).
     /// @dev [H-3] Permissionless but enforces BREAKER_COOLDOWN (1 hour) between trigger

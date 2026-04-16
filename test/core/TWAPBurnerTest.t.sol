@@ -41,6 +41,9 @@ contract TWAPBurnerTest is Test {
     address coverRouter = makeAddr("coverRouter");
 
     function setUp() public {
+        // [SR3] Warp past initial cooldown (default burnCooldown=900s vs ts=1)
+        vm.warp(1000);
+
         // Deploy mock USDC
         MockERC20 mockUsdc = new MockERC20("USDC", "USDC", 6);
         usdc = address(mockUsdc);

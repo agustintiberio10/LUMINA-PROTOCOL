@@ -112,19 +112,20 @@ contract CapacityOracle is Ownable {
 
     // ═══════ CAPACITY VIEW (informational) ═══════
 
-    /// @notice Estimated max policies per day at current price.
+    /// @notice Estimated max policies per day at current price (integer count).
+    /// @dev [SR3] Returns INTEGER policies (not 18-dec scaled). reserveValueUSD is
+    ///      in 18-dec USD (dollar-wei); dailyCommitUSD is integer dollars. Result of
+    ///      the division is 18-dec policies-scaled, so divide by 1e18 at the end.
     function maxPoliciesPerDay() external view returns (uint256) {
         uint256 price = this.getLuminaPrice();
         if (price == 0) return 0;
         // max = (BOND_RESERVE * SAFETY_FACTOR * price) / (AVG_PAYOUT * MATURITY * AVG_TRIGGER)
-        // = (82M * 0.50 * price) / (500 * 730 * 0.01)
-        // = 41M * price / 3650
-        // Simplified with 18 decimal price:
-        uint256 reserveValueUSD = (BOND_RESERVE * price) / 1e18;
-        uint256 maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000;
-        uint256 dailyCommitUSD = (AVG_PAYOUT_USD * AVG_TRIGGER_RATE_BPS) / 10000;
+        // BOND_RESERVE is 18-dec LUMINA wei, price is 18-dec USD/LUMINA.
+        uint256 reserveValueUSD = (BOND_RESERVE * price) / 1e18;       // 18-dec USD
+        uint256 maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000; // 18-dec USD
+        uint256 dailyCommitUSD = (AVG_PAYOUT_USD * AVG_TRIGGER_RATE_BPS) / 10000; // integer $
         if (dailyCommitUSD == 0) return type(uint256).max;
-        return maxCommitUSD / (MATURITY_DAYS * dailyCommitUSD);
+        return maxCommitUSD / (MATURITY_DAYS * dailyCommitUSD) / 1e18; // integer policies
     }
 
     // ═══════ ADMIN (owner = Gnosis Safe in prod) ═══════

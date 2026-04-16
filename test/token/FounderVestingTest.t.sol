@@ -117,15 +117,23 @@ contract FounderVestingTest is Test {
         // Tranche 1 — immediately
         vesting.releaseTranche();
         assertEq(vesting.tranchesReleased(), 1);
-        assertEq(token.balanceOf(founder), 3_333_333 * 1e18);
+        // [SR3] TRANCHE_AMOUNT = TOTAL_AMOUNT / 3 = integer division of 10M*1e18 / 3.
+        // Compute at runtime so the test matches the actual integer-division result.
+        uint256 total = 10_000_000 * 1e18;
+        uint256 tranche = total / 3;
+        assertEq(token.balanceOf(founder), tranche);
+
+        // [SR3] Use explicit absolute timestamps anchored to the trigger event
+        // to avoid any Foundry warp-composition quirk with `block.timestamp + X`.
+        uint256 tts = vesting.triggerTimestamp();
 
         // Tranche 2 — after 31 days
-        vm.warp(block.timestamp + 31 days);
+        vm.warp(tts + 31 days + 1);
         vesting.releaseTranche();
         assertEq(vesting.tranchesReleased(), 2);
 
-        // Tranche 3 — after another 31 days
-        vm.warp(block.timestamp + 31 days);
+        // Tranche 3 — after another 31 days (62 total from trigger)
+        vm.warp(tts + 62 days + 1);
         vesting.releaseTranche();
         assertEq(vesting.tranchesReleased(), 3);
         assertEq(token.balanceOf(founder), 10_000_000 * 1e18);
@@ -144,8 +152,9 @@ contract FounderVestingTest is Test {
         vesting.checkAltSeason();
         vesting.releaseTranche(); // tranche 1
 
+        // Tranche 2 is too early immediately after tranche 1 (needs +31 days)
         vm.expectRevert("Too early");
-        vesting.releaseTranche(); // tranche 2 too early
+        vesting.releaseTranche();
     }
 
     function test_fallback_at_4_years() public {

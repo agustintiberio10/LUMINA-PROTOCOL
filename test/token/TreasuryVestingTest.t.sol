@@ -80,18 +80,19 @@ contract TreasuryVestingTest is Test {
     }
 
     function test_cannot_exceed_total() public {
+        // [SR3] Use absolute warps anchored to deployedAt to avoid any Foundry
+        // composition quirk with repeated `block.timestamp + X`.
+        uint256 deployedAt = vesting.deployedAt();
+
         // Release all 12 months (3M / 250K = 12 months)
-        vm.warp(block.timestamp + 180 days);
-        for (uint256 i = 0; i < 11; i++) {
+        for (uint256 i = 0; i < 12; i++) {
+            vm.warp(deployedAt + 180 days + (i * 30 days));
             vesting.release(makeAddr("dest"), 250_000 * 1e18);
-            vm.warp(block.timestamp + 30 days);
         }
-        // Last release: only 250K remaining
-        vesting.release(makeAddr("dest"), 250_000 * 1e18);
         assertEq(vesting.totalReleased(), 3_000_000 * 1e18);
 
-        // No more
-        vm.warp(block.timestamp + 30 days);
+        // No more room even in the next month
+        vm.warp(deployedAt + 180 days + (12 * 30 days));
         vm.expectRevert("Exceeds total");
         vesting.release(makeAddr("dest"), 1);
     }
