@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {ERC1155Supply} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title ClaimBond
 /// @notice ERC-1155 bond tokens grouped by monthly maturity epoch.
@@ -11,7 +12,7 @@ import {ERC1155Supply} from "@openzeppelin/contracts/token/ERC1155/extensions/ER
 ///      Token ID format: YYYYMM (e.g., 202804 = April 2028).
 ///      Only BondVault can mint and burn. Transferable by anyone (for marketplace).
 ///      Bonds mature 100% at maturity date — no linear vesting, no partial unlock.
-contract ClaimBond is ERC1155, ERC1155Supply {
+contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
     address public bondVault;
     bool private _bondVaultSet;
 
@@ -29,10 +30,12 @@ contract ClaimBond is ERC1155, ERC1155Supply {
         _;
     }
 
-    constructor() ERC1155("") {}
+    constructor() ERC1155("") Ownable(msg.sender) {}
 
     /// @notice Set BondVault address ONCE. Resolves circular dependency.
-    function setBondVault(address _bondVault) external {
+    /// @dev [V1/SR2] onlyOwner: prevents deployment-frontrun attacks where a mempool
+    ///      observer could hijack the one-shot setter and permanently brick all mint/burn.
+    function setBondVault(address _bondVault) external onlyOwner {
         require(!_bondVaultSet, "Already set");
         require(_bondVault != address(0), "Zero address");
         bondVault = _bondVault;

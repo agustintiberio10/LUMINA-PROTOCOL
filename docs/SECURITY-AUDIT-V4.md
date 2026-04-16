@@ -396,3 +396,41 @@ If LUMINA drops 90% post-deploy to $0.0036, and 100% of bonds redeem at once:
 - End-to-end Foundry test pass (requires Linux/WSL with `forge` installed).
 - External adversarial audit (Zellic, Spearbit, or similar) pre-mainnet.
 
+---
+
+## Security Review Round 2 (2026-04-16, post-audit deep-dive)
+
+A second-pass review run after the initial fixes surfaced **4 new findings**. All fixed below.
+
+### V1 (HIGH) — `ClaimBond.setBondVault` was permissionless → deployment-frontrun brick
+**File:** `src/v2/bonds/ClaimBond.sol:35-41`. Any mempool observer could frontrun the legitimate `setBondVault` on Base and permanently lock an attacker-controlled address as the vault. Since the flag is one-shot and `BondVault.claimBond` is `immutable`, the entire protocol (mint/burn) would be bricked and the 82M LUMINA reserve unrecoverable.
+
+**Fix applied:** Added `Ownable(msg.sender)` to `ClaimBond` and `onlyOwner` modifier on `setBondVault`. Deployment-frontrun eliminated.
+
+### V2 (HIGH — PROTOCOL-BREAKING) — `BondVault.redeemBond` off-by-1e18 paying dust
+**File:** `src/v2/bonds/BondVault.sol:130`, `previewRedemption` line 175. Formula was `(usdAmount * 1e18) / currentPrice` — missing a second `1e18` factor. `usdAmount` is integer dollars, `currentPrice` is 18-dec USD per whole LUMINA, `lumina.transfer` expects 18-dec wei. Every redemption paid **1.6 × 10⁻¹⁶ LUMINA** where 1,600 LUMINA were intended.  Tests locked in the bug (assert 1,600 wei with comment "1,600 LUMINA").
+
+**Fix applied:** Formula changed to `(usdAmount * 1e36) / currentPrice` in both `redeemBond` and `previewRedemption`. All BondVaultTest assertions updated (now assert `1_600 * 1e18`, `80_000 * 1e18`, etc.).
+
+### V3 (HIGH) — `BondVault` capacity check unit mismatch (silent SAFETY_FACTOR bypass)
+**File:** `src/v2/bonds/BondVault.sol:99-102, 167, 179`. `totalCommittedUSD` accumulated integer-dollar `usdPayout`, while `maxCommitUSD` was in 18-decimal USD. `require(totalCommitted + payout <= maxCommit)` compared mixed units — allowed ~1e18× more commitments than the 50% SAFETY_FACTOR intended. Once V2 is fixed, this becomes a direct first-come-first-served drain vector.
+
+**Fix applied:** Normalized internal accounting to 18-dec USD-wei. `issueBond` now adds `usdPayout * 1e18`, `redeemBond` subtracts `usdAmount * 1e18`. `availableCapacityUSD` and `getStatus` views scale DOWN to integer dollars for API/frontend readability. Test `test_issueBond` / `test_partial_redeem` / `test_capacity_check` updated.
+
+### V4 (MEDIUM) — `TreasuryVesting` month-0 cap bypass
+**File:** `src/v2/token/TreasuryVesting.sol:45`. Guard `require(currentMonth > lastReleaseMonth || lastReleaseMonth == 0, ...)` used `lastReleaseMonth == 0` as a "first release" sentinel, which stayed true across the entire first 30 days post-lock (currentMonth = 0 during that window). Compromised owner could drain the full 3M in month 0, defeating the monthly-cap blast-radius limit.
+
+**Fix applied:** Sentinel changed to `totalReleased == 0`. New regression test `test_cannot_drain_month0` in `TreasuryVestingTest.t.sol`.
+
+### Additional cleanup (not flagged in SR2 but worth doing)
+- NatSpec drift on modified shields corrected: `FlashBTCShield48h` header now says "15%" (was "22%"), `FlashETHShield24h` says "12%" (was "20%"), `FlashETHShield48h` says "18%" (was "28%"). `FlashBTCShield24h` was already fixed in the earlier trigger-migration commit.
+
+### Post-fix slither verification
+- `BondVault.sol` — 4 pre-existing findings (divide-before-multiply false positives on reserveValueUSD math; weak-prng on block.timestamp in epoch derivation). No new regressions.
+- `ClaimBond.sol` — 9 findings, all in OZ `Math.mulDiv` library (false positives, standard pattern).
+- `TreasuryVesting.sol` — **0 findings**.
+
+### Updated risk score: **7/10**
+With SR2 fixes in place (and pending Foundry CI on Linux + external audit), the V2 contracts are no longer blocked by fund-loss bugs. Remaining risk categories are operational (deploy ordering, Gnosis Safe management, oracle TWAP window on thin-liquidity post-LBP). Pre-mainnet: still requires external adversarial audit.
+
+

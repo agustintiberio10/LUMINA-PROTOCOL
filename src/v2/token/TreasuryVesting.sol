@@ -41,7 +41,10 @@ contract TreasuryVesting is Ownable {
 
         // Calculate current month (0-indexed from end of lock)
         uint256 currentMonth = (block.timestamp - deployedAt - LOCK_DURATION) / MONTH;
-        require(currentMonth > lastReleaseMonth || lastReleaseMonth == 0, "Already released this month");
+        // [V4/SR2] Use totalReleased==0 as "never released" sentinel. Previous code used
+        // lastReleaseMonth==0 which collided with the valid state "currently in month 0",
+        // allowing unlimited releases within the first 30 days post-lock.
+        require(currentMonth > lastReleaseMonth || totalReleased == 0, "Already released this month");
 
         lastReleaseMonth = currentMonth;
         totalReleased += amount;

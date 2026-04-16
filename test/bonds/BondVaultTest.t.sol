@@ -47,7 +47,8 @@ contract BondVaultTest is Test {
 
     function test_issueBond() public {
         vault.issueBond(user, 800);
-        assertEq(vault.totalCommittedUSD(), 800);
+        // [V3/SR2] totalCommittedUSD is now 18-dec USD-wei: 800 * 1e18
+        assertEq(vault.totalCommittedUSD(), 800 * 1e18);
         // verify bond was minted to user
         uint256 epoch = _currentEpochPlus24();
         assertEq(claimBond.balanceOf(user, epoch), 800);
@@ -60,6 +61,7 @@ contract BondVaultTest is Test {
     }
 
     function test_capacity_check() public view {
+        // [V3/SR2] availableCapacityUSD returns INTEGER dollars (post-fix).
         uint256 cap = vault.availableCapacityUSD();
         // 82M * $0.036 = $2.952M, 50% = $1.476M
         assertGt(cap, 1_400_000);
@@ -96,7 +98,8 @@ contract BondVaultTest is Test {
 
         // $LUMINA went UP to $0.50 → agent gets FEWER tokens
         oracle.setPrice(0.50e18);
-        uint256 expected = (800 * 1e18) / 0.50e18; // 1,600 LUMINA
+        // [V2/SR2] Formula fixed: (usdAmount * 1e36) / price. Pays 1,600 WHOLE LUMINA.
+        uint256 expected = (800 * 1e36) / 0.50e18; // 1,600 * 1e18 wei = 1,600 LUMINA
 
         vm.prank(user);
         vault.redeemBond(epoch, 800);
@@ -112,7 +115,8 @@ contract BondVaultTest is Test {
 
         // $LUMINA went DOWN to $0.01 → agent gets MORE tokens
         oracle.setPrice(0.01e18);
-        uint256 expected = (800 * 1e18) / 0.01e18; // 80,000 LUMINA
+        // [V2/SR2] Formula fixed: pays 80,000 WHOLE LUMINA.
+        uint256 expected = (800 * 1e36) / 0.01e18; // 80,000 * 1e18 wei
 
         vm.prank(user);
         vault.redeemBond(epoch, 800);
@@ -130,7 +134,8 @@ contract BondVaultTest is Test {
         vault.redeemBond(epoch, 300);
 
         assertEq(claimBond.balanceOf(user, epoch), 500);
-        assertEq(vault.totalCommittedUSD(), 500);
+        // [V3/SR2] totalCommittedUSD is 18-dec USD-wei: 500 * 1e18 after partial redeem
+        assertEq(vault.totalCommittedUSD(), 500 * 1e18);
     }
 
     function test_cannot_redeem_before_maturity() public {
@@ -170,7 +175,8 @@ contract BondVaultTest is Test {
 
     function test_previewRedemption() public view {
         uint256 preview = vault.previewRedemption(800);
-        assertEq(preview, (800 * 1e18) / 0.036e18);
+        // [V2/SR2] Formula fixed: (usdAmount * 1e36) / price
+        assertEq(preview, (800 * 1e36) / 0.036e18);
     }
 
     function _currentEpochPlus24() internal view returns (uint256) {

@@ -104,7 +104,9 @@ contract BondVault is ReentrancyGuard {
         uint256 maturityTimestamp = block.timestamp + BOND_MATURITY_SECONDS;
         uint256 epochId = _timestampToEpoch(maturityTimestamp);
 
-        totalCommittedUSD += usdPayout;
+        // [V3/SR2] Normalize to 18-decimal USD (dollar-wei) to match maxCommitUSD units.
+        // Fixes silent capacity bypass where integer-dollars were compared against 18-dec USD.
+        totalCommittedUSD += usdPayout * 1e18;
 
         claimBond.mint(to, epochId, usdPayout);
         emit BondIssued(to, epochId, usdPayout);
@@ -126,12 +128,18 @@ contract BondVault is ReentrancyGuard {
         uint256 currentPrice = _getSafePrice();
         require(currentPrice >= MIN_REDEEM_PRICE, "Price too low");
 
-        // Calculate LUMINA to send: usdAmount / price
-        uint256 luminaAmount = (usdAmount * 1e18) / currentPrice;
+        // [V2/SR2] Pay LUMINA in 18-decimal wei.
+        // usdAmount is integer-dollar units (1 bond token = $1 USD).
+        // currentPrice is 18-dec USD per WHOLE LUMINA (1 LUMINA = 1e18 wei).
+        // Correct formula: luminaAmount_wei = usdAmount_dollars * 1e36 / price_18dec.
+        // (Previously missing one 1e18 factor → paid dust.)
+        uint256 luminaAmount = (usdAmount * 1e36) / currentPrice;
         require(lumina.balanceOf(address(this)) >= luminaAmount, "Insufficient reserve");
 
-        if (totalCommittedUSD >= usdAmount) {
-            totalCommittedUSD -= usdAmount;
+        // [V3/SR2] totalCommittedUSD is in 18-dec USD-wei. Remove the same scaled amount.
+        uint256 commitmentToRemove = usdAmount * 1e18;
+        if (totalCommittedUSD >= commitmentToRemove) {
+            totalCommittedUSD -= commitmentToRemove;
         } else {
             totalCommittedUSD = 0;
         }
@@ -161,20 +169,26 @@ contract BondVault is ReentrancyGuard {
 
     // ═══════ VIEW FUNCTIONS ═══════
 
+    /// @notice Remaining USD capacity that can be issued as new bonds.
+    /// @dev [V3/SR2] Internal accounting is 18-dec USD; this view returns INTEGER DOLLARS
+    ///      for API/frontend readability.
     function availableCapacityUSD() external view returns (uint256) {
         uint256 currentPrice = _getSafePrice();
         uint256 reserveBalance = lumina.balanceOf(address(this));
-        uint256 reserveValueUSD = (reserveBalance * currentPrice) / 1e18;
-        uint256 maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000;
-        if (maxCommitUSD <= totalCommittedUSD) return 0;
-        return maxCommitUSD - totalCommittedUSD;
+        uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
+        uint256 maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
+        if (maxCommitUSD18 <= totalCommittedUSD) return 0;
+        return (maxCommitUSD18 - totalCommittedUSD) / 1e18; // return integer dollars
     }
 
+    /// @notice [V2/SR2] Preview LUMINA (18-dec wei) for redeeming `usdAmount` integer dollars.
     function previewRedemption(uint256 usdAmount) external view returns (uint256 luminaAmount) {
         uint256 currentPrice = _getSafePrice();
-        luminaAmount = (usdAmount * 1e18) / currentPrice;
+        luminaAmount = (usdAmount * 1e36) / currentPrice;
     }
 
+    /// @dev [V3/SR2] Returns committed/available/reserveValue in INTEGER DOLLARS for readability.
+    ///      Internal accounting is 18-dec USD-wei.
     function getStatus() external view returns (
         uint256 reserveBalance,
         uint256 reserveValueUSD,
@@ -185,10 +199,11 @@ contract BondVault is ReentrancyGuard {
     ) {
         currentPrice = _getSafePrice();
         reserveBalance = lumina.balanceOf(address(this));
-        reserveValueUSD = (reserveBalance * currentPrice) / 1e18;
-        uint256 maxCommit = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000;
-        committed = totalCommittedUSD;
-        availableUSD = maxCommit > committed ? maxCommit - committed : 0;
+        uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
+        uint256 maxCommit18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
+        reserveValueUSD = reserveValueUSD18 / 1e18;
+        committed = totalCommittedUSD / 1e18;
+        availableUSD = maxCommit18 > totalCommittedUSD ? (maxCommit18 - totalCommittedUSD) / 1e18 : 0;
         isPaused = paused;
     }
 

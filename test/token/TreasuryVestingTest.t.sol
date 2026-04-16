@@ -55,6 +55,21 @@ contract TreasuryVestingTest is Test {
         vesting.release(makeAddr("dest"), 50_000 * 1e18);
     }
 
+    /// @notice [V4/SR2] Regression: month-0 cap must prevent multi-release.
+    function test_cannot_drain_month0() public {
+        vm.warp(block.timestamp + 180 days + 1); // just after lock
+
+        // First release OK
+        vesting.release(makeAddr("dest"), 250_000 * 1e18);
+
+        // Second release same month MUST REVERT (would previously drain 3M)
+        vm.expectRevert("Already released this month");
+        vesting.release(makeAddr("dest"), 250_000 * 1e18);
+
+        // Only 250K released
+        assertEq(vesting.totalReleased(), 250_000 * 1e18);
+    }
+
     function test_can_release_next_month() public {
         vm.warp(block.timestamp + 180 days);
         vesting.release(makeAddr("dest"), 250_000 * 1e18);

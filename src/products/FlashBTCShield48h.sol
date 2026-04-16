@@ -8,11 +8,11 @@ import {BaseShield} from "./BaseShield.sol";
 /**
  * @title FlashBTCShield48h
  * @author Lumina Protocol
- * @notice Parametric insurance: pays 80% if BTC drops >22% within a fixed 48h window.
+ * @notice Parametric insurance: pays 80% if BTC drops >15% within a fixed 48h window.
  *
  * PRODUCT: FLASHBTC48-001
  * RISK TYPE: VOLATILE
- * TRIGGER: Price drops >22% from the exact price at policy issuance block.
+ * TRIGGER: Price drops >15% from the exact price at policy issuance block.
  *          Verified via EIP-712 typed PriceProof signed by the oracle backend
  *          over the latest Chainlink round.
  * PAYOUT: Binary — 80% of coverage (20% deductible).
