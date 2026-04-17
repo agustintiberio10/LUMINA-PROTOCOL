@@ -181,7 +181,11 @@ contract AdversarialAuditTest is Test {
 
         // 3. Deploy token (need addresses for constructor)
         token = new LuminaTokenV2(
-            makeAddr("tempVault"), makeAddr("tempLbp"), makeAddr("tempFounder"), makeAddr("tempTreasury")
+            makeAddr("tempVault"),
+            makeAddr("tempCex"),
+            makeAddr("tempFounder"),
+            makeAddr("tempLbp"),
+            makeAddr("tempTreasury")
         );
 
         // 4. Real swap router with the real token
@@ -212,7 +216,7 @@ contract AdversarialAuditTest is Test {
         coverRouter.configureProduct(PRODUCT_ID, 8000, 20, 15000, 3600, true);
 
         // 10. Fund the system
-        deal(address(token), address(bondVault), 82_000_000 * 1e18);
+        deal(address(token), address(bondVault), 70_000_000 * 1e18);
         deal(address(token), address(swapRouter), 10_000_000 * 1e18); // for burn swaps
 
         // 11. Fund users
@@ -497,7 +501,7 @@ contract AdversarialAuditTest is Test {
 
     function test_attack_no_withdraw_function() public view {
         uint256 vaultBalance = token.balanceOf(address(bondVault));
-        assertEq(vaultBalance, 82_000_000 * 1e18);
+        assertEq(vaultBalance, 70_000_000 * 1e18);
     }
 
     function test_attack_spend_others_usdc() public {

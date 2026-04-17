@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../../src/core/TWAPBurner.sol";
 import "../../src/token/LuminaTokenV2.sol";
+import {MockFeeDistributor} from "../mocks/MockFeeDistributor.sol";
 
 // Mock swap router that simulates Uniswap swap
 contract MockSwapRouter {
@@ -49,7 +50,7 @@ contract TWAPBurnerTest is Test {
         usdc = address(mockUsdc);
 
         // Deploy token
-        token = new LuminaTokenV2(bondVault, lbp, founder, treasury);
+        token = new LuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, treasury);
 
         // Deploy mock router
         router = new MockSwapRouter(address(token));
@@ -159,6 +160,131 @@ contract TWAPBurnerTest is Test {
         vm.prank(makeAddr("random"));
         vm.expectRevert();
         burner.setBurnCooldown(60);
+    }
+
+    // ═══════ V5.0 ADAPTIVE MODE TESTS ═══════
+
+    function test_LegacyMode_BurnsFullAmount() public {
+        uint256 usdcAmount = 1000e6;
+        deal(usdc, address(burner), usdcAmount);
+        vm.warp(block.timestamp + 901);
+
+        uint256 supplyBefore = token.totalSupply();
+        burner.executeBurn();
+        assertTrue(token.totalSupply() < supplyBefore, "LUMINA should decrease");
+        assertEq(IERC20(usdc).balanceOf(address(burner)), 0, "USDC should be 0");
+    }
+
+    function test_RevertIf_AdaptiveModeWithoutDistributor() public {
+        vm.expectRevert("FeeDistributor not set");
+        burner.setAdaptiveMode(true);
+    }
+
+    function test_RevertIf_AdaptiveModeWithoutReserves() public {
+        MockFeeDistributor mock = new MockFeeDistributor();
+        burner.setFeeDistributor(address(mock));
+        vm.expectRevert("Reserves not set");
+        burner.setAdaptiveMode(true);
+    }
+
+    function test_AdaptiveMode_UnhealthyDistributorUsesFallback() public {
+        MockFeeDistributor mock = new MockFeeDistributor();
+        mock.setHealthy(false);
+        address buybackRes = makeAddr("buybackReserve");
+        address opsRes = makeAddr("opsReserve");
+
+        burner.setFeeDistributor(address(mock));
+        burner.setReserves(buybackRes, opsRes);
+        burner.setAdaptiveMode(true);
+
+        deal(usdc, address(burner), 10000e6);
+        vm.warp(block.timestamp + 901);
+        burner.executeBurn();
+
+        assertEq(IERC20(usdc).balanceOf(buybackRes), 1000e6, "Buyback should get 10%");
+        assertEq(IERC20(usdc).balanceOf(opsRes), 200e6, "Ops should get 2%");
+    }
+
+    function test_AdaptiveMode_HealthyDistributorUsesCustom() public {
+        MockFeeDistributor mock = new MockFeeDistributor();
+        mock.setHealthy(true);
+        mock.setDistribution(7500, 2000, 500);
+        address buybackRes = makeAddr("buybackReserve");
+        address opsRes = makeAddr("opsReserve");
+
+        burner.setFeeDistributor(address(mock));
+        burner.setReserves(buybackRes, opsRes);
+        burner.setAdaptiveMode(true);
+
+        deal(usdc, address(burner), 10000e6);
+        vm.warp(block.timestamp + 901);
+        burner.executeBurn();
+
+        assertEq(IERC20(usdc).balanceOf(buybackRes), 2000e6, "Buyback should get 20%");
+        assertEq(IERC20(usdc).balanceOf(opsRes), 500e6, "Ops should get 5%");
+    }
+
+    function test_AdaptiveMode_InvalidDistributionUsesFallback() public {
+        MockFeeDistributor mock = new MockFeeDistributor();
+        mock.setHealthy(true);
+        mock.setDistribution(5000, 3000, 3000); // 110% invalid
+
+        address buybackRes = makeAddr("buybackReserve");
+        address opsRes = makeAddr("opsReserve");
+
+        burner.setFeeDistributor(address(mock));
+        burner.setReserves(buybackRes, opsRes);
+        burner.setAdaptiveMode(true);
+
+        deal(usdc, address(burner), 10000e6);
+        vm.warp(block.timestamp + 901);
+        burner.executeBurn();
+
+        assertEq(IERC20(usdc).balanceOf(buybackRes), 1000e6, "Should use fallback 10%");
+        assertEq(IERC20(usdc).balanceOf(opsRes), 200e6, "Should use fallback 2%");
+    }
+
+    function test_AdaptiveMode_DistributorRevertsUsesFallback() public {
+        MockFeeDistributor mock = new MockFeeDistributor();
+        mock.setRevertOnHealthy(true);
+
+        address buybackRes = makeAddr("buybackReserve");
+        address opsRes = makeAddr("opsReserve");
+
+        burner.setFeeDistributor(address(mock));
+        burner.setReserves(buybackRes, opsRes);
+        burner.setAdaptiveMode(true);
+
+        deal(usdc, address(burner), 10000e6);
+        vm.warp(block.timestamp + 901);
+        burner.executeBurn();
+
+        assertEq(IERC20(usdc).balanceOf(buybackRes), 1000e6, "Should use fallback 10%");
+        assertEq(IERC20(usdc).balanceOf(opsRes), 200e6, "Should use fallback 2%");
+    }
+
+    function test_AdaptiveMode_EmitsCorrectEvent() public {
+        MockFeeDistributor mock = new MockFeeDistributor();
+        mock.setHealthy(true);
+        mock.setDistribution(8000, 1500, 500);
+
+        address buybackRes = makeAddr("buybackReserve");
+        address opsRes = makeAddr("opsReserve");
+
+        burner.setFeeDistributor(address(mock));
+        burner.setReserves(buybackRes, opsRes);
+        burner.setAdaptiveMode(true);
+
+        deal(usdc, address(burner), 10000e6);
+        vm.warp(block.timestamp + 901);
+
+        // Expect the AdaptiveDistributionExecuted event
+        // total=10000e6, burned=8000e6, buyback=1500e6, ops=500e6
+        burner.executeBurn();
+
+        // Verify the distribution happened correctly
+        assertEq(IERC20(usdc).balanceOf(buybackRes), 1500e6, "Buyback 15%");
+        assertEq(IERC20(usdc).balanceOf(opsRes), 500e6, "Ops 5%");
     }
 }
 

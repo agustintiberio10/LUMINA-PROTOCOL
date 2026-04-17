@@ -16,7 +16,7 @@ contract TreasuryVestingTest is Test {
 
     function setUp() public {
         multisig = address(this); // deployer is owner (multisig in prod)
-        token = new LuminaTokenV2(bondVault, lbp, founder, address(0xdead));
+        token = new LuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, address(0xdead));
         vesting = new TreasuryVesting(address(token));
         deal(address(token), address(vesting), 3_000_000 * 1e18);
     }

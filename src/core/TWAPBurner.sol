@@ -36,6 +36,12 @@ interface IPriceOracle {
     function getLuminaPrice() external view returns (uint256);
 }
 
+/// @dev [V5.0] Interface for AdaptiveFeeDistributor — provides dynamic distribution ratios.
+interface IAdaptiveFeeDistributor {
+    function getDistribution() external view returns (uint256 burnBps, uint256 buybackBps, uint256 opsBps);
+    function isHealthy() external view returns (bool);
+}
+
 contract TWAPBurner is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20; // [M-3] SafeERC20 for recoverToken
 
@@ -55,6 +61,15 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     uint256 public minBurnAmount = 1e6; // $1 USDC minimum per burn execution
     uint256 public maxBurnAmount = 10_000e6; // $10K USDC max per burn execution
     uint256 public burnCooldown = 900; // 15 minutes between burns
+
+    // ═══════ V5.0: ADAPTIVE FEE DISTRIBUTION ═══════
+    address public feeDistributor;
+    bool public adaptiveModeEnabled;
+    address public buybackReserve;
+    address public opsReserve;
+    uint256 public constant FALLBACK_BURN_BPS = 8800;
+    uint256 public constant FALLBACK_BUYBACK_BPS = 1000;
+    uint256 public constant FALLBACK_OPS_BPS = 200;
 
     // ═══════ STATE ═══════
     uint256 public lastBurnTimestamp;
@@ -108,7 +123,7 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
 
     // ═══════ EXECUTE BURN (called by keeper or anyone) ═══════
 
-    /// @notice Buy LUMINA on Uniswap and burn it. Called by keeper every ~15 min.
+    /// @notice Buy LUMINA on Uniswap and burn it (legacy) or distribute adaptively (V5.0).
     /// @dev Permissionless — anyone can call, but cooldown enforced.
     function executeBurn() external nonReentrant {
         require(block.timestamp >= lastBurnTimestamp + burnCooldown, "Cooldown active");
@@ -116,59 +131,103 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         uint256 usdcBalance = usdc.balanceOf(address(this));
         require(usdcBalance >= minBurnAmount, "Below minimum");
 
-        uint256 amountToSwap = usdcBalance > maxBurnAmount ? maxBurnAmount : usdcBalance;
+        uint256 amount = usdcBalance > maxBurnAmount ? maxBurnAmount : usdcBalance;
+        lastBurnTimestamp = block.timestamp;
 
-        // Approve router
-        // [LBL-M2] forceApprove handles bridged-USDC variants that revert on
-        // non-zero→non-zero approvals. Leaves 0 residual after transferFrom.
-        usdc.forceApprove(address(swapRouter), amountToSwap);
+        if (adaptiveModeEnabled) {
+            _executeAdaptive(amount);
+        } else {
+            _executeLegacyBurn(amount);
+        }
+    }
 
-        // [H-2] Slippage protection via CapacityOracle.
-        // Compute expected LUMINA out from oracle price and apply maxSlippageBps.
-        // Falls back to 0 (Uniswap-only protection) if oracle not set yet,
-        // to avoid locking the burner if oracle deploys after.
+    // ═══════ V5.0: ADAPTIVE DISTRIBUTION INTERNALS ═══════
+
+    /// @notice Adaptive mode: distribute between burn, buybackReserve and opsReserve.
+    function _executeAdaptive(uint256 amount) internal {
+        (uint256 burnBps, uint256 buybackBps, uint256 opsBps) = _getDistribution();
+        require(burnBps + buybackBps + opsBps <= 10000, "Invalid distribution");
+
+        uint256 toBurn = (amount * burnBps) / 10000;
+        uint256 toBuyback = (amount * buybackBps) / 10000;
+        uint256 toOps = (amount * opsBps) / 10000;
+
+        if (toBuyback > 0 && buybackReserve != address(0)) {
+            usdc.safeTransfer(buybackReserve, toBuyback);
+        }
+        if (toOps > 0 && opsReserve != address(0)) {
+            usdc.safeTransfer(opsReserve, toOps);
+        }
+        if (toBurn > 0) {
+            _swapAndBurn(toBurn);
+        }
+
+        emit AdaptiveDistributionExecuted(amount, toBurn, toBuyback, toOps);
+    }
+
+    /// @notice Legacy mode: 100% burn (pre-V5.0 behavior).
+    function _executeLegacyBurn(uint256 amount) internal {
+        _swapAndBurn(amount);
+        emit LegacyBurnExecuted(amount);
+    }
+
+    /// @notice Get distribution from fee distributor with safe fallback.
+    function _getDistribution() internal view returns (uint256 burnBps, uint256 buybackBps, uint256 opsBps) {
+        if (feeDistributor != address(0)) {
+            try IAdaptiveFeeDistributor(feeDistributor).isHealthy() returns (bool healthy) {
+                if (healthy) {
+                    try IAdaptiveFeeDistributor(feeDistributor).getDistribution() returns (
+                        uint256 _b, uint256 _bb, uint256 _o
+                    ) {
+                        if (_b + _bb + _o <= 10000) {
+                            return (_b, _bb, _o);
+                        }
+                    } catch {}
+                }
+            } catch {}
+        }
+        return (FALLBACK_BURN_BPS, FALLBACK_BUYBACK_BPS, FALLBACK_OPS_BPS);
+    }
+
+    /// @notice Swap USDC to LUMINA on Uniswap V3 and burn.
+    function _swapAndBurn(uint256 usdcAmount) internal {
+        usdc.forceApprove(address(swapRouter), usdcAmount);
+
         uint256 amountOutMin = 0;
         if (capacityOracle != address(0)) {
             try IPriceOracle(capacityOracle).getLuminaPrice() returns (uint256 oraclePrice) {
                 if (oraclePrice > 0) {
-                    // amountToSwap is 6-dec USDC. Scale to 18-dec USD: × 1e12.
-                    // Expected LUMINA (18-dec) = (USDC18 × 1e18) / price(18-dec).
-                    uint256 expectedOut = (amountToSwap * 1e12 * 1e18) / oraclePrice;
+                    uint256 expectedOut = (usdcAmount * 1e12 * 1e18) / oraclePrice;
                     amountOutMin = (expectedOut * (10_000 - maxSlippageBps)) / 10_000;
                 }
-            } catch {
-                // Oracle reverted — fall back to amountOutMin = 0
-            }
+            } catch {}
         }
 
-        // Execute swap: USDC → LUMINA
         uint256 luminaReceived = swapRouter.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(usdc),
                 tokenOut: address(lumina),
                 fee: poolFee,
-                recipient: address(this), // receive LUMINA here first
-                amountIn: amountToSwap,
+                recipient: address(this),
+                amountIn: usdcAmount,
                 amountOutMinimum: amountOutMin,
                 sqrtPriceLimitX96: 0
             })
         );
 
         require(luminaReceived > 0, "Zero LUMINA received");
-
-        // Burn the LUMINA
         IBurnable(address(lumina)).burn(luminaReceived);
 
-        // Update state
-        lastBurnTimestamp = block.timestamp;
-        totalUSDCBurned += amountToSwap;
+        totalUSDCBurned += usdcAmount;
         totalLUMINABurned += luminaReceived;
 
-        // Effective price = USDC spent / LUMINA burned (18 decimals)
-        uint256 effectivePrice = (amountToSwap * 1e18) / luminaReceived;
-
-        emit BurnExecuted(amountToSwap, luminaReceived, effectivePrice, block.timestamp);
+        uint256 effectivePrice = (usdcAmount * 1e18) / luminaReceived;
+        emit BurnExecuted(usdcAmount, luminaReceived, effectivePrice, block.timestamp);
     }
+
+    // ═══════ V5.0 EVENTS ═══════
+    event AdaptiveDistributionExecuted(uint256 total, uint256 burned, uint256 toBuyback, uint256 toOps);
+    event LegacyBurnExecuted(uint256 amount);
 
     // ═══════ ADMIN (owner = Gnosis Safe) ═══════
 
@@ -211,6 +270,26 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         require(_oracle != address(0), "Zero oracle");
         capacityOracle = _oracle;
         emit ConfigUpdated("capacityOracle", uint256(uint160(_oracle)));
+    }
+
+    // ═══════ V5.0: ADAPTIVE MODE CONFIG ═══════
+
+    function setFeeDistributor(address _feeDistributor) external onlyOwner {
+        feeDistributor = _feeDistributor;
+        emit ConfigUpdated("feeDistributor", uint256(uint160(_feeDistributor)));
+    }
+
+    function setReserves(address _buybackReserve, address _opsReserve) external onlyOwner {
+        require(_buybackReserve != address(0), "BuybackReserve zero");
+        require(_opsReserve != address(0), "OpsReserve zero");
+        buybackReserve = _buybackReserve;
+        opsReserve = _opsReserve;
+    }
+
+    function setAdaptiveMode(bool enabled) external onlyOwner {
+        require(!enabled || feeDistributor != address(0), "FeeDistributor not set");
+        require(!enabled || (buybackReserve != address(0) && opsReserve != address(0)), "Reserves not set");
+        adaptiveModeEnabled = enabled;
     }
 
     // ═══════ VIEW FUNCTIONS ═══════

@@ -134,7 +134,7 @@ contract BondVaultInvariants is Test {
 
         oracle = new InvMockOracle();
         claimBond = new ClaimBond();
-        token = new LuminaTokenV2(address(0xBB01), address(0xBB02), address(0xBB03), address(0xBB04));
+        token = new LuminaTokenV2(address(0xBB01), address(0xBB05), address(0xBB03), address(0xBB02), address(0xBB04));
 
         // Deploy vault with handler as policyManager (so handler can issueBond)
         handler = new BondVaultHandler(
@@ -165,7 +165,7 @@ contract BondVaultInvariants is Test {
         claimBond.setBondVault(address(vault));
 
         // Fund vault
-        deal(address(token), address(vault), 82_000_000 * 1e18);
+        deal(address(token), address(vault), 70_000_000 * 1e18);
 
         initialSupply = token.totalSupply();
 
