@@ -825,7 +825,7 @@ contract CertiKSimulation is Test {
         // Issue bonds up to near capacity
         for (uint256 i = 0; i < 50; i++) {
             try bondVault.issueBond(makeAddr(string(abi.encodePacked("u", i))), 800) {}
-                catch {
+            catch {
                 break;
             }
         }
