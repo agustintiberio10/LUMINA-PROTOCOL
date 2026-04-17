@@ -101,7 +101,8 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     /// @notice Called by CoverRouter when a premium is paid.
     function receivePremium(uint256 amount) external {
         require(amount > 0, "Zero amount");
-        require(usdc.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        // [LBL-M1] SafeERC20 consistency with the rest of the contract
+        usdc.safeTransferFrom(msg.sender, address(this), amount);
         totalUSDCReceived += amount;
         emit PremiumReceived(msg.sender, amount);
     }
@@ -109,7 +110,8 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     /// @notice Called by LuminaBondMarketplace when fees are collected.
     function receiveMarketplaceFee(uint256 amount) external {
         require(amount > 0, "Zero amount");
-        require(usdc.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        // [LBL-M1] SafeERC20 consistency
+        usdc.safeTransferFrom(msg.sender, address(this), amount);
         totalUSDCReceived += amount;
         emit MarketplaceFeeReceived(msg.sender, amount);
     }
@@ -127,7 +129,9 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         uint256 amountToSwap = usdcBalance > maxBurnAmount ? maxBurnAmount : usdcBalance;
 
         // Approve router
-        usdc.approve(address(swapRouter), amountToSwap);
+        // [LBL-M2] forceApprove handles bridged-USDC variants that revert on
+        // non-zero→non-zero approvals. Leaves 0 residual after transferFrom.
+        usdc.forceApprove(address(swapRouter), amountToSwap);
 
         // [H-2] Slippage protection via CapacityOracle.
         // Compute expected LUMINA out from oracle price and apply maxSlippageBps.

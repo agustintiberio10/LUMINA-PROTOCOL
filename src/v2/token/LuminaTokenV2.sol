@@ -30,6 +30,16 @@ contract LuminaTokenV2 is ERC20, ERC20Burnable, AccessControl {
         require(founderVesting != address(0), "Zero founderVesting");
         require(treasuryVesting != address(0), "Zero treasuryVesting");
 
+        // [LBL-H1] Prevent accidental distribution collapse if deployer passes
+        // the same address twice (e.g. bondVault == treasury would silently
+        // combine 82M+3M in one account and break invariant checks elsewhere).
+        require(bondVault != lbpDeposit, "Duplicate: bondVault/lbp");
+        require(bondVault != founderVesting, "Duplicate: bondVault/founder");
+        require(bondVault != treasuryVesting, "Duplicate: bondVault/treasury");
+        require(lbpDeposit != founderVesting, "Duplicate: lbp/founder");
+        require(lbpDeposit != treasuryVesting, "Duplicate: lbp/treasury");
+        require(founderVesting != treasuryVesting, "Duplicate: founder/treasury");
+
         _mint(bondVault,        82_000_000 * 1e18);  // 82% Bond Reserve
         _mint(lbpDeposit,        5_000_000 * 1e18);  //  5% LBP (Fjord Foundry)
         _mint(founderVesting,   10_000_000 * 1e18);  // 10% Founder (AltSeason)

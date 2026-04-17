@@ -85,7 +85,15 @@ contract CapacityOracle is Ownable {
         (int56[] memory tickCumulatives,) = IUniswapV3Pool(pool).observe(secondsAgos);
 
         int56 tickDiff = tickCumulatives[1] - tickCumulatives[0];
-        int24 avgTick = int24(tickDiff / int56(int32(twapWindow)));
+        int56 secs = int56(int32(twapWindow));
+        // [LBL-H3] Match Uniswap V3 OracleLibrary floor semantics: for negative
+        // tickDiff with non-zero remainder, round toward -infinity (subtract 1).
+        // Solidity division truncates toward zero; Uniswap's reference library
+        // explicitly floors to avoid upward-biased TWAP during price downtrends.
+        int24 avgTick = int24(tickDiff / secs);
+        if (tickDiff < 0 && (tickDiff % secs != 0)) {
+            avgTick--;
+        }
 
         // Convert tick to price
         // price = 1.0001^tick

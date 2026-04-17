@@ -66,6 +66,19 @@ contract LuminaTokenV2Test is Test {
         new LuminaTokenV2(address(0), lbpDeposit, founderVesting, treasuryVesting);
     }
 
+    /// @notice [LBL-H1] Duplicate recipient addresses must revert (distribution-collapse guard).
+    function test_duplicateRecipient_reverts() public {
+        // bondVault == treasury would silently merge 82M+3M into one address
+        vm.expectRevert("Duplicate: bondVault/treasury");
+        new LuminaTokenV2(bondVault, lbpDeposit, founderVesting, bondVault);
+
+        vm.expectRevert("Duplicate: lbp/founder");
+        new LuminaTokenV2(bondVault, lbpDeposit, lbpDeposit, treasuryVesting);
+
+        vm.expectRevert("Duplicate: bondVault/lbp");
+        new LuminaTokenV2(bondVault, bondVault, founderVesting, treasuryVesting);
+    }
+
     function test_name_and_symbol() public view {
         assertEq(token.name(), "Lumina Protocol");
         assertEq(token.symbol(), "LUMINA");
