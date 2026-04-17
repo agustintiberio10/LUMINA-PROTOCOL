@@ -2,10 +2,11 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/core/CoverRouterV2.sol";
+import "../../src/core/CoverRouterV2.sol";
 
 contract MockPolicyManager {
     uint256 public nextPolicyId = 1;
+
     function recordPolicy(bytes32, address, uint256, uint256, uint32, bytes32) external returns (uint256) {
         return nextPolicyId++;
     }
@@ -15,7 +16,11 @@ contract MockPolicyManager {
 contract MockTWAPBurner {
     uint256 public totalReceived;
     IERC20 public usdc;
-    constructor(address _usdc) { usdc = IERC20(_usdc); }
+
+    constructor(address _usdc) {
+        usdc = IERC20(_usdc);
+    }
+
     function receivePremium(uint256 amount) external {
         usdc.transferFrom(msg.sender, address(this), amount);
         totalReceived += amount;
@@ -25,22 +30,28 @@ contract MockTWAPBurner {
 contract MockUSDC {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
+
     function transfer(address to, uint256 amount) external returns (bool) {
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         return true;
     }
+
     function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
         return true;
     }
+
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         allowance[from][msg.sender] -= amount;
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         return true;
     }
-    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
 }
 
 contract CoverRouterV2Test is Test {

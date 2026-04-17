@@ -77,12 +77,11 @@ contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
         return block.timestamp >= maturityDate[epochId];
     }
 
-    function getEpochInfo(uint256 epochId) external view returns (
-        bool exists,
-        uint256 maturity,
-        uint256 totalSupply_,
-        bool matured
-    ) {
+    function getEpochInfo(uint256 epochId)
+        external
+        view
+        returns (bool exists, uint256 maturity, uint256 totalSupply_, bool matured)
+    {
         exists = epochExists[epochId];
         maturity = maturityDate[epochId];
         totalSupply_ = totalSupply(epochId);
@@ -112,7 +111,8 @@ contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
     }
 
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
-        internal override(ERC1155, ERC1155Supply)
+        internal
+        override(ERC1155, ERC1155Supply)
     {
         super._update(from, to, ids, values);
     }

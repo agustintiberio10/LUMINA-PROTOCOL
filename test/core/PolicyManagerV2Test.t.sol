@@ -2,19 +2,25 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/core/PolicyManagerV2.sol";
+import "../../src/core/PolicyManagerV2.sol";
 
 contract MockBondVault {
     uint256 public cap = 1_000_000;
     uint256 public lastPayoutUSD;
     address public lastTo;
 
-    function availableCapacityUSD() external view returns (uint256) { return cap; }
+    function availableCapacityUSD() external view returns (uint256) {
+        return cap;
+    }
+
     function issueBond(address to, uint256 usdPayout) external {
         lastTo = to;
         lastPayoutUSD = usdPayout;
     }
-    function setCap(uint256 c) external { cap = c; }
+
+    function setCap(uint256 c) external {
+        cap = c;
+    }
 }
 
 contract PolicyManagerV2Test is Test {

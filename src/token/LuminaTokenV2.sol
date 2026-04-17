@@ -19,12 +19,9 @@ contract LuminaTokenV2 is ERC20, ERC20Burnable, AccessControl {
     uint256 public constant MAX_SUPPLY = 100_000_000 * 1e18;
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
-    constructor(
-        address bondVault,
-        address lbpDeposit,
-        address founderVesting,
-        address treasuryVesting
-    ) ERC20("Lumina Protocol", "LUMINA") {
+    constructor(address bondVault, address lbpDeposit, address founderVesting, address treasuryVesting)
+        ERC20("Lumina Protocol", "LUMINA")
+    {
         require(bondVault != address(0), "Zero bondVault");
         require(lbpDeposit != address(0), "Zero lbpDeposit");
         require(founderVesting != address(0), "Zero founderVesting");
@@ -40,10 +37,10 @@ contract LuminaTokenV2 is ERC20, ERC20Burnable, AccessControl {
         require(lbpDeposit != treasuryVesting, "Duplicate: lbp/treasury");
         require(founderVesting != treasuryVesting, "Duplicate: founder/treasury");
 
-        _mint(bondVault,        82_000_000 * 1e18);  // 82% Bond Reserve
-        _mint(lbpDeposit,        5_000_000 * 1e18);  //  5% LBP (Fjord Foundry)
-        _mint(founderVesting,   10_000_000 * 1e18);  // 10% Founder (AltSeason)
-        _mint(treasuryVesting,   3_000_000 * 1e18);  //  3% Treasury (6m lock)
+        _mint(bondVault, 82_000_000 * 1e18); // 82% Bond Reserve
+        _mint(lbpDeposit, 5_000_000 * 1e18); //  5% LBP (Fjord Foundry)
+        _mint(founderVesting, 10_000_000 * 1e18); // 10% Founder (AltSeason)
+        _mint(treasuryVesting, 3_000_000 * 1e18); //  3% Treasury (6m lock)
 
         assert(totalSupply() == MAX_SUPPLY);
 

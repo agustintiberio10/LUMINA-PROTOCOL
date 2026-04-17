@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/token/LuminaTokenV2.sol";
+import "../../src/token/LuminaTokenV2.sol";
 
 contract LuminaTokenV2Test is Test {
     LuminaTokenV2 token;

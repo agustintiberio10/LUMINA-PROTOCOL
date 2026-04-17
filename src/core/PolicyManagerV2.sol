@@ -18,11 +18,19 @@ interface IShieldV2 {
     function productId() external view returns (bytes32);
     function createPolicy(IShieldV2.CreatePolicyParams calldata params) external returns (uint256);
     function verifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
-        external returns (IShieldV2.PayoutResult memory);
-    function getPolicyInfo(uint256 policyId) external view returns (
-        address insuredAgent, uint256 coverageAmount, uint256 premiumPaid,
-        uint256 maxPayout, uint256 expiresAt, uint8 status
-    );
+        external
+        returns (IShieldV2.PayoutResult memory);
+    function getPolicyInfo(uint256 policyId)
+        external
+        view
+        returns (
+            address insuredAgent,
+            uint256 coverageAmount,
+            uint256 premiumPaid,
+            uint256 maxPayout,
+            uint256 expiresAt,
+            uint8 status
+        );
 
     struct CreatePolicyParams {
         address buyer;
@@ -50,7 +58,7 @@ contract PolicyManagerV2 is Ownable {
     address public router; // only CoverRouterV2 can call
 
     // Product registry
-    mapping(bytes32 => address) public productShield;  // productId → shield address
+    mapping(bytes32 => address) public productShield; // productId → shield address
     mapping(bytes32 => bool) public productActive;
     bytes32[] public productIds;
 
@@ -79,12 +87,15 @@ contract PolicyManagerV2 is Ownable {
     event ProductRegistered(bytes32 indexed productId, address shield);
     event ProductDeactivated(bytes32 indexed productId);
     event PolicyCreated(
-        bytes32 indexed productId, uint256 indexed policyId,
-        address buyer, uint256 coverage, uint256 premium, uint256 payout
+        bytes32 indexed productId,
+        uint256 indexed policyId,
+        address buyer,
+        uint256 coverage,
+        uint256 premium,
+        uint256 payout
     );
     event PolicyTriggered(
-        bytes32 indexed productId, uint256 indexed policyId,
-        address buyer, uint256 bondAmount, bytes32 reason
+        bytes32 indexed productId, uint256 indexed policyId, address buyer, uint256 bondAmount, bytes32 reason
     );
     event PolicyExpired(bytes32 indexed productId, uint256 indexed policyId);
 
@@ -143,8 +154,8 @@ contract PolicyManagerV2 is Ownable {
         // [SR3] Compare in MATCHING units. payoutAmount is USDC 6-dec; availableCapacityUSD
         // returns INTEGER dollars. Convert payout to integer $ for the comparison.
         uint256 payoutAmount = (coverageAmount * 8000) / 10000; // 6-dec USDC
-        uint256 payoutUSD = payoutAmount / 1e6;                 // integer dollars
-        uint256 available = bondVault.availableCapacityUSD();   // integer dollars
+        uint256 payoutUSD = payoutAmount / 1e6; // integer dollars
+        uint256 available = bondVault.availableCapacityUSD(); // integer dollars
         if (available < payoutUSD) revert InsufficientCapacity(payoutUSD, available);
 
         // [M-1] CEI: increment counters BEFORE external call
@@ -154,18 +165,19 @@ contract PolicyManagerV2 is Ownable {
         // Create policy in the shield
         // [C-1] CreatePolicyParams struct now matches IShield (extraData as bytes)
         address shield = productShield[productId];
-        policyId = IShieldV2(shield).createPolicy(
-            IShieldV2.CreatePolicyParams({
-                buyer: buyer,
-                coverageAmount: coverageAmount,
-                premiumAmount: premiumAmount,
-                durationSeconds: durationSeconds,
-                asset: asset,
-                stablecoin: "USDC",
-                protocol: address(0),
-                extraData: ""
-            })
-        );
+        policyId = IShieldV2(shield)
+            .createPolicy(
+                IShieldV2.CreatePolicyParams({
+                    buyer: buyer,
+                    coverageAmount: coverageAmount,
+                    premiumAmount: premiumAmount,
+                    durationSeconds: durationSeconds,
+                    asset: asset,
+                    stablecoin: "USDC",
+                    protocol: address(0),
+                    extraData: ""
+                })
+            );
 
         // Record locally (must happen after external call to obtain policyId)
         uint256 expiresAt = block.timestamp + durationSeconds;
@@ -191,11 +203,7 @@ contract PolicyManagerV2 is Ownable {
     /// @param productId The product
     /// @param policyId The policy within that product's shield
     /// @param oracleProof Oracle-signed proof of the trigger event
-    function triggerPayout(
-        bytes32 productId,
-        uint256 policyId,
-        bytes calldata oracleProof
-    ) external onlyRouter {
+    function triggerPayout(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external onlyRouter {
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");
         require(!pr.triggered, "Already triggered");
@@ -247,13 +255,17 @@ contract PolicyManagerV2 is Ownable {
         return policies[productId][policyId];
     }
 
-    function getStats() external view returns (
-        uint256 _totalPolicies,
-        uint256 _activePolicies,
-        uint256 _totalTriggers,
-        uint256 _totalBondsIssuedUSD,
-        uint256 _availableCapacity
-    ) {
+    function getStats()
+        external
+        view
+        returns (
+            uint256 _totalPolicies,
+            uint256 _activePolicies,
+            uint256 _totalTriggers,
+            uint256 _totalBondsIssuedUSD,
+            uint256 _availableCapacity
+        )
+    {
         _totalPolicies = totalPolicies;
         _activePolicies = activePolicies;
         _totalTriggers = totalTriggers;

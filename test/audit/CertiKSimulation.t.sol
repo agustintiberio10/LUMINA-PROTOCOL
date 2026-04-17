@@ -3,17 +3,17 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {LuminaTokenV2} from "../../src/v2/token/LuminaTokenV2.sol";
-import {FounderVesting} from "../../src/v2/token/FounderVesting.sol";
-import {TreasuryVesting} from "../../src/v2/token/TreasuryVesting.sol";
-import {ClaimBond} from "../../src/v2/bonds/ClaimBond.sol";
-import {BondVault} from "../../src/v2/bonds/BondVault.sol";
-import {PolicyManagerV2} from "../../src/v2/core/PolicyManagerV2.sol";
-import {CoverRouterV2} from "../../src/v2/core/CoverRouterV2.sol";
+import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
+import {FounderVesting} from "../../src/token/FounderVesting.sol";
+import {TreasuryVesting} from "../../src/token/TreasuryVesting.sol";
+import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
+import {BondVault} from "../../src/bonds/BondVault.sol";
+import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
+import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
 // BondVault and TWAPBurner both declare an IPriceOracle interface.
 // Use named imports to avoid file-level identifier collision.
-import {TWAPBurner, ISwapRouter} from "../../src/v2/core/TWAPBurner.sol";
-import {CapacityOracle} from "../../src/v2/oracles/CapacityOracle.sol";
+import {TWAPBurner, ISwapRouter} from "../../src/core/TWAPBurner.sol";
+import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 
 // ═══════════════════════════════════════════════════════════
 // CONTRATOS MALICIOSOS PARA ATAQUES
@@ -39,9 +39,7 @@ contract ReentrancyAttacker {
     }
 
     // ERC-1155 callback — attempt to re-enter redeemBond
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
-        external returns (bytes4)
-    {
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata) external returns (bytes4) {
         attackCount++;
         if (attackCount < 3 && bond.balanceOf(address(this), epochId) > 0) {
             // Try to re-enter
@@ -51,7 +49,9 @@ contract ReentrancyAttacker {
     }
 
     function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
-        external pure returns (bytes4)
+        external
+        pure
+        returns (bytes4)
     {
         return this.onERC1155BatchReceived.selector;
     }
@@ -78,9 +78,7 @@ contract FakeSwapRouter {
         uint160 sqrtPriceLimitX96;
     }
 
-    function exactInputSingle(ExactInputSingleParams calldata params)
-        external returns (uint256)
-    {
+    function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256) {
         // Steal the USDC instead of swapping
         IERC20(params.tokenIn).transferFrom(msg.sender, thief, params.amountIn);
         return 0; // return 0 LUMINA
@@ -91,8 +89,13 @@ contract FakeSwapRouter {
 contract OracleManipulator {
     uint256 public fakePrice;
 
-    function setFakePrice(uint256 p) external { fakePrice = p; }
-    function getLuminaPrice() external view returns (uint256) { return fakePrice; }
+    function setFakePrice(uint256 p) external {
+        fakePrice = p;
+    }
+
+    function getLuminaPrice() external view returns (uint256) {
+        return fakePrice;
+    }
 }
 
 /// @dev Shield malicioso que roba fondos o reporta triggers falsos
@@ -101,10 +104,17 @@ contract MaliciousShield {
     address public router;
     bool public alwaysTrigger;
 
-    constructor(address _router) { router = _router; }
+    constructor(address _router) {
+        router = _router;
+    }
 
-    function productId() external view returns (bytes32) { return _productId; }
-    function setAlwaysTrigger(bool v) external { alwaysTrigger = v; }
+    function productId() external view returns (bytes32) {
+        return _productId;
+    }
+
+    function setAlwaysTrigger(bool v) external {
+        alwaysTrigger = v;
+    }
 
     struct CreatePolicyParams {
         address buyer;
@@ -128,9 +138,7 @@ contract MaliciousShield {
         bytes32 reason;
     }
 
-    function verifyAndCalculate(uint256, bytes calldata)
-        external view returns (PayoutResult memory)
-    {
+    function verifyAndCalculate(uint256, bytes calldata) external view returns (PayoutResult memory) {
         // Always reports trigger with maximum payout
         return PayoutResult({
             triggered: alwaysTrigger,
@@ -151,11 +159,22 @@ contract MaliciousERC20 {
         balanceOf[to] += amount;
         return true;
     }
-    function approve(address s, uint256 a) external returns (bool) { allowance[msg.sender][s]=a; return true; }
-    function transferFrom(address f, address t, uint256 a) external returns (bool) {
-        allowance[f][msg.sender]-=a; balanceOf[f]-=a; balanceOf[t]+=a; return true;
+
+    function approve(address s, uint256 a) external returns (bool) {
+        allowance[msg.sender][s] = a;
+        return true;
     }
-    function mint(address to, uint256 a) external { balanceOf[to]+=a; }
+
+    function transferFrom(address f, address t, uint256 a) external returns (bool) {
+        allowance[f][msg.sender] -= a;
+        balanceOf[f] -= a;
+        balanceOf[t] += a;
+        return true;
+    }
+
+    function mint(address to, uint256 a) external {
+        balanceOf[to] += a;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -167,26 +186,54 @@ contract MockUSDC2 {
     uint8 public decimals = 6;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
-    function mint(address to, uint256 a) external { balanceOf[to]+=a; }
-    function transfer(address to, uint256 a) external returns (bool) { balanceOf[msg.sender]-=a; balanceOf[to]+=a; return true; }
-    function approve(address s, uint256 a) external returns (bool) { allowance[msg.sender][s]=a; return true; }
+
+    function mint(address to, uint256 a) external {
+        balanceOf[to] += a;
+    }
+
+    function transfer(address to, uint256 a) external returns (bool) {
+        balanceOf[msg.sender] -= a;
+        balanceOf[to] += a;
+        return true;
+    }
+
+    function approve(address s, uint256 a) external returns (bool) {
+        allowance[msg.sender][s] = a;
+        return true;
+    }
+
     function transferFrom(address f, address t, uint256 a) external returns (bool) {
-        if(allowance[f][msg.sender]<a) revert("allowance");
-        allowance[f][msg.sender]-=a; balanceOf[f]-=a; balanceOf[t]+=a; return true;
+        if (allowance[f][msg.sender] < a) revert("allowance");
+        allowance[f][msg.sender] -= a;
+        balanceOf[f] -= a;
+        balanceOf[t] += a;
+        return true;
     }
 }
 
 contract MockOracle2 {
     uint256 public price = 0.036e18;
-    function getLuminaPrice() external view returns (uint256) { return price; }
-    function setPrice(uint256 p) external { price = p; }
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
+
+    function setPrice(uint256 p) external {
+        price = p;
+    }
 }
 
 contract MockRouter2 {
     IERC20 public lumina;
     uint256 public oraclePrice = 0.036e18;
-    constructor(address _l) { lumina = IERC20(_l); }
-    function setPrice(uint256 p) external { oraclePrice = p; }
+
+    constructor(address _l) {
+        lumina = IERC20(_l);
+    }
+
+    function setPrice(uint256 p) external {
+        oraclePrice = p;
+    }
 
     function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata p) external returns (uint256 out) {
         IERC20(p.tokenIn).transferFrom(msg.sender, address(this), p.amountIn);
@@ -201,24 +248,47 @@ contract MockShield2 {
     uint256 public nextPolicyId = 1;
     mapping(uint256 => bool) public shouldTrigger;
     mapping(uint256 => uint256) public policyCoverage;
-    constructor(bytes32 pid, address r) { _productId = pid; router = r; }
-    function productId() external view returns (bytes32) { return _productId; }
-    function setTrigger(uint256 pid, bool t) external { shouldTrigger[pid] = t; }
+
+    constructor(bytes32 pid, address r) {
+        _productId = pid;
+        router = r;
+    }
+
+    function productId() external view returns (bytes32) {
+        return _productId;
+    }
+
+    function setTrigger(uint256 pid, bool t) external {
+        shouldTrigger[pid] = t;
+    }
 
     struct CreatePolicyParams {
-        address buyer; uint256 coverageAmount; uint256 premiumAmount;
-        uint32 durationSeconds; bytes32 asset; bytes32 stablecoin;
-        address protocol; bytes extraData;
+        address buyer;
+        uint256 coverageAmount;
+        uint256 premiumAmount;
+        uint32 durationSeconds;
+        bytes32 asset;
+        bytes32 stablecoin;
+        address protocol;
+        bytes extraData;
     }
+
     function createPolicy(CreatePolicyParams calldata p) external returns (uint256) {
         require(msg.sender == router, "Only router");
         uint256 pid = nextPolicyId++;
         policyCoverage[pid] = p.coverageAmount;
         return pid;
     }
-    struct PayoutResult { bool triggered; uint256 payoutAmount; address recipient; bytes32 reason; }
+
+    struct PayoutResult {
+        bool triggered;
+        uint256 payoutAmount;
+        address recipient;
+        bytes32 reason;
+    }
+
     function verifyAndCalculate(uint256 pid, bytes calldata) external view returns (PayoutResult memory) {
-        return PayoutResult(shouldTrigger[pid], (policyCoverage[pid]*8000)/10000, address(0), "TEST");
+        return PayoutResult(shouldTrigger[pid], (policyCoverage[pid] * 8000) / 10000, address(0), "TEST");
     }
 }
 
@@ -254,9 +324,7 @@ contract CertiKSimulation is Test {
         token = new LuminaTokenV2(makeAddr("tv"), makeAddr("lbp"), makeAddr("fv"), makeAddr("tr"));
         swapRouter = new MockRouter2(address(token));
 
-        bondVault = new BondVault(
-            address(token), address(claimBond), address(oracle), address(this)
-        );
+        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
         policyManager = new PolicyManagerV2(address(bondVault));
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
         coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
@@ -279,7 +347,7 @@ contract CertiKSimulation is Test {
     function _getEpoch() internal view returns (uint256) {
         uint256 matTs = block.timestamp + 730 days;
         uint256 mfb = (matTs - 1767225600) / 2629746;
-        return (2026 + mfb/12)*100 + (1 + mfb%12);
+        return (2026 + mfb / 12) * 100 + (1 + mfb % 12);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -299,9 +367,7 @@ contract CertiKSimulation is Test {
     ///         during redeem) AND only the legitimate partial redemption
     ///         (400 bonds) occurred — attacker cannot drain more.
     function test_ATTACK_reentrancy_redeemBond() public {
-        ReentrancyAttacker attackerContract = new ReentrancyAttacker(
-            address(bondVault), address(claimBond)
-        );
+        ReentrancyAttacker attackerContract = new ReentrancyAttacker(address(bondVault), address(claimBond));
 
         // Issue bond to attacker contract (800 bonds)
         bondVault.issueBond(address(attackerContract), 800);
@@ -313,7 +379,7 @@ contract CertiKSimulation is Test {
 
         // Warp to maturity
         vm.warp(claimBond.maturityDate(epoch) + 1);
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
 
         // Attacker attempts reentrancy via redeem — this should NOT
         // allow any re-entry because redeemBond calls no external hook
@@ -493,7 +559,7 @@ contract CertiKSimulation is Test {
 
         // Warp to maturity
         vm.warp(claimBond.maturityDate(epoch) + 1);
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
 
         // Attacker tries to redeem from original address — should fail
         vm.prank(attacker);
@@ -633,7 +699,7 @@ contract CertiKSimulation is Test {
     ///         todos redimen y el vault no tiene suficiente
     function test_SCENARIO_mass_redemption_after_crash() public {
         // Issue many bonds at $0.036 (normal price)
-        for (uint i = 0; i < 100; i++) {
+        for (uint256 i = 0; i < 100; i++) {
             bondVault.issueBond(makeAddr(string(abi.encodePacked("user", i))), 800);
         }
         // 100 × $800 = $80K committed. Way under capacity.
@@ -647,7 +713,7 @@ contract CertiKSimulation is Test {
         // Each $800 bond now needs 800,000 LUMINA
         // 100 bonds × 800,000 = 80M LUMINA needed
         // Vault has 82M — BARELY enough for 100 bonds at crash price
-        for (uint i = 0; i < 100; i++) {
+        for (uint256 i = 0; i < 100; i++) {
             address user = makeAddr(string(abi.encodePacked("user", i)));
             vm.prank(user);
             bondVault.redeemBond(epoch, 800);
@@ -669,20 +735,20 @@ contract CertiKSimulation is Test {
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
         // Victim is about to redeem at $0.50 (1,600 LUMINA)
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
 
         // In real life, attacker would frontrun by manipulating Uniswap
         // to make the TWAP report higher price → victim gets LESS LUMINA
         // Protection: TWAP 30 min window makes single-tx manipulation hard
 
         // Simulate: price changes between victim's view and execution
-        oracle.setPrice(0.60e18); // price went up slightly
+        oracle.setPrice(0.6e18); // price went up slightly
 
         vm.prank(victim);
         bondVault.redeemBond(epoch, 800);
 
         uint256 received = token.balanceOf(victim);
-        uint256 priceHi = 0.60e18;
+        uint256 priceHi = 0.6e18;
         uint256 expected = (uint256(800) * 1e36) / priceHi; // ~1,333 LUMINA instead of 1,600
         assertEq(received, expected);
         // Victim got fewer LUMINA but same USD value ($800)
@@ -757,8 +823,11 @@ contract CertiKSimulation is Test {
     /// @notice INVARIANTE: BondVault nunca tiene más committed que capacity
     function test_INVARIANT_committed_le_capacity() public {
         // Issue bonds up to near capacity
-        for (uint i = 0; i < 50; i++) {
-            try bondVault.issueBond(makeAddr(string(abi.encodePacked("u",i))), 800) {} catch { break; }
+        for (uint256 i = 0; i < 50; i++) {
+            try bondVault.issueBond(makeAddr(string(abi.encodePacked("u", i))), 800) {}
+                catch {
+                break;
+            }
         }
 
         uint256 price = oracle.getLuminaPrice();
@@ -791,14 +860,14 @@ contract CertiKSimulation is Test {
         // Redeem bond (LUMINA moves from vault to user, no supply change)
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
         vm.prank(victim);
         bondVault.redeemBond(epoch, 800);
         snapshots[4] = token.totalSupply();
 
         // Verify monotonic decrease (or equal)
-        for (uint i = 1; i < 5; i++) {
-            assertTrue(snapshots[i] <= snapshots[i-1]);
+        for (uint256 i = 1; i < 5; i++) {
+            assertTrue(snapshots[i] <= snapshots[i - 1]);
         }
     }
 

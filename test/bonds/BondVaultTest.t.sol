@@ -2,14 +2,20 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/token/LuminaTokenV2.sol";
-import "../../src/v2/bonds/ClaimBond.sol";
-import "../../src/v2/bonds/BondVault.sol";
+import "../../src/token/LuminaTokenV2.sol";
+import "../../src/bonds/ClaimBond.sol";
+import "../../src/bonds/BondVault.sol";
 
 contract MockPriceOracle {
     uint256 public price = 0.036e18;
-    function getLuminaPrice() external view returns (uint256) { return price; }
-    function setPrice(uint256 p) external { price = p; }
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
+
+    function setPrice(uint256 p) external {
+        price = p;
+    }
 }
 
 contract BondVaultTest is Test {
@@ -119,9 +125,9 @@ contract BondVaultTest is Test {
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
         // $LUMINA went UP to $0.50 → agent gets FEWER tokens
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
         // [V2/SR2] Formula fixed: (usdAmount * 1e36) / price. Pays 1,600 WHOLE LUMINA.
-        uint256 expected = (800 * 1e36) / 0.50e18; // 1,600 * 1e18 wei = 1,600 LUMINA
+        uint256 expected = (800 * 1e36) / 0.5e18; // 1,600 * 1e18 wei = 1,600 LUMINA
 
         vm.prank(user);
         vault.redeemBond(epoch, 800);
@@ -150,7 +156,7 @@ contract BondVaultTest is Test {
         vault.issueBond(user, 800);
         uint256 epoch = _currentEpochPlus24();
         vm.warp(claimBond.maturityDate(epoch) + 1);
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
 
         vm.prank(user);
         vault.redeemBond(epoch, 300);

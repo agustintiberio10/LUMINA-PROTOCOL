@@ -2,21 +2,19 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/products/RateShockShield.sol";
+import "../../src/products/RateShockShield.sol";
 
 // Minimal mock Aave V3 pool that returns a configurable borrow rate
 contract MockAaveV3Pool {
     uint128 public rate = 5e25; // 5% (below trigger)
 
-    function getReserveData(address)
-        external
-        view
-        returns (IAaveV3Pool.ReserveData memory data)
-    {
+    function getReserveData(address) external view returns (IAaveV3Pool.ReserveData memory data) {
         data.currentVariableBorrowRate = rate;
     }
 
-    function setRate(uint128 r) external { rate = r; }
+    function setRate(uint128 r) external {
+        rate = r;
+    }
 }
 
 contract RateShockShieldTest is Test {

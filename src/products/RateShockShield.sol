@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IShield} from "../../interfaces/IShield.sol";
-import {BaseShield} from "../../products/BaseShield.sol";
+import {IShield} from "../interfaces/IShield.sol";
+import {BaseShield} from "./BaseShield.sol";
 
 /**
  * @title RateShockShield
@@ -72,20 +72,32 @@ contract RateShockShield is BaseShield {
     error InvalidAsset(bytes32 asset);
     error RateBelowTrigger(uint256 currentRate);
 
-    constructor(address router_, address oracle_, address _aavePool, address _usdc)
-        BaseShield(router_, oracle_)
-    {
+    constructor(address router_, address oracle_, address _aavePool, address _usdc) BaseShield(router_, oracle_) {
         require(_aavePool != address(0), "Zero aavePool");
         require(_usdc != address(0), "Zero usdc");
         aavePool = IAaveV3Pool(_aavePool);
         usdc = _usdc;
     }
 
-    function productId() external pure returns (bytes32) { return PRODUCT_ID; }
-    function riskType() external pure returns (bytes32) { return RISK_TYPE; }
-    function maxAllocationBps() external pure returns (uint16) { return MAX_ALLOCATION_BPS; }
-    function durationRange() public pure returns (uint32, uint32) { return (MIN_DURATION, MAX_DURATION); }
-    function waitingPeriod() public pure returns (uint32) { return WAITING_PERIOD; }
+    function productId() external pure returns (bytes32) {
+        return PRODUCT_ID;
+    }
+
+    function riskType() external pure returns (bytes32) {
+        return RISK_TYPE;
+    }
+
+    function maxAllocationBps() external pure returns (uint16) {
+        return MAX_ALLOCATION_BPS;
+    }
+
+    function durationRange() public pure returns (uint32, uint32) {
+        return (MIN_DURATION, MAX_DURATION);
+    }
+
+    function waitingPeriod() public pure returns (uint32) {
+        return WAITING_PERIOD;
+    }
 
     function _doCreatePolicy(uint256 policyId, CreatePolicyParams calldata params) internal override {
         if (params.asset != "USDC") revert InvalidAsset(params.asset);
@@ -94,7 +106,10 @@ contract RateShockShield is BaseShield {
         _rateData[policyId] = RateShockData({asset: params.asset, policyStart: block.timestamp});
     }
 
-    function _doVerifyAndCalculate(uint256 policyId, bytes calldata /* oracleProof */)
+    function _doVerifyAndCalculate(
+        uint256 policyId,
+        bytes calldata /* oracleProof */
+    )
         internal
         view
         override
@@ -123,8 +138,14 @@ contract RateShockShield is BaseShield {
         });
     }
 
-    function _calculateMaxPayout(uint256 coverageAmount, CreatePolicyParams calldata /* params */)
-        internal pure override returns (uint256)
+    function _calculateMaxPayout(
+        uint256 coverageAmount,
+        CreatePolicyParams calldata /* params */
+    )
+        internal
+        pure
+        override
+        returns (uint256)
     {
         return (coverageAmount * (BPS - DEDUCTIBLE_BPS)) / BPS;
     }

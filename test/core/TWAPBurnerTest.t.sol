@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/core/TWAPBurner.sol";
-import "../../src/v2/token/LuminaTokenV2.sol";
+import "../../src/core/TWAPBurner.sol";
+import "../../src/token/LuminaTokenV2.sol";
 
 // Mock swap router that simulates Uniswap swap
 contract MockSwapRouter {
@@ -14,9 +14,7 @@ contract MockSwapRouter {
         lumina = IERC20(_lumina);
     }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params)
-        external returns (uint256 amountOut)
-    {
+    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params) external returns (uint256 amountOut) {
         // Simulate: take USDC, give LUMINA
         IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
         // Calculate LUMINA output: amountIn (6 dec) * rate * 1e12 (to 18 dec)
@@ -25,7 +23,9 @@ contract MockSwapRouter {
         lumina.transfer(params.recipient, amountOut);
     }
 
-    function setRate(uint256 r) external { rate = r; }
+    function setRate(uint256 r) external {
+        rate = r;
+    }
 }
 
 contract TWAPBurnerTest is Test {
@@ -135,8 +135,8 @@ contract TWAPBurnerTest is Test {
     }
 
     function test_getStats() public view {
-        (uint256 received, uint256 burned, uint256 luminaBurned,
-         uint256 pending, uint256 lastBurn, bool canBurn_) = burner.getStats();
+        (uint256 received, uint256 burned, uint256 luminaBurned, uint256 pending, uint256 lastBurn, bool canBurn_) =
+            burner.getStats();
         assertEq(received, 0);
         assertEq(burned, 0);
         assertEq(luminaBurned, 0);

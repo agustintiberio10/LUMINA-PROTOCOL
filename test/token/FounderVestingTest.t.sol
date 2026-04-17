@@ -2,12 +2,12 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/token/LuminaTokenV2.sol";
-import "../../src/v2/token/FounderVesting.sol";
+import "../../src/token/LuminaTokenV2.sol";
+import "../../src/token/FounderVesting.sol";
 
 // Mock oracle that returns configurable prices
 contract MockOracle {
-    int256 public ethPrice = 3000_00000000;  // $3,000 (8 decimals)
+    int256 public ethPrice = 3000_00000000; // $3,000 (8 decimals)
     int256 public btcPrice = 60000_00000000; // $60,000 (8 decimals)
 
     function getLatestPrice(bytes32 asset) external view returns (int256) {
@@ -16,8 +16,13 @@ contract MockOracle {
         return 0;
     }
 
-    function setEthPrice(int256 p) external { ethPrice = p; }
-    function setBtcPrice(int256 p) external { btcPrice = p; }
+    function setEthPrice(int256 p) external {
+        ethPrice = p;
+    }
+
+    function setBtcPrice(int256 p) external {
+        btcPrice = p;
+    }
 }
 
 // Mock Aave pool that returns configurable borrow rate
@@ -46,7 +51,9 @@ contract MockAavePool {
         data.currentVariableBorrowRate = borrowRate;
     }
 
-    function setBorrowRate(uint128 r) external { borrowRate = r; }
+    function setBorrowRate(uint128 r) external {
+        borrowRate = r;
+    }
 }
 
 contract FounderVestingTest is Test {
@@ -66,9 +73,7 @@ contract FounderVestingTest is Test {
         aavePool = new MockAavePool();
         token = new LuminaTokenV2(bondVault, lbp, address(0xdead), treasury);
         // We'll deploy vesting separately and transfer tokens to it
-        vesting = new FounderVesting(
-            address(oracle), address(aavePool), address(token), usdc, founder
-        );
+        vesting = new FounderVesting(address(oracle), address(aavePool), address(token), usdc, founder);
         // Simulate: token was minted to a temp address, now transfer to vesting
         // In real deploy, founderVesting address is known at construction
         // For test, we use deal to set the balance

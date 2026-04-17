@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/products/MicroDepegShield.sol";
+import "../../src/products/MicroDepegShield.sol";
 
 contract MicroDepegShieldTest is Test {
     MicroDepegShield shield;

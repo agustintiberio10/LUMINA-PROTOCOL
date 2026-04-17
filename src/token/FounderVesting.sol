@@ -40,14 +40,14 @@ interface IAaveV3PoolReader {
 
 contract FounderVesting is Ownable {
     // ═══════ CONSTANTS ═══════
-    uint256 public constant ETH_BTC_THRESHOLD = 50e15;        // 0.050 in 18 decimals
+    uint256 public constant ETH_BTC_THRESHOLD = 50e15; // 0.050 in 18 decimals
     int256 public constant ETH_USD_THRESHOLD = 400_000_000_000; // $4,000 in 8 decimals
-    uint256 public constant BORROW_RATE_THRESHOLD = 7e25;      // 7% APY in RAY (27 decimals)
+    uint256 public constant BORROW_RATE_THRESHOLD = 7e25; // 7% APY in RAY (27 decimals)
     uint256 public constant SUSTAINED_DURATION = 7 days;
     uint256 public constant TRANCHE_INTERVAL = 31 days;
     uint256 public constant TOTAL_TRANCHES = 3;
-    uint256 public constant FALLBACK_DURATION = 1460 days;     // 4 years
-    uint256 public constant TOTAL_AMOUNT = 10_000_000 * 1e18;  // 10M LUMINA
+    uint256 public constant FALLBACK_DURATION = 1460 days; // 4 years
+    uint256 public constant TOTAL_AMOUNT = 10_000_000 * 1e18; // 10M LUMINA
     uint256 public constant TRANCHE_AMOUNT = TOTAL_AMOUNT / TOTAL_TRANCHES; // ~3.333M per tranche
 
     // ═══════ IMMUTABLES ═══════
@@ -74,13 +74,9 @@ contract FounderVesting is Ownable {
     event RecipientUpdated(address oldRecipient, address newRecipient);
     event FallbackTriggered(uint256 timestamp);
 
-    constructor(
-        address _oracle,
-        address _aavePool,
-        address _luminaToken,
-        address _usdc,
-        address _recipient
-    ) Ownable(msg.sender) {
+    constructor(address _oracle, address _aavePool, address _luminaToken, address _usdc, address _recipient)
+        Ownable(msg.sender)
+    {
         require(_oracle != address(0), "Zero oracle");
         require(_aavePool != address(0), "Zero aavePool");
         require(_luminaToken != address(0), "Zero token");
@@ -143,9 +139,7 @@ contract FounderVesting is Ownable {
         tranchesReleased++;
 
         // Last tranche gets the remainder to avoid rounding dust
-        uint256 amount = (nextTranche == TOTAL_TRANCHES - 1)
-            ? TOTAL_AMOUNT - totalReleased
-            : TRANCHE_AMOUNT;
+        uint256 amount = (nextTranche == TOTAL_TRANCHES - 1) ? TOTAL_AMOUNT - totalReleased : TRANCHE_AMOUNT;
 
         totalReleased += amount;
         require(luminaToken.transfer(recipient, amount), "Transfer failed");
@@ -166,15 +160,19 @@ contract FounderVesting is Ownable {
         return _evaluateConditions();
     }
 
-    function getStatus() external view returns (
-        bool triggered,
-        uint256 _triggerTimestamp,
-        uint256 _tranchesReleased,
-        uint256 _totalReleased,
-        uint256 _conditionsMetSince,
-        uint256 nextReleaseAt,
-        uint256 fallbackAt
-    ) {
+    function getStatus()
+        external
+        view
+        returns (
+            bool triggered,
+            uint256 _triggerTimestamp,
+            uint256 _tranchesReleased,
+            uint256 _totalReleased,
+            uint256 _conditionsMetSince,
+            uint256 nextReleaseAt,
+            uint256 fallbackAt
+        )
+    {
         triggered = altSeasonTriggered;
         _triggerTimestamp = triggerTimestamp;
         _tranchesReleased = tranchesReleased;

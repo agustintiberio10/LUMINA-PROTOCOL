@@ -14,8 +14,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 interface IPolicyManagerV2 {
     function recordPolicy(
-        bytes32 productId, address buyer, uint256 coverageAmount,
-        uint256 premiumAmount, uint32 durationSeconds, bytes32 asset
+        bytes32 productId,
+        address buyer,
+        uint256 coverageAmount,
+        uint256 premiumAmount,
+        uint32 durationSeconds,
+        bytes32 asset
     ) external returns (uint256 policyId);
 
     function triggerPayout(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external;
@@ -42,9 +46,9 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
     // Product pricing config (stored here for the API/frontend to read)
     struct ProductConfig {
         bytes32 productId;
-        uint256 payoutRatioBps;  // 8000 = 80%
-        uint256 triggerProbBps;  // probability in bps (e.g., 20 = 0.20%)
-        uint256 marginBps;      // 15000 = 1.50x
+        uint256 payoutRatioBps; // 8000 = 80%
+        uint256 triggerProbBps; // probability in bps (e.g., 20 = 0.20%)
+        uint256 marginBps; // 15000 = 1.50x
         uint32 durationSeconds;
         bool active;
     }
@@ -53,9 +57,13 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
 
     // ═══════ EVENTS ═══════
     event PolicyPurchased(
-        bytes32 indexed productId, uint256 indexed policyId,
-        address indexed buyer, uint256 coverage, uint256 premium,
-        uint256 payout, address paidBy
+        bytes32 indexed productId,
+        uint256 indexed policyId,
+        address indexed buyer,
+        uint256 coverage,
+        uint256 premium,
+        uint256 payout,
+        address paidBy
     );
     event TriggerSubmitted(bytes32 indexed productId, uint256 indexed policyId, address submitter);
     event ProductConfigured(bytes32 indexed productId);
@@ -75,11 +83,7 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(
-        address _usdc,
-        address _policyManager,
-        address _twapBurner
-    ) Ownable(msg.sender) {
+    constructor(address _usdc, address _policyManager, address _twapBurner) Ownable(msg.sender) {
         require(_usdc != address(0), "Zero USDC");
         require(_policyManager != address(0), "Zero PM");
         require(_twapBurner != address(0), "Zero burner");
@@ -95,11 +99,12 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
     /// @param productId Product identifier (e.g., keccak256("FLASHBTC1H-001"))
     /// @param coverageAmount Coverage in USDC (6 decimals). E.g., 1000e6 = $1,000
     /// @param asset Asset being covered (e.g., "BTC", "ETH", "USDT")
-    function purchasePolicy(
-        bytes32 productId,
-        uint256 coverageAmount,
-        bytes32 asset
-    ) external nonReentrant whenNotPaused returns (uint256 policyId) {
+    function purchasePolicy(bytes32 productId, uint256 coverageAmount, bytes32 asset)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 policyId)
+    {
         return _purchase(productId, coverageAmount, asset, msg.sender, msg.sender);
     }
 
@@ -107,12 +112,12 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
 
     /// @notice Buy a policy on behalf of another address. For API/relayer use.
     /// @param buyer The address that will own the policy and receive any bond
-    function purchasePolicyFor(
-        bytes32 productId,
-        uint256 coverageAmount,
-        bytes32 asset,
-        address buyer
-    ) external nonReentrant whenNotPaused returns (uint256 policyId) {
+    function purchasePolicyFor(bytes32 productId, uint256 coverageAmount, bytes32 asset, address buyer)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 policyId)
+    {
         if (!authorizedRelayers[msg.sender]) revert NotAuthorizedRelayer(msg.sender);
         require(buyer != address(0), "Zero buyer");
         return _purchase(productId, coverageAmount, asset, buyer, msg.sender);
@@ -124,24 +129,17 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
     /// @param productId Product
     /// @param policyId Policy ID within the shield
     /// @param oracleProof Encoded oracle proof (price, asset, timestamp, signature)
-    function submitTrigger(
-        bytes32 productId,
-        uint256 policyId,
-        bytes calldata oracleProof
-    ) external nonReentrant {
+    function submitTrigger(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external nonReentrant {
         policyManager.triggerPayout(productId, policyId, oracleProof);
         emit TriggerSubmitted(productId, policyId, msg.sender);
     }
 
     // ═══════ INTERNAL ═══════
 
-    function _purchase(
-        bytes32 productId,
-        uint256 coverageAmount,
-        bytes32 asset,
-        address buyer,
-        address payer
-    ) internal returns (uint256 policyId) {
+    function _purchase(bytes32 productId, uint256 coverageAmount, bytes32 asset, address buyer, address payer)
+        internal
+        returns (uint256 policyId)
+    {
         ProductConfig storage config = products[productId];
         if (config.durationSeconds == 0) revert ProductNotConfigured(productId);
         if (!config.active) revert ProductInactive(productId);
@@ -149,7 +147,7 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
 
         // Calculate premium: coverage × payoutRatio × triggerProb × margin / (10000^3)
         uint256 premium = (coverageAmount * config.payoutRatioBps * config.triggerProbBps * config.marginBps)
-                          / (10000 * 10000 * 10000);
+            / (10000 * 10000 * 10000);
         if (premium == 0) premium = 1; // minimum 1 unit USDC ($0.000001)
 
         // Transfer USDC from payer
@@ -161,14 +159,7 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         twapBurner.receivePremium(premium);
 
         // Record policy in PolicyManager
-        policyId = policyManager.recordPolicy(
-            productId,
-            buyer,
-            coverageAmount,
-            premium,
-            config.durationSeconds,
-            asset
-        );
+        policyId = policyManager.recordPolicy(productId, buyer, coverageAmount, premium, config.durationSeconds, asset);
 
         uint256 payout = (coverageAmount * config.payoutRatioBps) / 10000;
         emit PolicyPurchased(productId, policyId, buyer, coverageAmount, premium, payout, payer);
@@ -224,12 +215,14 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
 
     /// @notice Calculate premium for a given product and coverage.
     function quotePremium(bytes32 productId, uint256 coverageAmount)
-        external view returns (uint256 premium, uint256 payout)
+        external
+        view
+        returns (uint256 premium, uint256 payout)
     {
         ProductConfig storage config = products[productId];
         require(config.durationSeconds > 0, "Product not configured");
         premium = (coverageAmount * config.payoutRatioBps * config.triggerProbBps * config.marginBps)
-                  / (10000 * 10000 * 10000);
+            / (10000 * 10000 * 10000);
         if (premium == 0) premium = 1;
         payout = (coverageAmount * config.payoutRatioBps) / 10000;
     }

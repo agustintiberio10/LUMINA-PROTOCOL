@@ -11,44 +11,48 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 interface IUniswapV3Pool {
     function observe(uint32[] calldata secondsAgos)
-        external view returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s);
-    function slot0() external view returns (
-        uint160 sqrtPriceX96, int24 tick, uint16 observationIndex,
-        uint16 observationCardinality, uint16 observationCardinalityNext,
-        uint8 feeProtocol, bool unlocked
-    );
+        external
+        view
+        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s);
+    function slot0()
+        external
+        view
+        returns (
+            uint160 sqrtPriceX96,
+            int24 tick,
+            uint16 observationIndex,
+            uint16 observationCardinality,
+            uint16 observationCardinalityNext,
+            uint8 feeProtocol,
+            bool unlocked
+        );
     function token0() external view returns (address);
     function token1() external view returns (address);
 }
 
 contract CapacityOracle is Ownable {
     // ═══════ STATE ═══════
-    address public pool;               // Uniswap V3 LUMINA/USDC pool
+    address public pool; // Uniswap V3 LUMINA/USDC pool
     // [M-7] luminaToken and usdcToken are set once in constructor, never rewritten → immutable
     address public immutable luminaToken;
     address public immutable usdcToken;
-    uint32 public twapWindow = 1800;   // 30 minutes default
-    uint256 public emergencyPrice;     // fallback price if TWAP fails (18 decimals)
-    bool public isToken0Lumina;        // whether LUMINA is token0 in the pool
+    uint32 public twapWindow = 1800; // 30 minutes default
+    uint256 public emergencyPrice; // fallback price if TWAP fails (18 decimals)
+    bool public isToken0Lumina; // whether LUMINA is token0 in the pool
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant BOND_RESERVE = 82_000_000 * 1e18;
-    uint256 public constant SAFETY_FACTOR_BPS = 5000;       // 50%
-    uint256 public constant AVG_PAYOUT_USD = 500;            // $500 average payout
-    uint256 public constant MATURITY_DAYS = 730;             // 24 months
-    uint256 public constant AVG_TRIGGER_RATE_BPS = 100;      // 1% average
+    uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50%
+    uint256 public constant AVG_PAYOUT_USD = 500; // $500 average payout
+    uint256 public constant MATURITY_DAYS = 730; // 24 months
+    uint256 public constant AVG_TRIGGER_RATE_BPS = 100; // 1% average
 
     // ═══════ EVENTS ═══════
     event PoolUpdated(address oldPool, address newPool);
     event TwapWindowUpdated(uint32 oldWindow, uint32 newWindow);
     event EmergencyPriceSet(uint256 price);
 
-    constructor(
-        address _pool,
-        address _luminaToken,
-        address _usdcToken,
-        uint256 _emergencyPrice
-    ) Ownable(msg.sender) {
+    constructor(address _pool, address _luminaToken, address _usdcToken, uint256 _emergencyPrice) Ownable(msg.sender) {
         require(_luminaToken != address(0), "Zero lumina");
         require(_usdcToken != address(0), "Zero usdc");
         require(_emergencyPrice > 0, "Zero emergency price");
@@ -129,7 +133,7 @@ contract CapacityOracle is Ownable {
         if (price == 0) return 0;
         // max = (BOND_RESERVE * SAFETY_FACTOR * price) / (AVG_PAYOUT * MATURITY * AVG_TRIGGER)
         // BOND_RESERVE is 18-dec LUMINA wei, price is 18-dec USD/LUMINA.
-        uint256 reserveValueUSD = (BOND_RESERVE * price) / 1e18;       // 18-dec USD
+        uint256 reserveValueUSD = (BOND_RESERVE * price) / 1e18; // 18-dec USD
         uint256 maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000; // 18-dec USD
         uint256 dailyCommitUSD = (AVG_PAYOUT_USD * AVG_TRIGGER_RATE_BPS) / 10000; // integer $
         if (dailyCommitUSD == 0) return type(uint256).max;

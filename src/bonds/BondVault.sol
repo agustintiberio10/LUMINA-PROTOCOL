@@ -34,12 +34,12 @@ contract BondVault is ReentrancyGuard {
     address public immutable policyManager;
 
     // ═══════ CONSTANTS ═══════
-    uint256 public constant SAFETY_FACTOR_BPS = 5000;     // 50% — max commitment
+    uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50% — max commitment
     uint256 public constant BOND_MATURITY_SECONDS = 730 days; // 24 months
-    uint256 public constant MIN_PRICE = 0.005e18;         // $0.005 circuit breaker
-    uint256 public constant RESET_PRICE = 0.008e18;       // $0.008 hysteresis reset
-    uint256 public constant MIN_REDEEM_PRICE = 0.001e18;  // absolute floor for redemption
-    uint256 public constant BREAKER_COOLDOWN = 1 hours;   // [H-3] min wait between breaker trigger and reset
+    uint256 public constant MIN_PRICE = 0.005e18; // $0.005 circuit breaker
+    uint256 public constant RESET_PRICE = 0.008e18; // $0.008 hysteresis reset
+    uint256 public constant MIN_REDEEM_PRICE = 0.001e18; // absolute floor for redemption
+    uint256 public constant BREAKER_COOLDOWN = 1 hours; // [H-3] min wait between breaker trigger and reset
 
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds
@@ -49,21 +49,12 @@ contract BondVault is ReentrancyGuard {
     // ═══════ EVENTS ═══════
     event BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount);
     event BondRedeemed(
-        address indexed holder,
-        uint256 indexed epochId,
-        uint256 usdAmount,
-        uint256 luminaAmount,
-        uint256 priceUsed
+        address indexed holder, uint256 indexed epochId, uint256 usdAmount, uint256 luminaAmount, uint256 priceUsed
     );
     event CircuitBreakerTriggered(uint256 price);
     event CircuitBreakerReset(uint256 price);
 
-    constructor(
-        address _lumina,
-        address _claimBond,
-        address _priceOracle,
-        address _policyManager
-    ) {
+    constructor(address _lumina, address _claimBond, address _priceOracle, address _policyManager) {
         require(_lumina != address(0), "Zero lumina");
         require(_claimBond != address(0), "Zero claimBond");
         require(_priceOracle != address(0), "Zero oracle");
@@ -168,10 +159,7 @@ contract BondVault is ReentrancyGuard {
     ///      and reset to prevent flap-attacks on thin-liquidity spot flashes.
     function resetCircuitBreaker() external {
         require(paused, "Not paused");
-        require(
-            block.timestamp >= lastBreakerTriggerTime + BREAKER_COOLDOWN,
-            "Cooldown active"
-        );
+        require(block.timestamp >= lastBreakerTriggerTime + BREAKER_COOLDOWN, "Cooldown active");
         uint256 currentPrice = priceOracle.getLuminaPrice();
         require(currentPrice >= RESET_PRICE, "Price not recovered enough");
         paused = false;
@@ -200,14 +188,18 @@ contract BondVault is ReentrancyGuard {
 
     /// @dev [V3/SR2] Returns committed/available/reserveValue in INTEGER DOLLARS for readability.
     ///      Internal accounting is 18-dec USD-wei.
-    function getStatus() external view returns (
-        uint256 reserveBalance,
-        uint256 reserveValueUSD,
-        uint256 committed,
-        uint256 availableUSD,
-        uint256 currentPrice,
-        bool isPaused
-    ) {
+    function getStatus()
+        external
+        view
+        returns (
+            uint256 reserveBalance,
+            uint256 reserveValueUSD,
+            uint256 committed,
+            uint256 availableUSD,
+            uint256 currentPrice,
+            bool isPaused
+        )
+    {
         currentPrice = _getSafePrice();
         reserveBalance = lumina.balanceOf(address(this));
         uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;

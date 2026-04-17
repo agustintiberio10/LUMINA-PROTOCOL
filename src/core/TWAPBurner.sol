@@ -24,8 +24,7 @@ interface ISwapRouter {
         uint256 amountOutMinimum;
         uint160 sqrtPriceLimitX96;
     }
-    function exactInputSingle(ExactInputSingleParams calldata params)
-        external payable returns (uint256 amountOut);
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }
 
 interface IBurnable {
@@ -51,27 +50,22 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     address public capacityOracle;
 
     // ═══════ CONFIG (adjustable by owner = Gnosis Safe) ═══════
-    uint24 public poolFee = 10000;           // 1% fee tier (new volatile token)
-    uint256 public maxSlippageBps = 500;     // 5% max slippage per swap
-    uint256 public minBurnAmount = 1e6;      // $1 USDC minimum per burn execution
+    uint24 public poolFee = 10000; // 1% fee tier (new volatile token)
+    uint256 public maxSlippageBps = 500; // 5% max slippage per swap
+    uint256 public minBurnAmount = 1e6; // $1 USDC minimum per burn execution
     uint256 public maxBurnAmount = 10_000e6; // $10K USDC max per burn execution
-    uint256 public burnCooldown = 900;       // 15 minutes between burns
+    uint256 public burnCooldown = 900; // 15 minutes between burns
 
     // ═══════ STATE ═══════
     uint256 public lastBurnTimestamp;
     uint256 public totalUSDCReceived;
-    uint256 public totalUSDCBurned;     // total USDC spent on buying LUMINA
-    uint256 public totalLUMINABurned;   // total LUMINA tokens destroyed
+    uint256 public totalUSDCBurned; // total USDC spent on buying LUMINA
+    uint256 public totalLUMINABurned; // total LUMINA tokens destroyed
 
     // ═══════ EVENTS ═══════
     event PremiumReceived(address indexed from, uint256 usdcAmount);
     event MarketplaceFeeReceived(address indexed from, uint256 usdcAmount);
-    event BurnExecuted(
-        uint256 usdcSpent,
-        uint256 luminaBurned,
-        uint256 effectivePrice,
-        uint256 timestamp
-    );
+    event BurnExecuted(uint256 usdcSpent, uint256 luminaBurned, uint256 effectivePrice, uint256 timestamp);
     event ConfigUpdated(string param, uint256 value);
 
     // ═══════ AUTHORIZED SENDERS ═══════
@@ -82,11 +76,7 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(
-        address _usdc,
-        address _lumina,
-        address _swapRouter
-    ) Ownable(msg.sender) {
+    constructor(address _usdc, address _lumina, address _swapRouter) Ownable(msg.sender) {
         require(_usdc != address(0), "Zero USDC");
         require(_lumina != address(0), "Zero LUMINA");
         require(_swapRouter != address(0), "Zero router");
@@ -230,25 +220,27 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     }
 
     function canBurn() external view returns (bool) {
-        return block.timestamp >= lastBurnTimestamp + burnCooldown
-            && usdc.balanceOf(address(this)) >= minBurnAmount;
+        return block.timestamp >= lastBurnTimestamp + burnCooldown && usdc.balanceOf(address(this)) >= minBurnAmount;
     }
 
-    function getStats() external view returns (
-        uint256 _totalUSDCReceived,
-        uint256 _totalUSDCBurned,
-        uint256 _totalLUMINABurned,
-        uint256 _pendingUSDC,
-        uint256 _lastBurnTimestamp,
-        bool _canBurn
-    ) {
+    function getStats()
+        external
+        view
+        returns (
+            uint256 _totalUSDCReceived,
+            uint256 _totalUSDCBurned,
+            uint256 _totalLUMINABurned,
+            uint256 _pendingUSDC,
+            uint256 _lastBurnTimestamp,
+            bool _canBurn
+        )
+    {
         _totalUSDCReceived = totalUSDCReceived;
         _totalUSDCBurned = totalUSDCBurned;
         _totalLUMINABurned = totalLUMINABurned;
         _pendingUSDC = usdc.balanceOf(address(this));
         _lastBurnTimestamp = lastBurnTimestamp;
-        _canBurn = block.timestamp >= lastBurnTimestamp + burnCooldown
-            && usdc.balanceOf(address(this)) >= minBurnAmount;
+        _canBurn = block.timestamp >= lastBurnTimestamp + burnCooldown && usdc.balanceOf(address(this)) >= minBurnAmount;
     }
 
     // ═══════ EMERGENCY: recover stuck tokens (NOT LUMINA, NOT USDC) ═══════

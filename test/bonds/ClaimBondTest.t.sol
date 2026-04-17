@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/bonds/ClaimBond.sol";
+import "../../src/bonds/ClaimBond.sol";
 
 contract ClaimBondTest is Test {
     ClaimBond bond;

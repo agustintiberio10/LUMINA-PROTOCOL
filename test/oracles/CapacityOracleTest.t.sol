@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/v2/oracles/CapacityOracle.sol";
+import "../../src/oracles/CapacityOracle.sol";
 
 contract MockUniswapPool {
     int24 public mockTick = -92000; // approximately $0.036 for LUMINA/USDC
@@ -14,10 +14,17 @@ contract MockUniswapPool {
         token1_ = _t1;
     }
 
-    function token0() external view returns (address) { return token0_; }
-    function token1() external view returns (address) { return token1_; }
+    function token0() external view returns (address) {
+        return token0_;
+    }
 
-    function observe(uint32[] calldata) external view
+    function token1() external view returns (address) {
+        return token1_;
+    }
+
+    function observe(uint32[] calldata)
+        external
+        view
         returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiq)
     {
         tickCumulatives = new int56[](2);
@@ -26,13 +33,13 @@ contract MockUniswapPool {
         secondsPerLiq = new uint160[](2);
     }
 
-    function slot0() external view returns (
-        uint160, int24, uint16, uint16, uint16, uint8, bool
-    ) {
+    function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
         return (0, mockTick, 0, 0, 0, 0, true);
     }
 
-    function setTick(int24 t) external { mockTick = t; }
+    function setTick(int24 t) external {
+        mockTick = t;
+    }
 }
 
 contract CapacityOracleTest is Test {
@@ -58,9 +65,9 @@ contract CapacityOracleTest is Test {
     }
 
     function test_setEmergencyPrice() public {
-        oracle.setEmergencyPrice(0.10e18);
+        oracle.setEmergencyPrice(0.1e18);
         uint256 price = oracle.getLuminaPrice();
-        assertEq(price, 0.10e18);
+        assertEq(price, 0.1e18);
     }
 
     function test_maxPoliciesPerDay_at_1dollar() public {

@@ -3,17 +3,17 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {LuminaTokenV2} from "../../src/v2/token/LuminaTokenV2.sol";
-import {FounderVesting} from "../../src/v2/token/FounderVesting.sol";
-import {TreasuryVesting} from "../../src/v2/token/TreasuryVesting.sol";
-import {ClaimBond} from "../../src/v2/bonds/ClaimBond.sol";
-import {BondVault} from "../../src/v2/bonds/BondVault.sol";
-import {PolicyManagerV2} from "../../src/v2/core/PolicyManagerV2.sol";
-import {CoverRouterV2} from "../../src/v2/core/CoverRouterV2.sol";
+import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
+import {FounderVesting} from "../../src/token/FounderVesting.sol";
+import {TreasuryVesting} from "../../src/token/TreasuryVesting.sol";
+import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
+import {BondVault} from "../../src/bonds/BondVault.sol";
+import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
+import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
 // BondVault and TWAPBurner both declare an IPriceOracle interface. Import only
 // the contract from TWAPBurner.sol and use ISwapRouter via an inline struct match.
-import {TWAPBurner, ISwapRouter} from "../../src/v2/core/TWAPBurner.sol";
-import {CapacityOracle} from "../../src/v2/oracles/CapacityOracle.sol";
+import {TWAPBurner, ISwapRouter} from "../../src/core/TWAPBurner.sol";
+import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 
 // ═══════════════════════════════════════════════════════════
 // MOCKS
@@ -31,15 +31,18 @@ contract MockUSDC {
         balanceOf[to] += amount;
         totalSupply += amount;
     }
+
     function transfer(address to, uint256 amount) external returns (bool) {
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         return true;
     }
+
     function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
         return true;
     }
+
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         if (allowance[from][msg.sender] < amount) revert("Insufficient allowance");
         allowance[from][msg.sender] -= amount;
@@ -51,21 +54,29 @@ contract MockUSDC {
 
 contract MockPriceOracle {
     uint256 public price = 0.036e18;
-    function getLuminaPrice() external view returns (uint256) { return price; }
-    function setPrice(uint256 p) external { price = p; }
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
+
+    function setPrice(uint256 p) external {
+        price = p;
+    }
 }
 
 contract MockSwapRouter {
     IERC20 public lumina;
     uint256 public oraclePrice = 0.036e18;
 
-    constructor(address _lumina) { lumina = IERC20(_lumina); }
+    constructor(address _lumina) {
+        lumina = IERC20(_lumina);
+    }
 
-    function setPrice(uint256 p) external { oraclePrice = p; }
+    function setPrice(uint256 p) external {
+        oraclePrice = p;
+    }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params)
-        external returns (uint256 amountOut)
-    {
+    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params) external returns (uint256 amountOut) {
         IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
         // amountIn is USDC (6 dec), convert to LUMINA (18 dec) at oraclePrice
         // LUMINA amount = USDC_amount_in_dollars * 1e18 / price
@@ -87,7 +98,9 @@ contract MockShield {
         router = _router;
     }
 
-    function productId() external view returns (bytes32) { return _productId; }
+    function productId() external view returns (bytes32) {
+        return _productId;
+    }
 
     function setTrigger(uint256 policyId, bool trigger) external {
         shouldTrigger[policyId] = trigger;
@@ -119,9 +132,7 @@ contract MockShield {
         bytes32 reason;
     }
 
-    function verifyAndCalculate(uint256 policyId, bytes calldata)
-        external view returns (PayoutResult memory)
-    {
+    function verifyAndCalculate(uint256 policyId, bytes calldata) external view returns (PayoutResult memory) {
         return PayoutResult({
             triggered: shouldTrigger[policyId],
             payoutAmount: (policyCoverage[policyId] * 8000) / 10000,
@@ -170,8 +181,7 @@ contract AdversarialAuditTest is Test {
 
         // 3. Deploy token (need addresses for constructor)
         token = new LuminaTokenV2(
-            makeAddr("tempVault"), makeAddr("tempLbp"),
-            makeAddr("tempFounder"), makeAddr("tempTreasury")
+            makeAddr("tempVault"), makeAddr("tempLbp"), makeAddr("tempFounder"), makeAddr("tempTreasury")
         );
 
         // 4. Real swap router with the real token
@@ -182,9 +192,7 @@ contract AdversarialAuditTest is Test {
 
         // 6. Deploy BondVault with THIS contract as policyManager (workaround for
         //    immutable circular dependency — tests call bondVault.issueBond directly)
-        bondVault = new BondVault(
-            address(token), address(claimBond), address(oracle), address(this)
-        );
+        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
 
         // Now deploy real policyManager (it will have its own bondVault view)
         policyManager = new PolicyManagerV2(address(bondVault));
@@ -252,14 +260,14 @@ contract AdversarialAuditTest is Test {
         assertEq(claimBond.balanceOf(user1, epochId), 800);
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
 
         uint256 balBefore = token.balanceOf(user1);
         vm.prank(user1);
         bondVault.redeemBond(epochId, 800);
 
         uint256 received = token.balanceOf(user1) - balBefore;
-        uint256 expected = (800 * 1e36) / 0.50e18;
+        uint256 expected = (800 * 1e36) / 0.5e18;
         assertEq(received, expected);
 
         assertEq(claimBond.balanceOf(user1, epochId), 0);
@@ -408,7 +416,7 @@ contract AdversarialAuditTest is Test {
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
 
         vm.prank(user1);
         vm.expectRevert("Insufficient bonds");
@@ -431,7 +439,7 @@ contract AdversarialAuditTest is Test {
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
 
         vm.startPrank(user1);
         bondVault.redeemBond(epochId, 800);
@@ -445,7 +453,7 @@ contract AdversarialAuditTest is Test {
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
-        oracle.setPrice(0.50e18);
+        oracle.setPrice(0.5e18);
 
         vm.prank(user1);
         bondVault.redeemBond(epochId, 300);
@@ -460,7 +468,7 @@ contract AdversarialAuditTest is Test {
         vm.prank(user2);
         bondVault.redeemBond(epochId, 500);
         uint256 received2 = token.balanceOf(user2) - bal2Before;
-        uint256 expected2 = (500 * 1e36) / 0.50e18;
+        uint256 expected2 = (500 * 1e36) / 0.5e18;
         assertEq(received2, expected2);
     }
 
@@ -585,9 +593,7 @@ contract AdversarialAuditTest is Test {
     function test_founder_locked_before_altseason() public {
         MockFounderOracle fo = new MockFounderOracle();
         MockFounderAave fa = new MockFounderAave();
-        FounderVesting fv = new FounderVesting(
-            address(fo), address(fa), address(token), address(usdc), user1
-        );
+        FounderVesting fv = new FounderVesting(address(fo), address(fa), address(token), address(usdc), user1);
         deal(address(token), address(fv), 10_000_000 * 1e18);
 
         vm.expectRevert("Not triggered");
@@ -597,9 +603,7 @@ contract AdversarialAuditTest is Test {
     function test_founder_attacker_cannot_update_recipient() public {
         MockFounderOracle fo = new MockFounderOracle();
         MockFounderAave fa = new MockFounderAave();
-        FounderVesting fv = new FounderVesting(
-            address(fo), address(fa), address(token), address(usdc), user1
-        );
+        FounderVesting fv = new FounderVesting(address(fo), address(fa), address(token), address(usdc), user1);
 
         vm.prank(attacker);
         vm.expectRevert();
@@ -775,6 +779,7 @@ contract MockFounderAave {
         uint128 unbacked;
         uint128 isolationModeTotalDebt;
     }
+
     function getReserveData(address) external pure returns (ReserveData memory data) {
         data.currentVariableBorrowRate = 5e25;
     }

@@ -11,7 +11,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 ///      bug bounties, emergency bond reserve top-up.
 contract TreasuryVesting is Ownable {
     uint256 public constant TOTAL_AMOUNT = 3_000_000 * 1e18;
-    uint256 public constant LOCK_DURATION = 180 days;           // 6 months
+    uint256 public constant LOCK_DURATION = 180 days; // 6 months
     uint256 public constant MAX_MONTHLY_RELEASE = 250_000 * 1e18; // 250K/month
     uint256 public constant MONTH = 30 days;
 
@@ -19,7 +19,7 @@ contract TreasuryVesting is Ownable {
     uint256 public immutable deployedAt;
 
     uint256 public totalReleased;
-    uint256 public lastReleaseMonth;  // tracks which month was last released
+    uint256 public lastReleaseMonth; // tracks which month was last released
 
     event Released(address indexed to, uint256 amount, uint256 month);
 
@@ -64,21 +64,24 @@ contract TreasuryVesting is Ownable {
         return remaining < MAX_MONTHLY_RELEASE ? remaining : MAX_MONTHLY_RELEASE;
     }
 
-    function getStatus() external view returns (
-        uint256 _totalAmount,
-        uint256 _totalReleased,
-        uint256 _remaining,
-        bool _isLocked,
-        uint256 _unlockDate,
-        uint256 _currentMonth
-    ) {
+    function getStatus()
+        external
+        view
+        returns (
+            uint256 _totalAmount,
+            uint256 _totalReleased,
+            uint256 _remaining,
+            bool _isLocked,
+            uint256 _unlockDate,
+            uint256 _currentMonth
+        )
+    {
         _totalAmount = TOTAL_AMOUNT;
         _totalReleased = totalReleased;
         _remaining = TOTAL_AMOUNT - totalReleased;
         _isLocked = block.timestamp < deployedAt + LOCK_DURATION;
         _unlockDate = deployedAt + LOCK_DURATION;
-        _currentMonth = block.timestamp >= deployedAt + LOCK_DURATION
-            ? (block.timestamp - deployedAt - LOCK_DURATION) / MONTH
-            : 0;
+        _currentMonth =
+            block.timestamp >= deployedAt + LOCK_DURATION ? (block.timestamp - deployedAt - LOCK_DURATION) / MONTH : 0;
     }
 }
