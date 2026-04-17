@@ -13,6 +13,10 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 ///      Bond payouts are FIXED IN USD, settled in LUMINA at market price at redemption.
 ///      Even the founder cannot access these tokens. Verifiable on-chain.
 
+interface IBurnable {
+    function burn(uint256 amount) external;
+}
+
 interface IClaimBond {
     function mint(address to, uint256 epochId, uint256 usdAmount) external;
     function burn(address from, uint256 epochId, uint256 usdAmount) external;
@@ -42,9 +46,12 @@ contract BondVault is ReentrancyGuard {
     uint256 public constant BREAKER_COOLDOWN = 1 hours; // [H-3] min wait between breaker trigger and reset
 
     // ═══════ STATE ═══════
-    uint256 public totalCommittedUSD; // total USD value of active bonds
+    uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
     bool public paused; // circuit breaker — only blocks new issuance, NEVER blocks redemption
     uint256 public lastBreakerTriggerTime; // [H-3] timestamp of most recent breaker activation
+
+    // [V5.0] Authorized callers for BuybackEngine integration
+    mapping(address => bool) public authorizedCallers;
 
     // ═══════ EVENTS ═══════
     event BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount);
@@ -53,6 +60,15 @@ contract BondVault is ReentrancyGuard {
     );
     event CircuitBreakerTriggered(uint256 price);
     event CircuitBreakerReset(uint256 price);
+    event ObligationsDecreased(address indexed caller, uint256 amount, uint256 newTotal);
+    event ReservesBurned(address indexed caller, uint256 amount, uint256 newBalance);
+    event AuthorizedCallerUpdated(address indexed caller, bool authorized);
+
+    // ═══════ MODIFIERS ═══════
+    modifier onlyAuthorized() {
+        require(authorizedCallers[msg.sender], "BondVault: caller not authorized");
+        _;
+    }
 
     constructor(address _lumina, address _claimBond, address _priceOracle, address _policyManager) {
         require(_lumina != address(0), "Zero lumina");
@@ -229,7 +245,43 @@ contract BondVault is ReentrancyGuard {
         return year * 100 + month;
     }
 
+    // ═══════ V5.0: BUYBACK ENGINE INTEGRATION ═══════
+
+    /// @notice Reduce obligations after a bond is burned by BuybackEngine
+    /// @param amount Amount in 18-dec USD-wei to reduce
+    function decreaseObligations(uint256 amount) external onlyAuthorized {
+        require(amount > 0, "Amount must be > 0");
+        require(totalCommittedUSD >= amount, "Amount exceeds committed");
+        totalCommittedUSD -= amount;
+        emit ObligationsDecreased(msg.sender, amount, totalCommittedUSD);
+    }
+
+    /// @notice Burn LUMINA from vault reserves (Double Burn by BuybackEngine)
+    /// @param amount Quantity of LUMINA to burn
+    function burnFromReserves(uint256 amount) external onlyAuthorized {
+        require(amount > 0, "Amount must be > 0");
+        uint256 currentBalance = lumina.balanceOf(address(this));
+        require(currentBalance >= amount, "Insufficient reserves");
+        // Cap: max 5% of vault per tx
+        uint256 maxBurnPerTx = (currentBalance * 5) / 100;
+        require(amount <= maxBurnPerTx, "Exceeds 5% per-tx cap");
+        // Burn via ERC20Burnable.burn (BondVault holds the tokens)
+        IBurnable(address(lumina)).burn(amount);
+        emit ReservesBurned(msg.sender, amount, lumina.balanceOf(address(this)));
+    }
+
+    /// @notice Authorize/revoke a caller (e.g. BuybackEngine) for decreaseObligations/burnFromReserves
+    /// @param caller Address to modify
+    /// @param authorized true to authorize, false to revoke
+    function setAuthorizedCaller(address caller, bool authorized) external {
+        require(msg.sender == policyManager, "Only policyManager can authorize");
+        require(caller != address(0), "Zero address");
+        authorizedCallers[caller] = authorized;
+        emit AuthorizedCallerUpdated(caller, authorized);
+    }
+
     // ═══════ NO withdraw(), NO owner, NO admin, NO upgrade ═══════
-    // This contract is fully immutable by design.
-    // Only exit: redeemBond() when a bond has matured.
+    // Exits: redeemBond() for matured bonds, burnFromReserves() for authorized callers.
+    // Authorization: policyManager sets authorized callers.
 }
+

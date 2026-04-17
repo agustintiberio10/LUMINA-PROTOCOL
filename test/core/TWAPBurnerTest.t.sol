@@ -49,7 +49,7 @@ contract TWAPBurnerTest is Test {
         usdc = address(mockUsdc);
 
         // Deploy token
-        token = new LuminaTokenV2(bondVault, lbp, founder, treasury);
+        token = new LuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, treasury);
 
         // Deploy mock router
         router = new MockSwapRouter(address(token));

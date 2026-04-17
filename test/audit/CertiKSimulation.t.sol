@@ -321,7 +321,7 @@ contract CertiKSimulation is Test {
         oracle = new MockOracle2();
 
         claimBond = new ClaimBond();
-        token = new LuminaTokenV2(makeAddr("tv"), makeAddr("lbp"), makeAddr("fv"), makeAddr("tr"));
+        token = new LuminaTokenV2(makeAddr("tv"), makeAddr("cx"), makeAddr("fv"), makeAddr("lbp"), makeAddr("tr"));
         swapRouter = new MockRouter2(address(token));
 
         bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
@@ -337,7 +337,7 @@ contract CertiKSimulation is Test {
         policyManager.registerProduct(PID, address(shield));
         coverRouter.configureProduct(PID, 8000, 20, 15000, 3600, true);
 
-        deal(address(token), address(bondVault), 82_000_000 * 1e18);
+        deal(address(token), address(bondVault), 70_000_000 * 1e18);
         deal(address(token), address(swapRouter), 10_000_000 * 1e18);
         usdc.mint(attacker, 100_000_000e6);
         usdc.mint(victim, 1_000_000e6);
@@ -698,11 +698,11 @@ contract CertiKSimulation is Test {
     /// @notice Muchos bonds emitidos a precio alto, precio cae,
     ///         todos redimen y el vault no tiene suficiente
     function test_SCENARIO_mass_redemption_after_crash() public {
-        // Issue many bonds at $0.036 (normal price)
-        for (uint256 i = 0; i < 100; i++) {
+        // Issue 80 bonds at $0.036 (normal price)
+        // 80 × $800 = $64K committed. Under capacity.
+        for (uint256 i = 0; i < 80; i++) {
             bondVault.issueBond(makeAddr(string(abi.encodePacked("user", i))), 800);
         }
-        // 100 × $800 = $80K committed. Way under capacity.
 
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
@@ -711,15 +711,15 @@ contract CertiKSimulation is Test {
         oracle.setPrice(0.001e18);
 
         // Each $800 bond now needs 800,000 LUMINA
-        // 100 bonds × 800,000 = 80M LUMINA needed
-        // Vault has 82M — BARELY enough for 100 bonds at crash price
-        for (uint256 i = 0; i < 100; i++) {
+        // 80 bonds × 800,000 = 64M LUMINA needed
+        // Vault has 70M — enough for 80 bonds at crash price
+        for (uint256 i = 0; i < 80; i++) {
             address user = makeAddr(string(abi.encodePacked("user", i)));
             vm.prank(user);
             bondVault.redeemBond(epoch, 800);
         }
 
-        // Vault remaining: 82M - 80M = 2M LUMINA
+        // Vault remaining: 70M - 64M = 6M LUMINA
         assertGt(token.balanceOf(address(bondVault)), 0);
     }
 

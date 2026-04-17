@@ -72,6 +72,30 @@ contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
         emit BondsBurned(epochId, from, usdAmount);
     }
 
+    /// @notice [V5.0] Public burn for holders (for BuybackEngine double-burn).
+    /// @param account Holder address
+    /// @param epochId Epoch ID
+    /// @param amount Amount to burn
+    function burnByHolder(address account, uint256 epochId, uint256 amount) external {
+        require(msg.sender == account || isApprovedForAll(account, msg.sender), "Not holder or approved");
+        require(balanceOf(account, epochId) >= amount, "Insufficient balance");
+        _burn(account, epochId, amount);
+        emit BondsBurnedByHolder(account, epochId, amount);
+    }
+
+    /// @notice Face value per token (1 token = $1 USD)
+    function getFaceValue(uint256 epochId) external view returns (uint256) {
+        require(epochExists[epochId], "Epoch does not exist");
+        return 1e18; // 1 token = $1 USD in 18-dec
+    }
+
+    /// @notice Total face value of a holder's bonds in an epoch
+    function getHolderFaceValue(address holder, uint256 epochId) external view returns (uint256) {
+        return balanceOf(holder, epochId) * 1e18;
+    }
+
+    event BondsBurnedByHolder(address indexed holder, uint256 indexed epochId, uint256 amount);
+
     function isMatured(uint256 epochId) external view returns (bool) {
         if (!epochExists[epochId]) return false;
         return block.timestamp >= maturityDate[epochId];

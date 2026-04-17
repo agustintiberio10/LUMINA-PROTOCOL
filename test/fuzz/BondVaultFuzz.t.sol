@@ -34,7 +34,7 @@ contract BondVaultFuzz is Test {
 
         oracle = new FuzzMockOracle();
         claimBond = new ClaimBond();
-        token = new LuminaTokenV2(address(0xF001), address(0xF002), address(0xF003), address(0xF004));
+        token = new LuminaTokenV2(address(0xF001), address(0xF005), address(0xF003), address(0xF002), address(0xF004));
 
         vault = new BondVault(
             address(token),

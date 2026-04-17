@@ -36,7 +36,7 @@ contract BondVaultTest is Test {
 
         oracle = new MockPriceOracle();
         claimBond = new ClaimBond();
-        token = new LuminaTokenV2(makeAddr("tempVault"), lbp, founder, treasury);
+        token = new LuminaTokenV2(makeAddr("tempVault"), makeAddr("cex"), founder, lbp, treasury);
 
         vault = new BondVault(
             address(token),
@@ -46,13 +46,13 @@ contract BondVaultTest is Test {
         );
 
         claimBond.setBondVault(address(vault));
-        deal(address(token), address(vault), 82_000_000 * 1e18);
+        deal(address(token), address(vault), 70_000_000 * 1e18);
     }
 
     function test_initial_state() public view {
         assertEq(vault.totalCommittedUSD(), 0);
         assertFalse(vault.paused());
-        assertEq(token.balanceOf(address(vault)), 82_000_000 * 1e18);
+        assertEq(token.balanceOf(address(vault)), 70_000_000 * 1e18);
     }
 
     function test_issueBond() public {
@@ -74,8 +74,8 @@ contract BondVaultTest is Test {
         // [V3/SR2] availableCapacityUSD returns INTEGER dollars (post-fix).
         uint256 cap = vault.availableCapacityUSD();
         // 82M * $0.036 = $2.952M, 50% = $1.476M
-        assertGt(cap, 1_400_000);
-        assertLt(cap, 1_500_000);
+        assertGt(cap, 1_200_000);
+        assertLt(cap, 1_300_000);
     }
 
     function test_exceeds_capacity_reverts() public {

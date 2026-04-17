@@ -7,7 +7,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /// @title LuminaTokenV2
 /// @notice $LUMINA token — 100M fixed supply, deflationary by design.
-/// @dev Distribution: 82% BondVault | 5% LBP | 10% Founder | 3% Treasury
+/// @dev Distribution V5.0: 70% BondVault | 14% CEX Reserve | 8% Founder | 5% LBP | 3% Treasury
 ///      No mint function. Supply only decreases via burn.
 ///      BURNER_ROLE allows the TWAPBurner contract to burn tokens.
 ///
@@ -19,28 +19,38 @@ contract LuminaTokenV2 is ERC20, ERC20Burnable, AccessControl {
     uint256 public constant MAX_SUPPLY = 100_000_000 * 1e18;
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
-    constructor(address bondVault, address lbpDeposit, address founderVesting, address treasuryVesting)
-        ERC20("Lumina Protocol", "LUMINA")
-    {
-        require(bondVault != address(0), "Zero bondVault");
-        require(lbpDeposit != address(0), "Zero lbpDeposit");
-        require(founderVesting != address(0), "Zero founderVesting");
-        require(treasuryVesting != address(0), "Zero treasuryVesting");
+    constructor(
+        address bondVault,
+        address cexLiquidityReserve,
+        address founderVesting,
+        address lbpDeposit,
+        address treasuryVesting
+    ) ERC20("Lumina Protocol", "LUMINA") {
+        // Zero-address checks (5)
+        require(bondVault != address(0), "BondVault zero address");
+        require(cexLiquidityReserve != address(0), "CEXReserve zero address");
+        require(founderVesting != address(0), "FounderVesting zero address");
+        require(lbpDeposit != address(0), "LBPDeposit zero address");
+        require(treasuryVesting != address(0), "TreasuryVesting zero address");
 
-        // [LBL-H1] Prevent accidental distribution collapse if deployer passes
-        // the same address twice (e.g. bondVault == treasury would silently
-        // combine 82M+3M in one account and break invariant checks elsewhere).
-        require(bondVault != lbpDeposit, "Duplicate: bondVault/lbp");
+        // Pairwise duplicate checks (C(5,2) = 10)
+        require(bondVault != cexLiquidityReserve, "Duplicate: bondVault/cexReserve");
         require(bondVault != founderVesting, "Duplicate: bondVault/founder");
+        require(bondVault != lbpDeposit, "Duplicate: bondVault/lbp");
         require(bondVault != treasuryVesting, "Duplicate: bondVault/treasury");
-        require(lbpDeposit != founderVesting, "Duplicate: lbp/founder");
-        require(lbpDeposit != treasuryVesting, "Duplicate: lbp/treasury");
+        require(cexLiquidityReserve != founderVesting, "Duplicate: cexReserve/founder");
+        require(cexLiquidityReserve != lbpDeposit, "Duplicate: cexReserve/lbp");
+        require(cexLiquidityReserve != treasuryVesting, "Duplicate: cexReserve/treasury");
+        require(founderVesting != lbpDeposit, "Duplicate: founder/lbp");
         require(founderVesting != treasuryVesting, "Duplicate: founder/treasury");
+        require(lbpDeposit != treasuryVesting, "Duplicate: lbp/treasury");
 
-        _mint(bondVault, 82_000_000 * 1e18); // 82% Bond Reserve
-        _mint(lbpDeposit, 5_000_000 * 1e18); //  5% LBP (Fjord Foundry)
-        _mint(founderVesting, 10_000_000 * 1e18); // 10% Founder (AltSeason)
-        _mint(treasuryVesting, 3_000_000 * 1e18); //  3% Treasury (6m lock)
+        // Distribution V5.0
+        _mint(bondVault, 70_000_000 * 1e18); // 70% - Bond Reserve
+        _mint(cexLiquidityReserve, 14_000_000 * 1e18); // 14% - CEX/DEX Liquidity
+        _mint(founderVesting, 8_000_000 * 1e18); // 8% - Founder (AltSeason)
+        _mint(lbpDeposit, 5_000_000 * 1e18); // 5% - LBP (Fjord Foundry)
+        _mint(treasuryVesting, 3_000_000 * 1e18); // 3% - Treasury
 
         assert(totalSupply() == MAX_SUPPLY);
 

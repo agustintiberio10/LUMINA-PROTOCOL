@@ -47,7 +47,7 @@ contract FounderVesting is Ownable {
     uint256 public constant TRANCHE_INTERVAL = 31 days;
     uint256 public constant TOTAL_TRANCHES = 3;
     uint256 public constant FALLBACK_DURATION = 1460 days; // 4 years
-    uint256 public constant TOTAL_AMOUNT = 10_000_000 * 1e18; // 10M LUMINA
+    uint256 public constant TOTAL_AMOUNT = 8_000_000 * 1e18; // 10M LUMINA
     uint256 public constant TRANCHE_AMOUNT = TOTAL_AMOUNT / TOTAL_TRANCHES; // ~3.333M per tranche
 
     // ═══════ IMMUTABLES ═══════

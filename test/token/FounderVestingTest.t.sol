@@ -71,13 +71,13 @@ contract FounderVestingTest is Test {
     function setUp() public {
         oracle = new MockOracle();
         aavePool = new MockAavePool();
-        token = new LuminaTokenV2(bondVault, lbp, address(0xdead), treasury);
+        token = new LuminaTokenV2(bondVault, makeAddr("cex"), address(0xdead), lbp, treasury);
         // We'll deploy vesting separately and transfer tokens to it
         vesting = new FounderVesting(address(oracle), address(aavePool), address(token), usdc, founder);
         // Simulate: token was minted to a temp address, now transfer to vesting
         // In real deploy, founderVesting address is known at construction
         // For test, we use deal to set the balance
-        deal(address(token), address(vesting), 10_000_000 * 1e18);
+        deal(address(token), address(vesting), 8_000_000 * 1e18);
     }
 
     function test_initial_state() public view {
@@ -124,7 +124,7 @@ contract FounderVestingTest is Test {
         assertEq(vesting.tranchesReleased(), 1);
         // [SR3] TRANCHE_AMOUNT = TOTAL_AMOUNT / 3 = integer division of 10M*1e18 / 3.
         // Compute at runtime so the test matches the actual integer-division result.
-        uint256 total = 10_000_000 * 1e18;
+        uint256 total = 8_000_000 * 1e18;
         uint256 tranche = total / 3;
         assertEq(token.balanceOf(founder), tranche);
 
@@ -141,7 +141,7 @@ contract FounderVestingTest is Test {
         vm.warp(tts + 62 days + 1);
         vesting.releaseTranche();
         assertEq(vesting.tranchesReleased(), 3);
-        assertEq(token.balanceOf(founder), 10_000_000 * 1e18);
+        assertEq(token.balanceOf(founder), 8_000_000 * 1e18);
     }
 
     function test_cannot_release_before_trigger() public {

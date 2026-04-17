@@ -7,14 +7,15 @@ import "../../src/token/LuminaTokenV2.sol";
 contract LuminaTokenV2Test is Test {
     LuminaTokenV2 token;
     address bondVault = makeAddr("bondVault");
-    address lbpDeposit = makeAddr("lbpDeposit");
+    address cexReserve = makeAddr("cexReserve");
     address founderVesting = makeAddr("founderVesting");
+    address lbpDeposit = makeAddr("lbpDeposit");
     address treasuryVesting = makeAddr("treasuryVesting");
     address deployer;
 
     function setUp() public {
         deployer = address(this);
-        token = new LuminaTokenV2(bondVault, lbpDeposit, founderVesting, treasuryVesting);
+        token = new LuminaTokenV2(bondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
     }
 
     function test_totalSupply() public view {
@@ -22,14 +23,14 @@ contract LuminaTokenV2Test is Test {
     }
 
     function test_distribution() public view {
-        assertEq(token.balanceOf(bondVault), 82_000_000 * 1e18);
+        assertEq(token.balanceOf(bondVault), 70_000_000 * 1e18);
+        assertEq(token.balanceOf(cexReserve), 14_000_000 * 1e18);
+        assertEq(token.balanceOf(founderVesting), 8_000_000 * 1e18);
         assertEq(token.balanceOf(lbpDeposit), 5_000_000 * 1e18);
-        assertEq(token.balanceOf(founderVesting), 10_000_000 * 1e18);
         assertEq(token.balanceOf(treasuryVesting), 3_000_000 * 1e18);
     }
 
     function test_noMint() public view {
-        // There is no mint function — verified by the absence of any public/external mint
         assertEq(token.totalSupply(), token.MAX_SUPPLY());
     }
 
@@ -38,7 +39,6 @@ contract LuminaTokenV2Test is Test {
     }
 
     function test_burn_reduces_supply() public {
-        // LBP deposit burns some tokens
         vm.prank(lbpDeposit);
         token.burn(1000 * 1e18);
         assertEq(token.totalBurned(), 1000 * 1e18);
@@ -47,7 +47,6 @@ contract LuminaTokenV2Test is Test {
 
     function test_burnerRole_can_burnFrom() public {
         token.grantRole(token.BURNER_ROLE(), deployer);
-        // First approve (for standard burnFrom) or use role-based
         vm.prank(lbpDeposit);
         token.approve(deployer, 500 * 1e18);
         token.burnFrom(lbpDeposit, 500 * 1e18);
@@ -62,21 +61,22 @@ contract LuminaTokenV2Test is Test {
     }
 
     function test_zeroAddress_reverts() public {
-        vm.expectRevert("Zero bondVault");
-        new LuminaTokenV2(address(0), lbpDeposit, founderVesting, treasuryVesting);
+        vm.expectRevert("BondVault zero address");
+        new LuminaTokenV2(address(0), cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+
+        vm.expectRevert("CEXReserve zero address");
+        new LuminaTokenV2(bondVault, address(0), founderVesting, lbpDeposit, treasuryVesting);
     }
 
-    /// @notice [LBL-H1] Duplicate recipient addresses must revert (distribution-collapse guard).
     function test_duplicateRecipient_reverts() public {
-        // bondVault == treasury would silently merge 82M+3M into one address
         vm.expectRevert("Duplicate: bondVault/treasury");
-        new LuminaTokenV2(bondVault, lbpDeposit, founderVesting, bondVault);
+        new LuminaTokenV2(bondVault, cexReserve, founderVesting, lbpDeposit, bondVault);
 
-        vm.expectRevert("Duplicate: lbp/founder");
-        new LuminaTokenV2(bondVault, lbpDeposit, lbpDeposit, treasuryVesting);
+        vm.expectRevert("Duplicate: bondVault/cexReserve");
+        new LuminaTokenV2(bondVault, bondVault, founderVesting, lbpDeposit, treasuryVesting);
 
-        vm.expectRevert("Duplicate: bondVault/lbp");
-        new LuminaTokenV2(bondVault, bondVault, founderVesting, treasuryVesting);
+        vm.expectRevert("Duplicate: cexReserve/founder");
+        new LuminaTokenV2(bondVault, cexReserve, cexReserve, lbpDeposit, treasuryVesting);
     }
 
     function test_name_and_symbol() public view {

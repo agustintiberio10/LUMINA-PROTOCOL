@@ -56,6 +56,15 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     uint256 public maxBurnAmount = 10_000e6; // $10K USDC max per burn execution
     uint256 public burnCooldown = 900; // 15 minutes between burns
 
+    // ═══════ V5.0: ADAPTIVE FEE DISTRIBUTION ═══════
+    address public feeDistributor;
+    bool public adaptiveModeEnabled;
+    address public buybackReserve;
+    address public opsReserve;
+    uint256 public constant FALLBACK_BURN_BPS = 8800;
+    uint256 public constant FALLBACK_BUYBACK_BPS = 1000;
+    uint256 public constant FALLBACK_OPS_BPS = 200;
+
     // ═══════ STATE ═══════
     uint256 public lastBurnTimestamp;
     uint256 public totalUSDCReceived;
@@ -211,6 +220,26 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         require(_oracle != address(0), "Zero oracle");
         capacityOracle = _oracle;
         emit ConfigUpdated("capacityOracle", uint256(uint160(_oracle)));
+    }
+
+    // ═══════ V5.0: ADAPTIVE MODE CONFIG ═══════
+
+    function setFeeDistributor(address _feeDistributor) external onlyOwner {
+        feeDistributor = _feeDistributor;
+        emit ConfigUpdated("feeDistributor", uint256(uint160(_feeDistributor)));
+    }
+
+    function setReserves(address _buybackReserve, address _opsReserve) external onlyOwner {
+        require(_buybackReserve != address(0), "BuybackReserve zero");
+        require(_opsReserve != address(0), "OpsReserve zero");
+        buybackReserve = _buybackReserve;
+        opsReserve = _opsReserve;
+    }
+
+    function setAdaptiveMode(bool enabled) external onlyOwner {
+        require(!enabled || feeDistributor != address(0), "FeeDistributor not set");
+        require(!enabled || (buybackReserve != address(0) && opsReserve != address(0)), "Reserves not set");
+        adaptiveModeEnabled = enabled;
     }
 
     // ═══════ VIEW FUNCTIONS ═══════
