@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "forge-std/Test.sol";
+import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
+import {MockSolvencyOracle} from "../mocks/MockSolvencyOracle.sol";
+import {MockCapacityOracleV5} from "../mocks/MockCapacityOracleV5.sol";
+import {MockClaimBondV5} from "../mocks/MockClaimBondV5.sol";
+import {MockBondVaultV5} from "../mocks/MockBondVaultV5.sol";
+import {MockMarketplace} from "../mocks/MockMarketplace.sol";
+
+contract MockUSDCBB {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    function mint(address to, uint256 a) external {
+        balanceOf[to] += a;
+    }
+
+    function transfer(address to, uint256 a) external returns (bool) {
+        balanceOf[msg.sender] -= a;
+        balanceOf[to] += a;
+        return true;
+    }
+
+    function approve(address s, uint256 a) external returns (bool) {
+        allowance[msg.sender][s] = a;
+        return true;
+    }
+
+    function transferFrom(address f, address t, uint256 a) external returns (bool) {
+        allowance[f][msg.sender] -= a;
+        balanceOf[f] -= a;
+        balanceOf[t] += a;
+        return true;
+    }
+}
+
+contract BuybackEngineTest is Test {
+    BuybackEngine engine;
+    MockClaimBondV5 claimBond;
+    MockBondVaultV5 bondVault;
+    MockSolvencyOracle solvencyOracle;
+    MockCapacityOracleV5 capacityOracle;
+    MockMarketplace marketplace;
+    MockUSDCBB usdc;
+    address multisig = makeAddr("multisig");
+
+    function setUp() public {
+        claimBond = new MockClaimBondV5();
+        usdc = new MockUSDCBB();
+        bondVault = new MockBondVaultV5(address(0x1));
+        solvencyOracle = new MockSolvencyOracle();
+        capacityOracle = new MockCapacityOracleV5();
+        marketplace = new MockMarketplace();
+
+        engine = new BuybackEngine(
+            address(claimBond),
+            address(bondVault),
+            address(solvencyOracle),
+            address(capacityOracle),
+            address(marketplace),
+            address(usdc),
+            multisig
+        );
+    }
+
+    function test_IsActivated_FalseBeforeMonth12() public view {
+        assertFalse(engine.isActivated());
+    }
+
+    function test_IsActivated_TrueAfterMonth12() public {
+        vm.warp(block.timestamp + 366 days);
+        assertTrue(engine.isActivated());
+    }
+
+    function test_TimeUntilActivation_Correct() public view {
+        assertGt(engine.timeUntilActivation(), 364 days);
+    }
+
+    function test_RevertIf_SetDailyBuybackBeforeActivation() public {
+        vm.prank(multisig);
+        vm.expectRevert("Not yet activated");
+        engine.setDailyBuyback(1000e6, 60, 24);
+    }
+
+    function test_SetDailyBuyback_Success_AfterActivation() public {
+        vm.warp(block.timestamp + 366 days);
+        usdc.mint(address(engine), 10000e6);
+        vm.prank(multisig);
+        engine.setDailyBuyback(10000e6, 60, 24);
+        (uint256 budget,,,) = engine.dailyConfig();
+        assertEq(budget, 10000e6);
+    }
+
+    function test_RevertIf_InvalidPercent() public {
+        vm.warp(block.timestamp + 366 days);
+        usdc.mint(address(engine), 10000e6);
+        vm.prank(multisig);
+        vm.expectRevert("Max percent 1-95");
+        engine.setDailyBuyback(10000e6, 96, 24);
+    }
+
+    function test_RevertIf_InvalidDuration() public {
+        vm.warp(block.timestamp + 366 days);
+        usdc.mint(address(engine), 10000e6);
+        vm.prank(multisig);
+        vm.expectRevert("Duration 1-72 hours");
+        engine.setDailyBuyback(10000e6, 60, 73);
+    }
+
+    function test_Constructor_RevertIfZero() public {
+        vm.expectRevert("Zero addr core");
+        new BuybackEngine(
+            address(0),
+            address(bondVault),
+            address(solvencyOracle),
+            address(capacityOracle),
+            address(marketplace),
+            address(usdc),
+            multisig
+        );
+    }
+}

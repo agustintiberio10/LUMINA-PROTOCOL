@@ -102,8 +102,7 @@ contract SolvencyOracle is AccessControl {
         if (block.timestamp > lastEvaluation + 7 days) return false;
         try ISolvencyCapacityOracle(capacityOracle).getLuminaPrice() returns (uint256 price) {
             return price > 0;
-        }
-            catch {
+        } catch {
             return false;
         }
     }
