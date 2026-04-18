@@ -121,4 +121,52 @@ contract BuybackEngineTest is Test {
             multisig
         );
     }
+
+    function test_ExecuteOffer_RevertIf_OfferExpired() public {
+        // Activate engine
+        vm.warp(block.timestamp + 366 days);
+        // Set daily config with short duration
+        vm.prank(multisig);
+        engine.setDailyBuyback(10000e6, 60, 1);
+        // Warp past validUntil
+        vm.warp(block.timestamp + 2 hours);
+        vm.expectRevert("Daily offer expired");
+        engine.executeOffer(0);
+    }
+
+    function test_ExecuteOffer_RevertIf_NotActivated() public {
+        vm.expectRevert("Not yet activated");
+        engine.executeOffer(0);
+    }
+
+    function test_GetDailyConfig_ReturnsCorrectValues() public {
+        vm.warp(block.timestamp + 366 days);
+        vm.prank(multisig);
+        engine.setDailyBuyback(5000e6, 50, 48);
+        (uint256 budget, uint256 maxPercent, uint256 validUntil, uint256 spent) = engine.dailyConfig();
+        assertEq(budget, 5000e6);
+        assertEq(maxPercent, 50);
+        assertEq(validUntil, block.timestamp + 48 hours);
+        assertEq(spent, 0);
+    }
+
+    function test_TimeUntilActivation_ZeroAfterDelay() public {
+        vm.warp(block.timestamp + 366 days);
+        assertEq(engine.timeUntilActivation(), 0);
+    }
+
+    function test_SetDailyBuyback_RevertIf_BudgetZero() public {
+        vm.warp(block.timestamp + 366 days);
+        vm.prank(multisig);
+        vm.expectRevert("Budget zero");
+        engine.setDailyBuyback(0, 60, 24);
+    }
+
+    function test_SetDailyBuyback_RevertIf_UnauthorizedRole() public {
+        vm.warp(block.timestamp + 366 days);
+        address random = makeAddr("random");
+        vm.prank(random);
+        vm.expectRevert();
+        engine.setDailyBuyback(1000e6, 60, 24);
+    }
 }

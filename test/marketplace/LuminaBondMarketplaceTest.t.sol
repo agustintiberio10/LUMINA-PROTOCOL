@@ -34,6 +34,8 @@ contract MockUSDCMP {
 }
 
 contract LuminaBondMarketplaceTest is Test {
+    // Mirror events for vm.expectEmit
+    event TwapBurnerUpdated(address indexed newTwapBurner);
     LuminaBondMarketplace mp;
     MockClaimBondV5 bond;
     MockUSDCMP usdc;
@@ -153,5 +155,102 @@ contract LuminaBondMarketplaceTest is Test {
     function test_RevertIf_ConstructorZeroAddresses() public {
         vm.expectRevert("Zero addr");
         new LuminaBondMarketplace(address(0), address(usdc), twapBurner, admin);
+    }
+
+    function test_RevertIf_CancelInactiveListing() public {
+        vm.startPrank(seller);
+        bond.setApprovalForAll(address(mp), true);
+        uint256 id = mp.list(EPOCH, 500, 400e6);
+        mp.cancel(id);
+        vm.expectRevert("Not active");
+        mp.cancel(id);
+        vm.stopPrank();
+    }
+
+    function test_RevertIf_ExecuteBuyInactiveListing() public {
+        vm.startPrank(seller);
+        bond.setApprovalForAll(address(mp), true);
+        uint256 id = mp.list(EPOCH, 500, 400e6);
+        mp.cancel(id);
+        vm.stopPrank();
+
+        vm.startPrank(buyer);
+        usdc.approve(address(mp), 500e6);
+        vm.expectRevert("Not active");
+        mp.executeBuy(id);
+        vm.stopPrank();
+    }
+
+    function test_RevertIf_ListZeroPrice() public {
+        vm.startPrank(seller);
+        bond.setApprovalForAll(address(mp), true);
+        vm.expectRevert("Price zero");
+        mp.list(EPOCH, 500, 0);
+        vm.stopPrank();
+    }
+
+    function test_CalculateFees_LargeNumbers() public view {
+        uint256 price = 1_000_000_000e6; // 1B USDC
+        (uint256 sf, uint256 bf, uint256 total) = mp.calculateFees(price);
+        assertEq(sf, (price * 150) / 10000);
+        assertEq(bf, (price * 150) / 10000);
+        assertEq(total, sf + bf);
+    }
+
+    function test_FullLifecycle_MultipleListings() public {
+        vm.startPrank(seller);
+        bond.setApprovalForAll(address(mp), true);
+        uint256 id1 = mp.list(EPOCH, 300, 200e6);
+        uint256 id2 = mp.list(EPOCH, 400, 300e6);
+        vm.stopPrank();
+
+        // Buy listing 1
+        uint256 buyerFee1 = (200e6 * 150) / 10000;
+        vm.startPrank(buyer);
+        usdc.approve(address(mp), 200e6 + buyerFee1);
+        mp.executeBuy(id1);
+        vm.stopPrank();
+
+        // Cancel listing 2
+        vm.prank(seller);
+        mp.cancel(id2);
+
+        // Verify states
+        (,,,, bool active1) = mp.getListing(id1);
+        (,,,, bool active2) = mp.getListing(id2);
+        assertFalse(active1);
+        assertFalse(active2);
+        assertEq(bond.balanceOf(buyer, EPOCH), 300);
+        // Seller gets back 400 from cancelled + keeps remaining 300
+        assertEq(bond.balanceOf(seller, EPOCH), 700);
+    }
+
+    function test_GetListing_ReturnsCorrectData() public {
+        vm.startPrank(seller);
+        bond.setApprovalForAll(address(mp), true);
+        uint256 id = mp.list(EPOCH, 250, 175e6);
+        vm.stopPrank();
+
+        (address s, uint256 e, uint256 a, uint256 p, bool active) = mp.getListing(id);
+        assertEq(s, seller);
+        assertEq(e, EPOCH);
+        assertEq(a, 250);
+        assertEq(p, 175e6);
+        assertTrue(active);
+    }
+
+    function test_SetTwapBurner_EmitsEvent() public {
+        address newBurner = makeAddr("newBurner");
+        vm.prank(admin);
+        vm.expectEmit(true, false, false, false);
+        emit TwapBurnerUpdated(newBurner);
+        mp.setTwapBurner(newBurner);
+        assertEq(mp.twapBurner(), newBurner);
+    }
+
+    function test_RevertIf_SetTwapBurnerZero() public {
+        vm.prank(admin);
+        vm.expectRevert(bytes("Zero"));
+        mp.setTwapBurner(address(0));
     }
 }
