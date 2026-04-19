@@ -292,25 +292,9 @@ contract DeployLuminaV5Complete is Script {
         twapBurner.setAuthorizedSender(res.coverRouter, true);
         console.log("  TWAPBurner configured");
 
-        // BondVault.setAuthorizedCaller(buybackEngine, true) — must come from policyManager
-        // PolicyManagerV2 is the policyManager of BondVault. The call must be made by policyManager.
-        // But setAuthorizedCaller requires msg.sender == policyManager, so we call it directly
-        // on bondVault. Since the deployer deployed policyManager and called setPolicyManager,
-        // the policyManager address is set. We need to call via policyManager or directly.
-        // Actually, setAuthorizedCaller checks msg.sender == policyManager, so we cannot call
-        // it directly as deployer. We need the policyManager contract to call it.
-        // However, PolicyManagerV2 may not have a proxy function for this.
-        // Let's check — if PolicyManagerV2 doesn't have such a function, the deployer
-        // would need to be the policyManager temporarily. But we already set policyManager
-        // to the PolicyManagerV2 contract. This is a known pattern where the wiring must
-        // happen before transferring ownership. Since the deployer owns PolicyManagerV2,
-        // and BondVault.setAuthorizedCaller requires msg.sender == policyManager (the contract),
-        // this cannot be called by the deployer directly.
-        //
-        // WORKAROUND: This must be done via a multisig proposal on PolicyManagerV2 or
-        // a dedicated admin function. For the deploy script, we log a TODO.
-        // If PolicyManagerV2 has a pass-through, use it. Otherwise this is post-deploy governance.
-        console.log("  TODO: BondVault.setAuthorizedCaller(buybackEngine, true) via PolicyManagerV2");
+        // Authorize BuybackEngine in BondVault (deployer has AUTHORIZED_CALLER_ADMIN_ROLE)
+        bondVault.setAuthorizedCaller(res.buybackEngine, true);
+        console.log("  BuybackEngine authorized in BondVault");
 
         // PolicyManagerV2.registerProduct for each shield
         policyManager.registerProduct(keccak256("FLASH_BTC_1H"), res.flashBTCShield1h);
@@ -341,6 +325,16 @@ contract DeployLuminaV5Complete is Script {
         founderVesting.transferOwnership(cfg.multisig);
         treasuryVesting.transferOwnership(cfg.multisig);
         claimBond.transferOwnership(cfg.multisig);
+
+        // Transfer BondVault admin roles to multisig
+        bondVault.grantRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), cfg.multisig);
+        bondVault.grantRole(bondVault.DEFAULT_ADMIN_ROLE(), cfg.multisig);
+        bondVault.revokeRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), msg.sender);
+        bondVault.revokeRole(bondVault.DEFAULT_ADMIN_ROLE(), msg.sender);
+
+        // Transfer LuminaTokenV2 admin to multisig
+        luminaToken.grantRole(luminaToken.DEFAULT_ADMIN_ROLE(), cfg.multisig);
+        luminaToken.revokeRole(luminaToken.DEFAULT_ADMIN_ROLE(), msg.sender);
         console.log("  Ownership transferred to multisig:", cfg.multisig);
 
         vm.stopBroadcast();

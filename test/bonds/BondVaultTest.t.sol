@@ -279,4 +279,39 @@ contract BondVaultTest is Test {
         vm.expectRevert("PolicyManager already set");
         v.setPolicyManager(makeAddr("anotherPM"));
     }
+
+    // ═══════ setAuthorizedCaller (AUTHORIZED_CALLER_ADMIN_ROLE) ═══════
+
+    function test_SetAuthorizedCaller_ByAdmin_Success() public {
+        address newCaller = makeAddr("newCaller");
+
+        // address(this) is deployer and has AUTHORIZED_CALLER_ADMIN_ROLE
+        vault.setAuthorizedCaller(newCaller, true);
+
+        assertTrue(vault.authorizedCallers(newCaller));
+    }
+
+    function test_SetAuthorizedCaller_RevertIf_NotAdmin() public {
+        address newCaller = makeAddr("newCaller");
+        address notAdmin = makeAddr("notAdmin");
+
+        vm.prank(notAdmin);
+        vm.expectRevert();
+        vault.setAuthorizedCaller(newCaller, true);
+    }
+
+    function test_SetAuthorizedCaller_CanRevoke() public {
+        address caller = makeAddr("caller");
+
+        vault.setAuthorizedCaller(caller, true);
+        assertTrue(vault.authorizedCallers(caller));
+
+        vault.setAuthorizedCaller(caller, false);
+        assertFalse(vault.authorizedCallers(caller));
+    }
+
+    function test_SetAuthorizedCaller_RevertIf_ZeroAddress() public {
+        vm.expectRevert("Zero address");
+        vault.setAuthorizedCaller(address(0), true);
+    }
 }

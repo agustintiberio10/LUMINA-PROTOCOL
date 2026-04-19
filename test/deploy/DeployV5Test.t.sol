@@ -325,6 +325,9 @@ contract DeployV5Test is Test {
         // Grant BURNER_ROLE to TWAPBurner
         lumina.grantRole(lumina.BURNER_ROLE(), address(twapBurner));
 
+        // Authorize BuybackEngine in BondVault (deployer has AUTHORIZED_CALLER_ADMIN_ROLE)
+        bondVault.setAuthorizedCaller(address(buybackEngine), true);
+
         // ──────────────────────────────────────────────────────
         // PHASE 11: Deploy & register test shields
         // ──────────────────────────────────────────────────────
@@ -346,6 +349,12 @@ contract DeployV5Test is Test {
         // Grant DEFAULT_ADMIN_ROLE on lumina to multisig, then revoke from deployer
         lumina.grantRole(lumina.DEFAULT_ADMIN_ROLE(), multisig);
         lumina.revokeRole(lumina.DEFAULT_ADMIN_ROLE(), deployer);
+
+        // Transfer BondVault admin roles to multisig
+        bondVault.grantRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), multisig);
+        bondVault.grantRole(bondVault.DEFAULT_ADMIN_ROLE(), multisig);
+        bondVault.revokeRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), deployer);
+        bondVault.revokeRole(bondVault.DEFAULT_ADMIN_ROLE(), deployer);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -388,6 +397,23 @@ contract DeployV5Test is Test {
         assertTrue(
             buybackEngine.hasRole(buybackEngine.BUYBACK_OPERATOR_ROLE(), multisig),
             "Multisig must have BUYBACK_OPERATOR_ROLE on BuybackEngine"
+        );
+
+        // BondVault: BuybackEngine is authorized caller
+        assertTrue(
+            bondVault.authorizedCallers(address(buybackEngine)), "BuybackEngine must be authorized caller in BondVault"
+        );
+
+        // BondVault: multisig has AUTHORIZED_CALLER_ADMIN_ROLE
+        assertTrue(
+            bondVault.hasRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), multisig),
+            "Multisig must have AUTHORIZED_CALLER_ADMIN_ROLE on BondVault"
+        );
+
+        // BondVault: deployer no longer has admin roles
+        assertFalse(
+            bondVault.hasRole(bondVault.DEFAULT_ADMIN_ROLE(), deployer),
+            "Deployer must NOT have DEFAULT_ADMIN_ROLE on BondVault"
         );
     }
 
