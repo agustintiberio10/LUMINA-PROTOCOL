@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\AGUSTIN\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\slither\__main__.py", line 972, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\AGUSTIN\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\slither\__main__.py", line 760, in main
+    main_impl(all_detector_classes=detectors, all_printer_classes=printers)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\AGUSTIN\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\slither\__main__.py", line 801, in main_impl
+    detector_classes = choose_detectors(args, all_detector_classes)
+  File "C:\Users\AGUSTIN\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\slither\__main__.py", line 202, in choose_detectors
+    detectors_to_run = __include_detectors(
+        set(detectors_to_run), args.detectors_to_run, detectors
+    )
+  File "C:\Users\AGUSTIN\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\slither\__main__.py", line 244, in __include_detectors
+    raise ValueError(f"Error: {detector} is not a detector")
+ValueError: Error: arbitrary-send is not a detector

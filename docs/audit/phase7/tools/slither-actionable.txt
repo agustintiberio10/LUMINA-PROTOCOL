@@ -1,0 +1,128 @@
+'forge clean' running (wd: C:\Users\AGUSTIN\LUMINA-PROTOCOL)
+'forge config --json' running
+Warning: Found unknown `rpc_endpoints` config for profile `default` defined in foundry.toml.
+'forge build --build-info --skip ./test/** ./script/** --force' running (wd: C:\Users\AGUSTIN\LUMINA-PROTOCOL)
+INFO:Detectors:
+Detector: weak-prng
+BondVault._timestampToEpoch(uint256) (src/bonds/BondVault.sol#266-273) uses a weak PRNG: "month = 1 + monthsFromBase % 12 (src/bonds/BondVault.sol#271)" 
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#weak-PRNG
+INFO:Detectors:
+Detector: divide-before-multiply
+BondVault.issueBond(address,uint256) (src/bonds/BondVault.sol#119-145) performs a multiplication on the result of a division:
+	- reserveValueUSD = (reserveBalance * currentPrice) / 1e18 (src/bonds/BondVault.sol#131)
+	- maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000 (src/bonds/BondVault.sol#132)
+BondVault.availableCapacityUSD() (src/bonds/BondVault.sol#217-224) performs a multiplication on the result of a division:
+	- reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18 (src/bonds/BondVault.sol#220)
+	- maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000 (src/bonds/BondVault.sol#221)
+BondVault.getStatus() (src/bonds/BondVault.sol#234-254) performs a multiplication on the result of a division:
+	- reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18 (src/bonds/BondVault.sol#248)
+	- maxCommit18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000 (src/bonds/BondVault.sol#249)
+TWAPBurner._swapAndBurn(uint256) (src/core/TWAPBurner.sol#207-240) performs a multiplication on the result of a division:
+	- expectedOut = (usdcAmount * 1e12 * 1e18) / oraclePrice (src/core/TWAPBurner.sol#214)
+	- amountOutMin = (expectedOut * (10_000 - maxSlippageBps)) / 10_000 (src/core/TWAPBurner.sol#215)
+CapacityOracle._getTwapPrice() (src/oracles/CapacityOracle.sol#84-123) performs a multiplication on the result of a division:
+	- priceRaw = (1 << 192) * 1e18 / (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) (src/oracles/CapacityOracle.sol#118)
+	- priceRaw = priceRaw * 1e12 (src/oracles/CapacityOracle.sol#119)
+CapacityOracle._getTwapPrice() (src/oracles/CapacityOracle.sol#84-123) performs a multiplication on the result of a division:
+	- priceRaw = priceRaw * 1e12 (src/oracles/CapacityOracle.sol#115)
+	- priceRaw = (1 << 192) * 1e18 / (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) (src/oracles/CapacityOracle.sol#118)
+CapacityOracle.getTWAP(uint32) (src/oracles/CapacityOracle.sol#128-156) performs a multiplication on the result of a division:
+	- priceRaw = (1 << 192) * 1e18 / (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) (src/oracles/CapacityOracle.sol#149)
+	- priceRaw = priceRaw * 1e12 (src/oracles/CapacityOracle.sol#150)
+CapacityOracle.getTWAP(uint32) (src/oracles/CapacityOracle.sol#128-156) performs a multiplication on the result of a division:
+	- priceRaw = priceRaw * 1e12 (src/oracles/CapacityOracle.sol#147)
+	- priceRaw = (1 << 192) * 1e18 / (uint256(sqrtPriceX96) * uint256(sqrtPriceX96)) (src/oracles/CapacityOracle.sol#149)
+CapacityOracle.maxPoliciesPerDay() (src/oracles/CapacityOracle.sol#164-174) performs a multiplication on the result of a division:
+	- reserveValueUSD = (BOND_RESERVE * price) / 1e18 (src/oracles/CapacityOracle.sol#169)
+	- maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000 (src/oracles/CapacityOracle.sol#170)
+CapacityOracle.maxPoliciesPerDay() (src/oracles/CapacityOracle.sol#164-174) performs a multiplication on the result of a division:
+	- dailyCommitUSD = (AVG_PAYOUT_USD * AVG_TRIGGER_RATE_BPS) / 10000 (src/oracles/CapacityOracle.sol#171)
+	- maxCommitUSD / (MATURITY_DAYS * dailyCommitUSD) / 1e18 (src/oracles/CapacityOracle.sol#173)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0x48a170391f7dc42444e8fa2) >> 128 (src/oracles/CapacityOracle.sol#232)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0x2216e584f5fa1ea926041bedfe98) >> 128 (src/oracles/CapacityOracle.sol#231)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0x5d6af8dedb81196699c329225ee604) >> 128 (src/oracles/CapacityOracle.sol#230)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0x9aa508b5b7a84e1c677de54f3e99bc9) >> 128 (src/oracles/CapacityOracle.sol#229)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0x31be135f97d08fd981231505542fcfa6) >> 128 (src/oracles/CapacityOracle.sol#228)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0x70d869a156d2a1b890bb3df62baf32f7) >> 128 (src/oracles/CapacityOracle.sol#227)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xa9f746462d870fdf8a65dc1f90e061e5) >> 128 (src/oracles/CapacityOracle.sol#226)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xd097f3bdfd2022b8845ad8f792aa5825) >> 128 (src/oracles/CapacityOracle.sol#225)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xe7159475a2c29b7443b29c7fa6e889d9) >> 128 (src/oracles/CapacityOracle.sol#224)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xf3392b0822b70005940c7a398e4b70f3) >> 128 (src/oracles/CapacityOracle.sol#223)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xf987a7253ac413176f2b074cf7815e54) >> 128 (src/oracles/CapacityOracle.sol#222)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xfcbe86c7900a88aedcffc83b479aa3a4) >> 128 (src/oracles/CapacityOracle.sol#221)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xfe5dee046a99a2a811c461f1969c3053) >> 128 (src/oracles/CapacityOracle.sol#220)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xff2ea16466c96a3843ec78b326b52861) >> 128 (src/oracles/CapacityOracle.sol#219)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xff973b41fa98c081472e6896dfb254c0) >> 128 (src/oracles/CapacityOracle.sol#218)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xffcb9843d60f6159c9db58835c926644) >> 128 (src/oracles/CapacityOracle.sol#217)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xffe5caca7e10e4e61c3624eaa0941cd0) >> 128 (src/oracles/CapacityOracle.sol#216)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xfff2e50f5f656932ef12357cf3c7fdcc) >> 128 (src/oracles/CapacityOracle.sol#215)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xfff97272373d413259a46990580e213a) >> 128 (src/oracles/CapacityOracle.sol#214)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+CapacityOracle._getSqrtPriceFromTick(int24) (src/oracles/CapacityOracle.sol#206-237) performs a multiplication on the result of a division:
+	- ratio = (ratio * 0xfffcb933bd6fad37aa2d162d1a594001) >> 128 (src/oracles/CapacityOracle.sol#213)
+	- ratio = type()(uint256).max / ratio (src/oracles/CapacityOracle.sol#234)
+SolvencyOracle._calculateSolvencyRatio() (src/oracles/SolvencyOracle.sol#110-117) performs a multiplication on the result of a division:
+	- valueUSD = (bal * price) / 1e18 (src/oracles/SolvencyOracle.sol#115)
+	- (valueUSD * 10000) / obligations (src/oracles/SolvencyOracle.sol#116)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#divide-before-multiply
+INFO:Detectors:
+Detector: reentrancy-no-eth
+Reentrancy in BuybackEngine.executeOffer(uint256) (src/marketplace/BuybackEngine.sol#114-133):
+	External calls:
+	- usdc.forceApprove(address(marketplace),priceUSDC) (src/marketplace/BuybackEngine.sol#127)
+	- marketplace.executeBuy(listingId) (src/marketplace/BuybackEngine.sol#128)
+	State variables written after the call(s):
+	- dailyConfig.spentToday += priceUSDC (src/marketplace/BuybackEngine.sol#129)
+	BuybackEngine.dailyConfig (src/marketplace/BuybackEngine.sol#60) can be used in cross function reentrancies:
+	- BuybackEngine.dailyConfig (src/marketplace/BuybackEngine.sol#60)
+	- BuybackEngine.setDailyBuyback(uint256,uint256,uint256) (src/marketplace/BuybackEngine.sol#95-112)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-2
+INFO:Detectors:
+Detector: unused-return
+BuybackEngine.executeOffer(uint256) (src/marketplace/BuybackEngine.sol#114-133) ignores return value by (None,epochId,amount,priceUSDC,active) = marketplace.getListing(listingId) (src/marketplace/BuybackEngine.sol#118)
+CapacityOracle._getTwapPrice() (src/oracles/CapacityOracle.sol#84-123) ignores return value by (tickCumulatives,None) = IUniswapV3Pool(pool).observe(secondsAgos) (src/oracles/CapacityOracle.sol#89)
+CapacityOracle.getTWAP(uint32) (src/oracles/CapacityOracle.sol#128-156) ignores return value by (tickCumulatives) = IUniswapV3Pool(pool).observe(sAgos) (src/oracles/CapacityOracle.sol#136-155)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#unused-return
+INFO:Detectors:
+Detector: var-read-using-this
+The function BaseShield.createPolicy(IShield.CreatePolicyParams) (src/products/BaseShield.sol#108-165) reads (minD,maxD) = this.durationRange() (src/products/BaseShield.sol#110) with `this` which adds an extra STATICCALL.
+The function BaseShield.createPolicy(IShield.CreatePolicyParams) (src/products/BaseShield.sol#108-165) reads wp = this.waitingPeriod() (src/products/BaseShield.sol#130) with `this` which adds an extra STATICCALL.
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#public-variable-read-in-external-context
+INFO:Slither:. analyzed (79 contracts with 63 detectors), 38 result(s) found
