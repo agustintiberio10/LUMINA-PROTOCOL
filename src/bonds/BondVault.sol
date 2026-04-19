@@ -3,10 +3,11 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /// @title BondVault
-/// @notice Immutable vault holding 82M LUMINA. Backs all ClaimBond payouts.
-/// @dev NO owner. NO withdraw. NO upgrade. NO admin. NO escape hatch.
+/// @notice Immutable vault holding 70M LUMINA. Backs all ClaimBond payouts.
+/// @dev NO owner. NO withdraw. NO upgrade. NO escape hatch.
 ///      LUMINA tokens are NOT locked or reserved — they sit passively.
 ///      Vault tracks bonds in USD (totalCommittedUSD), not in LUMINA.
 ///      Tokens only leave via redeemBond() when a bond matures.
@@ -30,12 +31,17 @@ interface IPriceOracle {
     function getLuminaPrice() external view returns (uint256 price);
 }
 
-contract BondVault is ReentrancyGuard {
+contract BondVault is ReentrancyGuard, AccessControl {
+    // ═══════ ROLES ═══════
+    bytes32 public constant AUTHORIZED_CALLER_ADMIN_ROLE = keccak256("AUTHORIZED_CALLER_ADMIN_ROLE");
+
     // ═══════ IMMUTABLES ═══════
     IERC20 public immutable lumina;
     IClaimBond public immutable claimBond;
     IPriceOracle public immutable priceOracle;
-    address public immutable policyManager;
+    address public policyManager;
+    address private immutable _deployer;
+    bool private _policyManagerSet;
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50% — max commitment
@@ -63,6 +69,7 @@ contract BondVault is ReentrancyGuard {
     event ObligationsDecreased(address indexed caller, uint256 amount, uint256 newTotal);
     event ReservesBurned(address indexed caller, uint256 amount, uint256 newBalance);
     event AuthorizedCallerUpdated(address indexed caller, bool authorized);
+    event PolicyManagerSet(address indexed policyManager);
 
     // ═══════ MODIFIERS ═══════
     modifier onlyAuthorized() {
@@ -74,12 +81,32 @@ contract BondVault is ReentrancyGuard {
         require(_lumina != address(0), "Zero lumina");
         require(_claimBond != address(0), "Zero claimBond");
         require(_priceOracle != address(0), "Zero oracle");
-        require(_policyManager != address(0), "Zero policyManager");
+        // _policyManager can be address(0) for 2-step initialization pattern
+        _deployer = msg.sender;
 
         lumina = IERC20(_lumina);
         claimBond = IClaimBond(_claimBond);
         priceOracle = IPriceOracle(_priceOracle);
-        policyManager = _policyManager;
+
+        // Grant deployer admin roles for initial wiring
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(AUTHORIZED_CALLER_ADMIN_ROLE, msg.sender);
+
+        if (_policyManager != address(0)) {
+            policyManager = _policyManager;
+            _policyManagerSet = true;
+        }
+    }
+
+    /// @notice One-shot setter for PolicyManager (resolves circular deploy dependency).
+    /// @dev Only callable by the original deployer, and only once.
+    function setPolicyManager(address _pm) external {
+        require(msg.sender == _deployer, "Only deployer");
+        require(!_policyManagerSet, "PolicyManager already set");
+        require(_pm != address(0), "Zero address");
+        policyManager = _pm;
+        _policyManagerSet = true;
+        emit PolicyManagerSet(_pm);
     }
 
     // ═══════ ISSUE BONDS (called by PolicyManager on trigger) ═══════
@@ -273,15 +300,14 @@ contract BondVault is ReentrancyGuard {
     /// @notice Authorize/revoke a caller (e.g. BuybackEngine) for decreaseObligations/burnFromReserves
     /// @param caller Address to modify
     /// @param authorized true to authorize, false to revoke
-    function setAuthorizedCaller(address caller, bool authorized) external {
-        require(msg.sender == policyManager, "Only policyManager can authorize");
+    function setAuthorizedCaller(address caller, bool authorized) external onlyRole(AUTHORIZED_CALLER_ADMIN_ROLE) {
         require(caller != address(0), "Zero address");
         authorizedCallers[caller] = authorized;
         emit AuthorizedCallerUpdated(caller, authorized);
     }
 
-    // ═══════ NO withdraw(), NO owner, NO admin, NO upgrade ═══════
+    // ═══════ NO withdraw(), NO owner, NO upgrade ═══════
     // Exits: redeemBond() for matured bonds, burnFromReserves() for authorized callers.
-    // Authorization: policyManager sets authorized callers.
+    // Authorization: AUTHORIZED_CALLER_ADMIN_ROLE manages authorized callers.
 }
 

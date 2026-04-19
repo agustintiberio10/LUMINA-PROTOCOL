@@ -218,4 +218,100 @@ contract BondVaultTest is Test {
         uint256 month = 1 + monthsFromBase % 12;
         return year * 100 + month;
     }
+
+    // ═══════ setPolicyManager tests ═══════
+
+    function test_SetPolicyManager_OneShot() public {
+        // Deploy BondVault with policyManager = address(0)
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+
+        address pm = makeAddr("policyManager");
+
+        // Before: policyManager is zero
+        assertEq(v.policyManager(), address(0));
+
+        // Set it
+        v.setPolicyManager(pm);
+
+        // After: policyManager is set
+        assertEq(v.policyManager(), pm);
+    }
+
+    function test_RevertIf_SetPolicyManagerTwice() public {
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+
+        address pm = makeAddr("policyManager");
+        v.setPolicyManager(pm);
+
+        // Second call should revert
+        vm.expectRevert("PolicyManager already set");
+        v.setPolicyManager(makeAddr("anotherPM"));
+    }
+
+    function test_RevertIf_SetPolicyManagerZero() public {
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+
+        vm.expectRevert("Zero address");
+        v.setPolicyManager(address(0));
+    }
+
+    function test_RevertIf_SetPolicyManagerUnauthorized() public {
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+
+        address pm = makeAddr("policyManager");
+        address attacker = makeAddr("attacker");
+
+        vm.prank(attacker);
+        vm.expectRevert("Only deployer");
+        v.setPolicyManager(pm);
+    }
+
+    function test_SetPolicyManager_ConstructorWithAddress() public {
+        address pm = makeAddr("policyManager");
+
+        // Deploy with non-zero policyManager in constructor
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), pm);
+
+        // policyManager should already be set
+        assertEq(v.policyManager(), pm);
+
+        // setPolicyManager should revert because it was already set in constructor
+        vm.expectRevert("PolicyManager already set");
+        v.setPolicyManager(makeAddr("anotherPM"));
+    }
+
+    // ═══════ setAuthorizedCaller (AUTHORIZED_CALLER_ADMIN_ROLE) ═══════
+
+    function test_SetAuthorizedCaller_ByAdmin_Success() public {
+        address newCaller = makeAddr("newCaller");
+
+        // address(this) is deployer and has AUTHORIZED_CALLER_ADMIN_ROLE
+        vault.setAuthorizedCaller(newCaller, true);
+
+        assertTrue(vault.authorizedCallers(newCaller));
+    }
+
+    function test_SetAuthorizedCaller_RevertIf_NotAdmin() public {
+        address newCaller = makeAddr("newCaller");
+        address notAdmin = makeAddr("notAdmin");
+
+        vm.prank(notAdmin);
+        vm.expectRevert();
+        vault.setAuthorizedCaller(newCaller, true);
+    }
+
+    function test_SetAuthorizedCaller_CanRevoke() public {
+        address caller = makeAddr("caller");
+
+        vault.setAuthorizedCaller(caller, true);
+        assertTrue(vault.authorizedCallers(caller));
+
+        vault.setAuthorizedCaller(caller, false);
+        assertFalse(vault.authorizedCallers(caller));
+    }
+
+    function test_SetAuthorizedCaller_RevertIf_ZeroAddress() public {
+        vm.expectRevert("Zero address");
+        vault.setAuthorizedCaller(address(0), true);
+    }
 }
