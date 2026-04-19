@@ -35,7 +35,9 @@ contract BondVault is ReentrancyGuard {
     IERC20 public immutable lumina;
     IClaimBond public immutable claimBond;
     IPriceOracle public immutable priceOracle;
-    address public immutable policyManager;
+    address public policyManager;
+    address private immutable _deployer;
+    bool private _policyManagerSet;
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50% — max commitment
@@ -63,6 +65,7 @@ contract BondVault is ReentrancyGuard {
     event ObligationsDecreased(address indexed caller, uint256 amount, uint256 newTotal);
     event ReservesBurned(address indexed caller, uint256 amount, uint256 newBalance);
     event AuthorizedCallerUpdated(address indexed caller, bool authorized);
+    event PolicyManagerSet(address indexed policyManager);
 
     // ═══════ MODIFIERS ═══════
     modifier onlyAuthorized() {
@@ -74,12 +77,28 @@ contract BondVault is ReentrancyGuard {
         require(_lumina != address(0), "Zero lumina");
         require(_claimBond != address(0), "Zero claimBond");
         require(_priceOracle != address(0), "Zero oracle");
-        require(_policyManager != address(0), "Zero policyManager");
+        // _policyManager can be address(0) for 2-step initialization pattern
+        _deployer = msg.sender;
 
         lumina = IERC20(_lumina);
         claimBond = IClaimBond(_claimBond);
         priceOracle = IPriceOracle(_priceOracle);
-        policyManager = _policyManager;
+
+        if (_policyManager != address(0)) {
+            policyManager = _policyManager;
+            _policyManagerSet = true;
+        }
+    }
+
+    /// @notice One-shot setter for PolicyManager (resolves circular deploy dependency).
+    /// @dev Only callable by the original deployer, and only once.
+    function setPolicyManager(address _pm) external {
+        require(msg.sender == _deployer, "Only deployer");
+        require(!_policyManagerSet, "PolicyManager already set");
+        require(_pm != address(0), "Zero address");
+        policyManager = _pm;
+        _policyManagerSet = true;
+        emit PolicyManagerSet(_pm);
     }
 
     // ═══════ ISSUE BONDS (called by PolicyManager on trigger) ═══════

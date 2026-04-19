@@ -218,4 +218,65 @@ contract BondVaultTest is Test {
         uint256 month = 1 + monthsFromBase % 12;
         return year * 100 + month;
     }
+
+    // ═══════ setPolicyManager tests ═══════
+
+    function test_SetPolicyManager_OneShot() public {
+        // Deploy BondVault with policyManager = address(0)
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+
+        address pm = makeAddr("policyManager");
+
+        // Before: policyManager is zero
+        assertEq(v.policyManager(), address(0));
+
+        // Set it
+        v.setPolicyManager(pm);
+
+        // After: policyManager is set
+        assertEq(v.policyManager(), pm);
+    }
+
+    function test_RevertIf_SetPolicyManagerTwice() public {
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+
+        address pm = makeAddr("policyManager");
+        v.setPolicyManager(pm);
+
+        // Second call should revert
+        vm.expectRevert("PolicyManager already set");
+        v.setPolicyManager(makeAddr("anotherPM"));
+    }
+
+    function test_RevertIf_SetPolicyManagerZero() public {
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+
+        vm.expectRevert("Zero address");
+        v.setPolicyManager(address(0));
+    }
+
+    function test_RevertIf_SetPolicyManagerUnauthorized() public {
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+
+        address pm = makeAddr("policyManager");
+        address attacker = makeAddr("attacker");
+
+        vm.prank(attacker);
+        vm.expectRevert("Only deployer");
+        v.setPolicyManager(pm);
+    }
+
+    function test_SetPolicyManager_ConstructorWithAddress() public {
+        address pm = makeAddr("policyManager");
+
+        // Deploy with non-zero policyManager in constructor
+        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), pm);
+
+        // policyManager should already be set
+        assertEq(v.policyManager(), pm);
+
+        // setPolicyManager should revert because it was already set in constructor
+        vm.expectRevert("PolicyManager already set");
+        v.setPolicyManager(makeAddr("anotherPM"));
+    }
 }
