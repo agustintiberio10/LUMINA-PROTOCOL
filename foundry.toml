@@ -21,11 +21,22 @@ base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 [etherscan]
 base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api", chain = 8453 }
 
+[fuzz]
+runs = 10000
+seed = '0x123'
+
 [invariant]
 runs = 1000
 depth = 50
 fail_on_revert = false
 call_override = false
+
+[profile.heavy.fuzz]
+runs = 100000
+
+[profile.heavy.invariant]
+runs = 10000
+depth = 100
 
 [fmt]
 line_length = 120
