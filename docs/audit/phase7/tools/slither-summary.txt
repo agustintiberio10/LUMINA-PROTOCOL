@@ -1,0 +1,77 @@
+'forge clean' running (wd: C:\Users\AGUSTIN\LUMINA-PROTOCOL)
+'forge config --json' running
+Warning: Found unknown `rpc_endpoints` config for profile `default` defined in foundry.toml.
+'forge build --build-info --skip ./test/** ./script/** --force' running (wd: C:\Users\AGUSTIN\LUMINA-PROTOCOL)
+INFO:Printers:
+Compiled with Foundry
+Total number of contracts in source files: 53
+Number of contracts in dependencies: 26
+Source lines of code (SLOC) in source files: 3163
+Source lines of code (SLOC) in dependencies: 1198
+Number of  assembly lines: 0
+Number of optimization issues: 2
+Number of informational issues: 59
+Number of low issues: 61
+Number of medium issues: 35
+Number of high issues: 1
+ERCs: ERC20, ERC165
+
++-------------------------+-------------+--------------+--------------------+--------------+--------------------+
+| Name                    | # functions | ERCS         | ERC20 info         | Complex code | Features           |
++-------------------------+-------------+--------------+--------------------+--------------+--------------------+
+| IBurnable               | 1           |              |                    | No           |                    |
+| IClaimBond              | 4           |              |                    | No           |                    |
+| IPriceOracle            | 1           |              |                    | No           |                    |
+| BondVault               | 40          | ERC165       |                    | No           | Tokens interaction |
+| ClaimBond               | 57          | ERC165       |                    | No           | Assembly           |
+| ISolvencyOracleForDist  | 2           |              |                    | No           |                    |
+| AdaptiveFeeDistributor  | 5           |              |                    | No           |                    |
+| IPolicyManagerV2        | 2           |              |                    | No           |                    |
+| ITWAPBurner             | 1           |              |                    | No           |                    |
+| CoverRouterV2           | 26          |              |                    | No           | Send ETH           |
+| IBondVault              | 2           |              |                    | No           |                    |
+| IShieldV2               | 4           |              |                    | No           |                    |
+| PolicyManagerV2         | 19          |              |                    | No           |                    |
+| ISwapRouter             | 1           |              |                    | No           | Receive ETH        |
+| IBurnable               | 1           |              |                    | No           |                    |
+| IPriceOracle            | 1           |              |                    | No           |                    |
+| IAdaptiveFeeDistributor | 2           |              |                    | No           |                    |
+| TWAPBurner              | 38          |              |                    | No           | Send ETH           |
+|                         |             |              |                    |              | Tokens interaction |
+| IOracleV2               | 9           |              |                    | No           |                    |
+| IBuybackClaimBond       | 2           |              |                    | No           |                    |
+| IBuybackBondVault       | 2           |              |                    | No           |                    |
+| IBuybackSolvencyOracle  | 1           |              |                    | No           |                    |
+| IBuybackCapacityOracle  | 1           |              |                    | No           |                    |
+| IBuybackMarketplace     | 2           |              |                    | No           |                    |
+| BuybackEngine           | 39          | ERC165       |                    | No           |                    |
+| IMarketClaimBond        | 3           |              |                    | No           |                    |
+| LuminaBondMarketplace   | 39          | ERC165       |                    | No           |                    |
+| IUniswapV3Pool          | 4           |              |                    | No           |                    |
+| CapacityOracle          | 21          |              |                    | Yes          |                    |
+| ISolvencyBondVault      | 2           |              |                    | No           |                    |
+| IERC20Balance           | 1           |              |                    | No           |                    |
+| ISolvencyCapacityOracle | 1           |              |                    | No           |                    |
+| SolvencyOracle          | 31          | ERC165       |                    | No           |                    |
+| FlashBTCShield1h        | 47          |              |                    | No           |                    |
+| FlashBTCShield24h       | 47          |              |                    | No           |                    |
+| FlashBTCShield48h       | 47          |              |                    | No           |                    |
+| FlashBTCShield4h        | 47          |              |                    | No           |                    |
+| FlashETHShield1h        | 47          |              |                    | No           |                    |
+| FlashETHShield24h       | 47          |              |                    | No           |                    |
+| FlashETHShield48h       | 47          |              |                    | No           |                    |
+| MicroDepegShield        | 47          |              |                    | No           |                    |
+| IAaveV3Pool             | 1           |              |                    | No           |                    |
+| RateShockShield         | 48          |              |                    | No           |                    |
+| ILuminaOracleReader     | 1           |              |                    | No           |                    |
+| IAaveV3PoolReader       | 1           |              |                    | No           |                    |
+| FounderVesting          | 18          |              |                    | No           | Tokens interaction |
+| LuminaTokenV2           | 53          | ERC20,ERC165 | No Minting         | No           |                    |
+|                         |             |              | Approve Race Cond. |              |                    |
+|                         |             |              |                    |              |                    |
+| TreasuryVesting         | 15          |              |                    | No           | Tokens interaction |
+| CEXLiquidityReserve     | 34          | ERC165       |                    | No           |                    |
+| MaintenanceReserve      | 35          | ERC165       |                    | No           | Send ETH           |
+|                         |             |              |                    |              | Tokens interaction |
++-------------------------+-------------+--------------+--------------------+--------------+--------------------+
+INFO:Slither:. analyzed (79 contracts)
