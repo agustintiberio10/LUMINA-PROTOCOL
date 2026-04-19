@@ -109,13 +109,13 @@ contract MaintenanceReserve is AccessControl, ReentrancyGuard {
         emit MonthlyCapUpdated(oldCap, _cap);
     }
 
-    function _enforceMonthlycamp() internal view returns (uint256) {
+    function _enforceMonthlyCap() internal view returns (uint256) {
         // Derive a "month number" from timestamp: approximate month = timestamp / 30 days
         return block.timestamp / 30 days;
     }
 
     function _enforceMonthlycap(uint256 amount) internal {
-        uint256 month = _enforceMonthlycamp();
+        uint256 month = _enforceMonthlyCap();
         if (month != currentMonth) {
             currentMonth = month;
             currentMonthSpent = 0;
