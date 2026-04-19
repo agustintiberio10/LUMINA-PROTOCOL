@@ -94,4 +94,23 @@ contract CapacityOracleTest is Test {
         vm.expectRevert();
         oracle.setEmergencyPrice(1e18);
     }
+
+    // ═══════ getTWAP tests ═══════
+
+    function test_GetTWAP_FallbackWhenNoPool() public view {
+        // pool == address(0) → returns emergencyPrice
+        uint256 twap = oracle.getTWAP(2592000); // 30 days
+        assertEq(twap, 0.036e18, "Should return emergencyPrice when no pool");
+    }
+
+    function test_GetTWAP_RevertIf_PeriodZero() public {
+        vm.expectRevert("Period must be > 0");
+        oracle.getTWAP(0);
+    }
+
+    function test_GetTWAP_30Days_ReturnsFallback() public view {
+        // No pool set → emergency fallback
+        uint256 twap = oracle.getTWAP(30 days);
+        assertEq(twap, 0.036e18);
+    }
 }

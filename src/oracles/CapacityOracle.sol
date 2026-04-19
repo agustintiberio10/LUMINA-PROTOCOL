@@ -122,6 +122,39 @@ contract CapacityOracle is Ownable {
         return priceRaw;
     }
 
+    /// @notice Returns TWAP price over a specified period (for SolvencyOracle momentum)
+    /// @param secondsAgo Time window in seconds (e.g., 2592000 for 30 days)
+    /// @return TWAP price in 18 decimals (USD per LUMINA)
+    function getTWAP(uint32 secondsAgo) external view returns (uint256) {
+        require(secondsAgo > 0, "Period must be > 0");
+        if (pool == address(0)) return emergencyPrice;
+
+        uint32[] memory sAgos = new uint32[](2);
+        sAgos[0] = secondsAgo;
+        sAgos[1] = 0;
+
+        try IUniswapV3Pool(pool).observe(sAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
+            int56 tickDiff = tickCumulatives[1] - tickCumulatives[0];
+            int56 secs = int56(uint56(secondsAgo));
+            int24 avgTick = int24(tickDiff / secs);
+            if (tickDiff < 0 && (tickDiff % secs != 0)) {
+                avgTick--;
+            }
+            uint256 sqrtPriceX96 = _getSqrtPriceFromTick(avgTick);
+            uint256 priceRaw;
+            if (isToken0Lumina) {
+                priceRaw = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96) * 1e18) >> 192;
+                priceRaw = priceRaw * 1e12;
+            } else {
+                priceRaw = (1 << 192) * 1e18 / (uint256(sqrtPriceX96) * uint256(sqrtPriceX96));
+                priceRaw = priceRaw * 1e12;
+            }
+            return priceRaw > 0 ? priceRaw : emergencyPrice;
+        } catch {
+            return emergencyPrice;
+        }
+    }
+
     // ═══════ CAPACITY VIEW (informational) ═══════
 
     /// @notice Estimated max policies per day at current price (integer count).
