@@ -73,4 +73,38 @@ contract ClaimBondTest is Test {
         vm.expectRevert("Invalid month");
         bond.mint(makeAddr("user"), 202813, 100);
     }
+
+    // ═══════ setBondVault frontrun prevention (Gap 2) ═══════
+
+    function test_SetBondVault_OneShot_CannotBeCalledTwice() public {
+        // bond already has vault set in setUp
+        vm.expectRevert("Already set");
+        bond.setBondVault(address(0xdeadbeef));
+    }
+
+    function test_SetBondVault_OnlyOwner_PreventsFrontrun() public {
+        ClaimBond freshBond = new ClaimBond();
+        address attacker = makeAddr("attacker");
+
+        // Attacker (non-owner) tries to frontrun setBondVault
+        vm.prank(attacker);
+        vm.expectRevert(); // Ownable revert
+        freshBond.setBondVault(address(0xdeadbeef));
+
+        // Owner can set it
+        freshBond.setBondVault(makeAddr("legit"));
+        assertEq(freshBond.bondVault(), makeAddr("legit"));
+    }
+
+    function test_SetBondVault_MaliciousVault_RejectedAfterInit() public {
+        // Already initialized in setUp
+        assertEq(bond.bondVault(), vault);
+
+        // Even owner can't change it (one-shot)
+        vm.expectRevert("Already set");
+        bond.setBondVault(makeAddr("malicious"));
+
+        // Still points to legitimate vault
+        assertEq(bond.bondVault(), vault);
+    }
 }
