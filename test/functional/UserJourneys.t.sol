@@ -93,7 +93,13 @@ contract UserJourneysTest is Test {
     address multisig = makeAddr("multisig");
     address agent = makeAddr("agent");
     address buyer = makeAddr("buyer");
+    address humanBuyer = makeAddr("humanBuyer");
     address twapBurner = makeAddr("twapBurner");
+    address seller1 = makeAddr("seller1");
+    address seller2 = makeAddr("seller2");
+    address seller3 = makeAddr("seller3");
+    address seller4 = makeAddr("seller4");
+    address seller5 = makeAddr("seller5");
 
     uint256 constant BASE_TS = 1767225600;
 
@@ -266,5 +272,135 @@ contract UserJourneysTest is Test {
         assertEq(maxPct, 80);
         assertGt(validUntil, block.timestamp);
         assertEq(spent, 0);
+    }
+
+    // ═══════ JOURNEY 4: Human Buyer first month ═══════
+
+    function test_Journey_HumanBuyer_FirstMonth() public {
+        // Step 1: Human buyer receives bonds (via policy trigger, same contract path as agent)
+        bondVault.issueBond(humanBuyer, 1200);
+
+        // Calculate epoch
+        uint256 maturityTs = block.timestamp + 730 days;
+        uint256 monthsFromBase = (maturityTs - BASE_TS) / 2629746;
+        uint256 year = 2026 + monthsFromBase / 12;
+        uint256 month = 1 + monthsFromBase % 12;
+        uint256 epochId = year * 100 + month;
+
+        // Verify humanBuyer holds 1200 bond tokens ($1200 face value)
+        assertEq(claimBond.balanceOf(humanBuyer, epochId), 1200);
+        assertEq(bondVault.totalCommittedUSD(), 1200e18);
+
+        // Step 2: Human buyer lists half on marketplace
+        vm.prank(humanBuyer);
+        claimBond.setApprovalForAll(address(marketplace), true);
+
+        vm.prank(humanBuyer);
+        uint256 listingId = marketplace.list(epochId, 600, 500e6);
+
+        // Half transferred to marketplace, half remains
+        assertEq(claimBond.balanceOf(humanBuyer, epochId), 600);
+        assertEq(claimBond.balanceOf(address(marketplace), epochId), 600);
+
+        // Step 3: Human buyer cancels listing (changed mind)
+        vm.prank(humanBuyer);
+        marketplace.cancel(listingId);
+
+        // All bonds returned
+        assertEq(claimBond.balanceOf(humanBuyer, epochId), 1200);
+        assertEq(claimBond.balanceOf(address(marketplace), epochId), 0);
+
+        // Step 4: Wait for maturity and redeem
+        vm.warp(maturityTs + 1);
+        assertTrue(claimBond.isMatured(epochId));
+
+        uint256 balBefore = token.balanceOf(humanBuyer);
+        vm.prank(humanBuyer);
+        bondVault.redeemBond(epochId, 1200);
+
+        uint256 luminaReceived = token.balanceOf(humanBuyer) - balBefore;
+
+        // $1200 at $0.036/LUMINA = ~33,333 LUMINA
+        assertGt(luminaReceived, 33_000e18);
+        assertLt(luminaReceived, 34_000e18);
+        assertEq(claimBond.balanceOf(humanBuyer, epochId), 0);
+        assertEq(bondVault.totalCommittedUSD(), 0);
+    }
+
+    // ═══════ JOURNEY 5: Secondary buyer purchases 5 bonds from different sellers ═══════
+
+    function test_Journey_SecondaryBuyer_5Purchases() public {
+        address[5] memory sellers = [seller1, seller2, seller3, seller4, seller5];
+
+        // Issue bonds to all 5 sellers
+        for (uint256 i = 0; i < 5; i++) {
+            bondVault.issueBond(sellers[i], 100);
+        }
+
+        // Calculate epoch (same for all since same block)
+        uint256 maturityTs = block.timestamp + 730 days;
+        uint256 monthsFromBase = (maturityTs - BASE_TS) / 2629746;
+        uint256 year = 2026 + monthsFromBase / 12;
+        uint256 month = 1 + monthsFromBase % 12;
+        uint256 epochId = year * 100 + month;
+
+        // Each seller lists their bonds at slightly different prices
+        uint256[5] memory prices = [uint256(80e6), 85e6, 90e6, 75e6, 95e6];
+        uint256[5] memory listingIds;
+
+        for (uint256 i = 0; i < 5; i++) {
+            vm.prank(sellers[i]);
+            claimBond.setApprovalForAll(address(marketplace), true);
+
+            vm.prank(sellers[i]);
+            listingIds[i] = marketplace.list(epochId, 100, prices[i]);
+        }
+
+        // Fund secondary buyer with enough USDC for all 5 purchases (price + 1.5% fee each)
+        uint256 totalNeeded = 0;
+        for (uint256 i = 0; i < 5; i++) {
+            totalNeeded += prices[i] + (prices[i] * 150) / 10000;
+        }
+        usdc.mint(buyer, totalNeeded);
+
+        vm.prank(buyer);
+        usdc.approve(address(marketplace), totalNeeded);
+
+        // Buyer purchases all 5 listings
+        for (uint256 i = 0; i < 5; i++) {
+            vm.prank(buyer);
+            marketplace.executeBuy(listingIds[i]);
+        }
+
+        // Buyer now holds 500 bonds total (100 from each seller)
+        assertEq(claimBond.balanceOf(buyer, epochId), 500);
+
+        // Each seller received price minus 1.5% seller fee
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 sellerFee = (prices[i] * 150) / 10000;
+            assertEq(usdc.balanceOf(sellers[i]), prices[i] - sellerFee);
+        }
+
+        // Total fees to twapBurner: sum of buyer fees + seller fees = 3% of each price
+        uint256 totalFees = 0;
+        for (uint256 i = 0; i < 5; i++) {
+            totalFees += (prices[i] * 300) / 10000; // 3% total per trade
+        }
+        assertEq(usdc.balanceOf(twapBurner), totalFees);
+
+        // Buyer can redeem at maturity — inherits full redemption rights
+        vm.warp(maturityTs + 1);
+        assertTrue(claimBond.isMatured(epochId));
+
+        uint256 balBefore = token.balanceOf(buyer);
+        vm.prank(buyer);
+        bondVault.redeemBond(epochId, 500);
+
+        uint256 luminaReceived = token.balanceOf(buyer) - balBefore;
+
+        // $500 at $0.036/LUMINA = ~13,888 LUMINA
+        assertGt(luminaReceived, 13_500e18);
+        assertLt(luminaReceived, 14_500e18);
+        assertEq(claimBond.balanceOf(buyer, epochId), 0);
     }
 }

@@ -57,6 +57,30 @@ All critical flows, role permissions, state machines, and integration points val
   - Strategic lock prevents early withdrawal
   - Only multisig admin can allocate
 
+## Protocol Actors
+
+### Buyers (AI/Human parity)
+- **AI Agents**: Purchase via REST API, same smart contract permissions
+- **Human Buyers**: Purchase via web frontend, same smart contract permissions
+- Both can: buy policies, receive NFTs, list/cancel on marketplace, redeem at maturity
+
+### Multisig 2-of-3 (Gnosis Safe)
+- Admin operations across all contracts
+- CEX Reserve allocation, Maintenance spending, Buyback configuration
+
+### Bond Holders (post-trigger)
+- Hold ERC-1155 ClaimBond tokens
+- Can list on marketplace, transfer, redeem at maturity
+
+### Bond Secondary Buyers
+- Purchase bonds from other holders on marketplace
+- Pay 1.5% buyer fee, inherit full redemption rights
+- Seller pays 1.5% fee, total 3% to TWAPBurner
+
+### NOT in V5.0
+- LP Investors (concept abandoned in ClaimBond pivot)
+- Vault depositors (liquidity vaults removed)
+
 ## Role-Based Audit
 
 ### AI Agent (Regular User)
@@ -65,6 +89,21 @@ All critical flows, role permissions, state machines, and integration points val
 - **CANNOT:** issue bonds directly, burn reserves, set authorized callers, pause system, allocate CEX reserves, spend maintenance funds
 - **Tests:** 7 access control tests across BondVault, CoverRouterV2, PolicyManagerV2
 - **Verification method:** `vm.expectRevert()` on unauthorized calls
+
+### Human Buyer Role
+
+- **CAN:** redeem own matured bonds, list bonds on marketplace, cancel own listings, purchase policies via CoverRouter (same permissions as AI Agent, different channel)
+- **CANNOT:** issue bonds directly, burn reserves, set authorized callers, pause system, allocate CEX reserves, spend maintenance funds
+- **Tests:** `test_Journey_HumanBuyer_FirstMonth` (list, cancel, redeem lifecycle)
+- **Verification method:** Same smart contract path as AI Agent — no role differentiation at contract level
+
+### Bond Secondary Buyer Role
+
+- **CAN:** purchase listed bonds on marketplace, hold purchased bonds, redeem at maturity, re-list purchased bonds
+- **CANNOT:** issue bonds directly, burn reserves, bypass marketplace fees
+- **Fee structure:** 1.5% buyer fee + 1.5% seller fee = 3% total per trade, sent to TWAPBurner
+- **Tests:** `test_Journey_SecondaryBuyer_5Purchases` (5 purchases from different sellers, fee verification, redemption)
+- **Verification method:** End-to-end marketplace purchase + redemption in functional test
 
 ### Multisig/Admin
 
@@ -165,6 +204,23 @@ All critical flows, role permissions, state machines, and integration points val
 4. Bond ownership transferred via ClaimBond ERC-1155
 5. **Verified** in marketplace unit tests + deploy wiring tests
 
+### Human Buyer First Month
+
+1. Human buyer purchases policy via web frontend -> same `CoverRouterV2.purchasePolicy()` path
+2. Policy triggers -> ClaimBond ERC-1155 minted to human buyer
+3. Human buyer lists bonds on marketplace, then cancels listing (bonds returned)
+4. Waits 730 days for maturity, redeems at market price
+5. **Verified end-to-end** in `test_Journey_HumanBuyer_FirstMonth`
+
+### Secondary Buyer — 5 Purchases
+
+1. Five different sellers list bonds on `LuminaBondMarketplace` at varying prices
+2. Secondary buyer purchases all 5 listings sequentially
+3. 1.5% buyer fee + 1.5% seller fee = 3% total per trade sent to TWAPBurner
+4. Secondary buyer accumulates 500 bonds, inherits full redemption rights
+5. Redeems all bonds at maturity for LUMINA at market price
+6. **Verified end-to-end** in `test_Journey_SecondaryBuyer_5Purchases`
+
 ### Multisig Daily Operations
 
 1. Monitor SolvencyOracle quadrant via `getCurrentQuadrant()`
@@ -187,7 +243,8 @@ All critical flows, role permissions, state machines, and integration points val
 | Oracle chain | 4 | PASS |
 | Access control | 12 | PASS |
 | Circuit breaker | 3 | PASS |
-| **Total** | **~51** | **ALL PASS** |
+| User journeys (functional) | 5 | PASS |
+| **Total** | **~56** | **ALL PASS** |
 
 ## Findings
 
