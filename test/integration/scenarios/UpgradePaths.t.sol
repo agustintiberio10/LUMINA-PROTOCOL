@@ -88,6 +88,7 @@ contract UpgradePathsTest is Test {
     address admin = makeAddr("admin");
     address buybackReserve = makeAddr("buybackReserve");
     address opsReserve = makeAddr("opsReserve");
+    address maintenanceReserve = makeAddr("maintenanceReserve");
 
     function setUp() public {
         vm.warp(1_770_000_000); // after Jan 1 2026 (BASE_TS = 1767225600) for valid bond epochs
@@ -110,12 +111,12 @@ contract UpgradePathsTest is Test {
         feeDistributorA = new MockFeeDistributor();
         feeDistributorB = new MockFeeDistributor();
         // Set different distributions
-        feeDistributorA.setDistribution(9000, 800, 200); // 90/8/2
-        feeDistributorB.setDistribution(7000, 2500, 500); // 70/25/5
+        feeDistributorA.setDistribution(8500, 800, 200, 500); // 85/8/2/5
+        feeDistributorB.setDistribution(6500, 2500, 500, 500); // 65/25/5/5
 
         // Configure TWAPBurner adaptive mode with distributor A
         twapBurner.setFeeDistributor(address(feeDistributorA));
-        twapBurner.setReserves(buybackReserve, opsReserve);
+        twapBurner.setReserves(buybackReserve, opsReserve, maintenanceReserve);
         twapBurner.setAdaptiveMode(true);
 
         // ClaimBond + BondVault (for test 2)
@@ -137,7 +138,7 @@ contract UpgradePathsTest is Test {
         // Fund TWAPBurner
         usdc.mint(address(twapBurner), 10_000e6);
 
-        // Execute burn with distributor A (90/8/2)
+        // Execute burn with distributor A (85/8/2/5)
         twapBurner.executeBurn();
 
         uint256 buybackA = usdc.balanceOf(buybackReserve);
@@ -154,7 +155,7 @@ contract UpgradePathsTest is Test {
 
         twapBurner.executeBurn();
 
-        // Distributor B: 70/25/5 on 10_000
+        // Distributor B: 65/25/5/5 on 10_000
         uint256 buybackTotal = usdc.balanceOf(buybackReserve);
         uint256 opsTotal = usdc.balanceOf(opsReserve);
         assertEq(buybackTotal - buybackA, 2500e6, "Distributor B: buyback should be 25%");

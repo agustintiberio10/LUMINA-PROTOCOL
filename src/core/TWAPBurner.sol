@@ -36,9 +36,12 @@ interface IPriceOracle {
     function getLuminaPrice() external view returns (uint256);
 }
 
-/// @dev [V5.0] Interface for AdaptiveFeeDistributor — provides dynamic distribution ratios.
+/// @dev [V5.0] Interface for AdaptiveFeeDistributor — provides dynamic distribution ratios (4-bucket).
 interface IAdaptiveFeeDistributor {
-    function getDistribution() external view returns (uint256 burnBps, uint256 buybackBps, uint256 opsBps);
+    function getDistribution()
+        external
+        view
+        returns (uint256 burnBps, uint256 buybackBps, uint256 opsBps, uint256 maintenanceBps);
     function isHealthy() external view returns (bool);
 }
 
@@ -67,9 +70,11 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     bool public adaptiveModeEnabled;
     address public buybackReserve;
     address public opsReserve;
-    uint256 public constant FALLBACK_BURN_BPS = 8800;
-    uint256 public constant FALLBACK_BUYBACK_BPS = 1000;
+    address public maintenanceReserve;
+    uint256 public constant FALLBACK_BURN_BPS = 8500;
+    uint256 public constant FALLBACK_BUYBACK_BPS = 800;
     uint256 public constant FALLBACK_OPS_BPS = 200;
+    uint256 public constant FALLBACK_MAINTENANCE_BPS = 500;
 
     // ═══════ STATE ═══════
     uint256 public lastBurnTimestamp;
@@ -82,6 +87,7 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     event MarketplaceFeeReceived(address indexed from, uint256 usdcAmount);
     event BurnExecuted(uint256 usdcSpent, uint256 luminaBurned, uint256 effectivePrice, uint256 timestamp);
     event ConfigUpdated(string param, uint256 value);
+    event MaintenanceReserveUpdated(address indexed newReserve);
 
     // ═══════ AUTHORIZED SENDERS ═══════
     mapping(address => bool) public authorizedSenders;
@@ -143,14 +149,15 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
 
     // ═══════ V5.0: ADAPTIVE DISTRIBUTION INTERNALS ═══════
 
-    /// @notice Adaptive mode: distribute between burn, buybackReserve and opsReserve.
+    /// @notice Adaptive mode: distribute between burn, buybackReserve, opsReserve and maintenanceReserve.
     function _executeAdaptive(uint256 amount) internal {
-        (uint256 burnBps, uint256 buybackBps, uint256 opsBps) = _getDistribution();
-        require(burnBps + buybackBps + opsBps <= 10000, "Invalid distribution");
+        (uint256 burnBps, uint256 buybackBps, uint256 opsBps, uint256 maintBps) = _getDistribution();
+        require(burnBps + buybackBps + opsBps + maintBps <= 10000, "Invalid distribution");
 
         uint256 toBurn = (amount * burnBps) / 10000;
         uint256 toBuyback = (amount * buybackBps) / 10000;
         uint256 toOps = (amount * opsBps) / 10000;
+        uint256 toMaint = (amount * maintBps) / 10000;
 
         if (toBuyback > 0 && buybackReserve != address(0)) {
             usdc.safeTransfer(buybackReserve, toBuyback);
@@ -158,11 +165,14 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         if (toOps > 0 && opsReserve != address(0)) {
             usdc.safeTransfer(opsReserve, toOps);
         }
+        if (toMaint > 0 && maintenanceReserve != address(0)) {
+            usdc.safeTransfer(maintenanceReserve, toMaint);
+        }
         if (toBurn > 0) {
             _swapAndBurn(toBurn);
         }
 
-        emit AdaptiveDistributionExecuted(amount, toBurn, toBuyback, toOps);
+        emit AdaptiveDistributionExecuted(amount, toBurn, toBuyback, toOps, toMaint);
     }
 
     /// @notice Legacy mode: 100% burn (pre-V5.0 behavior).
@@ -171,22 +181,26 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         emit LegacyBurnExecuted(amount);
     }
 
-    /// @notice Get distribution from fee distributor with safe fallback.
-    function _getDistribution() internal view returns (uint256 burnBps, uint256 buybackBps, uint256 opsBps) {
+    /// @notice Get distribution from fee distributor with safe fallback (4-bucket).
+    function _getDistribution()
+        internal
+        view
+        returns (uint256 burnBps, uint256 buybackBps, uint256 opsBps, uint256 maintBps)
+    {
         if (feeDistributor != address(0)) {
             try IAdaptiveFeeDistributor(feeDistributor).isHealthy() returns (bool healthy) {
                 if (healthy) {
                     try IAdaptiveFeeDistributor(feeDistributor).getDistribution() returns (
-                        uint256 _b, uint256 _bb, uint256 _o
+                        uint256 _b, uint256 _bb, uint256 _o, uint256 _m
                     ) {
-                        if (_b + _bb + _o <= 10000) {
-                            return (_b, _bb, _o);
+                        if (_b + _bb + _o + _m <= 10000) {
+                            return (_b, _bb, _o, _m);
                         }
                     } catch {}
                 }
             } catch {}
         }
-        return (FALLBACK_BURN_BPS, FALLBACK_BUYBACK_BPS, FALLBACK_OPS_BPS);
+        return (FALLBACK_BURN_BPS, FALLBACK_BUYBACK_BPS, FALLBACK_OPS_BPS, FALLBACK_MAINTENANCE_BPS);
     }
 
     /// @notice Swap USDC to LUMINA on Uniswap V3 and burn.
@@ -226,7 +240,9 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     }
 
     // ═══════ V5.0 EVENTS ═══════
-    event AdaptiveDistributionExecuted(uint256 total, uint256 burned, uint256 toBuyback, uint256 toOps);
+    event AdaptiveDistributionExecuted(
+        uint256 total, uint256 burned, uint256 toBuyback, uint256 toOps, uint256 toMaintenance
+    );
     event LegacyBurnExecuted(uint256 amount);
 
     // ═══════ ADMIN (owner = Gnosis Safe) ═══════
@@ -279,16 +295,27 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         emit ConfigUpdated("feeDistributor", uint256(uint160(_feeDistributor)));
     }
 
-    function setReserves(address _buybackReserve, address _opsReserve) external onlyOwner {
+    function setReserves(address _buybackReserve, address _opsReserve, address _maintenanceReserve) external onlyOwner {
         require(_buybackReserve != address(0), "BuybackReserve zero");
         require(_opsReserve != address(0), "OpsReserve zero");
+        require(_maintenanceReserve != address(0), "MaintenanceReserve zero");
         buybackReserve = _buybackReserve;
         opsReserve = _opsReserve;
+        maintenanceReserve = _maintenanceReserve;
+    }
+
+    function setMaintenanceReserve(address _maintenanceReserve) external onlyOwner {
+        require(_maintenanceReserve != address(0), "MaintenanceReserve zero");
+        maintenanceReserve = _maintenanceReserve;
+        emit MaintenanceReserveUpdated(_maintenanceReserve);
     }
 
     function setAdaptiveMode(bool enabled) external onlyOwner {
         require(!enabled || feeDistributor != address(0), "FeeDistributor not set");
-        require(!enabled || (buybackReserve != address(0) && opsReserve != address(0)), "Reserves not set");
+        require(
+            !enabled || (buybackReserve != address(0) && opsReserve != address(0) && maintenanceReserve != address(0)),
+            "Reserves not set"
+        );
         adaptiveModeEnabled = enabled;
     }
 

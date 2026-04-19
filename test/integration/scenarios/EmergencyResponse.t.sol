@@ -149,6 +149,7 @@ contract EmergencyResponseTest is Test {
     address user = makeAddr("user");
     address buybackReserve = makeAddr("buybackReserve");
     address opsReserve = makeAddr("opsReserve");
+    address maintenanceReserve = makeAddr("maintenanceReserve");
     address bondVaultAddr; // pre-computed
 
     function setUp() public {
@@ -217,7 +218,7 @@ contract EmergencyResponseTest is Test {
 
         // Wire: TWAPBurner adaptive mode
         twapBurner.setFeeDistributor(address(feeDistributor));
-        twapBurner.setReserves(buybackReserve, opsReserve);
+        twapBurner.setReserves(buybackReserve, opsReserve, maintenanceReserve);
         twapBurner.setAdaptiveMode(true);
 
         // Give user USDC
@@ -247,12 +248,12 @@ contract EmergencyResponseTest is Test {
 
         twapBurner.executeBurn();
 
-        // Fallback is 88/10/2 (8800/1000/200 bps)
-        // With 10_000 USDC: burn=8800, buyback=1000, ops=200
+        // Fallback is 85/8/2/5 (8500/800/200/500 bps)
+        // With 10_000 USDC: burn=8500, buyback=800, ops=200, maintenance=500
         uint256 buybackReceived = usdc.balanceOf(buybackReserve) - buybackBefore;
         uint256 opsReceived = usdc.balanceOf(opsReserve) - opsBefore;
 
-        assertEq(buybackReceived, 1000e6, "Buyback should receive 10% fallback");
+        assertEq(buybackReceived, 800e6, "Buyback should receive 8% fallback");
         assertEq(opsReceived, 200e6, "Ops should receive 2% fallback");
     }
 
