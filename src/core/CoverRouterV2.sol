@@ -12,6 +12,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 ///      100% of premiums go to TWAPBurner for buy & burn.
 ///      Supports direct purchase + relayer pattern (purchasePolicyFor).
 
+interface IPriceOracleForRouter {
+    function getLuminaPrice() external view returns (uint256);
+}
+
 interface IPolicyManagerV2 {
     function recordPolicy(
         bytes32 productId,
@@ -35,9 +39,14 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
     // ═══════ IMMUTABLES ═══════
     IERC20 public immutable usdc;
 
+    // ═══════ CONSTANTS ═══════
+    uint256 public constant MIN_PRICE_FOR_NEW_POLICIES = 5e15; // 0.005 USD in 18 dec
+    uint256 public constant RESET_PRICE_FOR_NEW_POLICIES = 8e15; // 0.008 USD in 18 dec
+
     // ═══════ STATE ═══════
     IPolicyManagerV2 public policyManager;
     ITWAPBurner public twapBurner;
+    IPriceOracleForRouter public capacityOracle;
     bool public paused;
 
     // Relayer pattern: authorized addresses that can buy on behalf of agents
@@ -140,6 +149,14 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         internal
         returns (uint256 policyId)
     {
+        // Auto-pause: block new policies if LUMINA price is below safety threshold
+        if (address(capacityOracle) != address(0)) {
+            require(
+                capacityOracle.getLuminaPrice() >= MIN_PRICE_FOR_NEW_POLICIES,
+                "Protocol auto-paused: LUMINA price below safety threshold"
+            );
+        }
+
         ProductConfig storage config = products[productId];
         if (config.durationSeconds == 0) revert ProductNotConfigured(productId);
         if (!config.active) revert ProductInactive(productId);
@@ -211,6 +228,11 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         twapBurner = ITWAPBurner(_burner);
     }
 
+    function setCapacityOracle(address _oracle) external onlyOwner {
+        require(_oracle != address(0), "Zero");
+        capacityOracle = IPriceOracleForRouter(_oracle);
+    }
+
     // ═══════ VIEW ═══════
 
     /// @notice Calculate premium for a given product and coverage.
@@ -233,5 +255,11 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
 
     function getProductCount() external view returns (uint256) {
         return productList.length;
+    }
+
+    /// @notice Returns true if LUMINA price is below the safety threshold for new policies.
+    function isProtocolAutoPaused() external view returns (bool) {
+        if (address(capacityOracle) == address(0)) return false;
+        return capacityOracle.getLuminaPrice() < MIN_PRICE_FOR_NEW_POLICIES;
     }
 }

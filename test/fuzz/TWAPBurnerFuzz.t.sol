@@ -39,9 +39,14 @@ contract MockERC20ForTWAP {
 }
 
 contract MockSwapRouter {
-    // noop
-
+    function swap(address, address, uint256, uint256) external pure returns (uint256) {
+        return 0;
     }
+
+    function getQuote(address, address, uint256) external pure returns (uint256) {
+        return 0;
+    }
+}
 
 /// @title TWAPBurnerFuzz
 /// @notice Fuzz tests for TWAPBurner constants and premium tracking.

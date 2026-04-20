@@ -186,28 +186,6 @@ contract EdgeCasesTest is Test {
         assertEq(usdc.balanceOf(address(maintenanceReserve)), 0);
     }
 
-    // ═══════ CIRCUIT BREAKER EDGE CASES ═══════
-
-    function test_EdgeCase_CircuitBreaker_AtExactMinPrice() public {
-        // MIN_PRICE = 0.005e18. Price == MIN_PRICE should NOT trigger breaker.
-        // triggerBreaker requires currentPrice < MIN_PRICE (strict less-than).
-        oracle.setPrice(0.005e18);
-
-        vm.expectRevert("Price above floor");
-        bondVault.triggerBreaker();
-
-        // Breaker should NOT be active
-        assertFalse(bondVault.paused());
-    }
-
-    function test_EdgeCase_CircuitBreaker_JustBelowMinPrice() public {
-        // Price = MIN_PRICE - 1 wei (just below floor)
-        oracle.setPrice(0.005e18 - 1);
-
-        bondVault.triggerBreaker();
-        assertTrue(bondVault.paused());
-    }
-
     // ═══════ BURN FROM RESERVES EDGE CASES ═══════
 
     function test_EdgeCase_BondVault_BurnExactly5Percent() public {

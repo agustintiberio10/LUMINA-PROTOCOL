@@ -46,15 +46,10 @@ contract BondVault is ReentrancyGuard, AccessControl {
     // ═══════ CONSTANTS ═══════
     uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50% — max commitment
     uint256 public constant BOND_MATURITY_SECONDS = 730 days; // 24 months
-    uint256 public constant MIN_PRICE = 0.005e18; // $0.005 circuit breaker
-    uint256 public constant RESET_PRICE = 0.008e18; // $0.008 hysteresis reset
     uint256 public constant MIN_REDEEM_PRICE = 0.001e18; // absolute floor for redemption
-    uint256 public constant BREAKER_COOLDOWN = 1 hours; // [H-3] min wait between breaker trigger and reset
 
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
-    bool public paused; // circuit breaker — only blocks new issuance, NEVER blocks redemption
-    uint256 public lastBreakerTriggerTime; // [H-3] timestamp of most recent breaker activation
 
     // [V5.0] Authorized callers for BuybackEngine integration
     mapping(address => bool) public authorizedCallers;
@@ -64,8 +59,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
     event BondRedeemed(
         address indexed holder, uint256 indexed epochId, uint256 usdAmount, uint256 luminaAmount, uint256 priceUsed
     );
-    event CircuitBreakerTriggered(uint256 price);
-    event CircuitBreakerReset(uint256 price);
     event ObligationsDecreased(address indexed caller, uint256 amount, uint256 newTotal);
     event ReservesBurned(address indexed caller, uint256 amount, uint256 newBalance);
     event AuthorizedCallerUpdated(address indexed caller, bool authorized);
@@ -118,14 +111,10 @@ contract BondVault is ReentrancyGuard, AccessControl {
     ///      LUMINA price is read at redemption (24 months later), not now.
     function issueBond(address to, uint256 usdPayout) external nonReentrant {
         require(msg.sender == policyManager, "Only PolicyManager");
-        require(!paused, "Circuit breaker active");
         require(to != address(0), "Zero address");
         require(usdPayout > 0, "Zero payout");
 
         uint256 currentPrice = priceOracle.getLuminaPrice();
-        // [SR3] Price-below-floor: revert only (state change before revert would be
-        // discarded by EVM). Persistent pause is via the separate triggerBreaker() fn.
-        require(currentPrice >= MIN_PRICE, "Price below circuit breaker");
 
         uint256 reserveBalance = lumina.balanceOf(address(this));
         uint256 reserveValueUSD = (reserveBalance * currentPrice) / 1e18;
@@ -182,33 +171,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
         emit BondRedeemed(msg.sender, epochId, usdAmount, luminaAmount, currentPrice);
     }
 
-    // ═══════ CIRCUIT BREAKER ═══════
-
-    /// @notice [SR3] Permissionless trigger for persistent pause.
-    /// @dev Anyone can call. If current price is below MIN_PRICE, sets paused=true.
-    ///      This is separate from issueBond() because a revert inside issueBond
-    ///      would discard the state change. This function lets the state persist.
-    function triggerBreaker() external {
-        require(!paused, "Already paused");
-        uint256 currentPrice = priceOracle.getLuminaPrice();
-        require(currentPrice < MIN_PRICE, "Price above floor");
-        paused = true;
-        lastBreakerTriggerTime = block.timestamp;
-        emit CircuitBreakerTriggered(currentPrice);
-    }
-
-    /// @notice Reset circuit breaker when price recovers to $0.008 (hysteresis).
-    /// @dev [H-3] Permissionless but enforces BREAKER_COOLDOWN (1 hour) between trigger
-    ///      and reset to prevent flap-attacks on thin-liquidity spot flashes.
-    function resetCircuitBreaker() external {
-        require(paused, "Not paused");
-        require(block.timestamp >= lastBreakerTriggerTime + BREAKER_COOLDOWN, "Cooldown active");
-        uint256 currentPrice = priceOracle.getLuminaPrice();
-        require(currentPrice >= RESET_PRICE, "Price not recovered enough");
-        paused = false;
-        emit CircuitBreakerReset(currentPrice);
-    }
-
     // ═══════ VIEW FUNCTIONS ═══════
 
     /// @notice Remaining USD capacity that can be issued as new bonds.
@@ -239,8 +201,7 @@ contract BondVault is ReentrancyGuard, AccessControl {
             uint256 reserveValueUSD,
             uint256 committed,
             uint256 availableUSD,
-            uint256 currentPrice,
-            bool isPaused
+            uint256 currentPrice
         )
     {
         currentPrice = _getSafePrice();
@@ -250,7 +211,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
         reserveValueUSD = reserveValueUSD18 / 1e18;
         committed = totalCommittedUSD / 1e18;
         availableUSD = maxCommit18 > totalCommittedUSD ? (maxCommit18 - totalCommittedUSD) / 1e18 : 0;
-        isPaused = paused;
     }
 
     // ═══════ INTERNAL ═══════

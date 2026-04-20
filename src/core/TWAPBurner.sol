@@ -5,27 +5,16 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IDexRouter} from "../interfaces/IDexRouter.sol";
 
 /// @title TWAPBurner
 /// @notice Receives USDC from premiums and marketplace fees.
-///         Executes distributed buy & burn of $LUMINA on Uniswap V3.
+///         Executes distributed buy & burn of $LUMINA via multi-DEX routing.
 /// @dev 100% of all USDC received is used to buy and burn $LUMINA.
 ///      Nothing goes to treasury. Nothing goes to the team.
 ///      Burn is distributed across multiple micro-swaps (TWAP) to minimize slippage.
 ///      A keeper (Gelato/Chainlink Automation) calls executeBurn() periodically.
-
-interface ISwapRouter {
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
-        address recipient;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
-    }
-    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
-}
+///      V5.0: Supports multiple DEX routers (Uniswap V3, Aerodrome, etc.) with best-quote selection.
 
 interface IBurnable {
     function burn(uint256 amount) external;
@@ -51,7 +40,9 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
     // ═══════ IMMUTABLES ═══════
     IERC20 public immutable usdc;
     IERC20 public immutable lumina;
-    ISwapRouter public immutable swapRouter;
+
+    // ═══════ MULTI-DEX ROUTING ═══════
+    IDexRouter[] public dexRouters;
 
     // ═══════ [H-2] SLIPPAGE PROTECTION ═══════
     /// @notice Optional CapacityOracle address. When set, executeBurn derives
@@ -97,14 +88,14 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address _usdc, address _lumina, address _swapRouter) Ownable(msg.sender) {
+    constructor(address _usdc, address _lumina, address _initialDexRouter) Ownable(msg.sender) {
         require(_usdc != address(0), "Zero USDC");
         require(_lumina != address(0), "Zero LUMINA");
-        require(_swapRouter != address(0), "Zero router");
+        require(_initialDexRouter != address(0), "Zero router");
 
         usdc = IERC20(_usdc);
         lumina = IERC20(_lumina);
-        swapRouter = ISwapRouter(_swapRouter);
+        dexRouters.push(IDexRouter(_initialDexRouter));
     }
 
     // ═══════ RECEIVE FUNDS ═══════
@@ -203,33 +194,50 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         return (FALLBACK_BURN_BPS, FALLBACK_BUYBACK_BPS, FALLBACK_OPS_BPS, FALLBACK_MAINTENANCE_BPS);
     }
 
-    /// @notice Swap USDC to LUMINA on Uniswap V3 and burn.
+    /// @notice Swap USDC to LUMINA via the best available DEX router and burn.
+    /// @dev Queries all configured routers for quotes, selects the best one,
+    ///      applies slippage protection, then swaps and burns.
     function _swapAndBurn(uint256 usdcAmount) internal {
-        usdc.forceApprove(address(swapRouter), usdcAmount);
+        require(dexRouters.length > 0, "No DEX routers configured");
 
-        uint256 amountOutMin = 0;
-        if (capacityOracle != address(0)) {
-            try IPriceOracle(capacityOracle).getLuminaPrice() returns (uint256 oraclePrice) {
-                if (oraclePrice > 0) {
-                    uint256 expectedOut = (usdcAmount * 1e12 * 1e18) / oraclePrice;
-                    amountOutMin = (expectedOut * (10_000 - maxSlippageBps)) / 10_000;
+        IDexRouter bestRouter = dexRouters[0];
+        uint256 bestQuote = 0;
+
+        // Try to find best quote across all DEX routers
+        for (uint256 i = 0; i < dexRouters.length; i++) {
+            try dexRouters[i].getQuote(address(usdc), address(lumina), usdcAmount) returns (uint256 quote) {
+                if (quote > bestQuote) {
+                    bestQuote = quote;
+                    bestRouter = dexRouters[i];
                 }
             } catch {}
         }
 
-        uint256 luminaReceived = swapRouter.exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: address(usdc),
-                tokenOut: address(lumina),
-                fee: poolFee,
-                recipient: address(this),
-                amountIn: usdcAmount,
-                amountOutMinimum: amountOutMin,
-                sqrtPriceLimitX96: 0
-            })
-        );
+        // Calculate minimum output with slippage protection
+        uint256 minOut = 0;
+        if (bestQuote > 0) {
+            minOut = (bestQuote * (10_000 - maxSlippageBps)) / 10_000;
+        }
+        // Also check oracle price for slippage if available
+        if (capacityOracle != address(0)) {
+            try IPriceOracle(capacityOracle).getLuminaPrice() returns (uint256 oraclePrice) {
+                if (oraclePrice > 0) {
+                    uint256 expectedOut = (usdcAmount * 1e12 * 1e18) / oraclePrice;
+                    uint256 oracleMin = (expectedOut * (10_000 - maxSlippageBps)) / 10_000;
+                    if (oracleMin > minOut) {
+                        minOut = oracleMin;
+                    }
+                }
+            } catch {}
+        }
 
-        require(luminaReceived > 0, "Zero LUMINA received");
+        // Approve and swap via best router
+        usdc.forceApprove(address(bestRouter), usdcAmount);
+        uint256 luminaReceived = bestRouter.swap(address(usdc), address(lumina), usdcAmount, minOut);
+
+        require(luminaReceived > 0, "Swap returned 0");
+
+        // Burn
         IBurnable(address(lumina)).burn(luminaReceived);
 
         totalUSDCBurned += usdcAmount;
@@ -286,6 +294,32 @@ contract TWAPBurner is Ownable, ReentrancyGuard {
         require(_oracle != address(0), "Zero oracle");
         capacityOracle = _oracle;
         emit ConfigUpdated("capacityOracle", uint256(uint160(_oracle)));
+    }
+
+    // ═══════ V5.0: MULTI-DEX ROUTER CONFIG ═══════
+
+    /// @notice Replace all DEX routers with a new set.
+    function setDexRouters(address[] calldata _routers) external onlyOwner {
+        require(_routers.length > 0, "Empty routers");
+        // Clear existing
+        delete dexRouters;
+        for (uint256 i = 0; i < _routers.length; i++) {
+            require(_routers[i] != address(0), "Zero router");
+            dexRouters.push(IDexRouter(_routers[i]));
+        }
+        emit ConfigUpdated("dexRouters", _routers.length);
+    }
+
+    /// @notice Add a DEX router to the list.
+    function addDexRouter(address _router) external onlyOwner {
+        require(_router != address(0), "Zero router");
+        dexRouters.push(IDexRouter(_router));
+        emit ConfigUpdated("dexRouterAdded", dexRouters.length);
+    }
+
+    /// @notice Get the number of configured DEX routers.
+    function dexRouterCount() external view returns (uint256) {
+        return dexRouters.length;
     }
 
     // ═══════ V5.0: ADAPTIVE MODE CONFIG ═══════

@@ -51,7 +51,6 @@ contract BondVaultTest is Test {
 
     function test_initial_state() public view {
         assertEq(vault.totalCommittedUSD(), 0);
-        assertFalse(vault.paused());
         assertEq(token.balanceOf(address(vault)), 70_000_000 * 1e18);
     }
 
@@ -82,41 +81,6 @@ contract BondVaultTest is Test {
         uint256 cap = vault.availableCapacityUSD();
         vm.expectRevert("Exceeds capacity");
         vault.issueBond(user, cap + 1);
-    }
-
-    function test_circuit_breaker_blocks_issuance() public {
-        oracle.setPrice(0.004e18);
-        // [SR3] issueBond at low price reverts; paused state is NOT persisted by
-        // the revert (EVM discards state changes on revert). Persistence comes
-        // from triggerBreaker() — tested below.
-        vm.expectRevert("Price below circuit breaker");
-        vault.issueBond(user, 800);
-    }
-
-    function test_triggerBreaker_persists_pause() public {
-        oracle.setPrice(0.004e18);
-        vault.triggerBreaker();
-        assertTrue(vault.paused());
-
-        // Subsequent issueBond now blocked by the persistent "paused" flag.
-        oracle.setPrice(0.036e18); // price recovers but still paused
-        vm.expectRevert("Circuit breaker active");
-        vault.issueBond(user, 800);
-    }
-
-    function test_circuit_breaker_reset() public {
-        oracle.setPrice(0.004e18);
-        vault.triggerBreaker();
-        assertTrue(vault.paused());
-
-        // Reset requires 1-hour cooldown + price >= RESET_PRICE
-        oracle.setPrice(0.009e18);
-        vm.expectRevert("Cooldown active");
-        vault.resetCircuitBreaker();
-
-        vm.warp(block.timestamp + 1 hours + 1);
-        vault.resetCircuitBreaker();
-        assertFalse(vault.paused());
     }
 
     function test_redeemBond_price_up() public {
@@ -174,26 +138,21 @@ contract BondVaultTest is Test {
         vault.redeemBond(epoch, 800);
     }
 
-    function test_redemption_works_even_when_paused() public {
+    function test_redemption_fails_below_min_redeem_price() public {
         // Issue bond first
         vault.issueBond(user, 800);
         uint256 epoch = _currentEpochPlus24();
 
-        // Trigger circuit breaker persistently (via separate fn, not via revert)
-        oracle.setPrice(0.004e18);
-        vault.triggerBreaker();
-        assertTrue(vault.paused());
-
         // Warp to maturity
         vm.warp(claimBond.maturityDate(epoch) + 1);
-        oracle.setPrice(0.0005e18); // still below MIN_REDEEM_PRICE
+        oracle.setPrice(0.0005e18); // below MIN_REDEEM_PRICE
 
-        // Redemption should fail because below MIN_REDEEM_PRICE floor (not because paused)
+        // Redemption should fail because below MIN_REDEEM_PRICE floor
         vm.prank(user);
         vm.expectRevert("Price too low");
         vault.redeemBond(epoch, 800);
 
-        // But with acceptable redemption price it works even though vault is paused
+        // With acceptable redemption price it works
         oracle.setPrice(0.05e18);
         vm.prank(user);
         vault.redeemBond(epoch, 800);

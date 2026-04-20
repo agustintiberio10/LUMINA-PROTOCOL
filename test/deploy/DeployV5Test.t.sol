@@ -59,9 +59,13 @@ contract MockUSDC {
 }
 
 contract MockSwapRouter {
-    /// @dev Returns a dummy value; in tests no real swap is executed.
-    function exactInputSingle(bytes calldata) external pure returns (uint256) {
+    /// @dev Implements IDexRouter for TWAPBurner compatibility.
+    function swap(address, address, uint256, uint256) external pure returns (uint256) {
         return 1000e18;
+    }
+
+    function getQuote(address, address, uint256) external pure returns (uint256) {
+        return 0;
     }
 }
 

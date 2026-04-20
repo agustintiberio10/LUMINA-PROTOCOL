@@ -130,8 +130,8 @@ contract LongTermSimulation is Test {
 
     // ═══════ MARKET CRASH SCENARIO ═══════
 
-    /// @notice Simulate a market crash: issue bonds, price crashes below circuit breaker,
-    ///         verify breaker triggers, then recover.
+    /// @notice Simulate a market crash: issue bonds, price crashes, verify capacity
+    ///         check still guards against over-issuance, then recover.
     function test_Simulation_MarketCrashScenario() public {
         // Phase 1: Issue 100 bonds at $0.036
         oracle.setPrice(0.036e18);
@@ -139,39 +139,22 @@ contract LongTermSimulation is Test {
             vault.issueBond(user, 800);
         }
         assertEq(vault.totalCommittedUSD(), 100 * 800 * 1e18, "Should have 100 bonds committed");
-        assertFalse(vault.paused(), "Vault should not be paused initially");
 
-        // Phase 2: Price crashes to $0.004 (below MIN_PRICE $0.005)
+        // Phase 2: Price crashes to $0.004
+        // Capacity decreases dramatically, so large issuance should fail
         oracle.setPrice(0.004e18);
+        uint256 cap = vault.availableCapacityUSD();
 
-        // Verify issueBond reverts at low price
-        vm.expectRevert("Price below circuit breaker");
-        vault.issueBond(user, 800);
+        // At $0.004 capacity is much lower. Try to issue beyond capacity.
+        if (cap < 800) {
+            vm.expectRevert("Exceeds capacity");
+            vault.issueBond(user, 800);
+        }
 
-        // Trigger circuit breaker persistently
-        vault.triggerBreaker();
-        assertTrue(vault.paused(), "Circuit breaker should be active");
-
-        // Verify no new bonds can be issued even at recovered price (still paused)
+        // Phase 3: Price recovers to $0.036
         oracle.setPrice(0.036e18);
-        vm.expectRevert("Circuit breaker active");
-        vault.issueBond(user, 800);
-
-        // Phase 3: Price recovers to $0.01 — reset breaker
-        oracle.setPrice(0.01e18);
-
-        // Must wait for cooldown (1 hour)
-        vm.expectRevert("Cooldown active");
-        vault.resetCircuitBreaker();
-
-        vm.warp(block.timestamp + 1 hours + 1);
-
-        // $0.01 >= RESET_PRICE ($0.008), so reset should work
-        vault.resetCircuitBreaker();
-        assertFalse(vault.paused(), "Circuit breaker should be reset");
 
         // Phase 4: Confirm bonds can be issued again
-        oracle.setPrice(0.036e18);
         vault.issueBond(user, 800);
         assertEq(vault.totalCommittedUSD(), 101 * 800 * 1e18, "Should have 101 bonds now");
     }

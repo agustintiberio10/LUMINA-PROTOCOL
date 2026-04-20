@@ -230,6 +230,43 @@ contract PolicyManagerV2 is Ownable {
         emit PolicyTriggered(productId, policyId, pr.buyer, payoutUSD, result.reason);
     }
 
+    // ═══════ CORE: settlePolicy (new trigger flow) ═══════
+
+    /// @notice Settle a policy after safety window. Called by shield or keeper.
+    ///         The shield's checkAndSettlePolicy reads the oracle directly and
+    ///         determines if the trigger was met. This function coordinates the
+    ///         bond issuance (if triggered) or marks expired.
+    /// @param productId The product
+    /// @param policyId The policy within that product's shield
+    /// @param triggered Whether the shield determined the trigger was met
+    function settlePolicy(bytes32 productId, uint256 policyId, bool triggered) external {
+        PolicyRecord storage pr = policies[productId][policyId];
+        require(pr.buyer != address(0), "Policy not found");
+        require(!pr.triggered, "Already triggered");
+        require(!pr.expired, "Already expired");
+
+        // Only the shield itself can call this (it calls after checkAndSettlePolicy)
+        require(msg.sender == pr.shield, "Only shield");
+
+        if (triggered) {
+            pr.triggered = true;
+            activePolicies--;
+            totalTriggers++;
+
+            uint256 payoutUSD = pr.payoutAmount / 1e6;
+            require(payoutUSD > 0, "Payout too small for bond issuance");
+            totalBondsIssuedUSD += payoutUSD;
+
+            bondVault.issueBond(pr.buyer, payoutUSD);
+
+            emit PolicyTriggered(productId, policyId, pr.buyer, payoutUSD, "SETTLED_BY_KEEPER");
+        } else {
+            pr.expired = true;
+            activePolicies--;
+            emit PolicyExpired(productId, policyId);
+        }
+    }
+
     // ═══════ CORE: markExpired ═══════
 
     /// @notice Mark a policy as expired (no trigger within window).
@@ -253,6 +290,32 @@ contract PolicyManagerV2 is Ownable {
 
     function getPolicy(bytes32 productId, uint256 policyId) external view returns (PolicyRecord memory) {
         return policies[productId][policyId];
+    }
+
+    /// @notice Get all active policy IDs for a given product (for keeper iteration).
+    /// @dev Returns policyIds 1..totalPolicies that are not triggered and not expired.
+    ///      Gas-intensive for large sets — intended for off-chain/view usage only.
+    function getActivePolicyIds(bytes32 productId, uint256 maxResults)
+        external
+        view
+        returns (uint256[] memory policyIds_)
+    {
+        uint256 total = totalPolicies;
+        uint256[] memory temp = new uint256[](maxResults);
+        uint256 count = 0;
+
+        for (uint256 i = 1; i <= total && count < maxResults; i++) {
+            PolicyRecord storage pr = policies[productId][i];
+            if (pr.buyer != address(0) && !pr.triggered && !pr.expired) {
+                temp[count] = i;
+                count++;
+            }
+        }
+
+        policyIds_ = new uint256[](count);
+        for (uint256 j = 0; j < count; j++) {
+            policyIds_[j] = temp[j];
+        }
     }
 
     function getStats()

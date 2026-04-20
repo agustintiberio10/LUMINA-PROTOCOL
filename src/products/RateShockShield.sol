@@ -150,6 +150,15 @@ contract RateShockShield is BaseShield {
         return (coverageAmount * (BPS - DEDUCTIBLE_BPS)) / BPS;
     }
 
+    function _checkTriggerCondition(uint256 policyId) internal view override returns (bool) {
+        // Suppress unused variable warning — RateShock doesn't need policy-specific data
+        policyId;
+        // Read Aave V3 reserve data directly on-chain
+        IAaveV3Pool.ReserveData memory reserve = aavePool.getReserveData(usdc);
+        uint256 currentRate = uint256(reserve.currentVariableBorrowRate);
+        return currentRate > TRIGGER_RATE;
+    }
+
     function getRateShockData(uint256 policyId) external view returns (RateShockData memory) {
         if (_policies[policyId].insuredAgent == address(0)) revert PolicyNotFound(policyId);
         return _rateData[policyId];

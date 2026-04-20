@@ -3,7 +3,8 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {TWAPBurner, ISwapRouter} from "../../../src/core/TWAPBurner.sol";
+import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
+import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 import {BondVault} from "../../../src/bonds/BondVault.sol";
 import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
 import {LuminaBondMarketplace} from "../../../src/marketplace/LuminaBondMarketplace.sol";
@@ -46,7 +47,7 @@ contract MockUSDCUpgrade is IERC20 {
     }
 }
 
-contract MockSwapRouterUpgrade {
+contract MockSwapRouterUpgrade is IDexRouter {
     IERC20 public lumina;
     uint256 public rate = 27;
 
@@ -54,10 +55,14 @@ contract MockSwapRouterUpgrade {
         lumina = IERC20(_lumina);
     }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params) external returns (uint256 amountOut) {
-        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
-        amountOut = (params.amountIn * rate * 1e12);
-        lumina.transfer(params.recipient, amountOut);
+    function swap(address tokenIn, address, uint256 amountIn, uint256) external override returns (uint256 amountOut) {
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        amountOut = (amountIn * rate * 1e12);
+        lumina.transfer(msg.sender, amountOut);
+    }
+
+    function getQuote(address, address, uint256) external pure override returns (uint256) {
+        return 0;
     }
 }
 

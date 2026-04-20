@@ -132,6 +132,14 @@ contract FlashBTCShield1h is BaseShield {
         return (coverageAmount * (BPS - DEDUCTIBLE_BPS)) / BPS;
     }
 
+    function _checkTriggerCondition(uint256 policyId) internal view override returns (bool) {
+        BSSData storage data = _bssData[policyId];
+        // Read current price from oracle (Chainlink via LuminaOracle)
+        int256 currentPrice = IOracle(oracle).getLatestPrice(data.asset);
+        // Check if current price is at or below the trigger price set at policy creation
+        return currentPrice > 0 && currentPrice <= data.triggerPrice;
+    }
+
     function getBSSData(uint256 policyId) external view returns (BSSData memory) {
         if (_policies[policyId].insuredAgent == address(0)) revert PolicyNotFound(policyId);
         return _bssData[policyId];

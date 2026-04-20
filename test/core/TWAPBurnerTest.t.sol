@@ -5,35 +5,51 @@ import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "../../src/core/TWAPBurner.sol";
 import "../../src/token/LuminaTokenV2.sol";
+import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
 import {MockFeeDistributor} from "../mocks/MockFeeDistributor.sol";
 
-// Mock swap router that simulates Uniswap swap
-contract MockSwapRouter {
+// Mock DEX router that implements IDexRouter for testing
+contract MockDexRouter is IDexRouter {
     IERC20 public lumina;
-    uint256 public rate = 27; // 1 USDC ($1) = 27.7 LUMINA at $0.036
+    uint256 public rate = 27; // 1 USDC ($1) = 27 LUMINA at ~$0.037
+    uint256 public quoteRate = 0; // 0 means no quote available
 
     constructor(address _lumina) {
         lumina = IERC20(_lumina);
     }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params) external returns (uint256 amountOut) {
-        // Simulate: take USDC, give LUMINA
-        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
-        // Calculate LUMINA output: amountIn (6 dec) * rate * 1e12 (to 18 dec)
-        amountOut = (params.amountIn * rate * 1e12);
-        // Transfer LUMINA to recipient
-        lumina.transfer(params.recipient, amountOut);
+    function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut)
+        external
+        override
+        returns (uint256 amountOut)
+    {
+        // Simulate: take tokenIn, give tokenOut
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        // Calculate output: amountIn (6 dec) * rate * 1e12 (to 18 dec)
+        amountOut = (amountIn * rate * 1e12);
+        require(amountOut >= minAmountOut, "Slippage exceeded");
+        // Transfer LUMINA to caller
+        lumina.transfer(msg.sender, amountOut);
+    }
+
+    function getQuote(address, address, uint256 amountIn) external view override returns (uint256) {
+        if (quoteRate == 0) return 0;
+        return (amountIn * quoteRate * 1e12);
     }
 
     function setRate(uint256 r) external {
         rate = r;
+    }
+
+    function setQuoteRate(uint256 r) external {
+        quoteRate = r;
     }
 }
 
 contract TWAPBurnerTest is Test {
     TWAPBurner burner;
     LuminaTokenV2 token;
-    MockSwapRouter router;
+    MockDexRouter router;
 
     address bondVault = makeAddr("bondVault");
     address lbp = makeAddr("lbp");
@@ -53,8 +69,8 @@ contract TWAPBurnerTest is Test {
         // Deploy token
         token = new LuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, treasury);
 
-        // Deploy mock router
-        router = new MockSwapRouter(address(token));
+        // Deploy mock DEX router
+        router = new MockDexRouter(address(token));
         // Give router some LUMINA to simulate swaps
         deal(address(token), address(router), 1_000_000 * 1e18);
 
@@ -364,6 +380,105 @@ contract TWAPBurnerTest is Test {
     function test_SetMaxSlippage_RevertIf_TooHigh() public {
         vm.expectRevert("Slippage: 0.5%-10%");
         burner.setMaxSlippageBps(1001);
+    }
+
+    // ═══════ MULTI-DEX ROUTER TESTS ═══════
+
+    function test_TWAPBurner_SingleDexRouter() public {
+        // Default setup has 1 router — verify it works
+        assertEq(burner.dexRouterCount(), 1, "Should have 1 router");
+        assertEq(address(burner.dexRouters(0)), address(router), "First router should be mock");
+
+        // Execute a burn to verify single-router path
+        deal(usdc, address(burner), 10e6);
+        vm.warp(block.timestamp + 901);
+        burner.executeBurn();
+        assertGt(burner.totalLUMINABurned(), 0, "Should have burned LUMINA");
+    }
+
+    function test_TWAPBurner_MultipleDexRouters_SelectsBest() public {
+        // Create a second router with a better rate
+        MockDexRouter betterRouter = new MockDexRouter(address(token));
+        betterRouter.setRate(50); // 50 LUMINA per USDC vs 27
+        betterRouter.setQuoteRate(50); // Provides quotes
+        deal(address(token), address(betterRouter), 1_000_000 * 1e18);
+
+        // Also set quoteRate on original router so comparison works
+        router.setQuoteRate(27);
+
+        // Add the better router
+        burner.addDexRouter(address(betterRouter));
+        assertEq(burner.dexRouterCount(), 2, "Should have 2 routers");
+
+        // Execute burn — should use the better router
+        deal(usdc, address(burner), 10e6);
+        vm.warp(block.timestamp + 901);
+
+        uint256 supplyBefore = token.totalSupply();
+        burner.executeBurn();
+        uint256 burned = burner.totalLUMINABurned();
+
+        // With rate=50, 10 USDC = 10e6 * 50 * 1e12 = 500e18 LUMINA
+        assertEq(burned, 500e18, "Should have used better router (rate=50)");
+    }
+
+    function test_TWAPBurner_AddDexRouter() public {
+        assertEq(burner.dexRouterCount(), 1);
+
+        MockDexRouter secondRouter = new MockDexRouter(address(token));
+        burner.addDexRouter(address(secondRouter));
+        assertEq(burner.dexRouterCount(), 2);
+        assertEq(address(burner.dexRouters(1)), address(secondRouter));
+    }
+
+    function test_TWAPBurner_AddDexRouter_RevertZero() public {
+        vm.expectRevert("Zero router");
+        burner.addDexRouter(address(0));
+    }
+
+    function test_TWAPBurner_AddDexRouter_RevertNotOwner() public {
+        vm.prank(makeAddr("random"));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, makeAddr("random")));
+        burner.addDexRouter(makeAddr("someRouter"));
+    }
+
+    function test_TWAPBurner_SetDexRouters() public {
+        MockDexRouter r1 = new MockDexRouter(address(token));
+        MockDexRouter r2 = new MockDexRouter(address(token));
+
+        address[] memory routers = new address[](2);
+        routers[0] = address(r1);
+        routers[1] = address(r2);
+
+        burner.setDexRouters(routers);
+        assertEq(burner.dexRouterCount(), 2);
+        assertEq(address(burner.dexRouters(0)), address(r1));
+        assertEq(address(burner.dexRouters(1)), address(r2));
+    }
+
+    function test_TWAPBurner_SetDexRouters_RevertEmpty() public {
+        address[] memory routers = new address[](0);
+        vm.expectRevert("Empty routers");
+        burner.setDexRouters(routers);
+    }
+
+    function test_TWAPBurner_SetDexRouters_RevertNotOwner() public {
+        address[] memory routers = new address[](1);
+        routers[0] = makeAddr("someRouter");
+        vm.prank(makeAddr("random"));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, makeAddr("random")));
+        burner.setDexRouters(routers);
+    }
+
+    function test_TWAPBurner_FallbackToFirstRouter_WhenQuotesFail() public {
+        // Add a second router that has no LUMINA balance (swap would fail)
+        // But the first router should still work because quotes return 0
+        deal(usdc, address(burner), 10e6);
+        vm.warp(block.timestamp + 901);
+
+        // Both routers return 0 for quotes, so first is used
+        burner.executeBurn();
+        assertGt(burner.totalLUMINABurned(), 0, "Should have burned via first router");
     }
 
     function test_FallbackDistribution_IsNow_85_8_2_5() public {

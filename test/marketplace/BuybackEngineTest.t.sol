@@ -65,27 +65,7 @@ contract BuybackEngineTest is Test {
         );
     }
 
-    function test_IsActivated_FalseBeforeMonth12() public view {
-        assertFalse(engine.isActivated());
-    }
-
-    function test_IsActivated_TrueAfterMonth12() public {
-        vm.warp(block.timestamp + 366 days);
-        assertTrue(engine.isActivated());
-    }
-
-    function test_TimeUntilActivation_Correct() public view {
-        assertGt(engine.timeUntilActivation(), 364 days);
-    }
-
-    function test_RevertIf_SetDailyBuybackBeforeActivation() public {
-        vm.prank(multisig);
-        vm.expectRevert("Not yet activated");
-        engine.setDailyBuyback(1000e6, 60, 24);
-    }
-
-    function test_SetDailyBuyback_Success_AfterActivation() public {
-        vm.warp(block.timestamp + 366 days);
+    function test_SetDailyBuyback_Success() public {
         usdc.mint(address(engine), 10000e6);
         vm.prank(multisig);
         engine.setDailyBuyback(10000e6, 60, 24);
@@ -94,7 +74,6 @@ contract BuybackEngineTest is Test {
     }
 
     function test_RevertIf_InvalidPercent() public {
-        vm.warp(block.timestamp + 366 days);
         usdc.mint(address(engine), 10000e6);
         vm.prank(multisig);
         vm.expectRevert("Max percent 1-95");
@@ -102,7 +81,6 @@ contract BuybackEngineTest is Test {
     }
 
     function test_RevertIf_InvalidDuration() public {
-        vm.warp(block.timestamp + 366 days);
         usdc.mint(address(engine), 10000e6);
         vm.prank(multisig);
         vm.expectRevert("Duration 1-72 hours");
@@ -123,8 +101,6 @@ contract BuybackEngineTest is Test {
     }
 
     function test_ExecuteOffer_RevertIf_OfferExpired() public {
-        // Activate engine
-        vm.warp(block.timestamp + 366 days);
         // Set daily config with short duration
         vm.prank(multisig);
         engine.setDailyBuyback(10000e6, 60, 1);
@@ -134,13 +110,7 @@ contract BuybackEngineTest is Test {
         engine.executeOffer(0);
     }
 
-    function test_ExecuteOffer_RevertIf_NotActivated() public {
-        vm.expectRevert("Not yet activated");
-        engine.executeOffer(0);
-    }
-
     function test_GetDailyConfig_ReturnsCorrectValues() public {
-        vm.warp(block.timestamp + 366 days);
         vm.prank(multisig);
         engine.setDailyBuyback(5000e6, 50, 48);
         (uint256 budget, uint256 maxPercent, uint256 validUntil, uint256 spent) = engine.dailyConfig();
@@ -150,20 +120,13 @@ contract BuybackEngineTest is Test {
         assertEq(spent, 0);
     }
 
-    function test_TimeUntilActivation_ZeroAfterDelay() public {
-        vm.warp(block.timestamp + 366 days);
-        assertEq(engine.timeUntilActivation(), 0);
-    }
-
     function test_SetDailyBuyback_RevertIf_BudgetZero() public {
-        vm.warp(block.timestamp + 366 days);
         vm.prank(multisig);
         vm.expectRevert("Budget zero");
         engine.setDailyBuyback(0, 60, 24);
     }
 
     function test_SetDailyBuyback_RevertIf_UnauthorizedRole() public {
-        vm.warp(block.timestamp + 366 days);
         address random = makeAddr("random");
         vm.prank(random);
         vm.expectRevert();
