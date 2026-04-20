@@ -127,6 +127,13 @@ contract MicroDepegShield is BaseShield {
         return (coverageAmount * (BPS - DEDUCTIBLE_BPS)) / BPS;
     }
 
+    function _checkTriggerCondition(uint256 policyId) internal view override returns (bool) {
+        DepegData storage data = _depegData[policyId];
+        int256 currentPrice = IOracle(oracle).getLatestPrice(data.asset);
+        // Absolute price trigger: USDT below $0.995
+        return currentPrice > 0 && currentPrice < TRIGGER_PRICE;
+    }
+
     function getDepegData(uint256 policyId) external view returns (DepegData memory) {
         if (_policies[policyId].insuredAgent == address(0)) revert PolicyNotFound(policyId);
         return _depegData[policyId];

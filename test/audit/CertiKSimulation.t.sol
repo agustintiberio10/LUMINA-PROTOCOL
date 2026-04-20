@@ -12,7 +12,8 @@ import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
 import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
 // BondVault and TWAPBurner both declare an IPriceOracle interface.
 // Use named imports to avoid file-level identifier collision.
-import {TWAPBurner, ISwapRouter} from "../../src/core/TWAPBurner.sol";
+import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
+import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 
 // ═══════════════════════════════════════════════════════════
@@ -223,7 +224,7 @@ contract MockOracle2 {
     }
 }
 
-contract MockRouter2 {
+contract MockRouter2 is IDexRouter {
     IERC20 public lumina;
     uint256 public oraclePrice = 0.036e18;
 
@@ -235,10 +236,14 @@ contract MockRouter2 {
         oraclePrice = p;
     }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata p) external returns (uint256 out) {
-        IERC20(p.tokenIn).transferFrom(msg.sender, address(this), p.amountIn);
-        out = (uint256(p.amountIn) * 1e12 * 1e18) / oraclePrice;
-        lumina.transfer(p.recipient, out);
+    function swap(address tokenIn, address, uint256 amountIn, uint256) external override returns (uint256 out) {
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        out = (amountIn * 1e12 * 1e18) / oraclePrice;
+        lumina.transfer(msg.sender, out);
+    }
+
+    function getQuote(address, address, uint256) external pure override returns (uint256) {
+        return 0;
     }
 }
 
@@ -620,15 +625,18 @@ contract CertiKSimulation is Test {
     // ATAQUE 8: TWAPBURNER — SWAP ROUTER REPLACEMENT
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Si el owner es comprometido, puede cambiar el swap router
-    ///         del TWAPBurner a uno falso que roba USDC
+    /// @notice Verify initial DEX router is set correctly and only owner can modify routers
     function test_SCENARIO_compromised_twapburner_router() public {
-        // TWAPBurner.swapRouter is IMMUTABLE — cannot be changed
-        // This is a PROTECTION: even if owner is compromised,
-        // they cannot redirect swaps to a fake router
+        // TWAPBurner.dexRouters[0] is the initial router set in constructor
+        // Only owner (Gnosis Safe) can add/replace routers via setDexRouters/addDexRouter
+        assertEq(address(twapBurner.dexRouters(0)), address(swapRouter));
 
-        // Verify swapRouter is immutable by address comparison (no setter exists)
-        assertEq(address(twapBurner.swapRouter()), address(swapRouter));
+        // Non-owner cannot change routers
+        vm.prank(attacker);
+        address[] memory fakeRouters = new address[](1);
+        fakeRouters[0] = address(0x1234);
+        vm.expectRevert();
+        twapBurner.setDexRouters(fakeRouters);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -759,30 +767,22 @@ contract CertiKSimulation is Test {
     // ATAQUE 13: DENIAL OF SERVICE
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Atacante spamea circuit breaker para DOS el protocolo
+    /// @notice Circuit breaker moved to CoverRouterV2 — BondVault no longer has one.
+    ///         Verify low price doesn't block BondVault issuance (capacity check still applies).
     function test_ATTACK_circuit_breaker_dos() public {
-        // Attacker needs to make oracle report < $0.005
-        // In real life: manipulate Uniswap pool (costly with TWAP)
-        // In test: just set oracle
+        // Circuit breaker was removed from BondVault; moved to CoverRouterV2 auto-pause.
+        // BondVault now only uses capacity check for issuance guard.
         oracle.setPrice(0.004e18);
 
-        // Trigger breaker
-        bondVault.triggerBreaker();
-        assertTrue(bondVault.paused());
+        // At low price, capacity is reduced but issuance may still work for small amounts
+        uint256 cap = bondVault.availableCapacityUSD();
+        if (cap >= 100) {
+            bondVault.issueBond(makeAddr("testUser"), 100);
+            assertEq(bondVault.totalCommittedUSD(), 100 * 1e18);
+        }
 
-        // Attacker restores price and resets
-        oracle.setPrice(0.009e18); // above $0.008 threshold
-        // But cooldown of 1 hour prevents immediate reset
-        vm.expectRevert("Cooldown active");
-        bondVault.resetCircuitBreaker();
-
-        // After 1 hour
-        vm.warp(block.timestamp + 1 hours + 1);
-        bondVault.resetCircuitBreaker();
-        assertFalse(bondVault.paused());
-
-        // Attacker would need to sustain low price for 1+ hours
-        // On real Uniswap with TWAP: extremely expensive
+        // Restore price
+        oracle.setPrice(0.036e18);
     }
 
     // ═══════════════════════════════════════════════════════════

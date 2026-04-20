@@ -85,13 +85,22 @@ interface IShield {
 
     // NOTE: vault() REMOVED — PolicyManager handles vault selection via waterfall
 
+    // ── Settlement Events (new trigger flow) ──
+    event PolicySettledTriggered(uint256 indexed policyId, address indexed buyer, uint256 maxPayout);
+    event PolicySettledExpired(uint256 indexed policyId);
+
     // ── Policy Lifecycle (only CoverRouter) ──
     function createPolicy(CreatePolicyParams calldata params) external returns (uint256 policyId);
+    /// @custom:deprecated Use checkAndSettlePolicy for new trigger flow.
     function verifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
         external
         returns (PayoutResult memory result);
     function markPaidOut(uint256 policyId) external;
     function markExpired(uint256 policyId) external;
+
+    // ── New Trigger Flow (permissionless) ──
+    /// @notice Settle a policy after safety window. Anyone can call.
+    function checkAndSettlePolicy(uint256 policyId) external;
 
     // ── Queries ──
     function getPolicyInfo(uint256 policyId) external view returns (PolicyInfo memory info);

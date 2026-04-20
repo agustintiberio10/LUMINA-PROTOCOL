@@ -256,9 +256,7 @@ contract UserJourneysTest is Test {
         );
         assertEq(usdc.balanceOf(auditor), 50_000e6);
 
-        // Step 3: Multisig configures buyback (must wait 365 days after deployment)
-        vm.warp(block.timestamp + 365 days);
-
+        // Step 3: Multisig configures buyback (no activation delay)
         vm.prank(multisig);
         buybackEngine.setDailyBuyback(
             10_000e6, // $10K daily budget

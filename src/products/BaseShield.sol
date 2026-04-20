@@ -37,6 +37,11 @@ abstract contract BaseShield is IShield {
     ///         24h costs nothing (capital already in _allocatedAssets) but saves UX.
     uint256 public constant CLAIM_GRACE_PERIOD = 24 hours;
 
+    /// @notice Safety window after policy expiry before anyone can settle.
+    ///         Ensures the coverage period has fully elapsed and a buffer exists
+    ///         for price feeds to update before settlement is attempted.
+    uint256 public constant SAFETY_WINDOW = 24 hours;
+
     // ═══════════════════════════════════════════════════════════
     //  ERRORS (additional)
     // ═══════════════════════════════════════════════════════════
@@ -46,6 +51,11 @@ abstract contract BaseShield is IShield {
 
     /// @notice [FIX] Oracle event occurred after policy expiry (not during coverage)
     error EventAfterExpiry(uint256 policyId, uint256 verifiedAt, uint256 expiresAt);
+
+    // NOTE: PolicySettledTriggered and PolicySettledExpired events are inherited from IShield
+
+    /// @notice Safety window has not elapsed yet
+    error SafetyWindowNotPassed(uint256 policyId, uint256 earliest, uint256 current);
 
     // ═══════════════════════════════════════════════════════════
     //  IMMUTABLES
@@ -234,6 +244,46 @@ abstract contract BaseShield is IShield {
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  NEW TRIGGER FLOW — permissionless settlement
+    // ═══════════════════════════════════════════════════════════
+
+    /// @notice Check if a policy's trigger condition was met and settle accordingly.
+    /// @dev    Anyone can call this after coverage end + SAFETY_WINDOW.
+    ///         Reads price directly from oracle (Chainlink) — no signed proof needed.
+    ///         If triggered → marks PAID_OUT and emits PolicySettledTriggered.
+    ///         If not triggered → marks EXPIRED and emits PolicySettledExpired.
+    /// @param policyId The policy to check and settle
+    function checkAndSettlePolicy(uint256 policyId) external {
+        CorePolicy storage cp = _policies[policyId];
+        if (cp.insuredAgent == address(0)) revert PolicyNotFound(policyId);
+        if (cp.finalized) {
+            revert InvalidPolicyStatus(policyId, cp.finalStatus, PolicyStatus.ACTIVE);
+        }
+
+        uint256 earliest = cp.expiresAt + SAFETY_WINDOW;
+        if (block.timestamp < earliest) {
+            revert SafetyWindowNotPassed(policyId, earliest, block.timestamp);
+        }
+
+        // Check if trigger condition was met (reads oracle directly)
+        bool triggered = _checkTriggerCondition(policyId);
+
+        cp.finalized = true;
+        _activePolicies--;
+        _totalActiveCoverage -= cp.coverageAmount;
+
+        if (triggered) {
+            cp.finalStatus = PolicyStatus.PAID_OUT;
+            _afterFinalize(policyId, cp);
+            emit PolicySettledTriggered(policyId, cp.insuredAgent, cp.maxPayout);
+        } else {
+            cp.finalStatus = PolicyStatus.EXPIRED;
+            _afterFinalize(policyId, cp);
+            emit PolicySettledExpired(policyId);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  QUERIES
     // ═══════════════════════════════════════════════════════════
 
@@ -377,10 +427,16 @@ abstract contract BaseShield is IShield {
     function _doCreatePolicy(uint256 policyId, CreatePolicyParams calldata params) internal virtual;
 
     /// @dev Verify trigger + calculate payout. Must set triggered, payoutAmount, reason.
+    /// @custom:deprecated Use checkAndSettlePolicy + _checkTriggerCondition for new flow.
     function _doVerifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
         internal
         virtual
         returns (PayoutResult memory);
+
+    /// @dev Each shield implements this to check its specific trigger condition
+    ///      by reading the oracle directly (no signed proof).
+    ///      Called by checkAndSettlePolicy after the safety window.
+    function _checkTriggerCondition(uint256 policyId) internal view virtual returns (bool);
 
     /// @dev Calculate maxPayout for this product (e.g., coverage * 80% for BSS)
     function _calculateMaxPayout(uint256 coverageAmount, CreatePolicyParams calldata params)

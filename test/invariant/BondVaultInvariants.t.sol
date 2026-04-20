@@ -22,7 +22,7 @@ contract InvMockOracle {
 }
 
 /// @title BondVaultHandler
-/// @notice Foundry invariant handler — calls issueBond / redeemBond / triggerBreaker
+/// @notice Foundry invariant handler — calls issueBond / redeemBond
 ///         with bounded random inputs. Tracks ghost variables for invariant checks.
 contract BondVaultHandler is Test {
     BondVault public vault;
@@ -34,7 +34,6 @@ contract BondVaultHandler is Test {
     uint256 public totalBondsRedeemed;
     uint256 public issueCalls;
     uint256 public redeemCalls;
-    uint256 public breakerCalls;
 
     // Track users and their bond balances
     address[] public users;
@@ -100,21 +99,6 @@ contract BondVaultHandler is Test {
         } catch {
             // Expected: insufficient reserve, price too low, etc.
         }
-    }
-
-    function triggerBreaker(uint256 priceWad) external {
-        priceWad = bound(priceWad, 0.001e18, 0.01e18); // low prices only
-
-        oracle.setPrice(priceWad);
-        try vault.triggerBreaker() {
-            breakerCalls++;
-        } catch {
-            // Already paused or price above floor
-        }
-
-        // Restore healthy price for future operations
-        oracle.setPrice(0.036e18);
-        try vault.resetCircuitBreaker() {} catch {}
     }
 }
 

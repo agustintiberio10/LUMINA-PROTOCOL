@@ -5,7 +5,8 @@ import "forge-std/Test.sol";
 import "../../../src/token/LuminaTokenV2.sol";
 import {BondVault} from "../../../src/bonds/BondVault.sol";
 import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
-import {TWAPBurner, ISwapRouter} from "../../../src/core/TWAPBurner.sol";
+import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
+import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 import {PolicyManagerV2} from "../../../src/core/PolicyManagerV2.sol";
 import {CoverRouterV2} from "../../../src/core/CoverRouterV2.sol";
 import {CapacityOracle} from "../../../src/oracles/CapacityOracle.sol";
@@ -42,14 +43,18 @@ contract MockUSDCDeploy {
     }
 }
 
-contract MockSwapRouterDeploy {
+contract MockSwapRouterDeploy is IDexRouter {
     address public lumina;
 
     constructor(address _lumina) {
         lumina = _lumina;
     }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata) external pure returns (uint256) {
+    function swap(address, address, uint256, uint256) external pure override returns (uint256) {
+        return 0;
+    }
+
+    function getQuote(address, address, uint256) external pure override returns (uint256) {
         return 0;
     }
 }
@@ -155,7 +160,7 @@ contract DeploymentFlowTest is Test {
         // TWAPBurner immutables
         assertEq(address(twapBurner.usdc()), address(usdc), "TWAPBurner.usdc");
         assertEq(address(twapBurner.lumina()), address(token), "TWAPBurner.lumina");
-        assertEq(address(twapBurner.swapRouter()), address(swapRouter), "TWAPBurner.swapRouter");
+        assertEq(address(twapBurner.dexRouters(0)), address(swapRouter), "TWAPBurner.dexRouters[0]");
 
         // PolicyManagerV2 wiring
         assertEq(address(policyManager.bondVault()), address(bondVault), "PM.bondVault");
@@ -240,7 +245,6 @@ contract DeploymentFlowTest is Test {
 
         // BondVault internal state should be clean
         assertEq(bondVault.totalCommittedUSD(), 0, "No commitments initially");
-        assertFalse(bondVault.paused(), "BondVault should not be paused");
 
         // TWAPBurner should have no USDC
         assertEq(twapBurner.totalUSDCReceived(), 0, "No USDC received initially");

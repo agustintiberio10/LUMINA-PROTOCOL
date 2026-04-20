@@ -133,28 +133,9 @@ contract BuybackFlowTest is Test {
         );
     }
 
-    // ─── Test 1: setDailyBuyback reverts before ACTIVATION_DELAY (365 days) ───
+    // ─── Test 1: setDailyBuyback succeeds immediately ───
 
-    function test_Flow_Buyback_NotActiveBefore365Days() public {
-        assertFalse(engine.isActivated(), "Should not be activated yet");
-        assertTrue(engine.timeUntilActivation() > 0, "Activation time remaining");
-
-        vm.prank(multisig);
-        vm.expectRevert("Not yet activated");
-        engine.setDailyBuyback(1000e6, 80, 24);
-    }
-
-    // ─── Test 2: setDailyBuyback succeeds after ACTIVATION_DELAY ───
-
-    function test_Flow_Buyback_ActiveAfter365Days() public {
-        uint256 delay = engine.ACTIVATION_DELAY();
-        assertEq(delay, 365 days, "ACTIVATION_DELAY should be 365 days");
-
-        // Warp past activation delay
-        vm.warp(block.timestamp + delay + 1);
-        assertTrue(engine.isActivated(), "Should be activated");
-        assertEq(engine.timeUntilActivation(), 0, "No time remaining");
-
+    function test_Flow_Buyback_SetDailyBuyback() public {
         vm.prank(multisig);
         engine.setDailyBuyback(5000e6, 80, 24);
 
@@ -165,12 +146,9 @@ contract BuybackFlowTest is Test {
         assertEq(spentToday, 0, "No spending yet");
     }
 
-    // ─── Test 3: Daily budget is respected — exhausts budget then reverts ───
+    // ─── Test 2: Daily budget is respected — exhausts budget then reverts ───
 
     function test_Flow_Buyback_DailyBudgetRespected() public {
-        // Activate
-        vm.warp(block.timestamp + engine.ACTIVATION_DELAY() + 1);
-
         // Configure: 100 USDC daily budget, 90% max price, 24h validity
         vm.prank(multisig);
         engine.setDailyBuyback(100e6, 90, 24);
@@ -195,12 +173,9 @@ contract BuybackFlowTest is Test {
         engine.executeOffer(1);
     }
 
-    // ─── Test 4: Expiration is respected ───
+    // ─── Test 3: Expiration is respected ───
 
     function test_Flow_Buyback_ExpirationRespected() public {
-        // Activate
-        vm.warp(block.timestamp + engine.ACTIVATION_DELAY() + 1);
-
         // Configure with 1-hour duration
         vm.prank(multisig);
         engine.setDailyBuyback(10_000e6, 90, 1);

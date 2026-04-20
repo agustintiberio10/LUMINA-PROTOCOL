@@ -132,19 +132,6 @@ contract BondVaultFuzz is Test {
         assertEq(claimBond.balanceOf(user, epoch), remainder, "Bond remainder should match");
     }
 
-    /// @notice Fuzz: circuit breaker triggers at low price, blocks issuance.
-    function testFuzz_circuitBreaker(uint256 lowPrice) public {
-        lowPrice = bound(lowPrice, 1, 0.004e18); // below MIN_PRICE ($0.005)
-
-        oracle.setPrice(lowPrice);
-        vault.triggerBreaker();
-        assertTrue(vault.paused(), "Should be paused after trigger");
-
-        oracle.setPrice(0.036e18); // restore healthy price
-        vm.expectRevert("Circuit breaker active");
-        vault.issueBond(user, 800);
-    }
-
     /// @notice Fuzz: redemption at MIN_REDEEM_PRICE boundary.
     function testFuzz_redeemAtFloorPrice(uint256 amount) public {
         amount = bound(amount, 1, 1000);

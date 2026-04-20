@@ -9,7 +9,8 @@ import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
 import {CapacityOracle} from "../../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../../src/oracles/SolvencyOracle.sol";
 import {AdaptiveFeeDistributor} from "../../../src/core/AdaptiveFeeDistributor.sol";
-import {TWAPBurner, ISwapRouter} from "../../../src/core/TWAPBurner.sol";
+import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
+import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 import {CoverRouterV2} from "../../../src/core/CoverRouterV2.sol";
 import {PolicyManagerV2} from "../../../src/core/PolicyManagerV2.sol";
 import {BuybackEngine} from "../../../src/marketplace/BuybackEngine.sol";
@@ -51,7 +52,7 @@ contract MockUSDC is IERC20 {
     }
 }
 
-contract MockSwapRouter {
+contract MockSwapRouter is IDexRouter {
     IERC20 public lumina;
     uint256 public rate = 27;
 
@@ -59,10 +60,14 @@ contract MockSwapRouter {
         lumina = IERC20(_lumina);
     }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params) external returns (uint256 amountOut) {
-        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
-        amountOut = (params.amountIn * rate * 1e12);
-        lumina.transfer(params.recipient, amountOut);
+    function swap(address tokenIn, address, uint256 amountIn, uint256) external override returns (uint256 amountOut) {
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        amountOut = (amountIn * rate * 1e12);
+        lumina.transfer(msg.sender, amountOut);
+    }
+
+    function getQuote(address, address, uint256) external pure override returns (uint256) {
+        return 0;
     }
 
     function setRate(uint256 r) external {
@@ -258,59 +263,30 @@ contract EmergencyResponseTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TEST 2: Circuit breaker prevents issuance, redemption still works
+    // TEST 2: Bond issuance and redemption lifecycle
     // ═══════════════════════════════════════════════════════════════
 
-    function test_Emergency_CircuitBreakerPreventsIssuance() public {
-        // Set price below MIN_PRICE ($0.005) to trigger breaker
-        capacityOracle.setPrice(0.004e18);
-
-        // Trigger circuit breaker (permissionless)
-        bondVault.triggerBreaker();
-        assertTrue(bondVault.paused(), "Breaker should be active");
-
-        // Attempting issueBond should revert (we are tempPM = address(this))
-        vm.expectRevert("Circuit breaker active");
-        bondVault.issueBond(user, 100);
-
-        // Now test that redemption still works:
-        // First, reset price and issue a bond while unpaused
-        capacityOracle.setPrice(0.036e18);
-        vm.warp(block.timestamp + 2 hours); // past breaker cooldown
-        bondVault.resetCircuitBreaker();
-        assertFalse(bondVault.paused(), "Breaker should be reset");
-
+    function test_Emergency_BondIssuanceAndRedemption() public {
         // Issue a bond (we are policyManager = address(this))
         bondVault.issueBond(user, 100); // $100 bond
 
-        // Re-trigger breaker
-        capacityOracle.setPrice(0.004e18);
-        bondVault.triggerBreaker();
-        assertTrue(bondVault.paused(), "Breaker should be active again");
-
-        // Warp past maturity (730 days)
-        vm.warp(block.timestamp + 731 days);
-        capacityOracle.setPrice(0.036e18); // set reasonable price for redemption calc
-
-        // Redemption should succeed even while paused
-        uint256 epochId = _getEpochFromTimestamp(block.timestamp - 1 days);
-        // Find the correct epochId: bond was issued with maturity = issuance_time + 730 days
-        // The epoch was computed at issuance. Let's find it by checking user balance.
-        // Since we cannot easily predict the epoch, let's use a known one.
-        // Bond maturity = issuance_timestamp + 730 days
-        // issuance was around 1_700_000_000 + 2h + ... Let's compute:
-        uint256 issuanceTime = 1_770_000_000 + 2 hours;
+        // Compute the epoch
+        uint256 issuanceTime = block.timestamp;
         uint256 maturityTs = issuanceTime + 730 days;
         uint256 BASE_TS = 1767225600; // Jan 1 2026 UTC
         uint256 monthsFromBase = (maturityTs - BASE_TS) / 2629746;
         uint256 year = 2026 + monthsFromBase / 12;
         uint256 month = 1 + monthsFromBase % 12;
-        epochId = year * 100 + month;
+        uint256 epochId = year * 100 + month;
 
         uint256 balance = claimBond.balanceOf(user, epochId);
         assertEq(balance, 100, "User should have 100 bond tokens");
 
-        // Redeem while circuit breaker is active
+        // Warp past maturity (730 days)
+        vm.warp(block.timestamp + 731 days);
+        capacityOracle.setPrice(0.036e18); // set reasonable price for redemption calc
+
+        // Redeem
         vm.prank(user);
         bondVault.redeemBond(epochId, 50); // partial redeem
 
@@ -346,9 +322,6 @@ contract EmergencyResponseTest is Test {
 
         // Authorize BuybackEngine on BondVault (requires policyManager = address(this))
         bondVault.setAuthorizedCaller(address(engine), true);
-
-        // Warp past activation delay (365 days)
-        vm.warp(block.timestamp + 366 days);
 
         // Configure daily buyback
         engine.setDailyBuyback(100_000e6, 80, 24);

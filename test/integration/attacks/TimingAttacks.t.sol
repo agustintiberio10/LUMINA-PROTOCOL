@@ -68,9 +68,9 @@ contract TimingAttacks is Test {
     address admin = makeAddr("admin");
 
     // ================================================================
-    // Test 1: BuybackEngine.executeOffer before 12-month activation
+    // Test 1: BuybackEngine.executeOffer without daily config reverts
     // ================================================================
-    function test_Attack_BuybackBeforeActivation() public {
+    function test_Attack_BuybackWithoutConfig() public {
         MockClaimBondV5 claimBond = new MockClaimBondV5();
         MockBondVaultV5 bondVault = new MockBondVaultV5(address(0x1));
         MockSolvencyOracle solvencyOracle = new MockSolvencyOracle();
@@ -88,11 +88,9 @@ contract TimingAttacks is Test {
             admin
         );
 
-        // Confirm not yet activated (< 365 days)
-        assertFalse(engine.isActivated());
-
-        // Try to executeOffer immediately
-        vm.expectRevert("Not yet activated");
+        // Try to executeOffer without configuring daily buyback
+        // validUntil defaults to 0, so block.timestamp > 0 => "Daily offer expired"
+        vm.expectRevert("Daily offer expired");
         engine.executeOffer(0);
     }
 
@@ -192,9 +190,6 @@ contract TimingAttacks is Test {
             address(usdc),
             admin
         );
-
-        // Warp past activation (365 days)
-        vm.warp(block.timestamp + 366 days);
 
         // Admin sets a daily buyback config with 24-hour validity
         vm.prank(admin);

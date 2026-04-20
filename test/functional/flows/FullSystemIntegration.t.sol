@@ -9,7 +9,8 @@ import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
 import {CapacityOracle} from "../../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../../src/oracles/SolvencyOracle.sol";
 import {AdaptiveFeeDistributor} from "../../../src/core/AdaptiveFeeDistributor.sol";
-import {TWAPBurner, ISwapRouter} from "../../../src/core/TWAPBurner.sol";
+import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
+import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 import {PolicyManagerV2} from "../../../src/core/PolicyManagerV2.sol";
 import {CoverRouterV2} from "../../../src/core/CoverRouterV2.sol";
 
@@ -51,7 +52,7 @@ contract MockUSDC_FSI {
     }
 }
 
-contract MockSwapRouter_FSI {
+contract MockSwapRouter_FSI is IDexRouter {
     IERC20 public lumina;
     uint256 public rate = 27; // 1 USDC = 27 LUMINA (at ~$0.037/LUMINA)
 
@@ -59,10 +60,14 @@ contract MockSwapRouter_FSI {
         lumina = IERC20(_lumina);
     }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params) external returns (uint256 amountOut) {
-        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
-        amountOut = params.amountIn * rate * 1e12; // USDC 6-dec -> LUMINA 18-dec
-        lumina.transfer(params.recipient, amountOut);
+    function swap(address tokenIn, address, uint256 amountIn, uint256) external override returns (uint256 amountOut) {
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        amountOut = amountIn * rate * 1e12; // USDC 6-dec -> LUMINA 18-dec
+        lumina.transfer(msg.sender, amountOut);
+    }
+
+    function getQuote(address, address, uint256) external pure override returns (uint256) {
+        return 0;
     }
 
     function setRate(uint256 _rate) external {
@@ -506,14 +511,16 @@ contract FullSystemIntegrationTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  TEST 4: Circuit Breaker Full Cycle
-    //  Drop price -> trigger breaker -> issuance blocked ->
-    //  redemption works -> raise price -> wait cooldown ->
-    //  reset breaker -> issuance works again
+    //  TEST 4: CoverRouterV2 Auto-Pause Full Cycle
+    //  Set capacity oracle -> drop price -> auto-pause blocks new
+    //  policies -> raise price -> policies work again
     // ═══════════════════════════════════════════════════════════════
 
-    function test_Integration_CircuitBreaker_FullCycle() public {
-        // --- Step 1: Issue a bond while system is healthy ---
+    function test_Integration_AutoPause_FullCycle() public {
+        // --- Step 1: Set capacity oracle on CoverRouter ---
+        coverRouter.setCapacityOracle(address(capacityOracle));
+
+        // --- Step 2: Issue a bond while system is healthy ---
         vm.startPrank(buyer1);
         usdc.approve(address(coverRouter), type(uint256).max);
         coverRouter.purchasePolicy(PRODUCT_ID, 1000e6, "BTC");
@@ -522,7 +529,6 @@ contract FullSystemIntegrationTest is Test {
 
         // Verify bond was issued: $800 committed (80% of $1000)
         assertEq(bondVault.totalCommittedUSD(), 800 * 1e18, "Should have $800 committed");
-        assertFalse(bondVault.paused(), "Circuit breaker should be inactive");
 
         // Find the epoch for the issued bond
         uint256 maturityTs = block.timestamp + 730 days;
@@ -532,61 +538,48 @@ contract FullSystemIntegrationTest is Test {
         uint256 epochId = year * 100 + month;
         assertEq(claimBond.balanceOf(buyer1, epochId), 800, "Buyer1 should hold 800 bond tokens");
 
-        // --- Step 2: Drop price below MIN_PRICE ($0.005) and trigger breaker ---
+        // --- Step 3: Drop price below MIN_PRICE_FOR_NEW_POLICIES ($0.005) ---
         capacityOracle.setPrice(0.004e18); // $0.004
 
-        bondVault.triggerBreaker();
-        assertTrue(bondVault.paused(), "Circuit breaker should be active");
+        // Verify auto-pause is active
+        assertTrue(coverRouter.isProtocolAutoPaused(), "Protocol should be auto-paused");
 
-        // --- Step 3: Verify issuance is blocked ---
+        // --- Step 4: Verify new policy purchase is blocked ---
         vm.startPrank(buyer2);
         usdc.approve(address(coverRouter), type(uint256).max);
+        vm.expectRevert("Protocol auto-paused: LUMINA price below safety threshold");
         coverRouter.purchasePolicy(PRODUCT_ID, 1000e6, "BTC");
         vm.stopPrank();
 
-        // submitTrigger calls PM -> BondVault.issueBond, which should revert
-        vm.expectRevert("Circuit breaker active");
-        coverRouter.submitTrigger(PRODUCT_ID, 2, "");
-
-        // --- Step 4: Verify redemption still works (NEVER blocked by circuit breaker) ---
-        // Warp past maturity (730 days) + reset price for fair redemption
+        // --- Step 5: Verify redemption still works ---
         vm.warp(block.timestamp + 731 days);
         capacityOracle.setPrice(EMERGENCY_PRICE); // restore to $0.036
 
         assertTrue(claimBond.isMatured(epochId), "Bonds should be matured");
-        assertTrue(bondVault.paused(), "Breaker should still be active");
 
         uint256 luminaBefore = token.balanceOf(buyer1);
         vm.prank(buyer1);
         bondVault.redeemBond(epochId, 400); // partial redeem: $400 worth
 
         uint256 luminaAfter = token.balanceOf(buyer1);
-        assertGt(luminaAfter, luminaBefore, "Buyer should receive LUMINA despite breaker");
+        assertGt(luminaAfter, luminaBefore, "Buyer should receive LUMINA");
         assertEq(claimBond.balanceOf(buyer1, epochId), 400, "Should have 400 bonds remaining");
 
         // Verify commitment tracking updated
         assertEq(bondVault.totalCommittedUSD(), 400 * 1e18, "Committed should be $400 after partial redeem");
 
-        // --- Step 5: Raise price and wait cooldown, then reset breaker ---
-        // Price is already restored to $0.036 which is >= RESET_PRICE ($0.008)
-        // But we need to wait for BREAKER_COOLDOWN (1 hour) from last trigger
-        // We already warped 731 days so cooldown is satisfied
+        // --- Step 6: Verify policy purchase works again with healthy price ---
+        assertFalse(coverRouter.isProtocolAutoPaused(), "Protocol should not be auto-paused");
 
-        bondVault.resetCircuitBreaker();
-        assertFalse(bondVault.paused(), "Circuit breaker should be reset");
-
-        // --- Step 6: Verify issuance works again ---
-        // Purchase another policy and trigger it
         vm.startPrank(buyer2);
         usdc.approve(address(coverRouter), type(uint256).max);
         coverRouter.purchasePolicy(PRODUCT_ID, 500e6, "BTC");
         vm.stopPrank();
 
         // This should succeed now
-        coverRouter.submitTrigger(PRODUCT_ID, 3, "");
+        coverRouter.submitTrigger(PRODUCT_ID, 2, "");
 
         // New bond: $500 * 80% = $400
-        // Total committed: $400 (remaining from first) + $400 (new) = $800
         assertEq(bondVault.totalCommittedUSD(), 800 * 1e18, "Committed should be $800 after new issuance");
 
         // Final: redeem remaining bonds from first bond

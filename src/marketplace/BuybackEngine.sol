@@ -45,9 +45,7 @@ contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
     IBuybackCapacityOracle public immutable capacityOracle;
     IBuybackMarketplace public immutable marketplace;
     IERC20 public immutable usdc;
-    uint256 public immutable deploymentTimestamp;
 
-    uint256 public constant ACTIVATION_DELAY = 365 days;
     uint256 public constant MIN_SOLVENCY_FOR_DOUBLE_BURN = 15000; // 150%
 
     struct DailyConfig {
@@ -86,7 +84,6 @@ contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
         capacityOracle = IBuybackCapacityOracle(_capacityOracle);
         marketplace = IBuybackMarketplace(_marketplace);
         usdc = IERC20(_usdc);
-        deploymentTimestamp = block.timestamp;
 
         _grantRole(DEFAULT_ADMIN_ROLE, _multisigOwner);
         _grantRole(BUYBACK_OPERATOR_ROLE, _multisigOwner);
@@ -96,7 +93,6 @@ contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
         external
         onlyRole(BUYBACK_OPERATOR_ROLE)
     {
-        require(_isActivated(), "Not yet activated");
         require(_budget > 0, "Budget zero");
         require(_maxPricePercent > 0 && _maxPricePercent <= 95, "Max percent 1-95");
         require(_durationHours > 0 && _durationHours <= 72, "Duration 1-72 hours");
@@ -112,7 +108,6 @@ contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
     }
 
     function executeOffer(uint256 listingId) external nonReentrant {
-        require(_isActivated(), "Not yet activated");
         require(block.timestamp <= dailyConfig.validUntil, "Daily offer expired");
 
         (, uint256 epochId, uint256 amount, uint256 priceUSDC, bool active) = marketplace.getListing(listingId);
@@ -149,19 +144,6 @@ contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
 
         emit CircuitBreakerTriggered(currentSolvency, MIN_SOLVENCY_FOR_DOUBLE_BURN);
         emit DoubleBurnExecuted(epochId, faceValueUSD, 0);
-    }
-
-    function _isActivated() internal view returns (bool) {
-        return block.timestamp >= deploymentTimestamp + ACTIVATION_DELAY;
-    }
-
-    function isActivated() external view returns (bool) {
-        return _isActivated();
-    }
-
-    function timeUntilActivation() external view returns (uint256) {
-        if (_isActivated()) return 0;
-        return (deploymentTimestamp + ACTIVATION_DELAY) - block.timestamp;
     }
 
     function supportsInterface(bytes4 interfaceId)

@@ -44,7 +44,11 @@ contract MockUSDC_AC {
 
 /// @notice Minimal mock swap router for TWAPBurner construction
 contract MockSwapRouter_AC {
-    function exactInputSingle(bytes calldata) external payable returns (uint256) {
+    function swap(address, address, uint256, uint256) external pure returns (uint256) {
+        return 0;
+    }
+
+    function getQuote(address, address, uint256) external pure returns (uint256) {
         return 0;
     }
 }
