@@ -5,7 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title FounderVesting
-/// @notice 10M LUMINA locked until AltSeason conditions or 4-year fallback.
+/// @notice 8M LUMINA locked until AltSeason conditions or 4-year fallback.
 /// @dev Conditions (2-of-3 sustained 7 days):
 ///      A: ETH/BTC > 0.050
 ///      B: ETH > $4,000
@@ -47,7 +47,7 @@ contract FounderVesting is Ownable {
     uint256 public constant TRANCHE_INTERVAL = 31 days;
     uint256 public constant TOTAL_TRANCHES = 3;
     uint256 public constant FALLBACK_DURATION = 1460 days; // 4 years
-    uint256 public constant TOTAL_AMOUNT = 8_000_000 * 1e18; // 10M LUMINA
+    uint256 public constant TOTAL_AMOUNT = 8_000_000 * 1e18; // 8M LUMINA
     uint256 public constant TRANCHE_AMOUNT = TOTAL_AMOUNT / TOTAL_TRANCHES; // ~3.333M per tranche
 
     // ═══════ IMMUTABLES ═══════

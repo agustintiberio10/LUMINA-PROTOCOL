@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "../../src/core/TWAPBurner.sol";
 import "../../src/token/LuminaTokenV2.sol";
 import {MockFeeDistributor} from "../mocks/MockFeeDistributor.sol";
@@ -309,6 +310,60 @@ contract TWAPBurnerTest is Test {
         burner.executeBurn();
 
         assertEq(IERC20(usdc).balanceOf(maintRes), 500e6, "Maintenance should get exactly 5% of 10000 USDC");
+    }
+
+    // ═══════ setPoolFee tests ═══════
+
+    function test_SetPoolFee_Success() public {
+        assertEq(burner.poolFee(), 10000, "Default pool fee should be 10000");
+
+        burner.setPoolFee(500);
+        assertEq(burner.poolFee(), 500, "Pool fee should be updated to 500");
+
+        burner.setPoolFee(3000);
+        assertEq(burner.poolFee(), 3000, "Pool fee should be updated to 3000");
+
+        burner.setPoolFee(10000);
+        assertEq(burner.poolFee(), 10000, "Pool fee should be updated to 10000");
+    }
+
+    function test_SetPoolFee_RevertIf_NotOwner() public {
+        vm.prank(makeAddr("random"));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, makeAddr("random")));
+        burner.setPoolFee(500);
+    }
+
+    function test_SetPoolFee_RevertIf_InvalidTier() public {
+        vm.expectRevert("Invalid fee tier");
+        burner.setPoolFee(100);
+    }
+
+    // ═══════ setMaxSlippageBps tests ═══════
+
+    function test_SetMaxSlippage_Success() public {
+        assertEq(burner.maxSlippageBps(), 500, "Default max slippage should be 500");
+
+        burner.setMaxSlippageBps(50);
+        assertEq(burner.maxSlippageBps(), 50, "Max slippage should be updated to 50 (0.5%)");
+
+        burner.setMaxSlippageBps(1000);
+        assertEq(burner.maxSlippageBps(), 1000, "Max slippage should be updated to 1000 (10%)");
+    }
+
+    function test_SetMaxSlippage_RevertIf_NotOwner() public {
+        vm.prank(makeAddr("random"));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, makeAddr("random")));
+        burner.setMaxSlippageBps(100);
+    }
+
+    function test_SetMaxSlippage_RevertIf_TooLow() public {
+        vm.expectRevert("Slippage: 0.5%-10%");
+        burner.setMaxSlippageBps(49);
+    }
+
+    function test_SetMaxSlippage_RevertIf_TooHigh() public {
+        vm.expectRevert("Slippage: 0.5%-10%");
+        burner.setMaxSlippageBps(1001);
     }
 
     function test_FallbackDistribution_IsNow_85_8_2_5() public {

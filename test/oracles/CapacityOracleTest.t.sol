@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "../../src/oracles/CapacityOracle.sol";
 
 contract MockUniswapPool {
@@ -59,9 +60,9 @@ contract CapacityOracleTest is Test {
 
     function test_maxPoliciesPerDay_at_0036() public view {
         uint256 max = oracle.maxPoliciesPerDay();
-        // 82M * 0.50 * 0.036 / (500 * 730 * 0.01) = ~404
-        assertGt(max, 350);
-        assertLt(max, 450);
+        // 70M * 0.50 * 0.036 / (500 * 730 * 0.01) = ~345
+        assertGt(max, 300);
+        assertLt(max, 400);
     }
 
     function test_setEmergencyPrice() public {
@@ -73,8 +74,8 @@ contract CapacityOracleTest is Test {
     function test_maxPoliciesPerDay_at_1dollar() public {
         oracle.setEmergencyPrice(1e18);
         uint256 max = oracle.maxPoliciesPerDay();
-        // Should be ~11,233
-        assertGt(max, 10000);
+        // 70M * 0.50 * 1.0 / (500 * 730 * 0.01) = ~9,589
+        assertGt(max, 9000);
         assertLt(max, 12000);
     }
 
@@ -112,5 +113,32 @@ contract CapacityOracleTest is Test {
         // No pool set → emergency fallback
         uint256 twap = oracle.getTWAP(30 days);
         assertEq(twap, 0.036e18);
+    }
+
+    // ═══════ setPool tests ═══════
+
+    function test_SetPool_Success() public {
+        MockUniswapPool mockPool = new MockUniswapPool(lumina, usdc);
+        oracle.setPool(address(mockPool));
+        assertEq(oracle.pool(), address(mockPool), "Pool address should be updated");
+        assertTrue(oracle.isToken0Lumina(), "token0 is lumina so isToken0Lumina should be true");
+    }
+
+    function test_SetPool_RevertIf_NotOwner() public {
+        MockUniswapPool mockPool = new MockUniswapPool(lumina, usdc);
+        vm.prank(makeAddr("random"));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, makeAddr("random")));
+        oracle.setPool(address(mockPool));
+    }
+
+    function test_SetPool_RevertIf_ZeroAddress() public {
+        vm.expectRevert("Zero pool");
+        oracle.setPool(address(0));
+    }
+
+    // ═══════ BOND_RESERVE constant test ═══════
+
+    function test_CapacityOracle_BondReserve_Is70M() public view {
+        assertEq(oracle.BOND_RESERVE(), 70_000_000 * 1e18, "BOND_RESERVE should be 70M * 1e18");
     }
 }

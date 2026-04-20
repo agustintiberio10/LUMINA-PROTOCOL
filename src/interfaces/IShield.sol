@@ -9,10 +9,9 @@ pragma solidity ^0.8.20;
  *
  * 🔴 INMUTABLE — Changing this requires redeploying all products.
  *
- * POST-PIVOT CHANGE: vault() REMOVED.
- *   A product no longer has a fixed vault. The PolicyManager decides
- *   which vault backs each policy via waterfall (Short → Long).
- *   Example: DepegShield 30d policy → PM tries StableShort, if full → StableLong.
+ * V5.0: Policies are backed by BondVault (immutable, 70M LUMINA).
+ *   On trigger, ClaimBond ERC-1155 tokens are minted to the policyholder.
+ *   No LP vaults — all coverage is backed by the single BondVault reserve.
  *
  * GAS: All reason fields are bytes32 (not string). M2M target.
  */
