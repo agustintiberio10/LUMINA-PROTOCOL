@@ -11,3 +11,4 @@ coverage/
 lcov.info
 *.env*
 !.env.example
+docs/audit/secrets-scan/*.log
