@@ -21,6 +21,17 @@ import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
 import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
 import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
 
+// ─── Shields ───
+import {FlashBTCShield1h} from "../../src/products/FlashBTCShield1h.sol";
+import {FlashBTCShield4h} from "../../src/products/FlashBTCShield4h.sol";
+import {FlashBTCShield24h} from "../../src/products/FlashBTCShield24h.sol";
+import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
+import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
+import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
+import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
+import {MicroDepegShield} from "../../src/products/MicroDepegShield.sol";
+import {RateShockShield} from "../../src/products/RateShockShield.sol";
+
 // ═══════════════════════════════════════════════════════════════
 //  INLINE MOCKS FOR SEPOLIA
 // ═══════════════════════════════════════════════════════════════
@@ -79,6 +90,47 @@ contract MockChainlinkOracle {
 
     function setPrice(int256 _price) external {
         price = _price;
+    }
+}
+
+/// @notice Mock IOracle for shields (returns hardcoded prices by asset).
+contract MockShieldOracle {
+    mapping(bytes32 => int256) public prices;
+
+    constructor() {
+        prices[keccak256(abi.encodePacked("BTC"))] = 65000e8; // $65K BTC
+        prices[keccak256(abi.encodePacked("ETH"))] = 3200e8; // $3.2K ETH
+        prices["BTC"] = 65000e8;
+        prices["ETH"] = 3200e8;
+        prices["USDT"] = 1e8; // $1.00 USDT
+    }
+
+    function getLatestPrice(bytes32 asset) external view returns (int256) {
+        int256 p = prices[asset];
+        return p > 0 ? p : int256(1e8); // fallback $1
+    }
+
+    function verifySignature(bytes32, bytes calldata) external pure returns (bool) {
+        return true; // testnet: always valid
+    }
+
+    function oracleKey() external pure returns (address) {
+        return address(0xdead);
+    }
+}
+
+/// @notice Mock Aave V3 Pool for RateShockShield (returns a fixed borrow rate).
+contract MockAavePool {
+    function getReserveData(address)
+        external
+        pure
+        returns (
+            uint256, uint128, uint128, uint128, uint128, uint128,
+            uint40, uint16, address, address, address, address, uint128, uint128, uint128
+        )
+    {
+        // currentVariableBorrowRate = 5% APY in RAY (27 decimals) = 5e25
+        return (0, 0, 0, 0, 5e25, 0, 0, 0, address(0), address(0), address(0), address(0), 0, 0, 0);
     }
 }
 
@@ -252,6 +304,49 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("ShieldKeeper:", address(shieldKeeper));
 
         // ──────────────────────────────────────────────────
+        // PHASE 9c: Deploy 9 Shields + mock oracles
+        // ──────────────────────────────────────────────────
+        MockShieldOracle shieldOracle = new MockShieldOracle();
+        MockAavePool mockAavePool = new MockAavePool();
+        console.log("MockShieldOracle:", address(shieldOracle));
+        console.log("MockAavePool:", address(mockAavePool));
+
+        // Deploy shields (router_ = policyManager, oracle_ = shieldOracle)
+        FlashBTCShield1h flashBtc1h = new FlashBTCShield1h(address(policyManager), address(shieldOracle));
+        FlashBTCShield4h flashBtc4h = new FlashBTCShield4h(address(policyManager), address(shieldOracle));
+        FlashBTCShield24h flashBtc24h = new FlashBTCShield24h(address(policyManager), address(shieldOracle));
+        FlashBTCShield48h flashBtc48h = new FlashBTCShield48h(address(policyManager), address(shieldOracle));
+        FlashETHShield1h flashEth1h = new FlashETHShield1h(address(policyManager), address(shieldOracle));
+        FlashETHShield24h flashEth24h = new FlashETHShield24h(address(policyManager), address(shieldOracle));
+        FlashETHShield48h flashEth48h = new FlashETHShield48h(address(policyManager), address(shieldOracle));
+        MicroDepegShield microDepeg = new MicroDepegShield(address(policyManager), address(shieldOracle));
+        RateShockShield rateShock = new RateShockShield(
+            address(policyManager), address(shieldOracle), address(mockAavePool), address(usdc)
+        );
+
+        console.log("FlashBTC1H:", address(flashBtc1h));
+        console.log("FlashBTC4H:", address(flashBtc4h));
+        console.log("FlashBTC24H:", address(flashBtc24h));
+        console.log("FlashBTC48H:", address(flashBtc48h));
+        console.log("FlashETH1H:", address(flashEth1h));
+        console.log("FlashETH24H:", address(flashEth24h));
+        console.log("FlashETH48H:", address(flashEth48h));
+        console.log("MicroDepeg:", address(microDepeg));
+        console.log("RateShock:", address(rateShock));
+
+        // Register shields in PolicyManager
+        policyManager.registerProduct(keccak256("FLASHBTC1H-001"), address(flashBtc1h));
+        policyManager.registerProduct(keccak256("FLASHBTC4H-001"), address(flashBtc4h));
+        policyManager.registerProduct(keccak256("FLASHBTC24-001"), address(flashBtc24h));
+        policyManager.registerProduct(keccak256("FLASHBTC48-001"), address(flashBtc48h));
+        policyManager.registerProduct(keccak256("FLASHETH1H-001"), address(flashEth1h));
+        policyManager.registerProduct(keccak256("FLASHETH24-001"), address(flashEth24h));
+        policyManager.registerProduct(keccak256("FLASHETH48-001"), address(flashEth48h));
+        policyManager.registerProduct(keccak256("MICRODEPEG-001"), address(microDepeg));
+        policyManager.registerProduct(keccak256("RATESHOCK-001"), address(rateShock));
+        console.log("9 shields deployed and registered");
+
+        // ──────────────────────────────────────────────────
         // PHASE 10: Wire TWAPBurner
         // ──────────────────────────────────────────────────
         twapBurner.setFeeDistributor(address(feeDistributor));
@@ -298,6 +393,18 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("  Marketplace:        ", address(marketplace));
         console.log("  BuybackEngine:      ", address(buybackEngine));
         console.log("  ShieldKeeper:       ", address(shieldKeeper));
+        console.log("");
+        console.log("");
+        console.log("--- Shields (9) ---");
+        console.log("  FlashBTC1H:         ", address(flashBtc1h));
+        console.log("  FlashBTC4H:         ", address(flashBtc4h));
+        console.log("  FlashBTC24H:        ", address(flashBtc24h));
+        console.log("  FlashBTC48H:        ", address(flashBtc48h));
+        console.log("  FlashETH1H:         ", address(flashEth1h));
+        console.log("  FlashETH24H:        ", address(flashEth24h));
+        console.log("  FlashETH48H:        ", address(flashEth48h));
+        console.log("  MicroDepeg:         ", address(microDepeg));
+        console.log("  RateShock:          ", address(rateShock));
         console.log("");
         console.log("--- Placeholders ---");
         console.log("  FounderVesting:     ", founderVesting);
