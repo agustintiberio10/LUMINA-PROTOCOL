@@ -18,6 +18,8 @@ import {CEXLiquidityReserve} from "../../src/treasury/CEXLiquidityReserve.sol";
 import {MaintenanceReserve} from "../../src/treasury/MaintenanceReserve.sol";
 import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
 import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
+import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
+import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
 
 // ═══════════════════════════════════════════════════════════════
 //  INLINE MOCKS FOR SEPOLIA
@@ -80,10 +82,15 @@ contract MockChainlinkOracle {
     }
 }
 
-/// @notice Mock Uniswap V3 SwapRouter that returns a dummy output.
-contract MockSwapRouterSepolia {
+/// @notice Mock DEX router implementing IDexRouter for testnet.
+contract MockDexRouterSepolia is IDexRouter {
     /// @dev Simply returns a hardcoded value; no real swap.
-    function exactInputSingle(bytes calldata) external pure returns (uint256) {
+    function swap(address, address, uint256, uint256) external pure override returns (uint256) {
+        return 1000e18;
+    }
+
+    /// @dev Returns a hardcoded quote for getQuote.
+    function getQuote(address, address, uint256) external pure override returns (uint256) {
         return 1000e18;
     }
 }
@@ -118,8 +125,8 @@ contract DeployLuminaV5Sepolia is Script {
         MockChainlinkOracle mockEthOracle = new MockChainlinkOracle(3_500e8);
         console.log("MockETHOracle:", address(mockEthOracle));
 
-        MockSwapRouterSepolia swapRouter = new MockSwapRouterSepolia();
-        console.log("MockSwapRouter:", address(swapRouter));
+        MockDexRouterSepolia dexRouter = new MockDexRouterSepolia();
+        console.log("MockDexRouter:", address(dexRouter));
 
         // Mint test USDC to deployer
         usdc.mint(deployer, TEST_USDC_AMOUNT);
@@ -196,7 +203,7 @@ contract DeployLuminaV5Sepolia is Script {
         // ──────────────────────────────────────────────────
         // PHASE 7: TWAPBurner
         // ──────────────────────────────────────────────────
-        TWAPBurner twapBurner = new TWAPBurner(address(usdc), address(lumina), address(swapRouter));
+        TWAPBurner twapBurner = new TWAPBurner(address(usdc), address(lumina), address(dexRouter));
         console.log("TWAPBurner:", address(twapBurner));
 
         // ──────────────────────────────────────────────────
@@ -211,6 +218,10 @@ contract DeployLuminaV5Sepolia is Script {
         // Wire PolicyManager <-> Router
         policyManager.setRouter(address(coverRouter));
         console.log("PolicyManager.setRouter done");
+
+        // Wire CoverRouterV2 -> CapacityOracle (auto-pause at MIN_PRICE_FOR_NEW_POLICIES)
+        coverRouter.setCapacityOracle(address(capacityOracle));
+        console.log("CoverRouter.setCapacityOracle done");
 
         // Wire BondVault -> PolicyManager (one-shot)
         bondVault.setPolicyManager(address(policyManager));
@@ -233,6 +244,12 @@ contract DeployLuminaV5Sepolia is Script {
             deployer
         );
         console.log("BuybackEngine:", address(buybackEngine));
+
+        // ──────────────────────────────────────────────────
+        // PHASE 9b: ShieldKeeper (Chainlink Automation)
+        // ──────────────────────────────────────────────────
+        ShieldKeeper shieldKeeper = new ShieldKeeper(address(policyManager));
+        console.log("ShieldKeeper:", address(shieldKeeper));
 
         // ──────────────────────────────────────────────────
         // PHASE 10: Wire TWAPBurner
@@ -263,7 +280,7 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("  MockUSDC:           ", address(usdc));
         console.log("  MockBTCOracle:      ", address(mockBtcOracle));
         console.log("  MockETHOracle:      ", address(mockEthOracle));
-        console.log("  MockSwapRouter:     ", address(swapRouter));
+        console.log("  MockDexRouter:      ", address(dexRouter));
         console.log("");
         console.log("--- Core Protocol ---");
         console.log("  LuminaTokenV2:      ", address(lumina));
@@ -280,6 +297,7 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("  MaintenanceReserve: ", address(maintenanceReserve));
         console.log("  Marketplace:        ", address(marketplace));
         console.log("  BuybackEngine:      ", address(buybackEngine));
+        console.log("  ShieldKeeper:       ", address(shieldKeeper));
         console.log("");
         console.log("--- Placeholders ---");
         console.log("  FounderVesting:     ", founderVesting);

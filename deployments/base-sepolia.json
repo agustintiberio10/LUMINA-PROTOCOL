@@ -1,0 +1,27 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "deployedAt": "",
+  "deployer": "",
+  "contracts": {
+    "MockUSDC": "",
+    "MockBTCOracle": "",
+    "MockETHOracle": "",
+    "MockDexRouter": "",
+    "LuminaTokenV2": "",
+    "ClaimBond": "",
+    "BondVault": "",
+    "CapacityOracle": "",
+    "SolvencyOracle": "",
+    "AdaptiveFeeDistributor": "",
+    "TWAPBurner": "",
+    "PolicyManagerV2": "",
+    "CoverRouterV2": "",
+    "CEXLiquidityReserve": "",
+    "TreasuryVesting": "",
+    "MaintenanceReserve": "",
+    "LuminaBondMarketplace": "",
+    "BuybackEngine": "",
+    "ShieldKeeper": ""
+  }
+}
