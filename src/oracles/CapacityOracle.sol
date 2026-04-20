@@ -41,7 +41,7 @@ contract CapacityOracle is Ownable {
     bool public isToken0Lumina; // whether LUMINA is token0 in the pool
 
     // ═══════ CONSTANTS ═══════
-    uint256 public constant BOND_RESERVE = 82_000_000 * 1e18;
+    uint256 public constant BOND_RESERVE = 70_000_000 * 1e18;
     uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50%
     uint256 public constant AVG_PAYOUT_USD = 500; // $500 average payout
     uint256 public constant MATURITY_DAYS = 730; // 24 months
