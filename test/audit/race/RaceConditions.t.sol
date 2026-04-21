@@ -12,6 +12,7 @@ import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
 import {LuminaBondMarketplace} from "../../../src/marketplace/LuminaBondMarketplace.sol";
 import {CEXLiquidityReserve} from "../../../src/treasury/CEXLiquidityReserve.sol";
 import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 //  INLINE MOCKS — minimal stubs so real contracts compile
@@ -209,14 +210,13 @@ contract RaceConditionsTest is Test {
         priceOracle = new MockPriceOracle_RC(0.036e18);
 
         // 2. Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
-        // 3. Predict BondVault address (token=nonce, swapRouter=+1, twapBurner=+2,
-        //    policyManager=+3, bondVault=+4)
+        // 3. Predict BondVault address
         uint64 nonce = vm.getNonce(address(this));
-        // nonce+0 = cexReserve (CEXLiquidityReserve), +1 = token, +2 = swapRouter,
-        // +3 = twapBurner, +4 = policyManager, +5 = bondVault
-        address predictedBondVault = vm.computeCreateAddress(address(this), nonce + 5);
+        // nonce+0 = cexReserve(1), +1,+2 = token via proxy(2), +3 = swapRouter(1),
+        // +4 = twapBurner(1), +5,+6 = policyManager via proxy(2), +7,+8 = bondVault via proxy(2)
+        address predictedBondVault = vm.computeCreateAddress(address(this), nonce + 8);
         address predictedCexReserve = vm.computeCreateAddress(address(this), nonce);
 
         // 4. Deploy CEXLiquidityReserve
@@ -233,7 +233,9 @@ contract RaceConditionsTest is Test {
         cexReserveAddr = address(cexReserve);
 
         // 5. Deploy token — mints 14M to cexReserveAddr
-        token = new LuminaTokenV2(predictedBondVault, cexReserveAddr, founderVesting, lbpDeposit, treasuryVesting);
+        token = ProxyDeployer.deployLuminaTokenV2(
+            predictedBondVault, cexReserveAddr, founderVesting, lbpDeposit, treasuryVesting
+        );
 
         // 6. Deploy swap router mock
         swapRouter = new MockSwapRouter_RC(address(token));
@@ -243,10 +245,12 @@ contract RaceConditionsTest is Test {
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
 
         // 8. Deploy PolicyManagerV2
-        policyManager = new PolicyManagerV2(predictedBondVault);
+        policyManager = ProxyDeployer.deployPolicyManagerV2(predictedBondVault);
 
         // 9. Deploy BondVault
-        bondVault = new BondVault(address(token), address(claimBond), address(priceOracle), address(policyManager));
+        bondVault = ProxyDeployer.deployBondVault(
+            address(token), address(claimBond), address(priceOracle), address(policyManager)
+        );
         require(address(bondVault) == predictedBondVault, "BondVault address mismatch");
 
         // 10. Wire ClaimBond -> BondVault
@@ -267,7 +271,7 @@ contract RaceConditionsTest is Test {
         policyManager.registerProduct(PRODUCT_ID_2, address(mockShield2));
 
         // 13. Deploy CoverRouter
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
         coverRouter.setCapacityOracle(address(priceOracle));
 
         // 14. Wire PolicyManager -> CoverRouter

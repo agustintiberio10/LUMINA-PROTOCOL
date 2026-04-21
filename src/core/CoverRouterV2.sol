@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -11,6 +13,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @dev Simplified from V1: no vaults, no waterfall, no protocol fee split.
 ///      100% of premiums go to TWAPBurner for buy & burn.
 ///      Supports direct purchase + relayer pattern (purchasePolicyFor).
+///
+///      [V5.1] UUPS upgradeable proxy pattern.
 
 interface IPriceOracleForRouter {
     function getLuminaPrice() external view returns (uint256);
@@ -33,11 +37,11 @@ interface ITWAPBurner {
     function receivePremium(uint256 amount) external;
 }
 
-contract CoverRouterV2 is Ownable, ReentrancyGuard {
+contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
-    // ═══════ IMMUTABLES ═══════
-    IERC20 public immutable usdc;
+    // ═══════ STORAGE (was immutable, now upgradeable storage) ═══════
+    IERC20 public usdc;
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant MIN_PRICE_FOR_NEW_POLICIES = 5e15; // 0.005 USD in 18 dec
@@ -61,6 +65,7 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         uint32 durationSeconds;
         bool active;
     }
+
     mapping(bytes32 => ProductConfig) public products;
     bytes32[] public productList;
 
@@ -92,7 +97,16 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address _usdc, address _policyManager, address _twapBurner) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _usdc, address _policyManager, address _twapBurner) public initializer {
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
+
         require(_usdc != address(0), "Zero USDC");
         require(_policyManager != address(0), "Zero PM");
         require(_twapBurner != address(0), "Zero burner");
@@ -105,9 +119,6 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
     // ═══════ PURCHASE: Direct (user buys for themselves) ═══════
 
     /// @notice Buy a policy directly. User pays premium in USDC.
-    /// @param productId Product identifier (e.g., keccak256("FLASHBTC1H-001"))
-    /// @param coverageAmount Coverage in USDC (6 decimals). E.g., 1000e6 = $1,000
-    /// @param asset Asset being covered (e.g., "BTC", "ETH", "USDT")
     function purchasePolicy(bytes32 productId, uint256 coverageAmount, bytes32 asset)
         external
         nonReentrant
@@ -120,7 +131,6 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
     // ═══════ PURCHASE: Relayer pattern (agent buys via API) ═══════
 
     /// @notice Buy a policy on behalf of another address. For API/relayer use.
-    /// @param buyer The address that will own the policy and receive any bond
     function purchasePolicyFor(bytes32 productId, uint256 coverageAmount, bytes32 asset, address buyer)
         external
         nonReentrant
@@ -135,9 +145,6 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
     // ═══════ TRIGGER: Submit oracle proof ═══════
 
     /// @notice Submit a trigger proof. Anyone can call (permissionless).
-    /// @param productId Product
-    /// @param policyId Policy ID within the shield
-    /// @param oracleProof Encoded oracle proof (price, asset, timestamp, signature)
     function submitTrigger(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external nonReentrant {
         policyManager.triggerPayout(productId, policyId, oracleProof);
         emit TriggerSubmitted(productId, policyId, msg.sender);
@@ -193,7 +200,7 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         uint32 _durationSeconds,
         bool _active
     ) external onlyOwner {
-        require(_durationSeconds > 0, "Duration must be > 0"); // [L-?] prevents duration=0 sentinel confusion
+        require(_durationSeconds > 0, "Duration must be > 0");
         if (products[_productId].durationSeconds == 0) {
             productList.push(_productId);
         }
@@ -262,4 +269,9 @@ contract CoverRouterV2 is Ownable, ReentrancyGuard {
         if (address(capacityOracle) == address(0)) return false;
         return capacityOracle.getLuminaPrice() < MIN_PRICE_FOR_NEW_POLICIES;
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

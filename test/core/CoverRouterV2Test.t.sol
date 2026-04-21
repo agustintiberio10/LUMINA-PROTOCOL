@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../../src/core/CoverRouterV2.sol";
 
 contract MockPolicyManager {
@@ -10,6 +11,7 @@ contract MockPolicyManager {
     function recordPolicy(bytes32, address, uint256, uint256, uint32, bytes32) external returns (uint256) {
         return nextPolicyId++;
     }
+
     function triggerPayout(bytes32, uint256, bytes calldata) external {}
 }
 
@@ -65,7 +67,13 @@ contract CoverRouterV2Test is Test {
         usdc = new MockUSDC();
         pm = new MockPolicyManager();
         burner = new MockTWAPBurner(address(usdc));
-        router = new CoverRouterV2(address(usdc), address(pm), address(burner));
+
+        CoverRouterV2 impl = new CoverRouterV2();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(CoverRouterV2.initialize.selector, address(usdc), address(pm), address(burner))
+        );
+        router = CoverRouterV2(address(proxy));
 
         // Configure Flash BTC 1h product
         bytes32 pid = keccak256("FLASHBTC1H-001");
@@ -78,7 +86,6 @@ contract CoverRouterV2Test is Test {
     function test_quotePremium() public view {
         bytes32 pid = keccak256("FLASHBTC1H-001");
         (uint256 premium, uint256 payout) = router.quotePremium(pid, 1000e6);
-        // 1000e6 * 8000 * 20 * 15000 / (10000^3) = 2.4e6 = $2.40
         assertEq(premium, 2_400_000);
         assertEq(payout, 800e6);
     }
@@ -91,7 +98,6 @@ contract CoverRouterV2Test is Test {
         vm.stopPrank();
 
         assertEq(policyId, 1);
-        // Verify USDC went to burner
         assertEq(burner.totalReceived(), 2_400_000); // $2.40
     }
 
@@ -144,7 +150,6 @@ contract CoverRouterV2Test is Test {
     }
 
     function test_configureAllProducts() public {
-        // Configure all 9 products and verify
         router.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 35, 15000, 14400, true);
         router.configureProduct(keccak256("FLASHBTC24-001"), 8000, 150, 15000, 86400, true);
         router.configureProduct(keccak256("FLASHBTC48-001"), 8000, 80, 15000, 172800, true);
@@ -154,6 +159,11 @@ contract CoverRouterV2Test is Test {
         router.configureProduct(keccak256("MICRODEPEG-001"), 8000, 350, 15000, 604800, true);
         router.configureProduct(keccak256("RATESHOCK-001"), 8000, 400, 15000, 604800, true);
 
-        assertEq(router.getProductCount(), 9); // 1 from setUp + 8 here
+        assertEq(router.getProductCount(), 9);
+    }
+
+    function test_cannot_initialize_twice() public {
+        vm.expectRevert();
+        router.initialize(address(usdc), address(pm), address(burner));
     }
 }

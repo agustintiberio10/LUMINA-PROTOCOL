@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ─── Core contracts ───
 import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
@@ -137,6 +138,8 @@ contract MockShield {
 // ═══════════════════════════════════════════════════════════════
 
 contract DeployV5Test is Test {
+    using ProxyDeployer for *;
+
     // ─── Addresses ───
     address deployer;
     address multisig;
@@ -192,7 +195,7 @@ contract DeployV5Test is Test {
         // PHASE 2: Deploy contracts that have NO circular deps
         // ──────────────────────────────────────────────────────
         maintenanceReserve = new MaintenanceReserve(address(usdc), multisig);
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // ──────────────────────────────────────────────────────
         // PHASE 3: CapacityOracle (pool = address(0) initially)
@@ -233,11 +236,11 @@ contract DeployV5Test is Test {
         uint64 currentNonce = vm.getNonce(deployer);
         // Contracts still to deploy before lumina:
         //   capacityOracle (+1)
-        //   bondVault (+1)
+        //   bondVault via ProxyDeployer (+2: impl + proxy)
         //   cexReserve (+1)
         //   treasuryVesting (+1)
-        //   then lumina at nonce = currentNonce + 4
-        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 4);
+        //   then lumina impl at nonce+5, lumina proxy at nonce+6
+        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 6);
 
         capacityOracle = new CapacityOracle(
             address(0), // pool (none yet)
@@ -246,7 +249,7 @@ contract DeployV5Test is Test {
             EMERGENCY_PRICE // emergencyPrice
         );
 
-        bondVault = new BondVault(
+        bondVault = ProxyDeployer.deployBondVault(
             predictedLumina, // lumina
             address(claimBond), // claimBond
             address(capacityOracle), // priceOracle
@@ -263,7 +266,7 @@ contract DeployV5Test is Test {
         // ──────────────────────────────────────────────────────
         // PHASE 4: Deploy LuminaTokenV2
         // ──────────────────────────────────────────────────────
-        lumina = new LuminaTokenV2(
+        lumina = ProxyDeployer.deployLuminaTokenV2(
             address(bondVault), address(cexReserve), founderVesting, lbpDeposit, address(treasuryVesting)
         );
         // Verify prediction was correct
@@ -289,8 +292,8 @@ contract DeployV5Test is Test {
         // ──────────────────────────────────────────────────────
         // PHASE 8: PolicyManagerV2 + CoverRouterV2
         // ──────────────────────────────────────────────────────
-        policyManager = new PolicyManagerV2(address(bondVault));
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // Wire PolicyManager -> Router
         policyManager.setRouter(address(coverRouter));

@@ -15,6 +15,7 @@ import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
 import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
 import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 // MOCKS
@@ -180,10 +181,10 @@ contract AdversarialAuditTest is Test {
         oracle = new MockPriceOracle();
 
         // 2. Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // 3. Deploy token (need addresses for constructor)
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("tempVault"),
             makeAddr("tempCex"),
             makeAddr("tempFounder"),
@@ -198,17 +199,17 @@ contract AdversarialAuditTest is Test {
         capacityOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
 
         // 6. Deploy BondVault with 2-step init: policyManager set after PolicyManagerV2 deploy
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+        bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(0));
 
         // Now deploy real policyManager
-        policyManager = new PolicyManagerV2(address(bondVault));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
 
         // Wire BondVault → PolicyManagerV2 (so reserveCapacity/issueBond auth works)
         bondVault.setPolicyManager(address(policyManager));
 
         // 7. Deploy TWAPBurner + CoverRouter
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // 8. Wire everything
         claimBond.setBondVault(address(bondVault));
@@ -487,7 +488,7 @@ contract AdversarialAuditTest is Test {
     // ═══════════════════════════════════════════════════════════
 
     function test_attack_setBondVault_not_owner() public {
-        ClaimBond newBond = new ClaimBond();
+        ClaimBond newBond = ProxyDeployer.deployClaimBond();
         vm.prank(attacker);
         vm.expectRevert();
         newBond.setBondVault(attacker);

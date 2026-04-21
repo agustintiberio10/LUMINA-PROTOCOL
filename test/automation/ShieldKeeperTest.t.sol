@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
 import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -201,6 +202,8 @@ contract MockSettleableShield_SK {
 }
 
 contract ShieldKeeperTest is Test {
+    using ProxyDeployer for *;
+
     ShieldKeeper public keeper;
     PolicyManagerV2 public policyManager;
     MockBondVault_SK public bondVault;
@@ -212,7 +215,7 @@ contract ShieldKeeperTest is Test {
 
     function setUp() public {
         bondVault = new MockBondVault_SK();
-        policyManager = new PolicyManagerV2(address(bondVault));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
 
         shield = new MockSettleableShield_SK(PRODUCT_ID, address(policyManager));
 

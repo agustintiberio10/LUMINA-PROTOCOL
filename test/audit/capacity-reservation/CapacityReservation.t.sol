@@ -6,6 +6,7 @@ import "../../../src/token/LuminaTokenV2.sol";
 import "../../../src/bonds/ClaimBond.sol";
 import "../../../src/bonds/BondVault.sol";
 import "../../../src/core/PolicyManagerV2.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ Minimal Mock Oracle ═══════
 contract MockPriceOracleCR {
@@ -71,16 +72,16 @@ contract CapacityReservationTest is Test {
 
         deployer = address(this);
         oracle = new MockPriceOracleCR();
-        claimBond = new ClaimBond();
-        token = new LuminaTokenV2(
+        claimBond = ProxyDeployer.deployClaimBond();
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("tempVault"), makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
         // Deploy BondVault with address(0) policyManager (2-step init)
-        vault = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+        vault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(0));
 
         // Deploy PolicyManager
-        pm = new PolicyManagerV2(address(vault));
+        pm = ProxyDeployer.deployPolicyManagerV2(address(vault));
 
         // Wire up: BondVault -> PolicyManager
         vault.setPolicyManager(address(pm));

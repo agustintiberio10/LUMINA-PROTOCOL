@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../../src/bonds/ClaimBond.sol";
 
 contract ClaimBondTest is Test {
@@ -10,12 +11,17 @@ contract ClaimBondTest is Test {
 
     function setUp() public {
         vault = address(this);
-        bond = new ClaimBond();
+
+        ClaimBond impl = new ClaimBond();
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), abi.encodeWithSelector(ClaimBond.initialize.selector));
+        bond = ClaimBond(address(proxy));
         bond.setBondVault(vault);
     }
 
     function test_setBondVault_once() public {
-        ClaimBond b = new ClaimBond();
+        ClaimBond impl = new ClaimBond();
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), abi.encodeWithSelector(ClaimBond.initialize.selector));
+        ClaimBond b = ClaimBond(address(proxy));
         b.setBondVault(makeAddr("v"));
         vm.expectRevert("Already set");
         b.setBondVault(makeAddr("other"));
@@ -77,34 +83,41 @@ contract ClaimBondTest is Test {
     // ═══════ setBondVault frontrun prevention (Gap 2) ═══════
 
     function test_SetBondVault_OneShot_CannotBeCalledTwice() public {
-        // bond already has vault set in setUp
         vm.expectRevert("Already set");
         bond.setBondVault(address(0xdeadbeef));
     }
 
     function test_SetBondVault_OnlyOwner_PreventsFrontrun() public {
-        ClaimBond freshBond = new ClaimBond();
+        ClaimBond impl = new ClaimBond();
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), abi.encodeWithSelector(ClaimBond.initialize.selector));
+        ClaimBond freshBond = ClaimBond(address(proxy));
         address attacker = makeAddr("attacker");
 
-        // Attacker (non-owner) tries to frontrun setBondVault
         vm.prank(attacker);
         vm.expectRevert(); // Ownable revert
         freshBond.setBondVault(address(0xdeadbeef));
 
-        // Owner can set it
         freshBond.setBondVault(makeAddr("legit"));
         assertEq(freshBond.bondVault(), makeAddr("legit"));
     }
 
     function test_SetBondVault_MaliciousVault_RejectedAfterInit() public {
-        // Already initialized in setUp
         assertEq(bond.bondVault(), vault);
 
-        // Even owner can't change it (one-shot)
         vm.expectRevert("Already set");
         bond.setBondVault(makeAddr("malicious"));
 
-        // Still points to legitimate vault
         assertEq(bond.bondVault(), vault);
+    }
+
+    function test_cannot_initialize_twice() public {
+        vm.expectRevert();
+        bond.initialize();
+    }
+
+    function test_implementation_cannot_be_initialized() public {
+        ClaimBond impl = new ClaimBond();
+        vm.expectRevert();
+        impl.initialize();
     }
 }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 /// @title LuminaTokenFuzz
 /// @notice Fuzz tests for LuminaTokenV2 burn and transfer invariants.
@@ -17,7 +18,7 @@ contract LuminaTokenFuzz is Test {
     address r5 = makeAddr("r5");
 
     function setUp() public {
-        token = new LuminaTokenV2(r1, r2, r3, r4, r5);
+        token = ProxyDeployer.deployLuminaTokenV2(r1, r2, r3, r4, r5);
         // Deal tokens to holder from r1 (bondVault has 70M)
         vm.prank(r1);
         token.transfer(holder, 1_000_000 * 1e18);

@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title PolicyManagerV2
 /// @notice Simplified brain of Lumina V2 — no vaults, no waterfall.
 /// @dev Registers products (shields), tracks active policies,
 ///      and coordinates with BondVault for bond issuance on trigger.
 ///      Owner = Gnosis Safe (TimelockController in prod).
+///
+///      [V5.1] UUPS upgradeable proxy pattern.
 
 interface IBondVault {
     function issueBond(address to, uint256 usdPayout) external;
@@ -54,10 +58,9 @@ interface IShieldV2 {
     }
 }
 
-contract PolicyManagerV2 is Ownable {
+contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ═══════ STATE ═══════
-    // [L-9] immutable: bondVault is set-once at construction, never rewritten
-    IBondVault public immutable bondVault;
+    IBondVault public bondVault;
     address public router; // only CoverRouterV2 can call
 
     // Product registry
@@ -84,6 +87,7 @@ contract PolicyManagerV2 is Ownable {
         bool triggered;
         bool expired;
     }
+
     mapping(bytes32 => mapping(uint256 => PolicyRecord)) public policies; // productId → policyId → record
 
     // [V5/M-RACE] Track reserved capacity per policy for release on expiry / commit on trigger
@@ -116,7 +120,15 @@ contract PolicyManagerV2 is Ownable {
         _;
     }
 
-    constructor(address _bondVault) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _bondVault) public initializer {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+
         require(_bondVault != address(0), "Zero bondVault");
         bondVault = IBondVault(_bondVault);
     }
@@ -157,16 +169,12 @@ contract PolicyManagerV2 is Ownable {
         if (!productActive[productId]) revert ProductNotActive(productId);
 
         // Check BondVault capacity (can we back this policy if it triggers?)
-        // [SR3] Compare in MATCHING units. payoutAmount is USDC 6-dec; availableCapacityUSD
-        // returns INTEGER dollars. Convert payout to integer $ for the comparison.
         uint256 payoutAmount = (coverageAmount * 8000) / 10000; // 6-dec USDC
         uint256 payoutUSD = payoutAmount / 1e6; // integer dollars
         uint256 available = bondVault.availableCapacityUSD(); // integer dollars
         if (available < payoutUSD) revert InsufficientCapacity(payoutUSD, available);
 
-        // [V5/M-RACE] Reserve capacity IMMEDIATELY so concurrent purchases in the same
-        // block see reduced available capacity. Prevents the race where two purchases
-        // both pass the check but only one can actually be backed.
+        // [V5/M-RACE] Reserve capacity IMMEDIATELY
         uint256 reservedAmount = payoutUSD * 1e18; // 18-dec USD-wei (matches BondVault units)
         bondVault.reserveCapacity(reservedAmount);
 
@@ -175,7 +183,6 @@ contract PolicyManagerV2 is Ownable {
         activePolicies++;
 
         // Create policy in the shield
-        // [C-1] CreatePolicyParams struct now matches IShield (extraData as bytes)
         address shield = productShield[productId];
         policyId = IShieldV2(shield)
             .createPolicy(
@@ -215,9 +222,6 @@ contract PolicyManagerV2 is Ownable {
     // ═══════ CORE: triggerPayout (called by CoverRouter) ═══════
 
     /// @notice Process a trigger. Verifies with shield, issues bond via BondVault.
-    /// @param productId The product
-    /// @param policyId The policy within that product's shield
-    /// @param oracleProof Oracle-signed proof of the trigger event
     function triggerPayout(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external onlyRouter {
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");
@@ -225,7 +229,6 @@ contract PolicyManagerV2 is Ownable {
         require(!pr.expired, "Already expired");
 
         // [M-1] CEI: effects BEFORE interactions.
-        // If any external call below reverts, all effects revert too (atomic).
         pr.triggered = true;
         activePolicies--;
         totalTriggers++;
@@ -236,7 +239,6 @@ contract PolicyManagerV2 is Ownable {
         totalBondsIssuedUSD += payoutUSD;
 
         // [V5/M-RACE] Commit the reservation before issuing the bond.
-        // This converts reserved capacity into committed capacity atomically.
         uint256 reserved = policyReservedUSD[productId][policyId];
         if (reserved > 0) {
             policyReservedUSD[productId][policyId] = 0;
@@ -256,19 +258,13 @@ contract PolicyManagerV2 is Ownable {
     // ═══════ CORE: settlePolicy (new trigger flow) ═══════
 
     /// @notice Settle a policy after safety window. Called by shield or keeper.
-    ///         The shield's checkAndSettlePolicy reads the oracle directly and
-    ///         determines if the trigger was met. This function coordinates the
-    ///         bond issuance (if triggered) or marks expired.
-    /// @param productId The product
-    /// @param policyId The policy within that product's shield
-    /// @param triggered Whether the shield determined the trigger was met
     function settlePolicy(bytes32 productId, uint256 policyId, bool triggered) external {
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");
         require(!pr.triggered, "Already triggered");
         require(!pr.expired, "Already expired");
 
-        // Only the shield itself can call this (it calls after checkAndSettlePolicy)
+        // Only the shield itself can call this
         require(msg.sender == pr.shield, "Only shield");
 
         // [V5/M-RACE] Handle reservation based on outcome
@@ -319,7 +315,7 @@ contract PolicyManagerV2 is Ownable {
         pr.expired = true;
         activePolicies--;
 
-        // [V5/M-RACE] Release reserved capacity so it becomes available for new policies
+        // [V5/M-RACE] Release reserved capacity
         uint256 reserved = policyReservedUSD[productId][policyId];
         if (reserved > 0) {
             policyReservedUSD[productId][policyId] = 0;
@@ -340,8 +336,6 @@ contract PolicyManagerV2 is Ownable {
     }
 
     /// @notice Get all active policy IDs for a given product (for keeper iteration).
-    /// @dev Returns policyIds 1..totalPolicies that are not triggered and not expired.
-    ///      Gas-intensive for large sets — intended for off-chain/view usage only.
     function getActivePolicyIds(bytes32 productId, uint256 maxResults)
         external
         view
@@ -382,4 +376,9 @@ contract PolicyManagerV2 is Ownable {
         _totalBondsIssuedUSD = totalBondsIssuedUSD;
         _availableCapacity = bondVault.availableCapacityUSD();
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

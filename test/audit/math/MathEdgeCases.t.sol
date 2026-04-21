@@ -14,6 +14,7 @@ import {CEXLiquidityReserve} from "../../../src/treasury/CEXLiquidityReserve.sol
 import {TreasuryVesting} from "../../../src/token/TreasuryVesting.sol";
 import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 // MOCKS
@@ -119,11 +120,11 @@ contract MathEdgeCases is Test {
         oracle = new MockPriceOracleMath();
 
         // Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy token (needs 5 unique non-zero addresses for distribution)
         address tempVault = makeAddr("tempVault");
-        token = new LuminaTokenV2(tempVault, cexAddr, founder, lbp, treasuryAddr);
+        token = ProxyDeployer.deployLuminaTokenV2(tempVault, cexAddr, founder, lbp, treasuryAddr);
 
         // Deploy a simple USDC mock using forge's ERC20 deal
         // We use address(0xUSDC) as a symbolic USDC — we use deal() for balances
@@ -139,7 +140,7 @@ contract MathEdgeCases is Test {
         policyManager = new MockPolicyManager();
 
         // Deploy BondVault with test contract as initial policyManager
-        vault = new BondVault(
+        vault = ProxyDeployer.deployBondVault(
             address(token),
             address(claimBond),
             address(oracle),
@@ -153,7 +154,7 @@ contract MathEdgeCases is Test {
         deal(address(token), address(vault), 70_000_000e18);
 
         // Deploy CoverRouter
-        router = new CoverRouterV2(usdc, address(policyManager), address(twapBurner));
+        router = ProxyDeployer.deployCoverRouterV2(usdc, address(policyManager), address(twapBurner));
 
         // Deploy CapacityOracle (no pool, uses emergency price)
         capacityOracle = new CapacityOracle(

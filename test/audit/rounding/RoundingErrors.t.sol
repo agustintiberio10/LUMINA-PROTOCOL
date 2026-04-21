@@ -14,6 +14,7 @@ import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
 import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 import {CapacityOracle} from "../../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../../src/oracles/SolvencyOracle.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 // MOCKS
@@ -240,12 +241,12 @@ contract RoundingErrors is Test {
         aavePool = new RoundingMockAavePool();
 
         // 2. Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // 3. Deploy token
         address tempFounderVesting = makeAddr("tempFounder");
         address tempTreasury = makeAddr("tempTreasury");
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("tempVault"), makeAddr("tempCex"), tempFounderVesting, makeAddr("tempLbp"), tempTreasury
         );
 
@@ -256,15 +257,15 @@ contract RoundingErrors is Test {
         capacityOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
 
         // 6. Deploy BondVault with 2-step init
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+        bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(0));
 
         // 7. Deploy PolicyManager
-        policyManager = new PolicyManagerV2(address(bondVault));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
         bondVault.setPolicyManager(address(policyManager));
 
         // 8. Deploy TWAPBurner + CoverRouter
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // 9. Wire everything
         claimBond.setBondVault(address(bondVault));
@@ -924,7 +925,8 @@ contract RoundingErrors is Test {
     /// @notice Solvency with zero obligations via real SolvencyOracle
     function test_solvency_zero_obligations_max() public {
         // Deploy a FRESH BondVault with no bonds issued (0 obligations)
-        BondVault freshVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        BondVault freshVault =
+            ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(this));
         deal(address(token), address(freshVault), 70_000_000e18);
 
         // Deploy a fresh SolvencyOracle pointing to the fresh vault
@@ -939,7 +941,8 @@ contract RoundingErrors is Test {
     /// @notice Burn cap with tiny balance via real BondVault
     function test_burn_cap_tiny_balance() public {
         // Deploy fresh vault with only 1 wei of LUMINA
-        BondVault tinyVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        BondVault tinyVault =
+            ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(this));
         deal(address(token), address(tinyVault), 1);
 
         // Grant AUTHORIZED_CALLER_ADMIN_ROLE and authorize a caller
@@ -960,7 +963,8 @@ contract RoundingErrors is Test {
     /// @notice Burn cap boundary at 19 wei vs 20 wei via real BondVault
     function test_burn_cap_boundary_19_wei() public {
         // At 19 wei balance: cap = (19*5)/100 = 0, cannot burn anything
-        BondVault vault19 = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        BondVault vault19 =
+            ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(this));
         deal(address(token), address(vault19), 19);
         address caller = makeAddr("caller19");
         vault19.setAuthorizedCaller(caller, true);
@@ -970,7 +974,8 @@ contract RoundingErrors is Test {
         vault19.burnFromReserves(1); // cap=0, 1 > 0
 
         // At 20 wei balance: cap = (20*5)/100 = 1, can burn exactly 1
-        BondVault vault20 = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        BondVault vault20 =
+            ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(this));
         deal(address(token), address(vault20), 20);
         address caller20 = makeAddr("caller20");
         vault20.setAuthorizedCaller(caller20, true);

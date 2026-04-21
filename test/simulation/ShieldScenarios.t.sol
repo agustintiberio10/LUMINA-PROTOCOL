@@ -19,6 +19,7 @@ import "../../src/bonds/ClaimBond.sol";
 import "../../src/token/LuminaTokenV2.sol";
 import "../../src/interfaces/IOracle.sol";
 import "../../src/interfaces/IShield.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 //  INLINE MOCKS
@@ -180,27 +181,29 @@ contract ShieldScenariosTest is Test {
         oracle.setPrice("USDC", 1_0000_0000);
 
         // Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy LuminaTokenV2 (need 5 distinct nonzero addresses)
-        address bondVaultAddr = computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
-        lumina = new LuminaTokenV2(bondVaultAddr, CEX_RESERVE, FOUNDER, LBP, TREASURY);
+        // LuminaTokenV2 via proxy (+2 nonces), then BondVault via proxy: impl at +2, proxy at +3
+        address bondVaultAddr = computeCreateAddress(address(this), vm.getNonce(address(this)) + 3);
+        lumina = ProxyDeployer.deployLuminaTokenV2(bondVaultAddr, CEX_RESERVE, FOUNDER, LBP, TREASURY);
 
         // Deploy BondVault (policyManager = address(0) for 2-step pattern)
-        bondVault = new BondVault(address(lumina), address(claimBond), address(capacityOracle), address(0));
+        bondVault =
+            ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(capacityOracle), address(0));
         require(address(bondVault) == bondVaultAddr, "BondVault address mismatch");
 
         // Wire ClaimBond -> BondVault
         claimBond.setBondVault(address(bondVault));
 
         // Deploy PolicyManagerV2
-        policyManager = new PolicyManagerV2(address(bondVault));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
 
         // Wire BondVault -> PolicyManager
         bondVault.setPolicyManager(address(policyManager));
 
         // Deploy CoverRouterV2
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
         coverRouter.setCapacityOracle(address(capacityOracle));
 
         // Wire PolicyManager -> Router

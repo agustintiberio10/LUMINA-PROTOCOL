@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 import {LuminaTokenV2} from "../../../src/token/LuminaTokenV2.sol";
 import {BondVault} from "../../../src/bonds/BondVault.sol";
 import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
@@ -136,6 +137,8 @@ contract MockBuybackMarketplace {
 }
 
 contract EmergencyResponseTest is Test {
+    using ProxyDeployer for *;
+
     // ═══════ CONTRACTS ═══════
     LuminaTokenV2 token;
     MockUSDC usdc;
@@ -172,7 +175,7 @@ contract EmergencyResponseTest is Test {
 
         // 2. Token: needs bondVault address. We use a placeholder and deal tokens later.
         address fakeBondVault = makeAddr("fakeBondVault");
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             fakeBondVault, makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
@@ -181,7 +184,7 @@ contract EmergencyResponseTest is Test {
         deal(address(token), address(swapRouter), 5_000_000e18);
 
         // 4. ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // 5. PolicyManager (needs BondVault — deploy with placeholder, then set router)
         //    We pre-compute BondVault address: nonce-based. Let's just deploy PM first with a
@@ -193,7 +196,7 @@ contract EmergencyResponseTest is Test {
 
         // Deploy BondVault with a temporary policyManager
         address tempPM = address(this); // we'll act as PM for direct tests
-        bondVault = new BondVault(address(token), address(claimBond), address(capacityOracle), tempPM);
+        bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(capacityOracle), tempPM);
         bondVaultAddr = address(bondVault);
 
         // Fund BondVault with LUMINA
@@ -203,7 +206,7 @@ contract EmergencyResponseTest is Test {
         claimBond.setBondVault(bondVaultAddr);
 
         // Deploy PolicyManager with bondVault
-        policyManager = new PolicyManagerV2(bondVaultAddr);
+        policyManager = ProxyDeployer.deployPolicyManagerV2(bondVaultAddr);
 
         // 6. TWAPBurner
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
@@ -216,7 +219,7 @@ contract EmergencyResponseTest is Test {
         feeDistributor = new AdaptiveFeeDistributor(address(solvencyOracle));
 
         // 9. CoverRouter
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // Wire: PM router
         policyManager.setRouter(address(coverRouter));

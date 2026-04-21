@@ -7,6 +7,7 @@ import "../../src/core/TWAPBurner.sol";
 import "../../src/token/LuminaTokenV2.sol";
 import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
 import {MockFeeDistributor} from "../mocks/MockFeeDistributor.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // Mock DEX router that implements IDexRouter for testing
 contract MockDexRouter is IDexRouter {
@@ -47,6 +48,8 @@ contract MockDexRouter is IDexRouter {
 }
 
 contract TWAPBurnerTest is Test {
+    using ProxyDeployer for *;
+
     TWAPBurner burner;
     LuminaTokenV2 token;
     MockDexRouter router;
@@ -67,7 +70,7 @@ contract TWAPBurnerTest is Test {
         usdc = address(mockUsdc);
 
         // Deploy token
-        token = new LuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, treasury);
+        token = ProxyDeployer.deployLuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, treasury);
 
         // Deploy mock DEX router
         router = new MockDexRouter(address(token));

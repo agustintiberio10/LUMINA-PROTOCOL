@@ -2,7 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "../../src/core/PolicyManagerV2.sol";
 
 contract MockBondVault {
@@ -46,7 +47,13 @@ contract PolicyManagerV2Test is Test {
 
     function setUp() public {
         vault = new MockBondVault();
-        pm = new PolicyManagerV2(address(vault));
+
+        PolicyManagerV2 impl = new PolicyManagerV2();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(PolicyManagerV2.initialize.selector, address(vault))
+        );
+        pm = PolicyManagerV2(address(proxy));
+
         router = address(this);
         pm.setRouter(router);
     }
@@ -73,9 +80,7 @@ contract PolicyManagerV2Test is Test {
     }
 
     function test_markExpired() public {
-        // Would need a full shield mock — simplified test
-        // The logic checks block.timestamp > expiresAt
-        assertTrue(true); // placeholder, full integration test day 6
+        assertTrue(true); // placeholder, full integration test
     }
 
     // ═══════ deactivateProduct tests ═══════
@@ -95,7 +100,9 @@ contract PolicyManagerV2Test is Test {
         pm.registerProduct(pid, makeAddr("shield"));
 
         vm.prank(makeAddr("random"));
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, makeAddr("random")));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, makeAddr("random"))
+        );
         pm.deactivateProduct(pid);
     }
 
@@ -104,17 +111,13 @@ contract PolicyManagerV2Test is Test {
         address shield = makeAddr("shield");
         pm.registerProduct(pid, shield);
 
-        // Mock shield so recordPolicy can create a policy
         vm.mockCall(shield, abi.encodeWithSelector(IShieldV2.createPolicy.selector), abi.encode(uint256(42)));
 
-        // Record a policy while product is active
         pm.recordPolicy(pid, makeAddr("buyer"), 1000e6, 2e6, 3600, "BTC");
 
-        // Deactivate the product
         pm.deactivateProduct(pid);
         assertFalse(pm.productActive(pid), "Product should be inactive");
 
-        // Existing policy record should still be intact
         PolicyManagerV2.PolicyRecord memory rec = pm.getPolicy(pid, 42);
         assertEq(rec.buyer, makeAddr("buyer"), "Policy buyer should be unchanged");
         assertEq(rec.coverageAmount, 1000e6, "Coverage should be unchanged");
@@ -129,5 +132,10 @@ contract PolicyManagerV2Test is Test {
         assertEq(triggers, 0);
         assertEq(bonds, 0);
         assertGt(cap_, 0);
+    }
+
+    function test_cannot_initialize_twice() public {
+        vm.expectRevert();
+        pm.initialize(address(vault));
     }
 }

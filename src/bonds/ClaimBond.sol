@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {ERC1155Supply} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {
+    ERC1155SupplyUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title ClaimBond
 /// @notice ERC-1155 bond tokens grouped by monthly maturity epoch.
@@ -12,7 +16,9 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 ///      Token ID format: YYYYMM (e.g., 202804 = April 2028).
 ///      Only BondVault can mint and burn. Transferable by anyone (for marketplace).
 ///      Bonds mature 100% at maturity date — no linear vesting, no partial unlock.
-contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
+///
+///      [V5.1] UUPS upgradeable proxy pattern.
+contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC1155SupplyUpgradeable, OwnableUpgradeable {
     address public bondVault;
     bool private _bondVaultSet;
 
@@ -23,6 +29,7 @@ contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
     event BondsMinted(uint256 indexed epochId, address indexed to, uint256 usdAmount);
     event BondsBurned(uint256 indexed epochId, address indexed from, uint256 usdAmount);
     event BondVaultSet(address vault);
+    event BondsBurnedByHolder(address indexed holder, uint256 indexed epochId, uint256 amount);
 
     modifier onlyBondVault() {
         require(_bondVaultSet, "BondVault not set");
@@ -30,7 +37,17 @@ contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
         _;
     }
 
-    constructor() ERC1155("") Ownable(msg.sender) {}
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize() public initializer {
+        __ERC1155_init("");
+        __ERC1155Supply_init();
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+    }
 
     /// @notice Set BondVault address ONCE. Resolves circular dependency.
     /// @dev [V1/SR2] onlyOwner: prevents deployment-frontrun attacks where a mempool
@@ -94,8 +111,6 @@ contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
         return balanceOf(holder, epochId) * 1e18;
     }
 
-    event BondsBurnedByHolder(address indexed holder, uint256 indexed epochId, uint256 amount);
-
     function isMatured(uint256 epochId) external view returns (bool) {
         if (!epochExists[epochId]) return false;
         return block.timestamp >= maturityDate[epochId];
@@ -136,8 +151,13 @@ contract ClaimBond is ERC1155, ERC1155Supply, Ownable {
 
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
         internal
-        override(ERC1155, ERC1155Supply)
+        override(ERC1155Upgradeable, ERC1155SupplyUpgradeable)
     {
         super._update(from, to, ids, values);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

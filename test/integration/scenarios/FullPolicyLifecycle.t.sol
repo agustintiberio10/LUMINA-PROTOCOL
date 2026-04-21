@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 import "../../../src/token/LuminaTokenV2.sol";
 import {BondVault} from "../../../src/bonds/BondVault.sol";
 import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
@@ -163,6 +164,8 @@ contract MockPriceOracle {
 /// @title FullPolicyLifecycleTest
 /// @notice Integration tests using REAL core contracts, mock external deps only.
 contract FullPolicyLifecycleTest is Test {
+    using ProxyDeployer for *;
+
     // ═══════ CORE CONTRACTS (real) ═══════
     LuminaTokenV2 token;
     BondVault bondVault;
@@ -197,7 +200,7 @@ contract FullPolicyLifecycleTest is Test {
         priceOracle = new MockPriceOracle(0.036e18); // $0.036
 
         // 2. Deploy ClaimBond (needs to exist before BondVault)
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // 3. Deploy PolicyManagerV2 with a placeholder, we'll set real bondVault after
         //    BondVault needs policyManager in constructor, so we use address(this) as policyManager
@@ -241,17 +244,19 @@ contract FullPolicyLifecycleTest is Test {
         // We'll compute future addresses.
 
         uint64 currentNonce = vm.getNonce(address(this));
-        // token will be deployed at nonce currentNonce
-        // swapRouter at currentNonce+1
-        // twapBurner at currentNonce+2
-        // policyManager at currentNonce+3
-        // bondVault at currentNonce+4
+        // token via proxy at currentNonce+0,+1
+        // swapRouter at currentNonce+2
+        // twapBurner at currentNonce+3
+        // policyManager via proxy at currentNonce+4,+5
+        // bondVault via proxy at currentNonce+6 (impl), +7 (proxy)
 
-        address predictedBondVault = vm.computeCreateAddress(address(this), currentNonce + 4);
+        address predictedBondVault = vm.computeCreateAddress(address(this), currentNonce + 7);
         bondVaultAddr = predictedBondVault;
 
         // 3. Deploy token with predicted bondVault
-        token = new LuminaTokenV2(predictedBondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+        token = ProxyDeployer.deployLuminaTokenV2(
+            predictedBondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting
+        );
 
         // 4. Deploy swap router mock
         swapRouter = new MockSwapRouter(address(token));
@@ -261,10 +266,12 @@ contract FullPolicyLifecycleTest is Test {
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
 
         // 6. Deploy PolicyManagerV2 with predicted bondVault
-        policyManager = new PolicyManagerV2(predictedBondVault);
+        policyManager = ProxyDeployer.deployPolicyManagerV2(predictedBondVault);
 
         // 7. Deploy BondVault with real policyManager
-        bondVault = new BondVault(address(token), address(claimBond), address(priceOracle), address(policyManager));
+        bondVault = ProxyDeployer.deployBondVault(
+            address(token), address(claimBond), address(priceOracle), address(policyManager)
+        );
         require(address(bondVault) == predictedBondVault, "BondVault address mismatch");
 
         // 8. Wire ClaimBond → BondVault
@@ -281,7 +288,7 @@ contract FullPolicyLifecycleTest is Test {
         policyManager.registerProduct(PRODUCT_ID, address(mockShield));
 
         // 12. Deploy CoverRouter
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // 13. Set CoverRouter as the real router in PolicyManager
         policyManager.setRouter(address(coverRouter));

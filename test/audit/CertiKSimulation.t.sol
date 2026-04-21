@@ -15,6 +15,7 @@ import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
 import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
 import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 // CONTRATOS MALICIOSOS PARA ATAQUES
@@ -325,15 +326,17 @@ contract CertiKSimulation is Test {
         usdc = new MockUSDC2();
         oracle = new MockOracle2();
 
-        claimBond = new ClaimBond();
-        token = new LuminaTokenV2(makeAddr("tv"), makeAddr("cx"), makeAddr("fv"), makeAddr("lbp"), makeAddr("tr"));
+        claimBond = ProxyDeployer.deployClaimBond();
+        token = ProxyDeployer.deployLuminaTokenV2(
+            makeAddr("tv"), makeAddr("cx"), makeAddr("fv"), makeAddr("lbp"), makeAddr("tr")
+        );
         swapRouter = new MockRouter2(address(token));
 
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(0));
-        policyManager = new PolicyManagerV2(address(bondVault));
+        bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(0));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
         bondVault.setPolicyManager(address(policyManager));
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         claimBond.setBondVault(address(bondVault));
         policyManager.setRouter(address(coverRouter));

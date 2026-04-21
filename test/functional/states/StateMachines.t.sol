@@ -7,6 +7,7 @@ import "../../../src/bonds/ClaimBond.sol";
 import "../../../src/bonds/BondVault.sol";
 import "../../../src/core/PolicyManagerV2.sol";
 import "../../../src/oracles/SolvencyOracle.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ MOCKS ═══════
 
@@ -111,12 +112,12 @@ contract PolicyStateMachineTest is Test {
         vm.warp(1767225600 + 30 days);
 
         priceOracle = new MockPriceOracleSM();
-        claimBond = new ClaimBond();
-        token = new LuminaTokenV2(
+        claimBond = ProxyDeployer.deployClaimBond();
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("bondVaultAddr"), makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
-        vault = new BondVault(
+        vault = ProxyDeployer.deployBondVault(
             address(token),
             address(claimBond),
             address(priceOracle),
@@ -125,7 +126,7 @@ contract PolicyStateMachineTest is Test {
         claimBond.setBondVault(address(vault));
         deal(address(token), address(vault), 70_000_000 * 1e18);
 
-        policyManager = new PolicyManagerV2(address(vault));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(vault));
         vault.setPolicyManager(address(policyManager));
 
         shield = new MockShieldSM(PRODUCT_ID);
@@ -213,12 +214,12 @@ contract BondStateMachineTest is Test {
         vm.warp(1767225600 + 30 days);
 
         priceOracle = new MockPriceOracleSM();
-        claimBond = new ClaimBond();
-        token = new LuminaTokenV2(
+        claimBond = ProxyDeployer.deployClaimBond();
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("bondVaultAddr"), makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
-        vault = new BondVault(
+        vault = ProxyDeployer.deployBondVault(
             address(token),
             address(claimBond),
             address(priceOracle),
@@ -325,7 +326,7 @@ contract OracleStateMachineTest is Test {
     function setUp() public {
         vm.warp(1767225600 + 30 days);
 
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("bondVaultAddr"), makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
         capacityOracle = new MockCapacityOracleForOracle();

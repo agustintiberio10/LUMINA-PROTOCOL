@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../../src/token/LuminaTokenV2.sol";
 
 contract LuminaTokenV2Test is Test {
@@ -15,7 +16,16 @@ contract LuminaTokenV2Test is Test {
 
     function setUp() public {
         deployer = address(this);
-        token = new LuminaTokenV2(bondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+
+        // Deploy implementation
+        LuminaTokenV2 impl = new LuminaTokenV2();
+
+        // Deploy proxy
+        bytes memory initData = abi.encodeWithSelector(
+            LuminaTokenV2.initialize.selector, bondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting
+        );
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
+        token = LuminaTokenV2(address(proxy));
     }
 
     function test_totalSupply() public view {
@@ -61,26 +71,66 @@ contract LuminaTokenV2Test is Test {
     }
 
     function test_zeroAddress_reverts() public {
-        vm.expectRevert("BondVault zero address");
-        new LuminaTokenV2(address(0), cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+        LuminaTokenV2 impl = new LuminaTokenV2();
 
-        vm.expectRevert("CEXReserve zero address");
-        new LuminaTokenV2(bondVault, address(0), founderVesting, lbpDeposit, treasuryVesting);
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                LuminaTokenV2.initialize.selector, address(0), cexReserve, founderVesting, lbpDeposit, treasuryVesting
+            )
+        );
+
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                LuminaTokenV2.initialize.selector, bondVault, address(0), founderVesting, lbpDeposit, treasuryVesting
+            )
+        );
     }
 
     function test_duplicateRecipient_reverts() public {
-        vm.expectRevert("Duplicate: bondVault/treasury");
-        new LuminaTokenV2(bondVault, cexReserve, founderVesting, lbpDeposit, bondVault);
+        LuminaTokenV2 impl = new LuminaTokenV2();
 
-        vm.expectRevert("Duplicate: bondVault/cexReserve");
-        new LuminaTokenV2(bondVault, bondVault, founderVesting, lbpDeposit, treasuryVesting);
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                LuminaTokenV2.initialize.selector, bondVault, cexReserve, founderVesting, lbpDeposit, bondVault
+            )
+        );
 
-        vm.expectRevert("Duplicate: cexReserve/founder");
-        new LuminaTokenV2(bondVault, cexReserve, cexReserve, lbpDeposit, treasuryVesting);
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                LuminaTokenV2.initialize.selector, bondVault, bondVault, founderVesting, lbpDeposit, treasuryVesting
+            )
+        );
+
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                LuminaTokenV2.initialize.selector, bondVault, cexReserve, cexReserve, lbpDeposit, treasuryVesting
+            )
+        );
     }
 
     function test_name_and_symbol() public view {
         assertEq(token.name(), "Lumina Protocol");
         assertEq(token.symbol(), "LUMINA");
+    }
+
+    function test_cannot_initialize_twice() public {
+        vm.expectRevert();
+        token.initialize(bondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+    }
+
+    function test_implementation_cannot_be_initialized() public {
+        LuminaTokenV2 impl = new LuminaTokenV2();
+        vm.expectRevert();
+        impl.initialize(bondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
     }
 }

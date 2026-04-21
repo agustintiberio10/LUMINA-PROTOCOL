@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
 import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
 import {BondVault} from "../../src/bonds/BondVault.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ Mocks ═══════
 
@@ -117,8 +118,10 @@ contract BondVaultInvariants is Test {
         vm.warp(1767225600 + 60 days);
 
         oracle = new InvMockOracle();
-        claimBond = new ClaimBond();
-        token = new LuminaTokenV2(address(0xBB01), address(0xBB05), address(0xBB03), address(0xBB02), address(0xBB04));
+        claimBond = ProxyDeployer.deployClaimBond();
+        token = ProxyDeployer.deployLuminaTokenV2(
+            address(0xBB01), address(0xBB05), address(0xBB03), address(0xBB02), address(0xBB04)
+        );
 
         // Deploy vault with handler as policyManager (so handler can issueBond)
         handler = new BondVaultHandler(
@@ -128,7 +131,7 @@ contract BondVaultInvariants is Test {
             token // placeholder vault
         );
 
-        vault = new BondVault(address(token), address(claimBond), address(oracle), address(handler));
+        vault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(handler));
 
         // Wire
         claimBond.setBondVault(address(vault));
@@ -137,15 +140,15 @@ contract BondVaultInvariants is Test {
         handler = new BondVaultHandler(vault, claimBond, oracle, token);
 
         // Re-deploy vault with handler as policyManager
-        claimBond = new ClaimBond();
-        vault = new BondVault(address(token), address(claimBond), address(oracle), address(handler));
+        claimBond = ProxyDeployer.deployClaimBond();
+        vault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(handler));
         claimBond.setBondVault(address(vault));
 
         // Rebuild handler with correct vault
         handler = new BondVaultHandler(vault, claimBond, oracle, token);
         // We need policyManager == handler, so redeploy vault once more
-        claimBond = new ClaimBond();
-        vault = new BondVault(address(token), address(claimBond), address(oracle), address(handler));
+        claimBond = ProxyDeployer.deployClaimBond();
+        vault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(handler));
         claimBond.setBondVault(address(vault));
 
         // Fund vault
