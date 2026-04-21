@@ -152,6 +152,7 @@ contract BoundaryConditions is Test {
     MockSolvencyOracle mockSolvencyOracle;
     MockFeeDistributor mockFeeDistributor;
     MockMarketplace mockMarketplace;
+    SolvencyOracle realSolvencyOracle;
 
     CoverRouterV2 coverRouter;
     BondVault bondVault;
@@ -210,6 +211,9 @@ contract BoundaryConditions is Test {
 
         // Fund BondVault with 70M LUMINA
         lumina.mint(address(bondVault), 70_000_000e18);
+
+        // Deploy real SolvencyOracle for solvency level tests
+        realSolvencyOracle = new SolvencyOracle(address(bondVault), address(capacityOracle), owner);
 
         // Deploy LuminaBondMarketplace
         marketplace = new LuminaBondMarketplace(address(claimBondERC1155), address(usdc), address(twapBurner), owner);
@@ -486,35 +490,47 @@ contract BoundaryConditions is Test {
     //  GROUP 7: SOLVENCY ORACLE LEVELS (20000, 10000, 7000 bps)
     // ═══════════════════════════════════════════════════════════════
 
-    function test_Solvency_UltraExact_ReturnsLevel0() public view {
-        // Ultra threshold: >= 20000
-        uint8 level = _classifySolvencyLocal(20000);
-        assertEq(level, 0, "20000 bps should be Ultra (level 0)");
+    function test_Solvency_UltraExact_ReturnsLevel0() public {
+        // Ultra threshold: >= 20000 bps (200% solvency)
+        // Setup: price=$1, vault balance=20000e18, obligations=$10000 => ratio=20000
+        _setupRealSolvencyRatio(20000);
+        (uint8 sLevel,) = realSolvencyOracle.getCurrentQuadrant();
+        assertEq(sLevel, 0, "20000 bps should be Ultra (level 0)");
     }
 
-    function test_Solvency_BelowUltra_ReturnsLevel1() public pure {
-        uint8 level = _classifySolvencyLocal(19999);
-        assertEq(level, 1, "19999 bps should be Healthy (level 1)");
+    function test_Solvency_BelowUltra_ReturnsLevel1() public {
+        // 19999 bps => Healthy (level 1)
+        _setupRealSolvencyRatio(19999);
+        (uint8 sLevel,) = realSolvencyOracle.getCurrentQuadrant();
+        assertEq(sLevel, 1, "19999 bps should be Healthy (level 1)");
     }
 
-    function test_Solvency_HealthyExact_ReturnsLevel1() public pure {
-        uint8 level = _classifySolvencyLocal(10000);
-        assertEq(level, 1, "10000 bps should be Healthy (level 1)");
+    function test_Solvency_HealthyExact_ReturnsLevel1() public {
+        // 10000 bps => Healthy (level 1)
+        _setupRealSolvencyRatio(10000);
+        (uint8 sLevel,) = realSolvencyOracle.getCurrentQuadrant();
+        assertEq(sLevel, 1, "10000 bps should be Healthy (level 1)");
     }
 
-    function test_Solvency_BelowHealthy_ReturnsLevel2() public pure {
-        uint8 level = _classifySolvencyLocal(9999);
-        assertEq(level, 2, "9999 bps should be Stressed (level 2)");
+    function test_Solvency_BelowHealthy_ReturnsLevel2() public {
+        // 9999 bps => Stressed (level 2)
+        _setupRealSolvencyRatio(9999);
+        (uint8 sLevel,) = realSolvencyOracle.getCurrentQuadrant();
+        assertEq(sLevel, 2, "9999 bps should be Stressed (level 2)");
     }
 
-    function test_Solvency_StressedExact_ReturnsLevel2() public pure {
-        uint8 level = _classifySolvencyLocal(7000);
-        assertEq(level, 2, "7000 bps should be Stressed (level 2)");
+    function test_Solvency_StressedExact_ReturnsLevel2() public {
+        // 7000 bps => Stressed (level 2)
+        _setupRealSolvencyRatio(7000);
+        (uint8 sLevel,) = realSolvencyOracle.getCurrentQuadrant();
+        assertEq(sLevel, 2, "7000 bps should be Stressed (level 2)");
     }
 
-    function test_Solvency_BelowStressed_ReturnsLevel3() public pure {
-        uint8 level = _classifySolvencyLocal(6999);
-        assertEq(level, 3, "6999 bps should be Crisis (level 3)");
+    function test_Solvency_BelowStressed_ReturnsLevel3() public {
+        // 6999 bps => Crisis (level 3)
+        _setupRealSolvencyRatio(6999);
+        (uint8 sLevel,) = realSolvencyOracle.getCurrentQuadrant();
+        assertEq(sLevel, 3, "6999 bps should be Crisis (level 3)");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -912,6 +928,48 @@ contract BoundaryConditions is Test {
     // ═══════════════════════════════════════════════════════════════
     //  HELPERS
     // ═══════════════════════════════════════════════════════════════
+
+    /// @dev Configure bondVault balance, obligations, and oracle price so that the real
+    ///      SolvencyOracle produces the exact target solvency ratio (in bps), then run
+    ///      3 evaluations (with 1-day warps) to fill the 3-day smoothing window and
+    ///      warp past the 7-day quadrant-change cooldown so the level actually updates.
+    function _setupRealSolvencyRatio(uint256 targetBps) internal {
+        // Use price = 1e18 ($1 per LUMINA) for easy math.
+        // solvencyBps = (balance * price * 10000) / (obligations * 1e18)
+        // With price = 1e18: solvencyBps = (balance * 10000) / obligations
+        // So balance = (targetBps * obligations) / 10000
+        capacityOracle.setPrice(1e18);
+
+        // Create obligations: issue bond for $10,000 via policyManager
+        uint256 obligationsUSD = 10_000; // $10,000 in whole dollars
+        vm.prank(address(policyManager));
+        bondVault.issueBond(alice, obligationsUSD);
+        // totalCommittedUSD is now obligationsUSD * 1e18
+
+        // Set vault LUMINA balance so ratio = targetBps
+        // balance = (targetBps * obligations_wei) / 10000
+        uint256 targetBalance = (targetBps * obligationsUSD * 1e18) / 10000;
+        deal(address(lumina), address(bondVault), targetBalance);
+
+        // Verify the raw solvency ratio matches
+        uint256 rawRatio = realSolvencyOracle.getSolvencyRatio();
+        assertEq(rawRatio, targetBps, "Raw solvency ratio must match target");
+
+        // Fill all 3 history slots by running 3 evaluations at 1-day intervals,
+        // then warp past the 7-day quadrant-change cooldown and run a 4th evaluation
+        // to trigger the correct level from the fully-populated smoothed average.
+        uint256 t0 = 1738368000; // setUp timestamp (Feb 1 2026)
+        vm.warp(t0 + 1 days);
+        realSolvencyOracle.evaluate(); // history[0] = targetBps (may trigger wrong level from partial avg)
+        vm.warp(t0 + 2 days);
+        realSolvencyOracle.evaluate(); // history[1] = targetBps
+        vm.warp(t0 + 3 days);
+        realSolvencyOracle.evaluate(); // history[2] = targetBps — all 3 slots now have targetBps
+
+        // Warp past 7-day cooldown from any previous quadrant change, then run final eval
+        vm.warp(t0 + 11 days);
+        realSolvencyOracle.evaluate(); // avg = targetBps, cooldown elapsed => correct level applied
+    }
 
     /// @dev Mirror of SolvencyOracle._classifySolvency for local testing
     function _classifySolvencyLocal(uint256 bps) internal pure returns (uint8) {

@@ -428,18 +428,32 @@ contract ShieldScenariosTest is Test {
             keccak256("RATESHOCK-001")
         ];
 
+        // triggerProbBps per product (from configureProduct calls in setUp)
+        uint256[9] memory triggerProbs = [uint256(20), 30, 50, 70, 25, 60, 80, 15, 10];
+        // All products share: payoutRatioBps=8000, marginBps=15000
+        uint256 payoutRatioBps = 8000;
+        uint256 marginBps = 15000;
+
         uint256[5] memory coverages = [uint256(100e6), 1000e6, 10_000e6, 100_000e6, 1_000_000e6];
 
         for (uint256 i = 0; i < 9; i++) {
             for (uint256 j = 0; j < 5; j++) {
                 (uint256 premium, uint256 payout) = coverRouter.quotePremium(productIds[i], coverages[j]);
 
-                // Premium must be > 0
+                // Compute expected premium: coverage * payoutRatio * triggerProb * margin / 1e12
+                uint256 expectedPremium =
+                    (coverages[j] * payoutRatioBps * triggerProbs[i] * marginBps) / (10000 * 10000 * 10000);
+                if (expectedPremium == 0) expectedPremium = 1; // floor at 1
+
+                // Exact match with the formula
+                assertEq(premium, expectedPremium, "Premium must match formula exactly");
+
+                // Premium must be > 0 and less than coverage
                 assert(premium > 0);
-                // Premium must be less than coverage
                 assert(premium < coverages[j]);
+
                 // Payout must be 80% of coverage
-                assertEq(payout, (coverages[j] * 8000) / 10000);
+                assertEq(payout, (coverages[j] * payoutRatioBps) / 10000, "Payout must be 80% of coverage");
             }
         }
     }
