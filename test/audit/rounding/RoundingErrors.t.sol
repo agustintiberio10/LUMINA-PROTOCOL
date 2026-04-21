@@ -920,37 +920,63 @@ contract RoundingErrors is Test {
         // Most will have remainder (non-clean price), but each is < 1 LUMINA wei
     }
 
-    /// @notice Solvency with zero obligations returns max uint256
+    /// @notice Solvency with zero obligations via real SolvencyOracle
     function test_solvency_zero_obligations_max() public {
-        // No bonds issued yet in this context (would need fresh vault)
-        // The SolvencyOracle returns type(uint256).max when obligations == 0
-        // Since we issued bonds in setUp -> not applicable. Test the logic directly:
-        uint256 obligations = 0;
-        uint256 result;
-        if (obligations == 0) {
-            result = type(uint256).max;
-        } else {
-            result = (1000 * 10000) / obligations;
-        }
-        assertEq(result, type(uint256).max, "Zero obligations => max solvency");
+        // Deploy a FRESH BondVault with no bonds issued (0 obligations)
+        BondVault freshVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        deal(address(token), address(freshVault), 70_000_000e18);
+
+        // Deploy a fresh SolvencyOracle pointing to the fresh vault
+        CapacityOracle freshCapOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
+        SolvencyOracle freshSolvency = new SolvencyOracle(address(freshVault), address(freshCapOracle), deployer);
+
+        // getSolvencyRatio should return max when obligations = 0
+        uint256 ratio = freshSolvency.getSolvencyRatio();
+        assertEq(ratio, type(uint256).max, "Zero obligations => max solvency from real oracle");
     }
 
-    /// @notice Burn cap with 1 wei balance
+    /// @notice Burn cap with tiny balance via real BondVault
     function test_burn_cap_tiny_balance() public {
-        uint256 balance = 1; // 1 wei of LUMINA
-        uint256 cap = (balance * 5) / 100;
-        assertEq(cap, 0, "5% of 1 wei rounds to 0");
+        // Deploy fresh vault with only 1 wei of LUMINA
+        BondVault tinyVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        deal(address(token), address(tinyVault), 1);
+
+        // Grant AUTHORIZED_CALLER_ADMIN_ROLE and authorize a caller
+        address caller = makeAddr("tinyCaller");
+        tinyVault.setAuthorizedCaller(caller, true);
+
+        // 5% of 1 wei = 0, so any burn amount > 0 should revert
+        vm.prank(caller);
+        vm.expectRevert("Amount must be > 0");
+        tinyVault.burnFromReserves(0);
+
+        // Trying to burn 1 wei: cap = (1*5)/100 = 0, so 1 > 0 = exceeds cap
+        vm.prank(caller);
+        vm.expectRevert("Exceeds 5% per-tx cap");
+        tinyVault.burnFromReserves(1);
     }
 
-    /// @notice Burn cap with 19 wei balance (boundary: 19*5/100 = 0)
+    /// @notice Burn cap boundary at 19 wei vs 20 wei via real BondVault
     function test_burn_cap_boundary_19_wei() public {
-        uint256 balance = 19;
-        uint256 cap = (balance * 5) / 100;
-        assertEq(cap, 0, "5% of 19 wei = 0 (floor)");
+        // At 19 wei balance: cap = (19*5)/100 = 0, cannot burn anything
+        BondVault vault19 = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        deal(address(token), address(vault19), 19);
+        address caller = makeAddr("caller19");
+        vault19.setAuthorizedCaller(caller, true);
 
-        uint256 balance20 = 20;
-        uint256 cap20 = (balance20 * 5) / 100;
-        assertEq(cap20, 1, "5% of 20 wei = 1");
+        vm.prank(caller);
+        vm.expectRevert("Exceeds 5% per-tx cap");
+        vault19.burnFromReserves(1); // cap=0, 1 > 0
+
+        // At 20 wei balance: cap = (20*5)/100 = 1, can burn exactly 1
+        BondVault vault20 = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        deal(address(token), address(vault20), 20);
+        address caller20 = makeAddr("caller20");
+        vault20.setAuthorizedCaller(caller20, true);
+
+        vm.prank(caller20);
+        vault20.burnFromReserves(1); // cap=1, 1 <= 1 OK
+        assertEq(token.balanceOf(address(vault20)), 19, "20 - 1 = 19 remaining");
     }
 
     /// @notice Distribution with bps < 10000 total leaves extra dust
