@@ -297,15 +297,15 @@ contract DeployLuminaV5Complete is Script {
         console.log("  BuybackEngine authorized in BondVault");
 
         // PolicyManagerV2.registerProduct for each shield
-        policyManager.registerProduct(keccak256("FLASH_BTC_1H"), res.flashBTCShield1h);
-        policyManager.registerProduct(keccak256("FLASH_BTC_4H"), res.flashBTCShield4h);
-        policyManager.registerProduct(keccak256("FLASH_BTC_24H"), res.flashBTCShield24h);
-        policyManager.registerProduct(keccak256("FLASH_BTC_48H"), res.flashBTCShield48h);
-        policyManager.registerProduct(keccak256("FLASH_ETH_1H"), res.flashETHShield1h);
-        policyManager.registerProduct(keccak256("FLASH_ETH_24H"), res.flashETHShield24h);
-        policyManager.registerProduct(keccak256("FLASH_ETH_48H"), res.flashETHShield48h);
-        policyManager.registerProduct(keccak256("MICRO_DEPEG"), res.microDepegShield);
-        policyManager.registerProduct(keccak256("RATE_SHOCK"), res.rateShockShield);
+        policyManager.registerProduct(keccak256("FLASHBTC1H-001"), res.flashBTCShield1h);
+        policyManager.registerProduct(keccak256("FLASHBTC4H-001"), res.flashBTCShield4h);
+        policyManager.registerProduct(keccak256("FLASHBTC24-001"), res.flashBTCShield24h);
+        policyManager.registerProduct(keccak256("FLASHBTC48-001"), res.flashBTCShield48h);
+        policyManager.registerProduct(keccak256("FLASHETH1H-001"), res.flashETHShield1h);
+        policyManager.registerProduct(keccak256("FLASHETH24-001"), res.flashETHShield24h);
+        policyManager.registerProduct(keccak256("FLASHETH48-001"), res.flashETHShield48h);
+        policyManager.registerProduct(keccak256("MICRODEPEG-001"), res.microDepegShield);
+        policyManager.registerProduct(keccak256("RATESHOCK-001"), res.rateShockShield);
         console.log("  PolicyManagerV2: 9 products registered");
 
         // CoverRouterV2.configureProduct for each shield
@@ -373,17 +373,17 @@ contract DeployLuminaV5Complete is Script {
     /// @dev Configure all 9 products on CoverRouterV2 with default parameters.
     function _configureProducts(CoverRouterV2 router, DeploymentResult memory) internal {
         // Product configs: payoutRatioBps, triggerProbBps, marginBps, durationSeconds, active
-        // BTC shields
-        router.configureProduct(keccak256("FLASH_BTC_1H"), 50000, 200, 2000, 3600, true);
-        router.configureProduct(keccak256("FLASH_BTC_4H"), 50000, 150, 2000, 14400, true);
-        router.configureProduct(keccak256("FLASH_BTC_24H"), 50000, 100, 2000, 86400, true);
-        router.configureProduct(keccak256("FLASH_BTC_48H"), 50000, 80, 2000, 172800, true);
-        // ETH shields
-        router.configureProduct(keccak256("FLASH_ETH_1H"), 50000, 200, 2000, 3600, true);
-        router.configureProduct(keccak256("FLASH_ETH_24H"), 50000, 100, 2000, 86400, true);
-        router.configureProduct(keccak256("FLASH_ETH_48H"), 50000, 80, 2000, 172800, true);
-        // Depeg / Rate
-        router.configureProduct(keccak256("MICRO_DEPEG"), 50000, 50, 2500, 86400, true);
-        router.configureProduct(keccak256("RATE_SHOCK"), 50000, 30, 3000, 86400, true);
+        // BTC shields — IDs match FlashBTCShield*.PRODUCT_ID
+        router.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 20, 15000, 3600, true);
+        router.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 30, 15000, 14400, true);
+        router.configureProduct(keccak256("FLASHBTC24-001"), 8000, 50, 15000, 86400, true);
+        router.configureProduct(keccak256("FLASHBTC48-001"), 8000, 40, 15000, 172800, true);
+        // ETH shields — IDs match FlashETHShield*.PRODUCT_ID
+        router.configureProduct(keccak256("FLASHETH1H-001"), 8000, 25, 15000, 3600, true);
+        router.configureProduct(keccak256("FLASHETH24-001"), 8000, 60, 15000, 86400, true);
+        router.configureProduct(keccak256("FLASHETH48-001"), 8000, 50, 15000, 172800, true);
+        // Depeg / Rate — IDs match MicroDepegShield.PRODUCT_ID, RateShockShield.PRODUCT_ID
+        router.configureProduct(keccak256("MICRODEPEG-001"), 8000, 100, 15000, 604800, true);
+        router.configureProduct(keccak256("RATESHOCK-001"), 8000, 80, 15000, 604800, true);
     }
 }
