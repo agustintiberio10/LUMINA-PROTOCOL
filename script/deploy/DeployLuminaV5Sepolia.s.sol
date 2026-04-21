@@ -125,8 +125,21 @@ contract MockAavePool {
         external
         pure
         returns (
-            uint256, uint128, uint128, uint128, uint128, uint128,
-            uint40, uint16, address, address, address, address, uint128, uint128, uint128
+            uint256,
+            uint128,
+            uint128,
+            uint128,
+            uint128,
+            uint128,
+            uint40,
+            uint16,
+            address,
+            address,
+            address,
+            address,
+            uint128,
+            uint128,
+            uint128
         )
     {
         // currentVariableBorrowRate = 5% APY in RAY (27 decimals) = 5e25
@@ -320,9 +333,8 @@ contract DeployLuminaV5Sepolia is Script {
         FlashETHShield24h flashEth24h = new FlashETHShield24h(address(policyManager), address(shieldOracle));
         FlashETHShield48h flashEth48h = new FlashETHShield48h(address(policyManager), address(shieldOracle));
         MicroDepegShield microDepeg = new MicroDepegShield(address(policyManager), address(shieldOracle));
-        RateShockShield rateShock = new RateShockShield(
-            address(policyManager), address(shieldOracle), address(mockAavePool), address(usdc)
-        );
+        RateShockShield rateShock =
+            new RateShockShield(address(policyManager), address(shieldOracle), address(mockAavePool), address(usdc));
 
         console.log("FlashBTC1H:", address(flashBtc1h));
         console.log("FlashBTC4H:", address(flashBtc4h));
@@ -344,7 +356,20 @@ contract DeployLuminaV5Sepolia is Script {
         policyManager.registerProduct(keccak256("FLASHETH48-001"), address(flashEth48h));
         policyManager.registerProduct(keccak256("MICRODEPEG-001"), address(microDepeg));
         policyManager.registerProduct(keccak256("RATESHOCK-001"), address(rateShock));
-        console.log("9 shields deployed and registered");
+        console.log("9 shields deployed and registered in PolicyManager");
+
+        // Configure products in CoverRouterV2 (pricing params)
+        // params: productId, payoutRatioBps, triggerProbBps, marginBps, durationSeconds, active
+        coverRouter.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 20, 15000, 3600, true);
+        coverRouter.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 30, 15000, 14400, true);
+        coverRouter.configureProduct(keccak256("FLASHBTC24-001"), 8000, 50, 15000, 86400, true);
+        coverRouter.configureProduct(keccak256("FLASHBTC48-001"), 8000, 40, 15000, 172800, true);
+        coverRouter.configureProduct(keccak256("FLASHETH1H-001"), 8000, 25, 15000, 3600, true);
+        coverRouter.configureProduct(keccak256("FLASHETH24-001"), 8000, 60, 15000, 86400, true);
+        coverRouter.configureProduct(keccak256("FLASHETH48-001"), 8000, 50, 15000, 172800, true);
+        coverRouter.configureProduct(keccak256("MICRODEPEG-001"), 8000, 100, 15000, 604800, true);
+        coverRouter.configureProduct(keccak256("RATESHOCK-001"), 8000, 80, 15000, 604800, true);
+        console.log("9 products configured in CoverRouterV2");
 
         // ──────────────────────────────────────────────────
         // PHASE 10: Wire TWAPBurner
