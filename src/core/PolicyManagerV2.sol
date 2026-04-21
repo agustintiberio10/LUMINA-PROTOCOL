@@ -12,6 +12,9 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 interface IBondVault {
     function issueBond(address to, uint256 usdPayout) external;
     function availableCapacityUSD() external view returns (uint256);
+    function reserveCapacity(uint256 amount) external;
+    function releaseReservation(uint256 amount) external;
+    function commitReservation(uint256 amount) external;
 }
 
 interface IShieldV2 {
@@ -82,6 +85,9 @@ contract PolicyManagerV2 is Ownable {
         bool expired;
     }
     mapping(bytes32 => mapping(uint256 => PolicyRecord)) public policies; // productId → policyId → record
+
+    // [V5/M-RACE] Track reserved capacity per policy for release on expiry / commit on trigger
+    mapping(bytes32 => mapping(uint256 => uint256)) public policyReservedUSD; // productId → policyId → reserved 18-dec USD-wei
 
     // ═══════ EVENTS ═══════
     event ProductRegistered(bytes32 indexed productId, address shield);
@@ -158,6 +164,12 @@ contract PolicyManagerV2 is Ownable {
         uint256 available = bondVault.availableCapacityUSD(); // integer dollars
         if (available < payoutUSD) revert InsufficientCapacity(payoutUSD, available);
 
+        // [V5/M-RACE] Reserve capacity IMMEDIATELY so concurrent purchases in the same
+        // block see reduced available capacity. Prevents the race where two purchases
+        // both pass the check but only one can actually be backed.
+        uint256 reservedAmount = payoutUSD * 1e18; // 18-dec USD-wei (matches BondVault units)
+        bondVault.reserveCapacity(reservedAmount);
+
         // [M-1] CEI: increment counters BEFORE external call
         totalPolicies++;
         activePolicies++;
@@ -194,6 +206,9 @@ contract PolicyManagerV2 is Ownable {
             expired: false
         });
 
+        // [V5/M-RACE] Store reservation for release on expiry or commit on trigger
+        policyReservedUSD[productId][policyId] = reservedAmount;
+
         emit PolicyCreated(productId, policyId, buyer, coverageAmount, premiumAmount, payoutAmount);
     }
 
@@ -219,6 +234,14 @@ contract PolicyManagerV2 is Ownable {
         uint256 payoutUSD = pr.payoutAmount / 1e6;
         require(payoutUSD > 0, "Payout too small for bond issuance");
         totalBondsIssuedUSD += payoutUSD;
+
+        // [V5/M-RACE] Commit the reservation before issuing the bond.
+        // This converts reserved capacity into committed capacity atomically.
+        uint256 reserved = policyReservedUSD[productId][policyId];
+        if (reserved > 0) {
+            policyReservedUSD[productId][policyId] = 0;
+            bondVault.commitReservation(reserved);
+        }
 
         // External interactions (last)
         address shield = pr.shield;
@@ -248,6 +271,9 @@ contract PolicyManagerV2 is Ownable {
         // Only the shield itself can call this (it calls after checkAndSettlePolicy)
         require(msg.sender == pr.shield, "Only shield");
 
+        // [V5/M-RACE] Handle reservation based on outcome
+        uint256 reserved = policyReservedUSD[productId][policyId];
+
         if (triggered) {
             pr.triggered = true;
             activePolicies--;
@@ -257,12 +283,25 @@ contract PolicyManagerV2 is Ownable {
             require(payoutUSD > 0, "Payout too small for bond issuance");
             totalBondsIssuedUSD += payoutUSD;
 
+            // Commit reservation before issuing bond
+            if (reserved > 0) {
+                policyReservedUSD[productId][policyId] = 0;
+                bondVault.commitReservation(reserved);
+            }
+
             bondVault.issueBond(pr.buyer, payoutUSD);
 
             emit PolicyTriggered(productId, policyId, pr.buyer, payoutUSD, "SETTLED_BY_KEEPER");
         } else {
             pr.expired = true;
             activePolicies--;
+
+            // Release reservation — capacity becomes available again
+            if (reserved > 0) {
+                policyReservedUSD[productId][policyId] = 0;
+                bondVault.releaseReservation(reserved);
+            }
+
             emit PolicyExpired(productId, policyId);
         }
     }
@@ -279,6 +318,14 @@ contract PolicyManagerV2 is Ownable {
 
         pr.expired = true;
         activePolicies--;
+
+        // [V5/M-RACE] Release reserved capacity so it becomes available for new policies
+        uint256 reserved = policyReservedUSD[productId][policyId];
+        if (reserved > 0) {
+            policyReservedUSD[productId][policyId] = 0;
+            bondVault.releaseReservation(reserved);
+        }
+
         emit PolicyExpired(productId, policyId);
     }
 

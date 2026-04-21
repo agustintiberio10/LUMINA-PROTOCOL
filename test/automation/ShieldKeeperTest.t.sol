@@ -8,18 +8,37 @@ import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
 // ═══════ INLINE MOCKS ═══════
 
 contract MockBondVault_SK {
-    uint256 public availableCapacityUSD = 1_000_000;
+    uint256 public cap = 1_000_000; // integer dollars
+    uint256 public totalReserved; // 18-dec USD-wei (matches real BondVault)
     uint256 public totalIssued;
 
     mapping(address => uint256) public bondBalances;
+
+    function availableCapacityUSD() external view returns (uint256) {
+        uint256 reservedDollars = totalReserved / 1e18;
+        if (cap <= reservedDollars) return 0;
+        return cap - reservedDollars;
+    }
 
     function issueBond(address to, uint256 usdPayout) external {
         bondBalances[to] += usdPayout;
         totalIssued += usdPayout;
     }
 
+    function reserveCapacity(uint256 amount) external {
+        totalReserved += amount;
+    }
+
+    function releaseReservation(uint256 amount) external {
+        totalReserved -= amount;
+    }
+
+    function commitReservation(uint256 amount) external {
+        totalReserved -= amount;
+    }
+
     function setCapacity(uint256 _cap) external {
-        availableCapacityUSD = _cap;
+        cap = _cap;
     }
 }
 

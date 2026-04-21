@@ -343,28 +343,25 @@ contract RaceConditionsTest is Test {
         assertEq(policyManager.totalPolicies(), 2, "Two policies recorded");
     }
 
-    /// @notice Second buyer reverts if first buyer's trigger exhausted capacity.
-    /// @dev FINDING: purchasePolicy only checks capacity at recordPolicy time,
-    ///      but capacity is consumed at trigger time (issueBond). Two purchases
-    ///      in the same block both pass the capacity check. The 2nd trigger reverts
-    ///      only if BondVault capacity is actually exhausted at issueBond time.
+    /// @notice [V5/M-RACE FIX] Capacity is now reserved at purchase time.
+    ///      The first purchase reserves ~$1.2M. The second purchase for ~$1.2M
+    ///      is rejected immediately (InsufficientCapacity), preventing the old
+    ///      race where both purchases passed but the 2nd trigger reverted.
     function test_Race_ConcurrentPurchases_2ndRevertsCapacityExhausted() public {
         // Capacity at $0.036: 70M * 0.036 * 50% = ~$1.26M. Payout = coverage * 80%.
-        // Use big coverage: $1.5M => payout = $1.2M. Two triggers = $2.4M > $1.26M capacity.
+        // Use big coverage: $1.5M => payout = $1.2M. Two of these exceed $1.26M.
         uint256 bigCoverage = 1_500_000e6; // $1.5M
 
-        // Both purchases succeed (capacity check passes for both — not yet committed)
+        // First purchase succeeds and RESERVES $1.2M capacity
         uint256 id1 = _buyPolicy(buyer1, PRODUCT_ID, bigCoverage);
-        uint256 id2 = _buyPolicy(buyer2, PRODUCT_ID, bigCoverage);
         assertGt(id1, 0);
-        assertGt(id2, 0);
 
-        // First trigger succeeds — commits $1.2M
+        // Second purchase FAILS at purchase time — capacity already reserved
+        vm.expectRevert();
+        _buyPolicy(buyer2, PRODUCT_ID, bigCoverage);
+
+        // First trigger succeeds since capacity was reserved
         coverRouter.submitTrigger(PRODUCT_ID, id1, "");
-
-        // Second trigger same block — BondVault capacity now exhausted, reverts
-        vm.expectRevert("Exceeds capacity");
-        coverRouter.submitTrigger(PRODUCT_ID, id2, "");
     }
 
     /// @notice 10 buyers in same block, all get unique policy IDs.
