@@ -297,6 +297,7 @@ contract DeployLuminaV5Complete is Script {
         console.log("  BuybackEngine authorized in BondVault");
 
         // PolicyManagerV2.registerProduct for each shield
+        // IDs MUST match the PRODUCT_ID constant in each shield contract
         policyManager.registerProduct(keccak256("FLASHBTC1H-001"), res.flashBTCShield1h);
         policyManager.registerProduct(keccak256("FLASHBTC4H-001"), res.flashBTCShield4h);
         policyManager.registerProduct(keccak256("FLASHBTC24-001"), res.flashBTCShield24h);
@@ -308,8 +309,12 @@ contract DeployLuminaV5Complete is Script {
         policyManager.registerProduct(keccak256("RATESHOCK-001"), res.rateShockShield);
         console.log("  PolicyManagerV2: 9 products registered");
 
+        // CoverRouterV2.setCapacityOracle (auto-pause at MIN_PRICE_FOR_NEW_POLICIES)
+        coverRouter.setCapacityOracle(res.capacityOracle);
+        console.log("  CoverRouterV2.setCapacityOracle done");
+
         // CoverRouterV2.configureProduct for each shield
-        // Default config: payoutRatio=50000bps(5x), triggerProb=200bps(2%), margin=2000bps(20%)
+        // Default config: payoutRatio=8000bps(80%), triggerProb=200bps(2%), margin=2000bps(20%)
         _configureProducts(coverRouter, res);
         console.log("  CoverRouterV2: 9 products configured");
 
@@ -373,16 +378,18 @@ contract DeployLuminaV5Complete is Script {
     /// @dev Configure all 9 products on CoverRouterV2 with default parameters.
     function _configureProducts(CoverRouterV2 router, DeploymentResult memory) internal {
         // Product configs: payoutRatioBps, triggerProbBps, marginBps, durationSeconds, active
-        // BTC shields — IDs match FlashBTCShield*.PRODUCT_ID
+        // IDs MUST match the PRODUCT_ID constant in each shield contract
+        // payoutRatioBps = 8000 (80% payout)
+        // BTC shields
         router.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 20, 15000, 3600, true);
         router.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 30, 15000, 14400, true);
         router.configureProduct(keccak256("FLASHBTC24-001"), 8000, 50, 15000, 86400, true);
         router.configureProduct(keccak256("FLASHBTC48-001"), 8000, 40, 15000, 172800, true);
-        // ETH shields — IDs match FlashETHShield*.PRODUCT_ID
+        // ETH shields
         router.configureProduct(keccak256("FLASHETH1H-001"), 8000, 25, 15000, 3600, true);
         router.configureProduct(keccak256("FLASHETH24-001"), 8000, 60, 15000, 86400, true);
         router.configureProduct(keccak256("FLASHETH48-001"), 8000, 50, 15000, 172800, true);
-        // Depeg / Rate — IDs match MicroDepegShield.PRODUCT_ID, RateShockShield.PRODUCT_ID
+        // Depeg / Rate (duration: 604800 = 7 days, matches shield MIN/MAX_DURATION)
         router.configureProduct(keccak256("MICRODEPEG-001"), 8000, 100, 15000, 604800, true);
         router.configureProduct(keccak256("RATESHOCK-001"), 8000, 80, 15000, 604800, true);
     }
