@@ -50,6 +50,7 @@ contract BondVault is ReentrancyGuard, AccessControl {
 
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
+    uint256 public totalReservedUSD; // capacity reserved by active policies awaiting trigger (18-dec USD-wei)
 
     // [V5.0] Authorized callers for BuybackEngine integration
     mapping(address => bool) public authorizedCallers;
@@ -63,6 +64,9 @@ contract BondVault is ReentrancyGuard, AccessControl {
     event ReservesBurned(address indexed caller, uint256 amount, uint256 newBalance);
     event AuthorizedCallerUpdated(address indexed caller, bool authorized);
     event PolicyManagerSet(address indexed policyManager);
+    event CapacityReserved(uint256 amount, uint256 newTotalReserved);
+    event ReservationReleased(uint256 amount, uint256 newTotalReserved);
+    event ReservationCommitted(uint256 amount, uint256 newTotalReserved);
 
     // ═══════ MODIFIERS ═══════
     modifier onlyAuthorized() {
@@ -100,6 +104,42 @@ contract BondVault is ReentrancyGuard, AccessControl {
         policyManager = _pm;
         _policyManagerSet = true;
         emit PolicyManagerSet(_pm);
+    }
+
+    // ═══════ CAPACITY RESERVATION (called by PolicyManager at purchase/expiry/trigger) ═══════
+
+    /// @notice Reserve capacity at policy purchase time to prevent race conditions.
+    /// @dev Two concurrent purchases in the same block both reading availableCapacityUSD()
+    ///      could both pass the capacity check. By reserving at purchase, the second
+    ///      purchase sees reduced available capacity.
+    /// @param amount Amount in 18-dec USD-wei to reserve
+    function reserveCapacity(uint256 amount) external {
+        require(msg.sender == policyManager, "Only PolicyManager");
+        require(amount > 0, "Zero amount");
+        totalReservedUSD += amount;
+        emit CapacityReserved(amount, totalReservedUSD);
+    }
+
+    /// @notice Release a reservation when a policy expires without triggering.
+    /// @param amount Amount in 18-dec USD-wei to release
+    function releaseReservation(uint256 amount) external {
+        require(msg.sender == policyManager, "Only PolicyManager");
+        require(amount > 0, "Zero amount");
+        require(totalReservedUSD >= amount, "Insufficient reservation");
+        totalReservedUSD -= amount;
+        emit ReservationReleased(amount, totalReservedUSD);
+    }
+
+    /// @notice Convert a reservation into a commitment when a policy triggers.
+    /// @dev Called before issueBond() so the capacity check in issueBond sees correct state.
+    ///      The reserved amount is removed; issueBond() will add it to totalCommittedUSD.
+    /// @param amount Amount in 18-dec USD-wei to commit
+    function commitReservation(uint256 amount) external {
+        require(msg.sender == policyManager, "Only PolicyManager");
+        require(amount > 0, "Zero amount");
+        require(totalReservedUSD >= amount, "Insufficient reservation");
+        totalReservedUSD -= amount;
+        emit ReservationCommitted(amount, totalReservedUSD);
     }
 
     // ═══════ ISSUE BONDS (called by PolicyManager on trigger) ═══════
@@ -181,8 +221,11 @@ contract BondVault is ReentrancyGuard, AccessControl {
         uint256 reserveBalance = lumina.balanceOf(address(this));
         uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
         uint256 maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
-        if (maxCommitUSD18 <= totalCommittedUSD) return 0;
-        return (maxCommitUSD18 - totalCommittedUSD) / 1e18; // return integer dollars
+        // [V5/M-RACE] Subtract BOTH committed and reserved to prevent race condition
+        // where two concurrent purchases both pass the capacity check.
+        uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
+        if (maxCommitUSD18 <= totalUsed) return 0;
+        return (maxCommitUSD18 - totalUsed) / 1e18; // return integer dollars
     }
 
     /// @notice [V2/SR2] Preview LUMINA (18-dec wei) for redeeming `usdAmount` integer dollars.
@@ -210,7 +253,9 @@ contract BondVault is ReentrancyGuard, AccessControl {
         uint256 maxCommit18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
         reserveValueUSD = reserveValueUSD18 / 1e18;
         committed = totalCommittedUSD / 1e18;
-        availableUSD = maxCommit18 > totalCommittedUSD ? (maxCommit18 - totalCommittedUSD) / 1e18 : 0;
+        // [V5/M-RACE] Account for reserved capacity in available calculation
+        uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
+        availableUSD = maxCommit18 > totalUsed ? (maxCommit18 - totalUsed) / 1e18 : 0;
     }
 
     // ═══════ INTERNAL ═══════

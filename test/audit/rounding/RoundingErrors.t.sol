@@ -255,11 +255,12 @@ contract RoundingErrors is Test {
         // 5. Deploy CapacityOracle (no pool, emergency price)
         capacityOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
 
-        // 6. Deploy BondVault (this contract acts as policyManager for direct issueBond calls)
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        // 6. Deploy BondVault with 2-step init
+        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(0));
 
         // 7. Deploy PolicyManager
         policyManager = new PolicyManagerV2(address(bondVault));
+        bondVault.setPolicyManager(address(policyManager));
 
         // 8. Deploy TWAPBurner + CoverRouter
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
@@ -379,7 +380,7 @@ contract RoundingErrors is Test {
         oracle.setPrice(0.13e18); // $0.13 per LUMINA
 
         // Issue bond for $100
-        bondVault.issueBond(user1, 100);
+        _issueBondAsPM(user1, 100);
 
         uint256 epochId = _epochOfCurrentPlus24();
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -408,7 +409,7 @@ contract RoundingErrors is Test {
     function test_redemption_rounding_clean_price() public {
         oracle.setPrice(0.1e18); // $0.10 per LUMINA
 
-        bondVault.issueBond(user1, 100);
+        _issueBondAsPM(user1, 100);
         uint256 epochId = _epochOfCurrentPlus24();
         vm.warp(claimBond.maturityDate(epochId) + 1);
 
@@ -431,7 +432,7 @@ contract RoundingErrors is Test {
         oracle.setPrice(0.13e18);
 
         uint256 vaultBefore = token.balanceOf(address(bondVault));
-        bondVault.issueBond(user1, 100);
+        _issueBondAsPM(user1, 100);
         uint256 epochId = _epochOfCurrentPlus24();
         vm.warp(claimBond.maturityDate(epochId) + 1);
 
@@ -643,7 +644,7 @@ contract RoundingErrors is Test {
         // Set a non-zero commitment to test rounding
         // The BondVault.totalCommittedUSD is in 18-dec USD
         // We need to issue a bond to create obligations
-        bondVault.issueBond(user1, 333);
+        _issueBondAsPM(user1, 333);
         uint256 committed = bondVault.totalCommittedUSD(); // 333 * 1e18
 
         // Calculate expected ratio
@@ -671,7 +672,7 @@ contract RoundingErrors is Test {
         //
         // Strategy: issue a small bond, then adjust price so valueUSD is just barely under committed.
         // Issue bond for $100 => committed = 100e18
-        bondVault.issueBond(user1, 100);
+        _issueBondAsPM(user1, 100);
         uint256 committed = bondVault.totalCommittedUSD(); // 100e18
 
         // valueUSD = bal * price / 1e18
@@ -818,7 +819,7 @@ contract RoundingErrors is Test {
 
         // Issue bond in integer dollars
         uint256 payoutDollars = payout / 1e6; // truncate to integer dollars
-        bondVault.issueBond(user1, payoutDollars);
+        _issueBondAsPM(user1, payoutDollars);
 
         // Step 3: Redeem bond (redemption rounding)
         uint256 epochId = _epochOfCurrentPlus24();
@@ -847,7 +848,7 @@ contract RoundingErrors is Test {
         oracle.setPrice(price);
 
         uint256 usdAmount = 123; // $123 bond
-        bondVault.issueBond(user1, usdAmount);
+        _issueBondAsPM(user1, usdAmount);
 
         uint256 epochId = _epochOfCurrentPlus24();
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -899,7 +900,7 @@ contract RoundingErrors is Test {
 
         uint256 totalDustAccumulated = 0;
         for (uint256 i = 1; i <= 10; i++) {
-            bondVault.issueBond(user1, i * 10 + 3); // non-round amounts: 13, 23, 33...
+            _issueBondAsPM(user1, i * 10 + 3); // non-round amounts: 13, 23, 33...
 
             uint256 epochId = _epochOfCurrentPlus24();
             vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -1039,6 +1040,11 @@ contract RoundingErrors is Test {
     // ═══════════════════════════════════════════════════════════
     // HELPERS
     // ═══════════════════════════════════════════════════════════
+
+    function _issueBondAsPM(address to, uint256 usdPayout) internal {
+        vm.prank(address(policyManager));
+        bondVault.issueBond(to, usdPayout);
+    }
 
     function _epochOfCurrentPlus24() internal view returns (uint256) {
         uint256 maturityTs = block.timestamp + 730 days;

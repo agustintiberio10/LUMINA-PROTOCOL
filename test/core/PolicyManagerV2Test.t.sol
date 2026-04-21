@@ -6,17 +6,32 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "../../src/core/PolicyManagerV2.sol";
 
 contract MockBondVault {
-    uint256 public cap = 1_000_000;
+    uint256 public cap = 1_000_000; // integer dollars
+    uint256 public totalReserved; // 18-dec USD-wei
     uint256 public lastPayoutUSD;
     address public lastTo;
 
     function availableCapacityUSD() external view returns (uint256) {
-        return cap;
+        uint256 reservedDollars = totalReserved / 1e18;
+        if (cap <= reservedDollars) return 0;
+        return cap - reservedDollars;
     }
 
     function issueBond(address to, uint256 usdPayout) external {
         lastTo = to;
         lastPayoutUSD = usdPayout;
+    }
+
+    function reserveCapacity(uint256 amount) external {
+        totalReserved += amount;
+    }
+
+    function releaseReservation(uint256 amount) external {
+        totalReserved -= amount;
+    }
+
+    function commitReservation(uint256 amount) external {
+        totalReserved -= amount;
     }
 
     function setCap(uint256 c) external {

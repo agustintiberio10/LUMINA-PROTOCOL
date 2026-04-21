@@ -329,8 +329,9 @@ contract CertiKSimulation is Test {
         token = new LuminaTokenV2(makeAddr("tv"), makeAddr("cx"), makeAddr("fv"), makeAddr("lbp"), makeAddr("tr"));
         swapRouter = new MockRouter2(address(token));
 
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(0));
         policyManager = new PolicyManagerV2(address(bondVault));
+        bondVault.setPolicyManager(address(policyManager));
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
         coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
@@ -346,6 +347,12 @@ contract CertiKSimulation is Test {
         deal(address(token), address(swapRouter), 10_000_000 * 1e18);
         usdc.mint(attacker, 100_000_000e6);
         usdc.mint(victim, 1_000_000e6);
+    }
+
+    /// @dev Helper: issue bond via policyManager (required since V5 reservation system)
+    function _issueBondAsPM(address to, uint256 usdPayout) internal {
+        vm.prank(address(policyManager));
+        bondVault.issueBond(to, usdPayout);
     }
 
     // Helper to get epoch from current timestamp + 24 months
@@ -375,7 +382,7 @@ contract CertiKSimulation is Test {
         ReentrancyAttacker attackerContract = new ReentrancyAttacker(address(bondVault), address(claimBond));
 
         // Issue bond to attacker contract (800 bonds)
-        bondVault.issueBond(address(attackerContract), 800);
+        _issueBondAsPM(address(attackerContract), 800);
         uint256 epoch = _getEpoch();
 
         // Reset attackCount (onERC1155Received fired once on mint but
@@ -432,7 +439,7 @@ contract CertiKSimulation is Test {
     ///         by redeeming at deflated price (getting more LUMINA per dollar)
     function test_ATTACK_oracle_deflate_for_drain() public {
         // Issue bond at normal price
-        bondVault.issueBond(victim, 800);
+        _issueBondAsPM(victim, 800);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
@@ -522,7 +529,7 @@ contract CertiKSimulation is Test {
     ///         issuance, not the shield's result, so even if the call
     ///         succeeded the bond would be $800, not 999M.
     function test_SCENARIO_compromised_owner() public {
-        // Owner registers evil shield
+        // Owner registers evil shield that always triggers
         MaliciousShield evil = new MaliciousShield(address(policyManager));
         evil.setAlwaysTrigger(true);
         bytes32 evilPid = keccak256("EVIL-001");
@@ -535,18 +542,18 @@ contract CertiKSimulation is Test {
         uint256 policyId = coverRouter.purchasePolicy(evilPid, 1000e6, "BTC");
         vm.stopPrank();
 
-        // Attempt to trigger — will revert because bondVault's policyManager
-        // is address(this), not the PolicyManagerV2 contract. That "Only
-        // PolicyManager" guard is PART of the protection: even if every
-        // other guard failed, the immutable policyManager address on
-        // BondVault prevents unauthorized bond issuance.
-        vm.expectRevert("Only PolicyManager");
-        coverRouter.submitTrigger(evilPid, policyId, "");
-
         // Confirm the PolicyManager's own payout calculation ignores the
         // shield's absurd payoutAmount: coverage=$1000 × 80% = $800 (in USDC 6-dec).
         PolicyManagerV2.PolicyRecord memory rec = policyManager.getPolicy(evilPid, policyId);
         assertEq(rec.payoutAmount, 800e6); // $800 × 1e6, NOT 999_999_999e6
+
+        // Trigger succeeds through the legitimate flow (PolicyManager -> BondVault),
+        // but the payout is capped to $800 (80% of $1000 coverage), not the
+        // shield's malicious payoutAmount. Only policyManager can call issueBond.
+        coverRouter.submitTrigger(evilPid, policyId, "");
+
+        // Verify bond was issued for $800, not the evil shield's inflated amount
+        assertEq(policyManager.totalBondsIssuedUSD(), 800);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -555,7 +562,7 @@ contract CertiKSimulation is Test {
 
     /// @notice Atacante intenta: transferir bonds, luego redimir del address original
     function test_ATTACK_transfer_then_redeem_original() public {
-        bondVault.issueBond(attacker, 800);
+        _issueBondAsPM(attacker, 800);
         uint256 epoch = _getEpoch();
 
         // Transfer all bonds to another address
@@ -585,7 +592,7 @@ contract CertiKSimulation is Test {
     ///         para redimir inmediatamente
     function test_ATTACK_create_bond_already_mature_epoch() public {
         // Issue a bond — it creates epoch 24 months from now
-        bondVault.issueBond(attacker, 800);
+        _issueBondAsPM(attacker, 800);
         uint256 epoch = _getEpoch();
 
         // Bonds can only be issued by policyManager (address(this) in tests)
@@ -647,6 +654,7 @@ contract CertiKSimulation is Test {
     function test_ATTACK_bond_overflow() public {
         // Try to issue bond with enormous value
         // This should fail on capacity check
+        vm.prank(address(policyManager));
         vm.expectRevert(); // either "Exceeds capacity" or arithmetic overflow
         bondVault.issueBond(attacker, type(uint256).max);
     }
@@ -657,6 +665,7 @@ contract CertiKSimulation is Test {
         // If usdPayout = type(uint256).max / 1e18 + 1, this overflows
         // Solidity 0.8.x catches this
         uint256 overflowPayout = type(uint256).max / 1e18 + 1;
+        vm.prank(address(policyManager));
         vm.expectRevert(); // arithmetic overflow
         bondVault.issueBond(attacker, overflowPayout);
     }
@@ -667,7 +676,7 @@ contract CertiKSimulation is Test {
 
     /// @notice Redeem at extremely low price to get absurd LUMINA amount
     function test_ATTACK_redeem_at_dust_price() public {
-        bondVault.issueBond(attacker, 800);
+        _issueBondAsPM(attacker, 800);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
@@ -686,7 +695,7 @@ contract CertiKSimulation is Test {
 
     /// @notice What if price is below MIN_REDEEM_PRICE?
     function test_ATTACK_redeem_below_floor_price() public {
-        bondVault.issueBond(attacker, 800);
+        _issueBondAsPM(attacker, 800);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
@@ -709,7 +718,7 @@ contract CertiKSimulation is Test {
         // Issue 80 bonds at $0.036 (normal price)
         // 80 × $800 = $64K committed. Under capacity.
         for (uint256 i = 0; i < 80; i++) {
-            bondVault.issueBond(makeAddr(string(abi.encodePacked("user", i))), 800);
+            _issueBondAsPM(makeAddr(string(abi.encodePacked("user", i))), 800);
         }
 
         uint256 epoch = _getEpoch();
@@ -738,7 +747,7 @@ contract CertiKSimulation is Test {
     /// @notice Atacante ve tx de redención pendiente, manipula oracle
     ///         antes de que se confirme para reducir payout
     function test_SCENARIO_frontrun_redemption() public {
-        bondVault.issueBond(victim, 800);
+        _issueBondAsPM(victim, 800);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
@@ -777,7 +786,7 @@ contract CertiKSimulation is Test {
         // At low price, capacity is reduced but issuance may still work for small amounts
         uint256 cap = bondVault.availableCapacityUSD();
         if (cap >= 100) {
-            bondVault.issueBond(makeAddr("testUser"), 100);
+            _issueBondAsPM(makeAddr("testUser"), 100);
             assertEq(bondVault.totalCommittedUSD(), 100 * 1e18);
         }
 
@@ -824,6 +833,7 @@ contract CertiKSimulation is Test {
     function test_INVARIANT_committed_le_capacity() public {
         // Issue bonds up to near capacity
         for (uint256 i = 0; i < 50; i++) {
+            vm.prank(address(policyManager));
             try bondVault.issueBond(makeAddr(string(abi.encodePacked("u", i))), 800) {}
             catch {
                 break;
@@ -854,7 +864,7 @@ contract CertiKSimulation is Test {
         snapshots[2] = token.totalSupply();
 
         // Issue bond (no supply change)
-        bondVault.issueBond(victim, 800);
+        _issueBondAsPM(victim, 800);
         snapshots[3] = token.totalSupply();
 
         // Redeem bond (LUMINA moves from vault to user, no supply change)

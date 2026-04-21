@@ -197,12 +197,14 @@ contract AdversarialAuditTest is Test {
         // 5. Deploy CapacityOracle (no pool, emergency price)
         capacityOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
 
-        // 6. Deploy BondVault with THIS contract as policyManager (workaround for
-        //    immutable circular dependency — tests call bondVault.issueBond directly)
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        // 6. Deploy BondVault with 2-step init: policyManager set after PolicyManagerV2 deploy
+        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(0));
 
-        // Now deploy real policyManager (it will have its own bondVault view)
+        // Now deploy real policyManager
         policyManager = new PolicyManagerV2(address(bondVault));
+
+        // Wire BondVault → PolicyManagerV2 (so reserveCapacity/issueBond auth works)
+        bondVault.setPolicyManager(address(policyManager));
 
         // 7. Deploy TWAPBurner + CoverRouter
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
@@ -261,7 +263,7 @@ contract AdversarialAuditTest is Test {
         shield.setTrigger(policyId, true);
 
         // Workaround: bondVault.policyManager == address(this), call issueBond directly
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
 
         uint256 epochId = _epochOfCurrentPlus24();
         assertEq(claimBond.balanceOf(user1, epochId), 800);
@@ -394,12 +396,13 @@ contract AdversarialAuditTest is Test {
         uint256 chunk = 100_000; // $100K bonds for speed
         uint256 issued = 0;
         while (issued + chunk <= capacity) {
-            bondVault.issueBond(user1, chunk);
+            _issueBondAsPM(user1, chunk);
             issued += chunk;
         }
 
         uint256 remaining = bondVault.availableCapacityUSD();
         if (remaining < chunk) {
+            vm.prank(address(policyManager));
             vm.expectRevert("Exceeds capacity");
             bondVault.issueBond(user1, chunk);
         }
@@ -410,7 +413,7 @@ contract AdversarialAuditTest is Test {
     // ═══════════════════════════════════════════════════════════
 
     function test_redeem_before_maturity_reverts() public {
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.prank(user1);
@@ -419,7 +422,7 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_redeem_more_than_balance_reverts() public {
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -431,7 +434,7 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_redeem_zero_reverts() public {
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -442,7 +445,7 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_double_redeem_reverts() public {
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -456,7 +459,7 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_partial_redeem_then_transfer() public {
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -548,13 +551,13 @@ contract AdversarialAuditTest is Test {
         // At low price capacity is reduced but small issuance may work
         uint256 cap = bondVault.availableCapacityUSD();
         if (cap >= 800) {
-            bondVault.issueBond(user1, 800);
+            _issueBondAsPM(user1, 800);
             assertEq(bondVault.totalCommittedUSD(), 800 * 1e18);
         }
     }
 
     function test_bond_redemption_works() public {
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -664,9 +667,9 @@ contract AdversarialAuditTest is Test {
     // ═══════════════════════════════════════════════════════════
 
     function test_invariant_solvency() public {
-        bondVault.issueBond(user1, 800);
-        bondVault.issueBond(user2, 1200);
-        bondVault.issueBond(user3, 500);
+        _issueBondAsPM(user1, 800);
+        _issueBondAsPM(user2, 1200);
+        _issueBondAsPM(user3, 500);
 
         uint256 balance = token.balanceOf(address(bondVault));
         uint256 price = oracle.getLuminaPrice();
@@ -709,7 +712,7 @@ contract AdversarialAuditTest is Test {
     // ═══════════════════════════════════════════════════════════
 
     function test_redeem_high_price() public {
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -723,7 +726,7 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_redeem_floor_price() public {
-        bondVault.issueBond(user1, 100);
+        _issueBondAsPM(user1, 100);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -737,7 +740,7 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_oracle_zero_uses_floor() public {
-        bondVault.issueBond(user1, 800);
+        _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
@@ -753,6 +756,12 @@ contract AdversarialAuditTest is Test {
     // ═══════════════════════════════════════════════════════════
     // HELPERS
     // ═══════════════════════════════════════════════════════════
+
+    /// @dev Helper: issue bond via policyManager (required since V5 reservation system)
+    function _issueBondAsPM(address to, uint256 usdPayout) internal {
+        vm.prank(address(policyManager));
+        bondVault.issueBond(to, usdPayout);
+    }
 
     function _epochOfCurrentPlus24() internal view returns (uint256) {
         uint256 matTs = block.timestamp + 730 days;
