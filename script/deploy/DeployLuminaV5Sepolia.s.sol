@@ -371,6 +371,23 @@ contract DeployLuminaV5Sepolia is Script {
         coverRouter.configureProduct(keccak256("RATESHOCK-001"), 8000, 80, 15000, 604800, true);
         console.log("9 products configured in CoverRouterV2");
 
+        // Configure shields in CoverRouterV2 (pricing parameters)
+        // payoutRatioBps = 8000 (80% payout), triggerProbBps, marginBps, durationSeconds, active
+        coverRouter.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 200, 2000, 3600, true);
+        coverRouter.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 150, 2000, 14400, true);
+        coverRouter.configureProduct(keccak256("FLASHBTC24-001"), 8000, 100, 2000, 86400, true);
+        coverRouter.configureProduct(keccak256("FLASHBTC48-001"), 8000, 80, 2000, 172800, true);
+        coverRouter.configureProduct(keccak256("FLASHETH1H-001"), 8000, 200, 2000, 3600, true);
+        coverRouter.configureProduct(keccak256("FLASHETH24-001"), 8000, 100, 2000, 86400, true);
+        coverRouter.configureProduct(keccak256("FLASHETH48-001"), 8000, 80, 2000, 172800, true);
+        coverRouter.configureProduct(keccak256("MICRODEPEG-001"), 8000, 50, 2500, 604800, true);
+        coverRouter.configureProduct(keccak256("RATESHOCK-001"), 8000, 30, 3000, 604800, true);
+        console.log("9 shields configured in CoverRouterV2");
+
+        // Authorize BuybackEngine in BondVault
+        bondVault.setAuthorizedCaller(address(buybackEngine), true);
+        console.log("BuybackEngine authorized in BondVault");
+
         // ──────────────────────────────────────────────────
         // PHASE 10: Wire TWAPBurner
         // ──────────────────────────────────────────────────
