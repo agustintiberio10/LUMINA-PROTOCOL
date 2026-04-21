@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
 import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 import {BondVault} from "../../../src/bonds/BondVault.sol";
@@ -79,6 +80,8 @@ contract MockCapacityOracleUpgrade {
 }
 
 contract UpgradePathsTest is Test {
+    using ProxyDeployer for *;
+
     LuminaTokenV2 token;
     MockUSDCUpgrade usdc;
     MockSwapRouterUpgrade swapRouter;
@@ -101,7 +104,7 @@ contract UpgradePathsTest is Test {
         usdc = new MockUSDCUpgrade();
         capacityOracle = new MockCapacityOracleUpgrade(0.036e18);
 
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("bv"), makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
@@ -125,9 +128,10 @@ contract UpgradePathsTest is Test {
         twapBurner.setAdaptiveMode(true);
 
         // ClaimBond + BondVault (for test 2)
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
         address policyManager = address(this); // act as PM
-        bondVault = new BondVault(address(token), address(claimBond), address(capacityOracle), policyManager);
+        bondVault =
+            ProxyDeployer.deployBondVault(address(token), address(claimBond), address(capacityOracle), policyManager);
         deal(address(token), address(bondVault), 70_000_000e18);
         claimBond.setBondVault(address(bondVault));
 

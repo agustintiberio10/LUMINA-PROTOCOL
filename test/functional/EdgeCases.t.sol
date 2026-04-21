@@ -7,6 +7,7 @@ import "../../src/bonds/ClaimBond.sol";
 import "../../src/bonds/BondVault.sol";
 import "../../src/treasury/CEXLiquidityReserve.sol";
 import "../../src/treasury/MaintenanceReserve.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -76,13 +77,13 @@ contract EdgeCasesTest is Test {
 
         oracle = new MockPriceOracleEC();
         usdc = new MockUSDCec();
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("tempBondVault"), makeAddr("tempCEX"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), deployer);
+        bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), deployer);
 
         claimBond.setBondVault(address(bondVault));
         deal(address(token), address(bondVault), 70_000_000e18);

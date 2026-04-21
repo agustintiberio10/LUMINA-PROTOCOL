@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ─── Core contracts ───
 import {LuminaTokenV2} from "../../../src/token/LuminaTokenV2.sol";
@@ -140,6 +141,8 @@ contract MockAavePool_E2E {
 // ═══════════════════════════════════════════════════════════════
 
 contract DeployE2ETest is Test {
+    using ProxyDeployer for *;
+
     // ─── Addresses ───
     address deployer;
     address multisig;
@@ -212,19 +215,21 @@ contract DeployE2ETest is Test {
 
         // ── Phase 2: No-dep contracts ──
         maintenanceReserve = new MaintenanceReserve(address(usdc), multisig);
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // ── Phase 3: Predict lumina address ──
         uint64 currentNonce = vm.getNonce(deployer);
-        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 4);
+        // capacityOracle(+1) + bondVault proxy(+2) + cexReserve(+1) + treasuryVesting(+1) = 5, then lumina impl+proxy
+        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 6);
 
         capacityOracle = new CapacityOracle(address(0), predictedLumina, address(usdc), EMERGENCY_PRICE);
-        bondVault = new BondVault(predictedLumina, address(claimBond), address(capacityOracle), address(0));
+        bondVault =
+            ProxyDeployer.deployBondVault(predictedLumina, address(claimBond), address(capacityOracle), address(0));
         cexReserve = new CEXLiquidityReserve(predictedLumina, multisig);
         treasuryVesting = new TreasuryVesting(predictedLumina);
 
         // ── Phase 4: Token ──
-        lumina = new LuminaTokenV2(
+        lumina = ProxyDeployer.deployLuminaTokenV2(
             address(bondVault), address(cexReserve), founderVesting, lbpDeposit, address(treasuryVesting)
         );
         require(address(lumina) == predictedLumina, "Lumina address prediction failed");
@@ -240,8 +245,8 @@ contract DeployE2ETest is Test {
         twapBurner = new TWAPBurner(address(usdc), address(lumina), address(swapRouter));
 
         // ── Phase 8: PolicyManager + CoverRouter ──
-        policyManager = new PolicyManagerV2(address(bondVault));
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
         policyManager.setRouter(address(coverRouter));
         coverRouter.setCapacityOracle(address(capacityOracle));
         bondVault.setPolicyManager(address(policyManager));

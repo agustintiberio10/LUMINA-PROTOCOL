@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
 import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -51,7 +52,7 @@ contract MarketplaceStress is Test {
     function setUp() public {
         vm.warp(BASE_TS + 60 days);
 
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
         usdc = new MarketMockUSDC();
 
         // Deploy mock BondVault and wire ClaimBond

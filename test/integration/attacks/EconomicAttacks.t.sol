@@ -7,6 +7,7 @@ import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
 import {CEXLiquidityReserve} from "../../../src/treasury/CEXLiquidityReserve.sol";
 import {LuminaBondMarketplace} from "../../../src/marketplace/LuminaBondMarketplace.sol";
 import {MockCapacityOracleV5} from "../../mocks/MockCapacityOracleV5.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 /// @notice Minimal ERC20 for economic attack tests (mintable, burnable)
 contract MockLumina_Econ {
@@ -94,9 +95,10 @@ contract EconomicAttacks is Test {
         oracle.setPrice(0.036e18); // $0.036 per LUMINA
 
         MockLumina_Econ lumina = new MockLumina_Econ();
-        ClaimBond claimBond = new ClaimBond();
+        ClaimBond claimBond = ProxyDeployer.deployClaimBond();
 
-        BondVault vault = new BondVault(address(lumina), address(claimBond), address(oracle), policyManager);
+        BondVault vault =
+            ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(oracle), policyManager);
 
         // Set ClaimBond's bondVault
         claimBond.setBondVault(address(vault));
@@ -129,9 +131,10 @@ contract EconomicAttacks is Test {
         oracle.setPrice(0.036e18);
 
         MockLumina_Econ lumina = new MockLumina_Econ();
-        ClaimBond claimBond = new ClaimBond();
+        ClaimBond claimBond = ProxyDeployer.deployClaimBond();
 
-        BondVault vault = new BondVault(address(lumina), address(claimBond), address(oracle), policyManager);
+        BondVault vault =
+            ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(oracle), policyManager);
         claimBond.setBondVault(address(vault));
         lumina.mint(address(vault), 10_000_000e18);
 
@@ -165,9 +168,10 @@ contract EconomicAttacks is Test {
         oracle.setPrice(0.036e18);
 
         MockLumina_Econ lumina = new MockLumina_Econ();
-        ClaimBond claimBond = new ClaimBond();
+        ClaimBond claimBond = ProxyDeployer.deployClaimBond();
 
-        BondVault vault = new BondVault(address(lumina), address(claimBond), address(oracle), policyManager);
+        BondVault vault =
+            ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(oracle), policyManager);
         claimBond.setBondVault(address(vault));
         lumina.mint(address(vault), 10_000_000e18);
 
@@ -207,9 +211,10 @@ contract EconomicAttacks is Test {
         oracle.setPrice(0.036e18);
 
         MockLumina_Econ lumina = new MockLumina_Econ();
-        ClaimBond claimBond = new ClaimBond();
+        ClaimBond claimBond = ProxyDeployer.deployClaimBond();
 
-        BondVault vault = new BondVault(address(lumina), address(claimBond), address(oracle), policyManager);
+        BondVault vault =
+            ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(oracle), policyManager);
         claimBond.setBondVault(address(vault));
         lumina.mint(address(vault), 10_000_000e18);
 
@@ -244,7 +249,7 @@ contract EconomicAttacks is Test {
         vm.warp(1767225600 + 1 days);
 
         MockUSDC_Econ usdc = new MockUSDC_Econ();
-        ClaimBond claimBond = new ClaimBond();
+        ClaimBond claimBond = ProxyDeployer.deployClaimBond();
         address twapBurner = makeAddr("twapBurner");
 
         LuminaBondMarketplace mp = new LuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
@@ -253,7 +258,8 @@ contract EconomicAttacks is Test {
         MockLumina_Econ lumina = new MockLumina_Econ();
         MockCapacityOracleV5 oracle = new MockCapacityOracleV5();
         oracle.setPrice(0.036e18);
-        BondVault vault = new BondVault(address(lumina), address(claimBond), address(oracle), policyManager);
+        BondVault vault =
+            ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(oracle), policyManager);
         claimBond.setBondVault(address(vault));
         lumina.mint(address(vault), 10_000_000e18);
 

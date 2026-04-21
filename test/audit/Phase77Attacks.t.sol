@@ -9,6 +9,7 @@ import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
 import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
 import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
 import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 // INLINE MOCKS
@@ -354,7 +355,7 @@ contract Phase77Attacks is Test {
         policyManager = new MockPolicyManager77();
         twapBurner = new MockTWAPBurner77(address(usdc));
 
-        router = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        router = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
         router.setCapacityOracle(address(oracle));
 
         // Configure a product

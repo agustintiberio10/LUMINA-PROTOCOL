@@ -13,6 +13,7 @@ import {MockClaimBondV5} from "../../mocks/MockClaimBondV5.sol";
 import {MockBondVaultV5} from "../../mocks/MockBondVaultV5.sol";
 import {MockMarketplace} from "../../mocks/MockMarketplace.sol";
 import {PolicyManagerV2} from "../../../src/core/PolicyManagerV2.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 /// @notice Minimal mock USDC for access control tests
 contract MockUSDC_AC {
@@ -66,8 +67,10 @@ contract AccessControlAttacks is Test {
     function test_Attack_UnauthorizedBuybackEngineCallsBondVault() public {
         MockCapacityOracleV5 oracle = new MockCapacityOracleV5();
         oracle.setPrice(0.036e18);
-        ClaimBond claimBond = new ClaimBond();
-        BondVault vault = new BondVault(address(new MockUSDC_AC()), address(claimBond), address(oracle), policyManager);
+        ClaimBond claimBond = ProxyDeployer.deployClaimBond();
+        BondVault vault = ProxyDeployer.deployBondVault(
+            address(new MockUSDC_AC()), address(claimBond), address(oracle), policyManager
+        );
 
         // attacker is not authorized
         vm.prank(attacker);
@@ -81,8 +84,10 @@ contract AccessControlAttacks is Test {
     function test_Attack_UnauthorizedBurnFromReserves() public {
         MockCapacityOracleV5 oracle = new MockCapacityOracleV5();
         oracle.setPrice(0.036e18);
-        ClaimBond claimBond = new ClaimBond();
-        BondVault vault = new BondVault(address(new MockUSDC_AC()), address(claimBond), address(oracle), policyManager);
+        ClaimBond claimBond = ProxyDeployer.deployClaimBond();
+        BondVault vault = ProxyDeployer.deployBondVault(
+            address(new MockUSDC_AC()), address(claimBond), address(oracle), policyManager
+        );
 
         vm.prank(attacker);
         vm.expectRevert("BondVault: caller not authorized");
@@ -96,7 +101,7 @@ contract AccessControlAttacks is Test {
     function test_Attack_UnregisteredShieldPolicyCreation() public {
         MockBondVaultV5 mockVault = new MockBondVaultV5(address(0x1));
 
-        PolicyManagerV2 pm = new PolicyManagerV2(address(mockVault));
+        PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(address(mockVault));
         // router is not set, so any caller reverts with OnlyRouter()
 
         vm.prank(attacker);

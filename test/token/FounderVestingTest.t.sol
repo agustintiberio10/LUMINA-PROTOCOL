@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../../src/token/LuminaTokenV2.sol";
 import "../../src/token/FounderVesting.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // Mock oracle that returns configurable prices
 contract MockOracle {
@@ -57,6 +58,8 @@ contract MockAavePool {
 }
 
 contract FounderVestingTest is Test {
+    using ProxyDeployer for *;
+
     LuminaTokenV2 token;
     FounderVesting vesting;
     MockOracle oracle;
@@ -71,7 +74,7 @@ contract FounderVestingTest is Test {
     function setUp() public {
         oracle = new MockOracle();
         aavePool = new MockAavePool();
-        token = new LuminaTokenV2(bondVault, makeAddr("cex"), address(0xdead), lbp, treasury);
+        token = ProxyDeployer.deployLuminaTokenV2(bondVault, makeAddr("cex"), address(0xdead), lbp, treasury);
         // We'll deploy vesting separately and transfer tokens to it
         vesting = new FounderVesting(address(oracle), address(aavePool), address(token), usdc, founder);
         // Simulate: token was minted to a temp address, now transfer to vesting

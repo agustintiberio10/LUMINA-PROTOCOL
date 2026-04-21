@@ -18,6 +18,7 @@ import {CEXLiquidityReserve} from "../../../src/treasury/CEXLiquidityReserve.sol
 import {TreasuryVesting} from "../../../src/token/TreasuryVesting.sol";
 import {LuminaTokenV2} from "../../../src/token/LuminaTokenV2.sol";
 import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ Mocks ═══════
 import {MockCapacityOracleV5} from "../../mocks/MockCapacityOracleV5.sol";
@@ -199,15 +200,16 @@ contract BoundaryConditions is Test {
         twapBurner = new TWAPBurner(address(usdc), address(lumina), address(dexRouter));
 
         // Deploy CoverRouterV2
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
         coverRouter.setCapacityOracle(address(capacityOracle));
 
         // Configure a product on CoverRouter: payoutRatio=8000, triggerProb=20, margin=15000, 3600s
         coverRouter.configureProduct(PRODUCT_ID, 8000, 20, 15000, 3600, true);
 
         // Deploy BondVault
-        bondVault =
-            new BondVault(address(lumina), address(claimBondForVault), address(capacityOracle), address(policyManager));
+        bondVault = ProxyDeployer.deployBondVault(
+            address(lumina), address(claimBondForVault), address(capacityOracle), address(policyManager)
+        );
 
         // Fund BondVault with 70M LUMINA
         lumina.mint(address(bondVault), 70_000_000e18);

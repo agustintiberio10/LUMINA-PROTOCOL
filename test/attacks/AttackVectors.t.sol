@@ -18,6 +18,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 //  MOCK CONTRACTS
@@ -245,10 +246,10 @@ contract AttackVectors is Test, ERC1155Holder {
         solvencyOracle = new MockSolvencyOracleForAttack(20000); // 200% solvency
 
         // 2. Deploy ClaimBond (needs BondVault later)
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // 3. Deploy BondVault (pass address(0) for policyManager, set later)
-        bondVault = new BondVault(
+        bondVault = ProxyDeployer.deployBondVault(
             address(1), // placeholder lumina — will be overwritten by real deploy
             address(claimBond),
             address(oracle),
@@ -296,7 +297,7 @@ contract AttackVectors is Test, ERC1155Holder {
         // then transfer the 70M to actual BondVault after it's deployed.
 
         // Deploy lumina: all 5 addresses must be unique and non-zero
-        lumina = new LuminaTokenV2(
+        lumina = ProxyDeployer.deployLuminaTokenV2(
             address(this), // bondVault placeholder — we hold 70M
             cexReserve,
             founderVesting,
@@ -309,9 +310,9 @@ contract AttackVectors is Test, ERC1155Holder {
 
         // Deploy real BondVault with real lumina
         // First re-deploy ClaimBond fresh (the old one is fine, just wire it)
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
-        bondVault = new BondVault(address(lumina), address(claimBond), address(oracle), address(0));
+        bondVault = ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(oracle), address(0));
 
         // Transfer 70M LUMINA from this contract to BondVault
         lumina.transfer(address(bondVault), 70_000_000 * 1e18);
@@ -320,13 +321,13 @@ contract AttackVectors is Test, ERC1155Holder {
         claimBond.setBondVault(address(bondVault));
 
         // Deploy PolicyManagerV2
-        policyManager = new PolicyManagerV2(address(bondVault));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
 
         // Wire BondVault → PolicyManager (one-shot setter)
         bondVault.setPolicyManager(address(policyManager));
 
         // Deploy CoverRouterV2
-        router = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        router = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // Wire router
         policyManager.setRouter(address(router));
@@ -529,7 +530,7 @@ contract AttackVectors is Test, ERC1155Holder {
         // We need real ClaimBond tokens. Issue a bond via the system.
         // To get bonds, we need a policy trigger. Instead, we deploy a separate
         // ClaimBond for marketplace isolation testing.
-        ClaimBond testBond = new ClaimBond();
+        ClaimBond testBond = ProxyDeployer.deployClaimBond();
         MockUSDC testUsdc = usdc;
         LuminaBondMarketplace testMarket =
             new LuminaBondMarketplace(address(testBond), address(testUsdc), address(twapBurner), deployer);
@@ -556,7 +557,7 @@ contract AttackVectors is Test, ERC1155Holder {
 
     /// @notice A.3.2 — Cannot list with zero amount
     function test_A3_2_ListZeroAmount() public {
-        ClaimBond testBond = new ClaimBond();
+        ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
@@ -573,7 +574,7 @@ contract AttackVectors is Test, ERC1155Holder {
 
     /// @notice A.3.3 — Cannot list with zero price
     function test_A3_3_ListZeroPrice() public {
-        ClaimBond testBond = new ClaimBond();
+        ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
@@ -597,7 +598,7 @@ contract AttackVectors is Test, ERC1155Holder {
 
     /// @notice A.3.5 — Cannot buy a cancelled listing
     function test_A3_5_BuyCancelledListing() public {
-        ClaimBond testBond = new ClaimBond();
+        ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
@@ -621,7 +622,7 @@ contract AttackVectors is Test, ERC1155Holder {
 
     /// @notice A.3.6 — Cannot cancel someone else's listing
     function test_A3_6_CancelOthersListing() public {
-        ClaimBond testBond = new ClaimBond();
+        ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
@@ -680,9 +681,10 @@ contract AttackVectors is Test, ERC1155Holder {
         // (it doesn't call capacityOracle or check paused state).
 
         // Deploy a mini-system to get a matured bond
-        ClaimBond testBond = new ClaimBond();
+        ClaimBond testBond = ProxyDeployer.deployClaimBond();
         MockPriceOracle testOracle = new MockPriceOracle(LUMINA_PRICE);
-        BondVault testVault = new BondVault(address(lumina), address(testBond), address(testOracle), address(0));
+        BondVault testVault =
+            ProxyDeployer.deployBondVault(address(lumina), address(testBond), address(testOracle), address(0));
 
         testBond.setBondVault(address(testVault));
 
@@ -691,7 +693,7 @@ contract AttackVectors is Test, ERC1155Holder {
         lumina.transfer(address(testVault), 1_000_000 * 1e18);
 
         // Set up policyManager for testVault
-        PolicyManagerV2 testPM = new PolicyManagerV2(address(testVault));
+        PolicyManagerV2 testPM = ProxyDeployer.deployPolicyManagerV2(address(testVault));
         testVault.setPolicyManager(address(testPM));
 
         // We need to issue a bond. Let's manually create one via the full flow.
@@ -1055,7 +1057,7 @@ contract AttackVectors is Test, ERC1155Holder {
 
     /// @notice A.3.7 — Marketplace: listing preserves correct bond balance
     function test_A3_7_ListingPreservesBalance() public {
-        ClaimBond testBond = new ClaimBond();
+        ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));

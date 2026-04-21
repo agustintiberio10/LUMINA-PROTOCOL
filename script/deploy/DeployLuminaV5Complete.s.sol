@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // ═══════ Token ═══════
 import "../../src/token/LuminaTokenV2.sol";
@@ -113,25 +114,26 @@ contract DeployLuminaV5Complete is Script {
         console.log("1. MaintenanceReserve:", res.maintenanceReserve);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 2: ClaimBond (no deps)
+        // STEP 2: ClaimBond via UUPS proxy (no deps)
         // ═══════════════════════════════════════════════════════
-        ClaimBond claimBond = new ClaimBond();
+        ClaimBond claimBondImpl = new ClaimBond();
+        ERC1967Proxy claimBondProxy =
+            new ERC1967Proxy(address(claimBondImpl), abi.encodeWithSelector(ClaimBond.initialize.selector));
+        ClaimBond claimBond = ClaimBond(address(claimBondProxy));
         res.claimBond = address(claimBond);
-        console.log("2. ClaimBond:", res.claimBond);
+        console.log("2. ClaimBond (proxy):", res.claimBond);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 3-7: Precompute LuminaTokenV2 address
-        // Nonce: deployer has deployed 2 contracts so far (MaintenanceReserve, ClaimBond).
-        // Next deploys: CapacityOracle(nonce+0), BondVault(nonce+1), CEXLiquidityReserve(nonce+2),
-        //               FounderVesting(nonce+3), TreasuryVesting(nonce+4), LuminaTokenV2(nonce+5)
-        // So LuminaTokenV2 is at currentNonce + 5 from here.
-        // We need the nonce AFTER the broadcast started. The deployer nonce at this point
-        // accounts for the 2 contracts already deployed in this script.
+        // STEP 3-7: Precompute LuminaTokenV2 PROXY address
+        // [V5.1] ClaimBond used 2 nonces (impl+proxy). BondVault will use 2 nonces.
+        // LuminaTokenV2 will use 2 nonces (impl+proxy), we predict the proxy.
+        // Nonce count: CapacityOracle(+1), BondVaultImpl(+1), BondVaultProxy(+1),
+        //              CEXReserve(+1), FounderVesting(+1), TreasuryVesting(+1),
+        //              LuminaImpl(+1), LuminaProxy(+1) = +8 total, proxy at +7
         // ═══════════════════════════════════════════════════════
         uint64 currentNonce = vm.getNonce(deployer);
-        // LuminaTokenV2 will be deployed after 5 more contracts (steps 3-7)
-        address precomputedLumina = vm.computeCreateAddress(deployer, currentNonce + 5);
-        console.log("   Precomputed LUMINA address:", precomputedLumina);
+        address precomputedLumina = vm.computeCreateAddress(deployer, currentNonce + 7);
+        console.log("   Precomputed LUMINA proxy address:", precomputedLumina);
 
         // ═══════════════════════════════════════════════════════
         // STEP 3: CapacityOracle (pool=address(0), emergencyPrice=0.036e18)
@@ -141,16 +143,18 @@ contract DeployLuminaV5Complete is Script {
         console.log("3. CapacityOracle:", res.capacityOracle);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 4: BondVault (policyManager=address(0) for 2-step init)
+        // STEP 4: BondVault via UUPS proxy (policyManager=address(0) for 2-step init)
         // ═══════════════════════════════════════════════════════
-        BondVault bondVault = new BondVault(
-            precomputedLumina,
-            res.claimBond,
-            res.capacityOracle,
-            address(0) // policyManager set later via setPolicyManager
+        BondVault bondVaultImpl = new BondVault();
+        ERC1967Proxy bondVaultProxy = new ERC1967Proxy(
+            address(bondVaultImpl),
+            abi.encodeWithSelector(
+                BondVault.initialize.selector, precomputedLumina, res.claimBond, res.capacityOracle, address(0)
+            )
         );
+        BondVault bondVault = BondVault(address(bondVaultProxy));
         res.bondVault = address(bondVault);
-        console.log("4. BondVault:", res.bondVault);
+        console.log("4. BondVault (proxy):", res.bondVault);
 
         // ═══════════════════════════════════════════════════════
         // STEP 5: CEXLiquidityReserve
@@ -175,14 +179,24 @@ contract DeployLuminaV5Complete is Script {
         console.log("7. TreasuryVesting:", res.treasuryVesting);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 8: LuminaTokenV2 — NOW the LUMINA token exists
+        // STEP 8: LuminaTokenV2 via UUPS proxy — NOW the LUMINA token exists
         // ═══════════════════════════════════════════════════════
-        LuminaTokenV2 luminaToken = new LuminaTokenV2(
-            res.bondVault, res.cexLiquidityReserve, res.founderVesting, cfg.lbpDeposit, res.treasuryVesting
+        LuminaTokenV2 luminaImpl = new LuminaTokenV2();
+        ERC1967Proxy luminaProxy = new ERC1967Proxy(
+            address(luminaImpl),
+            abi.encodeWithSelector(
+                LuminaTokenV2.initialize.selector,
+                res.bondVault,
+                res.cexLiquidityReserve,
+                res.founderVesting,
+                cfg.lbpDeposit,
+                res.treasuryVesting
+            )
         );
+        LuminaTokenV2 luminaToken = LuminaTokenV2(address(luminaProxy));
         res.luminaToken = address(luminaToken);
-        require(res.luminaToken == precomputedLumina, "LUMINA address mismatch - nonce drift");
-        console.log("8. LuminaTokenV2:", res.luminaToken);
+        require(res.luminaToken == precomputedLumina, "LUMINA proxy address mismatch - nonce drift");
+        console.log("8. LuminaTokenV2 (proxy):", res.luminaToken);
 
         // ═══════════════════════════════════════════════════════
         // STEP 9: ClaimBond.setBondVault(bondVault)
@@ -212,11 +226,15 @@ contract DeployLuminaV5Complete is Script {
         console.log("12. TWAPBurner:", res.twapBurner);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 13: PolicyManagerV2
+        // STEP 13: PolicyManagerV2 via UUPS proxy
         // ═══════════════════════════════════════════════════════
-        PolicyManagerV2 policyManager = new PolicyManagerV2(res.bondVault);
+        PolicyManagerV2 pmImpl = new PolicyManagerV2();
+        ERC1967Proxy pmProxy = new ERC1967Proxy(
+            address(pmImpl), abi.encodeWithSelector(PolicyManagerV2.initialize.selector, res.bondVault)
+        );
+        PolicyManagerV2 policyManager = PolicyManagerV2(address(pmProxy));
         res.policyManager = address(policyManager);
-        console.log("13. PolicyManagerV2:", res.policyManager);
+        console.log("13. PolicyManagerV2 (proxy):", res.policyManager);
 
         // ═══════════════════════════════════════════════════════
         // STEP 14: BondVault.setPolicyManager(policyManagerV2)
@@ -225,11 +243,16 @@ contract DeployLuminaV5Complete is Script {
         console.log("14. BondVault.setPolicyManager done");
 
         // ═══════════════════════════════════════════════════════
-        // STEP 15: CoverRouterV2
+        // STEP 15: CoverRouterV2 via UUPS proxy
         // ═══════════════════════════════════════════════════════
-        CoverRouterV2 coverRouter = new CoverRouterV2(cfg.usdc, res.policyManager, res.twapBurner);
+        CoverRouterV2 crImpl = new CoverRouterV2();
+        ERC1967Proxy crProxy = new ERC1967Proxy(
+            address(crImpl),
+            abi.encodeWithSelector(CoverRouterV2.initialize.selector, cfg.usdc, res.policyManager, res.twapBurner)
+        );
+        CoverRouterV2 coverRouter = CoverRouterV2(address(crProxy));
         res.coverRouter = address(coverRouter);
-        console.log("15. CoverRouterV2:", res.coverRouter);
+        console.log("15. CoverRouterV2 (proxy):", res.coverRouter);
 
         // ═══════════════════════════════════════════════════════
         // STEP 16: PolicyManagerV2.setRouter(coverRouter)

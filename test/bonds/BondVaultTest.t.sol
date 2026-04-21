@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../../src/token/LuminaTokenV2.sol";
 import "../../src/bonds/ClaimBond.sol";
 import "../../src/bonds/BondVault.sol";
@@ -31,19 +32,39 @@ contract BondVaultTest is Test {
 
     function setUp() public {
         // [SR3] Warp past ClaimBond.BASE_TIMESTAMP (Jan 1 2026 UTC = 1767225600)
-        // so that maturityTimestamp = block.timestamp + 730d is a valid epoch.
         vm.warp(1767225600 + 30 days);
 
         oracle = new MockPriceOracle();
-        claimBond = new ClaimBond();
-        token = new LuminaTokenV2(makeAddr("tempVault"), makeAddr("cex"), founder, lbp, treasury);
 
-        vault = new BondVault(
-            address(token),
-            address(claimBond),
-            address(oracle),
-            address(this) // test acts as PolicyManager
+        // Deploy ClaimBond via proxy
+        ClaimBond claimBondImpl = new ClaimBond();
+        ERC1967Proxy claimBondProxy =
+            new ERC1967Proxy(address(claimBondImpl), abi.encodeWithSelector(ClaimBond.initialize.selector));
+        claimBond = ClaimBond(address(claimBondProxy));
+
+        // Deploy LuminaTokenV2 via proxy
+        LuminaTokenV2 tokenImpl = new LuminaTokenV2();
+        ERC1967Proxy tokenProxy = new ERC1967Proxy(
+            address(tokenImpl),
+            abi.encodeWithSelector(
+                LuminaTokenV2.initialize.selector, makeAddr("tempVault"), makeAddr("cex"), founder, lbp, treasury
+            )
         );
+        token = LuminaTokenV2(address(tokenProxy));
+
+        // Deploy BondVault via proxy
+        BondVault vaultImpl = new BondVault();
+        ERC1967Proxy vaultProxy = new ERC1967Proxy(
+            address(vaultImpl),
+            abi.encodeWithSelector(
+                BondVault.initialize.selector,
+                address(token),
+                address(claimBond),
+                address(oracle),
+                address(this) // test acts as PolicyManager
+            )
+        );
+        vault = BondVault(address(vaultProxy));
 
         claimBond.setBondVault(address(vault));
         deal(address(token), address(vault), 70_000_000 * 1e18);
@@ -90,7 +111,6 @@ contract BondVaultTest is Test {
 
         // $LUMINA went UP to $0.50 → agent gets FEWER tokens
         oracle.setPrice(0.5e18);
-        // [V2/SR2] Formula fixed: (usdAmount * 1e36) / price. Pays 1,600 WHOLE LUMINA.
         uint256 expected = (800 * 1e36) / 0.5e18; // 1,600 * 1e18 wei = 1,600 LUMINA
 
         vm.prank(user);
@@ -107,7 +127,6 @@ contract BondVaultTest is Test {
 
         // $LUMINA went DOWN to $0.01 → agent gets MORE tokens
         oracle.setPrice(0.01e18);
-        // [V2/SR2] Formula fixed: pays 80,000 WHOLE LUMINA.
         uint256 expected = (800 * 1e36) / 0.01e18; // 80,000 * 1e18 wei
 
         vm.prank(user);
@@ -126,7 +145,6 @@ contract BondVaultTest is Test {
         vault.redeemBond(epoch, 300);
 
         assertEq(claimBond.balanceOf(user, epoch), 500);
-        // [V3/SR2] totalCommittedUSD is 18-dec USD-wei: 500 * 1e18 after partial redeem
         assertEq(vault.totalCommittedUSD(), 500 * 1e18);
     }
 
@@ -139,20 +157,16 @@ contract BondVaultTest is Test {
     }
 
     function test_redemption_fails_below_min_redeem_price() public {
-        // Issue bond first
         vault.issueBond(user, 800);
         uint256 epoch = _currentEpochPlus24();
 
-        // Warp to maturity
         vm.warp(claimBond.maturityDate(epoch) + 1);
         oracle.setPrice(0.0005e18); // below MIN_REDEEM_PRICE
 
-        // Redemption should fail because below MIN_REDEEM_PRICE floor
         vm.prank(user);
         vm.expectRevert("Price too low");
         vault.redeemBond(epoch, 800);
 
-        // With acceptable redemption price it works
         oracle.setPrice(0.05e18);
         vm.prank(user);
         vault.redeemBond(epoch, 800);
@@ -160,9 +174,6 @@ contract BondVaultTest is Test {
 
     function test_previewRedemption() public view {
         uint256 preview = vault.previewRedemption(800);
-        // [V2/SR2] Formula fixed: (usdAmount * 1e36) / price.
-        // Compute at runtime (uint256 vars) to force integer division;
-        // inline rational-literal math wouldn't resolve to uint256.
         uint256 usd = 800;
         uint256 price = 0.036e18;
         uint256 expected = (usd * 1e36) / price;
@@ -181,41 +192,63 @@ contract BondVaultTest is Test {
     // ═══════ setPolicyManager tests ═══════
 
     function test_SetPolicyManager_OneShot() public {
-        // Deploy BondVault with policyManager = address(0)
-        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+        // Deploy BondVault via proxy with policyManager = address(0)
+        BondVault impl = new BondVault();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                BondVault.initialize.selector, address(token), address(claimBond), address(oracle), address(0)
+            )
+        );
+        BondVault v = BondVault(address(proxy));
 
         address pm = makeAddr("policyManager");
-
-        // Before: policyManager is zero
         assertEq(v.policyManager(), address(0));
 
-        // Set it
         v.setPolicyManager(pm);
-
-        // After: policyManager is set
         assertEq(v.policyManager(), pm);
     }
 
     function test_RevertIf_SetPolicyManagerTwice() public {
-        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+        BondVault impl = new BondVault();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                BondVault.initialize.selector, address(token), address(claimBond), address(oracle), address(0)
+            )
+        );
+        BondVault v = BondVault(address(proxy));
 
         address pm = makeAddr("policyManager");
         v.setPolicyManager(pm);
 
-        // Second call should revert
         vm.expectRevert("PolicyManager already set");
         v.setPolicyManager(makeAddr("anotherPM"));
     }
 
     function test_RevertIf_SetPolicyManagerZero() public {
-        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+        BondVault impl = new BondVault();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                BondVault.initialize.selector, address(token), address(claimBond), address(oracle), address(0)
+            )
+        );
+        BondVault v = BondVault(address(proxy));
 
         vm.expectRevert("Zero address");
         v.setPolicyManager(address(0));
     }
 
     function test_RevertIf_SetPolicyManagerUnauthorized() public {
-        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), address(0));
+        BondVault impl = new BondVault();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                BondVault.initialize.selector, address(token), address(claimBond), address(oracle), address(0)
+            )
+        );
+        BondVault v = BondVault(address(proxy));
 
         address pm = makeAddr("policyManager");
         address attacker = makeAddr("attacker");
@@ -228,13 +261,17 @@ contract BondVaultTest is Test {
     function test_SetPolicyManager_ConstructorWithAddress() public {
         address pm = makeAddr("policyManager");
 
-        // Deploy with non-zero policyManager in constructor
-        BondVault v = new BondVault(address(token), address(claimBond), address(oracle), pm);
+        BondVault impl = new BondVault();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                BondVault.initialize.selector, address(token), address(claimBond), address(oracle), pm
+            )
+        );
+        BondVault v = BondVault(address(proxy));
 
-        // policyManager should already be set
         assertEq(v.policyManager(), pm);
 
-        // setPolicyManager should revert because it was already set in constructor
         vm.expectRevert("PolicyManager already set");
         v.setPolicyManager(makeAddr("anotherPM"));
     }
@@ -243,10 +280,7 @@ contract BondVaultTest is Test {
 
     function test_SetAuthorizedCaller_ByAdmin_Success() public {
         address newCaller = makeAddr("newCaller");
-
-        // address(this) is deployer and has AUTHORIZED_CALLER_ADMIN_ROLE
         vault.setAuthorizedCaller(newCaller, true);
-
         assertTrue(vault.authorizedCallers(newCaller));
     }
 
@@ -272,5 +306,10 @@ contract BondVaultTest is Test {
     function test_SetAuthorizedCaller_RevertIf_ZeroAddress() public {
         vm.expectRevert("Zero address");
         vault.setAuthorizedCaller(address(0), true);
+    }
+
+    function test_cannot_initialize_twice() public {
+        vm.expectRevert();
+        vault.initialize(address(token), address(claimBond), address(oracle), address(this));
     }
 }

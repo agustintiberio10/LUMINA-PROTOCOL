@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "../../src/token/LuminaTokenV2.sol";
 import "../../src/bonds/ClaimBond.sol";
 import "../../src/bonds/BondVault.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -37,12 +38,12 @@ contract LongTermSimulation is Test {
         vm.warp(BASE_TS + 60 days);
 
         oracle = new SimMockOracle();
-        claimBond = new ClaimBond();
-        token = new LuminaTokenV2(
+        claimBond = ProxyDeployer.deployClaimBond();
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("tempVault"), makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
-        vault = new BondVault(
+        vault = ProxyDeployer.deployBondVault(
             address(token),
             address(claimBond),
             address(oracle),

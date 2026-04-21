@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // ─── Core contracts ───
 import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
@@ -203,34 +204,46 @@ contract DeployLuminaV5Sepolia is Script {
         MaintenanceReserve maintenanceReserve = new MaintenanceReserve(address(usdc), deployer);
         console.log("MaintenanceReserve:", address(maintenanceReserve));
 
-        ClaimBond claimBond = new ClaimBond();
-        console.log("ClaimBond:", address(claimBond));
+        // [V5.1] ClaimBond via UUPS proxy
+        ClaimBond claimBondImpl = new ClaimBond();
+        ERC1967Proxy claimBondProxy =
+            new ERC1967Proxy(address(claimBondImpl), abi.encodeWithSelector(ClaimBond.initialize.selector));
+        ClaimBond claimBond = ClaimBond(address(claimBondProxy));
+        console.log("ClaimBond (proxy):", address(claimBond));
 
         // ──────────────────────────────────────────────────
-        // PHASE 3: Predict LuminaTokenV2 address to break
+        // PHASE 3: Predict LuminaTokenV2 PROXY address to break
         //          the circular dependency
         // ──────────────────────────────────────────────────
-        // Contracts to deploy before lumina:
-        //   capacityOracle, bondVault, cexReserve, treasuryVesting
+        // Nonce count before LuminaTokenV2 proxy:
+        //   +1 capacityOracle, +1 bondVaultImpl, +1 bondVaultProxy,
+        //   +1 cexReserve, +1 treasuryVesting, +1 luminaImpl, +1 luminaProxy
         uint64 currentNonce = vm.getNonce(deployer);
-        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 4);
-        console.log("Predicted LUMINA address:", predictedLumina);
+        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 6);
+        console.log("Predicted LUMINA proxy address:", predictedLumina);
 
         CapacityOracle capacityOracle = new CapacityOracle(
             address(0), // pool (none on Sepolia initially)
-            predictedLumina, // luminaToken
+            predictedLumina, // luminaToken (proxy address)
             address(usdc), // usdcToken
             EMERGENCY_PRICE
         );
         console.log("CapacityOracle:", address(capacityOracle));
 
-        BondVault bondVault = new BondVault(
-            predictedLumina,
-            address(claimBond),
-            address(capacityOracle),
-            address(0) // policyManager set later
+        // [V5.1] BondVault via UUPS proxy
+        BondVault bondVaultImpl = new BondVault();
+        ERC1967Proxy bondVaultProxy = new ERC1967Proxy(
+            address(bondVaultImpl),
+            abi.encodeWithSelector(
+                BondVault.initialize.selector,
+                predictedLumina,
+                address(claimBond),
+                address(capacityOracle),
+                address(0) // policyManager set later
+            )
         );
-        console.log("BondVault:", address(bondVault));
+        BondVault bondVault = BondVault(address(bondVaultProxy));
+        console.log("BondVault (proxy):", address(bondVault));
 
         CEXLiquidityReserve cexReserve = new CEXLiquidityReserve(predictedLumina, deployer);
         console.log("CEXLiquidityReserve:", address(cexReserve));
@@ -239,16 +252,26 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("TreasuryVesting:", address(treasuryVesting));
 
         // ──────────────────────────────────────────────────
-        // PHASE 4: Deploy LuminaTokenV2
+        // PHASE 4: Deploy LuminaTokenV2 via UUPS proxy
         // ──────────────────────────────────────────────────
         address founderVesting = _labelToAddress("founderVesting");
         address lbpDeposit = _labelToAddress("lbpDeposit");
 
-        LuminaTokenV2 lumina = new LuminaTokenV2(
-            address(bondVault), address(cexReserve), founderVesting, lbpDeposit, address(treasuryVesting)
+        LuminaTokenV2 luminaImpl = new LuminaTokenV2();
+        ERC1967Proxy luminaProxy = new ERC1967Proxy(
+            address(luminaImpl),
+            abi.encodeWithSelector(
+                LuminaTokenV2.initialize.selector,
+                address(bondVault),
+                address(cexReserve),
+                founderVesting,
+                lbpDeposit,
+                address(treasuryVesting)
+            )
         );
-        require(address(lumina) == predictedLumina, "LUMINA address prediction failed!");
-        console.log("LuminaTokenV2:", address(lumina));
+        LuminaTokenV2 lumina = LuminaTokenV2(address(luminaProxy));
+        require(address(lumina) == predictedLumina, "LUMINA proxy address prediction failed!");
+        console.log("LuminaTokenV2 (proxy):", address(lumina));
 
         // ──────────────────────────────────────────────────
         // PHASE 5: Wire ClaimBond -> BondVault
@@ -274,11 +297,24 @@ contract DeployLuminaV5Sepolia is Script {
         // ──────────────────────────────────────────────────
         // PHASE 8: PolicyManagerV2 + CoverRouterV2
         // ──────────────────────────────────────────────────
-        PolicyManagerV2 policyManager = new PolicyManagerV2(address(bondVault));
-        console.log("PolicyManagerV2:", address(policyManager));
+        // [V5.1] PolicyManagerV2 via UUPS proxy
+        PolicyManagerV2 pmImpl = new PolicyManagerV2();
+        ERC1967Proxy pmProxy = new ERC1967Proxy(
+            address(pmImpl), abi.encodeWithSelector(PolicyManagerV2.initialize.selector, address(bondVault))
+        );
+        PolicyManagerV2 policyManager = PolicyManagerV2(address(pmProxy));
+        console.log("PolicyManagerV2 (proxy):", address(policyManager));
 
-        CoverRouterV2 coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
-        console.log("CoverRouterV2:", address(coverRouter));
+        // [V5.1] CoverRouterV2 via UUPS proxy
+        CoverRouterV2 crImpl = new CoverRouterV2();
+        ERC1967Proxy crProxy = new ERC1967Proxy(
+            address(crImpl),
+            abi.encodeWithSelector(
+                CoverRouterV2.initialize.selector, address(usdc), address(policyManager), address(twapBurner)
+            )
+        );
+        CoverRouterV2 coverRouter = CoverRouterV2(address(crProxy));
+        console.log("CoverRouterV2 (proxy):", address(coverRouter));
 
         // Wire PolicyManager <-> Router
         policyManager.setRouter(address(coverRouter));

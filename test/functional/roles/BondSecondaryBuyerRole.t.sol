@@ -6,6 +6,7 @@ import "../../../src/token/LuminaTokenV2.sol";
 import "../../../src/bonds/ClaimBond.sol";
 import "../../../src/bonds/BondVault.sol";
 import "../../../src/marketplace/LuminaBondMarketplace.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -90,15 +91,15 @@ contract BondSecondaryBuyerAudit is Test {
         usdc = new MockUSDC_SB();
 
         // Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy LuminaTokenV2
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("tempBondVault"), makeAddr("tempCEX"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
         // Deploy BondVault with deployer as policyManager (for test issuance)
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), deployer);
+        bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), deployer);
 
         // Wire ClaimBond -> BondVault
         claimBond.setBondVault(address(bondVault));

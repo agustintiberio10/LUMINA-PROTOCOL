@@ -8,6 +8,7 @@ import {BondVault} from "../../src/bonds/BondVault.sol";
 import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
 import {MockSolvencyOracle} from "../mocks/MockSolvencyOracle.sol";
 import {SystemHandler} from "../handlers/SystemHandler.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ Inline mock oracle for BondVault price feed ═══════
 
@@ -50,7 +51,7 @@ contract SystemInvariants is Test {
         distributor = new AdaptiveFeeDistributor(address(mockSolvencyOracle));
 
         // ── Deploy ClaimBond ──
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // ── Deploy LuminaTokenV2 (needs 5 unique non-zero addresses) ──
         // Use placeholder addresses for non-BondVault buckets
@@ -65,7 +66,8 @@ contract SystemInvariants is Test {
         // and then deal tokens to the real vault.
         address tempBondVault = address(0xBB01);
 
-        token = new LuminaTokenV2(tempBondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+        token =
+            ProxyDeployer.deployLuminaTokenV2(tempBondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
 
         // ── Deploy handler first (we need its address as policyManager) ──
         // Temporary handler to get address -- we'll redeploy after vault is ready.
@@ -73,7 +75,7 @@ contract SystemInvariants is Test {
         // an authorized caller on the vault.
 
         // Deploy vault with address(this) as policyManager temporarily
-        vault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        vault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(this));
         claimBond.setBondVault(address(vault));
 
         // Fund vault with 70M LUMINA (matching the token distribution)
@@ -83,8 +85,8 @@ contract SystemInvariants is Test {
         handler = new SystemHandler(token, vault, claimBond, address(oracle));
 
         // Now redeploy vault+claimBond with handler as policyManager
-        claimBond = new ClaimBond();
-        vault = new BondVault(address(token), address(claimBond), address(oracle), address(handler));
+        claimBond = ProxyDeployer.deployClaimBond();
+        vault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(handler));
         claimBond.setBondVault(address(vault));
 
         // Fund the new vault
@@ -97,8 +99,8 @@ contract SystemInvariants is Test {
         handler = new SystemHandler(token, vault, claimBond, address(oracle));
 
         // Need to redeploy vault AGAIN so policyManager == handler
-        claimBond = new ClaimBond();
-        vault = new BondVault(address(token), address(claimBond), address(oracle), address(handler));
+        claimBond = ProxyDeployer.deployClaimBond();
+        vault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(handler));
         claimBond.setBondVault(address(vault));
         deal(address(token), address(vault), 70_000_000 * 1e18);
         vault.setAuthorizedCaller(address(handler), true);

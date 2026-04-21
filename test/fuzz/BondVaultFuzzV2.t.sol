@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
 import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
 import {BondVault} from "../../src/bonds/BondVault.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract FuzzMockOracleV2 {
     uint256 public price = 0.036e18;
@@ -34,10 +35,12 @@ contract BondVaultFuzzV2 is Test {
         vm.warp(1767225600 + 60 days);
 
         oracle = new FuzzMockOracleV2();
-        claimBond = new ClaimBond();
-        token = new LuminaTokenV2(address(0xF001), address(0xF005), address(0xF003), address(0xF002), address(0xF004));
+        claimBond = ProxyDeployer.deployClaimBond();
+        token = ProxyDeployer.deployLuminaTokenV2(
+            address(0xF001), address(0xF005), address(0xF003), address(0xF002), address(0xF004)
+        );
 
-        vault = new BondVault(
+        vault = ProxyDeployer.deployBondVault(
             address(token),
             address(claimBond),
             address(oracle),

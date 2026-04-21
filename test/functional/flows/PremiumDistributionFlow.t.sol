@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../../src/token/LuminaTokenV2.sol";
 import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
 import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -142,7 +143,8 @@ contract PremiumDistributionFlowTest is Test {
         usdc = new MockUSDC_PDF();
 
         // 2. Deploy token with a placeholder bondVault
-        token = new LuminaTokenV2(bondVaultAddr, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+        token =
+            ProxyDeployer.deployLuminaTokenV2(bondVaultAddr, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
 
         // 3. Deploy swap router mock, fund it with LUMINA
         swapRouter = new MockSwapRouter_PDF(address(token));

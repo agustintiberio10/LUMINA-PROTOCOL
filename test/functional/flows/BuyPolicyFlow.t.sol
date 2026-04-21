@@ -10,6 +10,7 @@ import {PolicyManagerV2} from "../../../src/core/PolicyManagerV2.sol";
 import {CoverRouterV2} from "../../../src/core/CoverRouterV2.sol";
 import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
 import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -171,15 +172,17 @@ contract BuyPolicyFlowTest is Test {
         priceOracle = new MockPriceOracle_BPF(0.036e18); // $0.036
 
         // 2. Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // 3. Predict BondVault address for token constructor
         uint64 currentNonce = vm.getNonce(address(this));
-        // token = currentNonce, swapRouter = +1, twapBurner = +2, policyManager = +3, bondVault = +4
-        address predictedBondVault = vm.computeCreateAddress(address(this), currentNonce + 4);
+        // token via proxy(+2), swapRouter(+1), twapBurner(+1), policyManager via proxy(+2), bondVault proxy at +7
+        address predictedBondVault = vm.computeCreateAddress(address(this), currentNonce + 7);
 
         // 4. Deploy token
-        token = new LuminaTokenV2(predictedBondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+        token = ProxyDeployer.deployLuminaTokenV2(
+            predictedBondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting
+        );
 
         // 5. Deploy swap router mock
         swapRouter = new MockSwapRouter_BPF(address(token));
@@ -189,10 +192,12 @@ contract BuyPolicyFlowTest is Test {
         twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
 
         // 7. Deploy PolicyManagerV2
-        policyManager = new PolicyManagerV2(predictedBondVault);
+        policyManager = ProxyDeployer.deployPolicyManagerV2(predictedBondVault);
 
         // 8. Deploy BondVault
-        bondVault = new BondVault(address(token), address(claimBond), address(priceOracle), address(policyManager));
+        bondVault = ProxyDeployer.deployBondVault(
+            address(token), address(claimBond), address(priceOracle), address(policyManager)
+        );
         require(address(bondVault) == predictedBondVault, "BondVault address mismatch");
 
         // 9. Wire ClaimBond -> BondVault
@@ -206,7 +211,7 @@ contract BuyPolicyFlowTest is Test {
         policyManager.registerProduct(PRODUCT_ID, address(mockShield));
 
         // 12. Deploy CoverRouter
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // 13. Wire PolicyManager -> CoverRouter
         policyManager.setRouter(address(coverRouter));

@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {BondVault} from "../../src/bonds/BondVault.sol";
 import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -51,10 +52,10 @@ contract MassPoliciesStress is Test {
 
         lumina = new StressMockERC20();
         oracle = new StressMockPriceOracle(0.036e18); // $0.036
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy BondVault with address(this) as policyManager
-        vault = new BondVault(
+        vault = ProxyDeployer.deployBondVault(
             address(lumina),
             address(claimBond),
             address(oracle),

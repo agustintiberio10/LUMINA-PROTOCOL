@@ -6,6 +6,7 @@ import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace
 import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
 import {BondVault} from "../../src/bonds/BondVault.sol";
 import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ MOCKS ═══════
 
@@ -96,9 +97,8 @@ contract MarketplaceAndRedemptionTest is Test {
         // Deploy oracle at $0.10
         oracle = new MockPriceOracle(INITIAL_PRICE);
 
-        // Deploy ClaimBond
-        vm.prank(admin);
-        claimBond = new ClaimBond();
+        // Deploy ClaimBond (owner = address(this))
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy LuminaTokenV2 — BondVault address not yet known, use a temp then transfer
         // We need to predict the BondVault address or deploy token with bondVault as one of recipients
@@ -108,18 +108,19 @@ contract MarketplaceAndRedemptionTest is Test {
 
         // Get current nonce for this test contract
         uint64 nonce = vm.getNonce(address(this));
-        // LuminaTokenV2 will be deployed at nonce, BondVault at nonce+1
-        address predictedBondVault = vm.computeCreateAddress(address(this), nonce + 1);
+        // LuminaTokenV2 via proxy at nonce+0,+1; BondVault via proxy at nonce+2 (impl), +3 (proxy)
+        address predictedBondVault = vm.computeCreateAddress(address(this), nonce + 3);
 
         // Deploy token with predicted BondVault address
-        lumina = new LuminaTokenV2(predictedBondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+        lumina = ProxyDeployer.deployLuminaTokenV2(
+            predictedBondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting
+        );
 
         // Deploy BondVault (should match predicted address)
-        bondVault = new BondVault(address(lumina), address(claimBond), address(oracle), policyManager);
+        bondVault = ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(oracle), policyManager);
         require(address(bondVault) == predictedBondVault, "BondVault address mismatch");
 
-        // Wire ClaimBond -> BondVault
-        vm.prank(admin);
+        // Wire ClaimBond -> BondVault (owner is address(this))
         claimBond.setBondVault(address(bondVault));
 
         // Deploy USDC mock

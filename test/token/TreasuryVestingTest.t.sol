@@ -4,8 +4,11 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../../src/token/LuminaTokenV2.sol";
 import "../../src/token/TreasuryVesting.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract TreasuryVestingTest is Test {
+    using ProxyDeployer for *;
+
     LuminaTokenV2 token;
     TreasuryVesting vesting;
 
@@ -16,7 +19,7 @@ contract TreasuryVestingTest is Test {
 
     function setUp() public {
         multisig = address(this); // deployer is owner (multisig in prod)
-        token = new LuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, address(0xdead));
+        token = ProxyDeployer.deployLuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, address(0xdead));
         vesting = new TreasuryVesting(address(token));
         deal(address(token), address(vesting), 3_000_000 * 1e18);
     }

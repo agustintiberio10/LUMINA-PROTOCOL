@@ -8,6 +8,7 @@ import "../../../src/bonds/BondVault.sol";
 import "../../../src/treasury/CEXLiquidityReserve.sol";
 import "../../../src/treasury/MaintenanceReserve.sol";
 import "../../../src/core/CoverRouterV2.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -109,15 +110,15 @@ contract HumanBuyerRoleAudit is Test {
         mockBurner = new MockTWAPBurnerHB();
 
         // Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy LuminaTokenV2
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("tempBondVault"), makeAddr("tempCEX"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
         // Deploy BondVault with deployer as policyManager (for test issuance)
-        bondVault = new BondVault(
+        bondVault = ProxyDeployer.deployBondVault(
             address(token),
             address(claimBond),
             address(oracle),
@@ -142,7 +143,7 @@ contract HumanBuyerRoleAudit is Test {
         usdc.mint(address(maintenanceReserve), 500_000e6);
 
         // Deploy CoverRouterV2 (deployer is owner via Ownable)
-        coverRouter = new CoverRouterV2(address(usdc), address(mockPM), address(mockBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(mockPM), address(mockBurner));
 
         // Pre-compute epoch for bonds issued at current timestamp
         uint256 maturityTs = block.timestamp + 730 days;

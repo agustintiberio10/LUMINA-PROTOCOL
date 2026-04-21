@@ -2,17 +2,19 @@
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title BondVault
-/// @notice Immutable vault holding 70M LUMINA. Backs all ClaimBond payouts.
-/// @dev NO owner. NO withdraw. NO upgrade. NO escape hatch.
-///      LUMINA tokens are NOT locked or reserved — they sit passively.
+/// @notice Vault holding 70M LUMINA. Backs all ClaimBond payouts.
+/// @dev LUMINA tokens are NOT locked or reserved — they sit passively.
 ///      Vault tracks bonds in USD (totalCommittedUSD), not in LUMINA.
 ///      Tokens only leave via redeemBond() when a bond matures.
 ///      Bond payouts are FIXED IN USD, settled in LUMINA at market price at redemption.
-///      Even the founder cannot access these tokens. Verifiable on-chain.
+///
+///      [V5.1] UUPS upgradeable proxy pattern.
 
 interface IBurnable {
     function burn(uint256 amount) external;
@@ -31,16 +33,16 @@ interface IPriceOracle {
     function getLuminaPrice() external view returns (uint256 price);
 }
 
-contract BondVault is ReentrancyGuard, AccessControl {
+contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AccessControlUpgradeable {
     // ═══════ ROLES ═══════
     bytes32 public constant AUTHORIZED_CALLER_ADMIN_ROLE = keccak256("AUTHORIZED_CALLER_ADMIN_ROLE");
 
-    // ═══════ IMMUTABLES ═══════
-    IERC20 public immutable lumina;
-    IClaimBond public immutable claimBond;
-    IPriceOracle public immutable priceOracle;
+    // ═══════ STORAGE (was immutable, now upgradeable storage) ═══════
+    IERC20 public lumina;
+    IClaimBond public claimBond;
+    IPriceOracle public priceOracle;
     address public policyManager;
-    address private immutable _deployer;
+    address private _deployer;
     bool private _policyManagerSet;
 
     // ═══════ CONSTANTS ═══════
@@ -74,7 +76,19 @@ contract BondVault is ReentrancyGuard, AccessControl {
         _;
     }
 
-    constructor(address _lumina, address _claimBond, address _priceOracle, address _policyManager) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _lumina, address _claimBond, address _priceOracle, address _policyManager)
+        public
+        initializer
+    {
+        __ReentrancyGuard_init();
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+
         require(_lumina != address(0), "Zero lumina");
         require(_claimBond != address(0), "Zero claimBond");
         require(_priceOracle != address(0), "Zero oracle");
@@ -109,9 +123,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
     // ═══════ CAPACITY RESERVATION (called by PolicyManager at purchase/expiry/trigger) ═══════
 
     /// @notice Reserve capacity at policy purchase time to prevent race conditions.
-    /// @dev Two concurrent purchases in the same block both reading availableCapacityUSD()
-    ///      could both pass the capacity check. By reserving at purchase, the second
-    ///      purchase sees reduced available capacity.
     /// @param amount Amount in 18-dec USD-wei to reserve
     function reserveCapacity(uint256 amount) external {
         require(msg.sender == policyManager, "Only PolicyManager");
@@ -131,8 +142,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
     }
 
     /// @notice Convert a reservation into a commitment when a policy triggers.
-    /// @dev Called before issueBond() so the capacity check in issueBond sees correct state.
-    ///      The reserved amount is removed; issueBond() will add it to totalCommittedUSD.
     /// @param amount Amount in 18-dec USD-wei to commit
     function commitReservation(uint256 amount) external {
         require(msg.sender == policyManager, "Only PolicyManager");
@@ -147,8 +156,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
     /// @notice Issue ClaimBond tokens when a policy triggers.
     /// @param to User whose bet triggered
     /// @param usdPayout Payout in USD (e.g., 800 = $800). 1 bond token = $1.
-    /// @dev At issuance: no LUMINA calculation. Only USD accounting.
-    ///      LUMINA price is read at redemption (24 months later), not now.
     function issueBond(address to, uint256 usdPayout) external nonReentrant {
         require(msg.sender == policyManager, "Only PolicyManager");
         require(to != address(0), "Zero address");
@@ -166,7 +173,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
         uint256 epochId = _timestampToEpoch(maturityTimestamp);
 
         // [V3/SR2] Normalize to 18-decimal USD (dollar-wei) to match maxCommitUSD units.
-        // Fixes silent capacity bypass where integer-dollars were compared against 18-dec USD.
         totalCommittedUSD += usdPayout * 1e18;
 
         claimBond.mint(to, epochId, usdPayout);
@@ -178,9 +184,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
     /// @notice Redeem matured bonds. Pays USD value in LUMINA at current market price.
     /// @param epochId Maturity epoch
     /// @param usdAmount USD amount to redeem (partial allowed)
-    /// @dev Redemption is ALWAYS available — even if circuit breaker is active.
-    ///      Price is read HERE, at the moment of redemption.
-    ///      $800 bond always pays $800 worth of LUMINA, regardless of market conditions.
     function redeemBond(uint256 epochId, uint256 usdAmount) external nonReentrant {
         require(usdAmount > 0, "Zero amount");
         require(claimBond.isMatured(epochId), "Not matured");
@@ -190,10 +193,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
         require(currentPrice >= MIN_REDEEM_PRICE, "Price too low");
 
         // [V2/SR2] Pay LUMINA in 18-decimal wei.
-        // usdAmount is integer-dollar units (1 bond token = $1 USD).
-        // currentPrice is 18-dec USD per WHOLE LUMINA (1 LUMINA = 1e18 wei).
-        // Correct formula: luminaAmount_wei = usdAmount_dollars * 1e36 / price_18dec.
-        // (Previously missing one 1e18 factor → paid dust.)
         uint256 luminaAmount = (usdAmount * 1e36) / currentPrice;
         require(lumina.balanceOf(address(this)) >= luminaAmount, "Insufficient reserve");
 
@@ -214,15 +213,12 @@ contract BondVault is ReentrancyGuard, AccessControl {
     // ═══════ VIEW FUNCTIONS ═══════
 
     /// @notice Remaining USD capacity that can be issued as new bonds.
-    /// @dev [V3/SR2] Internal accounting is 18-dec USD; this view returns INTEGER DOLLARS
-    ///      for API/frontend readability.
     function availableCapacityUSD() external view returns (uint256) {
         uint256 currentPrice = _getSafePrice();
         uint256 reserveBalance = lumina.balanceOf(address(this));
         uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
         uint256 maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
         // [V5/M-RACE] Subtract BOTH committed and reserved to prevent race condition
-        // where two concurrent purchases both pass the capacity check.
         uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
         if (maxCommitUSD18 <= totalUsed) return 0;
         return (maxCommitUSD18 - totalUsed) / 1e18; // return integer dollars
@@ -235,7 +231,6 @@ contract BondVault is ReentrancyGuard, AccessControl {
     }
 
     /// @dev [V3/SR2] Returns committed/available/reserveValue in INTEGER DOLLARS for readability.
-    ///      Internal accounting is 18-dec USD-wei.
     function getStatus()
         external
         view
@@ -311,8 +306,8 @@ contract BondVault is ReentrancyGuard, AccessControl {
         emit AuthorizedCallerUpdated(caller, authorized);
     }
 
-    // ═══════ NO withdraw(), NO owner, NO upgrade ═══════
-    // Exits: redeemBond() for matured bonds, burnFromReserves() for authorized callers.
-    // Authorization: AUTHORIZED_CALLER_ADMIN_ROLE manages authorized callers.
-}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
+}

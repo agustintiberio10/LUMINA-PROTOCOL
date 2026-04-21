@@ -13,6 +13,7 @@ import {MaintenanceReserve} from "../../src/treasury/MaintenanceReserve.sol";
 import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ MOCK CONTRACTS ═══════
 
@@ -221,13 +222,14 @@ contract TokenomicsAuditTest is Test {
         solvencyOracle.setQuadrant(1, 1); // Healthy + Stable
 
         // Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy LuminaTokenV2 — need placeholder addresses for vesting contracts
         // Use a temporary pattern: deploy token, then deploy real contracts
-        address tempBondVault = _computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        // LuminaTokenV2 via proxy (+2 nonces), then BondVault via proxy: impl at +2, proxy at +3
+        address tempBondVault = _computeCreateAddress(address(this), vm.getNonce(address(this)) + 3);
 
-        lumina = new LuminaTokenV2(
+        lumina = ProxyDeployer.deployLuminaTokenV2(
             tempBondVault,
             address(0x1001), // cex temp
             founder,
@@ -236,7 +238,7 @@ contract TokenomicsAuditTest is Test {
         );
 
         // Deploy BondVault to match computed address
-        bondVault = new BondVault(address(lumina), address(claimBond), address(oracle), address(0));
+        bondVault = ProxyDeployer.deployBondVault(address(lumina), address(claimBond), address(oracle), address(0));
 
         // Verify BondVault address matches
         require(address(bondVault) == tempBondVault, "BondVault address mismatch");
@@ -245,7 +247,7 @@ contract TokenomicsAuditTest is Test {
         claimBond.setBondVault(address(bondVault));
 
         // Deploy PolicyManager
-        policyManager = new PolicyManagerV2(address(bondVault));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
 
         // Set PolicyManager on BondVault
         bondVault.setPolicyManager(address(policyManager));
@@ -277,7 +279,7 @@ contract TokenomicsAuditTest is Test {
         twapBurner.setAdaptiveMode(true);
 
         // Deploy CoverRouter
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
         coverRouter.setCapacityOracle(address(oracle));
 
         // Deploy mock shield and register product

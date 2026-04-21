@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {
+    ERC20BurnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title LuminaTokenV2
 /// @notice $LUMINA token — 100M fixed supply, deflationary by design.
@@ -15,17 +19,35 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 ///      BURNER_ROLE management. If TWAPBurner is ever replaced, the new
 ///      burner cannot be granted the role. Only renounce after final
 ///      TWAPBurner deployment is confirmed stable.
-contract LuminaTokenV2 is ERC20, ERC20Burnable, AccessControl {
+///
+///      [V5.1] UUPS upgradeable proxy pattern.
+contract LuminaTokenV2 is
+    Initializable,
+    UUPSUpgradeable,
+    ERC20Upgradeable,
+    ERC20BurnableUpgradeable,
+    AccessControlUpgradeable
+{
     uint256 public constant MAX_SUPPLY = 100_000_000 * 1e18;
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
-    constructor(
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address bondVault,
         address cexLiquidityReserve,
         address founderVesting,
         address lbpDeposit,
         address treasuryVesting
-    ) ERC20("Lumina Protocol", "LUMINA") {
+    ) public initializer {
+        __ERC20_init("Lumina Protocol", "LUMINA");
+        __ERC20Burnable_init();
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+
         // Zero-address checks (5)
         require(bondVault != address(0), "BondVault zero address");
         require(cexLiquidityReserve != address(0), "CEXReserve zero address");
@@ -68,4 +90,9 @@ contract LuminaTokenV2 is ERC20, ERC20Burnable, AccessControl {
     function burnFrom(address account, uint256 amount) public override onlyRole(BURNER_ROLE) {
         _burn(account, amount);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

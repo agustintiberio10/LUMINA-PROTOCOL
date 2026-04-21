@@ -10,6 +10,7 @@ import "../../../src/treasury/MaintenanceReserve.sol";
 import "../../../src/marketplace/BuybackEngine.sol";
 import "../../../src/core/CoverRouterV2.sol";
 import "../../../src/core/PolicyManagerV2.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -131,14 +132,15 @@ contract RoleAuditTest is Test {
         mockBurner = new MockTWAPBurnerRA();
 
         // Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy LuminaTokenV2 - needs 5 unique non-zero addresses for distribution
         // We use makeAddr placeholders for the initial mint targets since we deal tokens later
-        token = new LuminaTokenV2(makeAddr("tempBondVault"), makeAddr("tempCEX"), founder, lbp, treasury);
+        token =
+            ProxyDeployer.deployLuminaTokenV2(makeAddr("tempBondVault"), makeAddr("tempCEX"), founder, lbp, treasury);
 
         // Deploy BondVault with deployer as policyManager (for test issuance)
-        bondVault = new BondVault(
+        bondVault = ProxyDeployer.deployBondVault(
             address(token),
             address(claimBond),
             address(oracle),
@@ -178,10 +180,10 @@ contract RoleAuditTest is Test {
         );
 
         // Deploy CoverRouterV2 (deployer is owner via Ownable)
-        coverRouter = new CoverRouterV2(address(usdc), address(mockPM), address(mockBurner));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(mockPM), address(mockBurner));
 
         // Deploy PolicyManagerV2 (deployer is owner via Ownable)
-        policyManager = new PolicyManagerV2(address(bondVault));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
     }
 
     // ══════════════════════════════════════════════════════════════

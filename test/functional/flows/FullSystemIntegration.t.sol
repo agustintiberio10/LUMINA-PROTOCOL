@@ -13,6 +13,7 @@ import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
 import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 import {PolicyManagerV2} from "../../../src/core/PolicyManagerV2.sol";
 import {CoverRouterV2} from "../../../src/core/CoverRouterV2.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════════
 //  INLINE MOCKS (external dependencies only)
@@ -221,7 +222,7 @@ contract FullSystemIntegrationTest is Test {
         capacityOracle = new MockCapacityOracle_FSI(EMERGENCY_PRICE);
 
         // --- Phase 2: Deploy ClaimBond (no deps) ---
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // --- Phase 3: Predict BondVault address and deploy in correct order ---
         // We need: token(bondVault), BondVault(token, claimBond, oracle, policyManager)
@@ -233,10 +234,10 @@ contract FullSystemIntegrationTest is Test {
         // Actually: bondVault needs lumina, lumina needs bondVault -> circular.
         // Solution: deploy BondVault first with predicted lumina address.
 
-        // Deploy order: bondVault(+0), token(+1)
-        address predictedToken = vm.computeCreateAddress(address(this), currentNonce + 1);
+        // Deploy order: bondVault via proxy(+0,+1), token via proxy(+2 impl, +3 proxy)
+        address predictedToken = vm.computeCreateAddress(address(this), currentNonce + 3);
 
-        bondVault = new BondVault(
+        bondVault = ProxyDeployer.deployBondVault(
             predictedToken, // lumina (predicted)
             address(claimBond), // claimBond
             address(capacityOracle), // priceOracle
@@ -244,7 +245,9 @@ contract FullSystemIntegrationTest is Test {
         );
 
         // Deploy token with real bondVault address
-        token = new LuminaTokenV2(address(bondVault), cexReserve, founderVesting, lbpDeposit, treasuryVesting);
+        token = ProxyDeployer.deployLuminaTokenV2(
+            address(bondVault), cexReserve, founderVesting, lbpDeposit, treasuryVesting
+        );
         require(address(token) == predictedToken, "Token address prediction failed");
 
         // --- Phase 4: Deploy SwapRouter mock ---
@@ -263,8 +266,8 @@ contract FullSystemIntegrationTest is Test {
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
 
         // --- Phase 8: Deploy PolicyManagerV2 + CoverRouterV2 ---
-        policyManager = new PolicyManagerV2(address(bondVault));
-        coverRouter = new CoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
+        policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
+        coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // Wire PolicyManager -> Router
         policyManager.setRouter(address(coverRouter));

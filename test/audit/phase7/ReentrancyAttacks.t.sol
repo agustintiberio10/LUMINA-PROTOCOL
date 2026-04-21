@@ -7,6 +7,7 @@ import {LuminaTokenV2} from "../../../src/token/LuminaTokenV2.sol";
 import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
 import {BondVault} from "../../../src/bonds/BondVault.sol";
 import {LuminaBondMarketplace} from "../../../src/marketplace/LuminaBondMarketplace.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════
 // MOCKS
@@ -222,10 +223,10 @@ contract ReentrancyAttacks is Test {
         oracle = new MockPriceOracleR();
 
         // Deploy ClaimBond
-        claimBond = new ClaimBond();
+        claimBond = ProxyDeployer.deployClaimBond();
 
         // Deploy token with unique addresses
-        token = new LuminaTokenV2(
+        token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("tempVault"),
             makeAddr("tempCex"),
             makeAddr("tempFounder"),
@@ -234,7 +235,7 @@ contract ReentrancyAttacks is Test {
         );
 
         // Deploy BondVault -- this test contract acts as policyManager
-        bondVault = new BondVault(address(token), address(claimBond), address(oracle), address(this));
+        bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(this));
 
         // Wire ClaimBond
         claimBond.setBondVault(address(bondVault));
