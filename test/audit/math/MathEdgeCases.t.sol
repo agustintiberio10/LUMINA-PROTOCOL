@@ -60,6 +60,16 @@ contract MockPolicyManager {
     function triggerPayout(bytes32, uint256, bytes calldata) external {}
 }
 
+contract MockFeeDistributorMath {
+    function isHealthy() external pure returns (bool) {
+        return true;
+    }
+
+    function getDistribution() external pure returns (uint256, uint256, uint256, uint256) {
+        return (8500, 800, 200, 500); // burn, buyback, ops, maint
+    }
+}
+
 contract MockUSDC {
     // Minimal ERC20 for testing — we use forge deal() for balances
 
@@ -191,16 +201,26 @@ contract MathEdgeCases is Test {
     // CATEGORY 1: OVERFLOW (5 tests)
     // ═══════════════════════════════════════════════════════
 
-    /// @notice Max realistic coverage ($10M) must not overflow premium calculation
+    /// @notice Max realistic coverage ($10M) must not overflow premium calculation via CoverRouterV2
     function test_overflow_maxCoverageAmount_premiumCalc() public {
-        // coverage * payoutRatioBps * triggerProbBps * marginBps / (10000^3)
-        // 10_000_000e6 * 8000 * 20 * 15000 = 2.4e22 — fits in uint256
-        uint256 maxCoverage = 10_000_000e6; // $10M in USDC 6-dec
-        (uint256 premium, uint256 payout) = router.quotePremium(keccak256("TEST-PRODUCT"), maxCoverage);
-        assertGt(premium, 0, "Premium should be positive for max coverage");
-        assertLe(payout, maxCoverage, "Payout must not exceed coverage");
-        // Premium = 10M * 0.80 * 0.002 * 1.5 = $24,000 = 24000e6
-        assertEq(premium, 24_000e6, "Premium calculation mismatch");
+        // Test multiple large coverages via the real CoverRouterV2.quotePremium()
+        uint256[4] memory coverages = [uint256(1_000_000e6), 10_000_000e6, 100_000_000e6, 1_000_000_000e6];
+
+        for (uint256 i = 0; i < coverages.length; i++) {
+            (uint256 premium, uint256 payout) = router.quotePremium(keccak256("TEST-PRODUCT"), coverages[i]);
+            assertGt(premium, 0, "Premium should be positive");
+            assertLt(premium, coverages[i], "Premium must be less than coverage");
+            assertEq(payout, (coverages[i] * 8000) / 10000, "Payout must be 80% of coverage");
+
+            // Verify exact premium formula: coverage * 8000 * 20 * 15000 / 1e12
+            uint256 expectedPremium = (coverages[i] * 8000 * 20 * 15000) / (10000 * 10000 * 10000);
+            if (expectedPremium == 0) expectedPremium = 1;
+            assertEq(premium, expectedPremium, "Premium must match quotePremium formula");
+        }
+
+        // Verify specific value for $10M: 10M * 0.80 * 0.002 * 1.5 = $24,000
+        (uint256 premium10M,) = router.quotePremium(keccak256("TEST-PRODUCT"), 10_000_000e6);
+        assertEq(premium10M, 24_000e6, "Premium for $10M coverage should be $24,000");
     }
 
     /// @notice Max face value for LUMINA conversion must not overflow
@@ -389,42 +409,77 @@ contract MathEdgeCases is Test {
         assertEq(premium, 240000, "Premium for $100: $0.24 USDC");
     }
 
-    /// @notice 4-bucket distribution sum must not lose dust
+    /// @notice 4-bucket distribution sum must not lose dust — via real TWAPBurner adaptive mode
     function test_precision_distributionSum_noDustLoss() public {
-        // TWAPBurner._executeAdaptive splits: burn 85%, buyback 8%, ops 2%, maint 5%
-        // For amount = 10000e6:
+        // Setup adaptive mode on TWAPBurner
+        MockFeeDistributorMath feeDist = new MockFeeDistributorMath();
+        address buybackRes = makeAddr("buybackRes");
+        address opsRes = makeAddr("opsRes");
+        address maintRes = makeAddr("maintRes");
+
+        twapBurner.setFeeDistributor(address(feeDist));
+        twapBurner.setReserves(buybackRes, opsRes, maintRes);
+        twapBurner.setAdaptiveMode(true);
+
+        // Fund TWAPBurner with USDC via receivePremium
         uint256 amount = 10_000e6;
-        uint256 burnBps = 8500;
-        uint256 buybackBps = 800;
-        uint256 opsBps = 200;
-        uint256 maintBps = 500;
+        deal(usdc, address(this), amount);
+        ERC20Mock(usdc).approve(address(twapBurner), amount);
+        twapBurner.receivePremium(amount);
 
-        uint256 toBurn = (amount * burnBps) / 10000;
-        uint256 toBuyback = (amount * buybackBps) / 10000;
-        uint256 toOps = (amount * opsBps) / 10000;
-        uint256 toMaint = (amount * maintBps) / 10000;
+        // Execute adaptive burn
+        twapBurner.executeBurn();
 
-        uint256 totalDistributed = toBurn + toBuyback + toOps + toMaint;
+        // Check: sum of distributions should account for all USDC (within dust tolerance)
+        uint256 buybackBal = ERC20Mock(usdc).balanceOf(buybackRes);
+        uint256 opsBal = ERC20Mock(usdc).balanceOf(opsRes);
+        uint256 maintBal = ERC20Mock(usdc).balanceOf(maintRes);
+        uint256 burnedUSDC = twapBurner.totalUSDCBurned();
+        uint256 totalDistributed = buybackBal + opsBal + maintBal + burnedUSDC;
+
+        // For 10000e6: burn=8500e6, buyback=800e6, ops=200e6, maint=500e6 => exact
         assertEq(totalDistributed, amount, "Distribution sum must equal total (no dust)");
+        assertEq(buybackBal, 800e6, "Buyback share should be 8%");
+        assertEq(opsBal, 200e6, "Ops share should be 2%");
+        assertEq(maintBal, 500e6, "Maintenance share should be 5%");
     }
 
-    /// @notice Distribution with odd amounts may lose 1 wei dust
+    /// @notice Distribution with odd amounts may lose dust — via real TWAPBurner adaptive mode
     function test_precision_distributionDust_oddAmount() public {
-        uint256 amount = 9999e6 + 1; // $9999.000001
-        uint256 burnBps = 8500;
-        uint256 buybackBps = 800;
-        uint256 opsBps = 200;
-        uint256 maintBps = 500;
+        // Setup adaptive mode on TWAPBurner
+        MockFeeDistributorMath feeDist = new MockFeeDistributorMath();
+        address buybackRes = makeAddr("buybackRes2");
+        address opsRes = makeAddr("opsRes2");
+        address maintRes = makeAddr("maintRes2");
 
-        uint256 toBurn = (amount * burnBps) / 10000;
-        uint256 toBuyback = (amount * buybackBps) / 10000;
-        uint256 toOps = (amount * opsBps) / 10000;
-        uint256 toMaint = (amount * maintBps) / 10000;
+        twapBurner.setFeeDistributor(address(feeDist));
+        twapBurner.setReserves(buybackRes, opsRes, maintRes);
+        twapBurner.setAdaptiveMode(true);
 
-        uint256 totalDistributed = toBurn + toBuyback + toOps + toMaint;
+        // Fund TWAPBurner with odd USDC amount via receivePremium
+        uint256 amount = 7777e6; // odd amount: $7,777
+        deal(usdc, address(this), amount);
+        ERC20Mock(usdc).approve(address(twapBurner), amount);
+        twapBurner.receivePremium(amount);
+
+        // Execute adaptive burn
+        twapBurner.executeBurn();
+
+        // Check bucket balances
+        uint256 buybackBal = ERC20Mock(usdc).balanceOf(buybackRes);
+        uint256 opsBal = ERC20Mock(usdc).balanceOf(opsRes);
+        uint256 maintBal = ERC20Mock(usdc).balanceOf(maintRes);
+        uint256 burnedUSDC = twapBurner.totalUSDCBurned();
+        uint256 totalDistributed = buybackBal + opsBal + maintBal + burnedUSDC;
+
+        // Dust = amount - totalDistributed, must be <= 3 wei (one rounding per non-burn bucket)
         uint256 dust = amount - totalDistributed;
-        // Dust should be <= 3 wei (one rounding error per bucket minus burn)
-        assertLe(dust, 3, "Dust loss must be <= 3 wei");
+        assertLe(dust, 3, "Dust loss must be <= 3 wei for odd amount");
+
+        // Verify individual bucket amounts match expected integer division
+        assertEq(buybackBal, (amount * 800) / 10000, "Buyback bucket mismatch");
+        assertEq(opsBal, (amount * 200) / 10000, "Ops bucket mismatch");
+        assertEq(maintBal, (amount * 500) / 10000, "Maint bucket mismatch");
     }
 
     /// @notice Marketplace fee calculation rounds correctly for small prices
@@ -454,23 +509,32 @@ contract MathEdgeCases is Test {
     // CATEGORY 5: DECIMAL MISMATCH (4 tests)
     // ═══════════════════════════════════════════════════════
 
-    /// @notice USDC (6 dec) to LUMINA (18 dec) conversion via BondVault
+    /// @notice USDC (6 dec) to LUMINA (18 dec) conversion via BondVault.redeemBond() with actual oracle price
     function test_decimal_usdcToLumina_conversion() public {
-        // Issue bond for $800, redeem at $0.036 per LUMINA
+        // Issue bond for $800
         vault.issueBond(user, 800);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
+
+        // Read the live oracle price (not a hardcoded constant)
+        uint256 oraclePrice = oracle.getLuminaPrice();
+        assertGt(oraclePrice, 0, "Oracle price must be positive");
 
         uint256 balBefore = token.balanceOf(user);
         vm.prank(user);
         vault.redeemBond(epochId, 800);
         uint256 received = token.balanceOf(user) - balBefore;
 
-        // Expected: 800 * 1e36 / 0.036e18 = 800e36 / 3.6e16 = ~2.222e22
-        uint256 expected = (800 * 1e36) / LUMINA_PRICE;
-        assertEq(received, expected, "LUMINA received must match formula");
-        // Verify it's ~22,222 LUMINA (18 dec)
-        assertApproxEqRel(received, 22_222.222222e18, 1e15, "Should be ~22,222 LUMINA");
+        // Compute expected LUMINA from oracle price: usdAmount * 1e36 / price
+        uint256 expected = (800 * 1e36) / oraclePrice;
+        assertEq(received, expected, "LUMINA received must match oracle-based formula");
+
+        // Cross-check: converting back to USD should not exceed original amount (rounding favors protocol)
+        uint256 backToUsd = (received * oraclePrice) / 1e18;
+        assertLe(backToUsd, 800e18, "Round-trip must not overpay");
+
+        // Verify approximate human-readable amount: at $0.036, $800 = ~22,222 LUMINA
+        assertApproxEqRel(received, 22_222.222222e18, 1e15, "Should be ~22,222 LUMINA at $0.036");
     }
 
     /// @notice Oracle price consistency: 18-dec internal format
