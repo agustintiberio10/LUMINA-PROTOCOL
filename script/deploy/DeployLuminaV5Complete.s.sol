@@ -303,16 +303,70 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // STEP 19: Deploy 9 Shields
         // ═══════════════════════════════════════════════════════
-        res.flashBTCShield1h = address(new FlashBTCShield1h(res.policyManager, cfg.chainlinkOracle));
-        res.flashBTCShield4h = address(new FlashBTCShield4h(res.policyManager, cfg.chainlinkOracle));
-        res.flashBTCShield24h = address(new FlashBTCShield24h(res.policyManager, cfg.chainlinkOracle));
-        res.flashBTCShield48h = address(new FlashBTCShield48h(res.policyManager, cfg.chainlinkOracle));
-        res.flashETHShield1h = address(new FlashETHShield1h(res.policyManager, cfg.chainlinkOracle));
-        res.flashETHShield24h = address(new FlashETHShield24h(res.policyManager, cfg.chainlinkOracle));
-        res.flashETHShield48h = address(new FlashETHShield48h(res.policyManager, cfg.chainlinkOracle));
-        res.microDepegShield = address(new MicroDepegShield(res.policyManager, cfg.chainlinkOracle));
-        res.rateShockShield =
-            address(new RateShockShield(res.policyManager, cfg.chainlinkOracle, cfg.aavePool, cfg.usdc));
+        FlashBTCShield1h flashBtc1hImpl = new FlashBTCShield1h();
+        ERC1967Proxy flashBtc1hProxy = new ERC1967Proxy(
+            address(flashBtc1hImpl),
+            abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+        );
+        res.flashBTCShield1h = address(flashBtc1hProxy);
+
+        FlashBTCShield4h flashBtc4hImpl = new FlashBTCShield4h();
+        ERC1967Proxy flashBtc4hProxy = new ERC1967Proxy(
+            address(flashBtc4hImpl),
+            abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+        );
+        res.flashBTCShield4h = address(flashBtc4hProxy);
+
+        FlashBTCShield24h flashBtc24hImpl = new FlashBTCShield24h();
+        ERC1967Proxy flashBtc24hProxy = new ERC1967Proxy(
+            address(flashBtc24hImpl),
+            abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+        );
+        res.flashBTCShield24h = address(flashBtc24hProxy);
+
+        FlashBTCShield48h flashBtc48hImpl = new FlashBTCShield48h();
+        ERC1967Proxy flashBtc48hProxy = new ERC1967Proxy(
+            address(flashBtc48hImpl),
+            abi.encodeWithSelector(FlashBTCShield48h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+        );
+        res.flashBTCShield48h = address(flashBtc48hProxy);
+
+        FlashETHShield1h flashEth1hImpl = new FlashETHShield1h();
+        ERC1967Proxy flashEth1hProxy = new ERC1967Proxy(
+            address(flashEth1hImpl),
+            abi.encodeWithSelector(FlashETHShield1h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+        );
+        res.flashETHShield1h = address(flashEth1hProxy);
+
+        FlashETHShield24h flashEth24hImpl = new FlashETHShield24h();
+        ERC1967Proxy flashEth24hProxy = new ERC1967Proxy(
+            address(flashEth24hImpl),
+            abi.encodeWithSelector(FlashETHShield24h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+        );
+        res.flashETHShield24h = address(flashEth24hProxy);
+
+        FlashETHShield48h flashEth48hImpl = new FlashETHShield48h();
+        ERC1967Proxy flashEth48hProxy = new ERC1967Proxy(
+            address(flashEth48hImpl),
+            abi.encodeWithSelector(FlashETHShield48h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+        );
+        res.flashETHShield48h = address(flashEth48hProxy);
+
+        MicroDepegShield microDepegImpl = new MicroDepegShield();
+        ERC1967Proxy microDepegProxy = new ERC1967Proxy(
+            address(microDepegImpl),
+            abi.encodeWithSelector(MicroDepegShield.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+        );
+        res.microDepegShield = address(microDepegProxy);
+
+        RateShockShield rateShockImpl = new RateShockShield();
+        ERC1967Proxy rateShockProxy = new ERC1967Proxy(
+            address(rateShockImpl),
+            abi.encodeWithSelector(
+                RateShockShield.initialize.selector, res.policyManager, cfg.chainlinkOracle, cfg.aavePool, cfg.usdc
+            )
+        );
+        res.rateShockShield = address(rateShockProxy);
         console.log("19. Shields deployed (9)");
 
         // ═══════════════════════════════════════════════════════

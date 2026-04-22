@@ -213,15 +213,15 @@ contract ShieldScenariosTest is Test {
         address pm = address(policyManager);
         address orc = address(oracle);
 
-        btc1h = new FlashBTCShield1h(pm, orc);
-        btc4h = new FlashBTCShield4h(pm, orc);
-        btc24h = new FlashBTCShield24h(pm, orc);
-        btc48h = new FlashBTCShield48h(pm, orc);
-        eth1h = new FlashETHShield1h(pm, orc);
-        eth24h = new FlashETHShield24h(pm, orc);
-        eth48h = new FlashETHShield48h(pm, orc);
-        microDepeg = new MicroDepegShield(pm, orc);
-        rateShock = new RateShockShield(pm, orc, address(aavePool), address(usdc));
+        btc1h = ProxyDeployer.deployFlashBTCShield1h(pm, orc);
+        btc4h = ProxyDeployer.deployFlashBTCShield4h(pm, orc);
+        btc24h = ProxyDeployer.deployFlashBTCShield24h(pm, orc);
+        btc48h = ProxyDeployer.deployFlashBTCShield48h(pm, orc);
+        eth1h = ProxyDeployer.deployFlashETHShield1h(pm, orc);
+        eth24h = ProxyDeployer.deployFlashETHShield24h(pm, orc);
+        eth48h = ProxyDeployer.deployFlashETHShield48h(pm, orc);
+        microDepeg = ProxyDeployer.deployMicroDepegShield(pm, orc);
+        rateShock = ProxyDeployer.deployRateShockShield(pm, orc, address(aavePool), address(usdc));
 
         // Register all shields in PolicyManager
         policyManager.registerProduct(keccak256("FLASHBTC1H-001"), address(btc1h));

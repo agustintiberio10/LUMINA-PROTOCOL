@@ -57,10 +57,10 @@ contract RateShockShield is BaseShield {
     uint256 public constant TRIGGER_RATE = 10e25; // 10% APY in RAY (27 decimals)
     uint256 private constant BPS = 10_000;
 
-    /// @notice Aave V3 Pool (Base mainnet) — set at construction
-    IAaveV3Pool public immutable aavePool;
+    /// @notice Aave V3 Pool (Base mainnet)
+    IAaveV3Pool public aavePool;
     /// @notice USDC reserve asset on Base
-    address public immutable usdc;
+    address public usdc;
 
     struct RateShockData {
         bytes32 asset; // "USDC" (reference)
@@ -72,7 +72,13 @@ contract RateShockShield is BaseShield {
     error InvalidAsset(bytes32 asset);
     error RateBelowTrigger(uint256 currentRate);
 
-    constructor(address router_, address oracle_, address _aavePool, address _usdc) BaseShield(router_, oracle_) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address router_, address oracle_, address _aavePool, address _usdc) public initializer {
+        __BaseShield_init(router_, oracle_);
         require(_aavePool != address(0), "Zero aavePool");
         require(_usdc != address(0), "Zero usdc");
         aavePool = IAaveV3Pool(_aavePool);

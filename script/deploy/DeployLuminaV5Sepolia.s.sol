@@ -388,17 +388,75 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("MockShieldOracle:", address(shieldOracle));
         console.log("MockAavePool:", address(mockAavePool));
 
-        // Deploy shields (router_ = policyManager, oracle_ = shieldOracle)
-        FlashBTCShield1h flashBtc1h = new FlashBTCShield1h(address(policyManager), address(shieldOracle));
-        FlashBTCShield4h flashBtc4h = new FlashBTCShield4h(address(policyManager), address(shieldOracle));
-        FlashBTCShield24h flashBtc24h = new FlashBTCShield24h(address(policyManager), address(shieldOracle));
-        FlashBTCShield48h flashBtc48h = new FlashBTCShield48h(address(policyManager), address(shieldOracle));
-        FlashETHShield1h flashEth1h = new FlashETHShield1h(address(policyManager), address(shieldOracle));
-        FlashETHShield24h flashEth24h = new FlashETHShield24h(address(policyManager), address(shieldOracle));
-        FlashETHShield48h flashEth48h = new FlashETHShield48h(address(policyManager), address(shieldOracle));
-        MicroDepegShield microDepeg = new MicroDepegShield(address(policyManager), address(shieldOracle));
-        RateShockShield rateShock =
-            new RateShockShield(address(policyManager), address(shieldOracle), address(mockAavePool), address(usdc));
+        // Deploy shields via UUPS proxy (router_ = policyManager, oracle_ = shieldOracle)
+        FlashBTCShield1h flashBtc1hImpl = new FlashBTCShield1h();
+        ERC1967Proxy flashBtc1hProxy = new ERC1967Proxy(
+            address(flashBtc1hImpl),
+            abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, address(policyManager), address(shieldOracle))
+        );
+        FlashBTCShield1h flashBtc1h = FlashBTCShield1h(address(flashBtc1hProxy));
+
+        FlashBTCShield4h flashBtc4hImpl = new FlashBTCShield4h();
+        ERC1967Proxy flashBtc4hProxy = new ERC1967Proxy(
+            address(flashBtc4hImpl),
+            abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, address(policyManager), address(shieldOracle))
+        );
+        FlashBTCShield4h flashBtc4h = FlashBTCShield4h(address(flashBtc4hProxy));
+
+        FlashBTCShield24h flashBtc24hImpl = new FlashBTCShield24h();
+        ERC1967Proxy flashBtc24hProxy = new ERC1967Proxy(
+            address(flashBtc24hImpl),
+            abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, address(policyManager), address(shieldOracle))
+        );
+        FlashBTCShield24h flashBtc24h = FlashBTCShield24h(address(flashBtc24hProxy));
+
+        FlashBTCShield48h flashBtc48hImpl = new FlashBTCShield48h();
+        ERC1967Proxy flashBtc48hProxy = new ERC1967Proxy(
+            address(flashBtc48hImpl),
+            abi.encodeWithSelector(FlashBTCShield48h.initialize.selector, address(policyManager), address(shieldOracle))
+        );
+        FlashBTCShield48h flashBtc48h = FlashBTCShield48h(address(flashBtc48hProxy));
+
+        FlashETHShield1h flashEth1hImpl = new FlashETHShield1h();
+        ERC1967Proxy flashEth1hProxy = new ERC1967Proxy(
+            address(flashEth1hImpl),
+            abi.encodeWithSelector(FlashETHShield1h.initialize.selector, address(policyManager), address(shieldOracle))
+        );
+        FlashETHShield1h flashEth1h = FlashETHShield1h(address(flashEth1hProxy));
+
+        FlashETHShield24h flashEth24hImpl = new FlashETHShield24h();
+        ERC1967Proxy flashEth24hProxy = new ERC1967Proxy(
+            address(flashEth24hImpl),
+            abi.encodeWithSelector(FlashETHShield24h.initialize.selector, address(policyManager), address(shieldOracle))
+        );
+        FlashETHShield24h flashEth24h = FlashETHShield24h(address(flashEth24hProxy));
+
+        FlashETHShield48h flashEth48hImpl = new FlashETHShield48h();
+        ERC1967Proxy flashEth48hProxy = new ERC1967Proxy(
+            address(flashEth48hImpl),
+            abi.encodeWithSelector(FlashETHShield48h.initialize.selector, address(policyManager), address(shieldOracle))
+        );
+        FlashETHShield48h flashEth48h = FlashETHShield48h(address(flashEth48hProxy));
+
+        MicroDepegShield microDepegImpl = new MicroDepegShield();
+        ERC1967Proxy microDepegProxy = new ERC1967Proxy(
+            address(microDepegImpl),
+            abi.encodeWithSelector(MicroDepegShield.initialize.selector, address(policyManager), address(shieldOracle))
+        );
+        MicroDepegShield microDepeg = MicroDepegShield(address(microDepegProxy));
+
+        RateShockShield rateShockImpl = new RateShockShield();
+        ERC1967Proxy rateShockProxy = new ERC1967Proxy(
+            address(rateShockImpl),
+            abi.encodeWithSelector(
+                RateShockShield.initialize.selector,
+                address(policyManager),
+                address(shieldOracle),
+                address(mockAavePool),
+                address(usdc)
+            )
+        );
+        RateShockShield rateShock = RateShockShield(address(rateShockProxy));
 
         console.log("FlashBTC1H:", address(flashBtc1h));
         console.log("FlashBTC4H:", address(flashBtc4h));

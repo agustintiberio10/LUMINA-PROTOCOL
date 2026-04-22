@@ -276,15 +276,17 @@ contract DeployE2ETest is Test {
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
 
         // ── Phase 12: Deploy 9 REAL shields ──
-        flashBtc1h = new FlashBTCShield1h(address(policyManager), address(shieldOracle));
-        flashBtc4h = new FlashBTCShield4h(address(policyManager), address(shieldOracle));
-        flashBtc24h = new FlashBTCShield24h(address(policyManager), address(shieldOracle));
-        flashBtc48h = new FlashBTCShield48h(address(policyManager), address(shieldOracle));
-        flashEth1h = new FlashETHShield1h(address(policyManager), address(shieldOracle));
-        flashEth24h = new FlashETHShield24h(address(policyManager), address(shieldOracle));
-        flashEth48h = new FlashETHShield48h(address(policyManager), address(shieldOracle));
-        microDepeg = new MicroDepegShield(address(policyManager), address(shieldOracle));
-        rateShock = new RateShockShield(address(policyManager), address(shieldOracle), address(aavePool), address(usdc));
+        flashBtc1h = ProxyDeployer.deployFlashBTCShield1h(address(policyManager), address(shieldOracle));
+        flashBtc4h = ProxyDeployer.deployFlashBTCShield4h(address(policyManager), address(shieldOracle));
+        flashBtc24h = ProxyDeployer.deployFlashBTCShield24h(address(policyManager), address(shieldOracle));
+        flashBtc48h = ProxyDeployer.deployFlashBTCShield48h(address(policyManager), address(shieldOracle));
+        flashEth1h = ProxyDeployer.deployFlashETHShield1h(address(policyManager), address(shieldOracle));
+        flashEth24h = ProxyDeployer.deployFlashETHShield24h(address(policyManager), address(shieldOracle));
+        flashEth48h = ProxyDeployer.deployFlashETHShield48h(address(policyManager), address(shieldOracle));
+        microDepeg = ProxyDeployer.deployMicroDepegShield(address(policyManager), address(shieldOracle));
+        rateShock = ProxyDeployer.deployRateShockShield(
+            address(policyManager), address(shieldOracle), address(aavePool), address(usdc)
+        );
 
         // ── Phase 13: Register shields in PolicyManager (correct IDs!) ──
         policyManager.registerProduct(ID_FLASHBTC1H, address(flashBtc1h));

@@ -2,12 +2,13 @@
 pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../../src/products/FlashETHShield24h.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract FlashETHShield24hTest is Test {
     FlashETHShield24h shield;
 
     function setUp() public {
-        shield = new FlashETHShield24h(makeAddr("r"), makeAddr("o"));
+        shield = ProxyDeployer.deployFlashETHShield24h(makeAddr("r"), makeAddr("o"));
     }
 
     function test_productId() public view {

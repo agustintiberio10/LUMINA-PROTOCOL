@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IShield} from "../interfaces/IShield.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {IOracleV2} from "../interfaces/IOracleV2.sol";
@@ -19,70 +22,46 @@ import {IOracleV2} from "../interfaces/IOracleV2.sol";
  *           _doVerifyAndCalculate() — trigger logic + payout calculation
  *           Metadata: productId, riskType, maxAllocationBps, durationRange, waitingPeriod
  *
- * @dev NOT upgradeable. If a Shield needs changes → deploy new, re-register in Router.
- *      Gas-optimized for M2M: bytes32 reasons, no strings, immutables where possible.
+ * @dev [V5.1] UUPS upgradeable proxy pattern. Each concrete Shield deploys behind a proxy.
  */
-abstract contract BaseShield is IShield {
+abstract contract BaseShield is Initializable, UUPSUpgradeable, OwnableUpgradeable, IShield {
     // ═══════════════════════════════════════════════════════════
     //  CONSTANTS
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Grace period after expiry for agents to submit claims on-chain.
-    ///         The oracle event (verifiedAt) must have occurred DURING coverage,
-    ///         but the on-chain TX can arrive up to CLAIM_GRACE_PERIOD after expiry.
-    ///         [FIX] Addresses race condition: crash 5 min before expiry → oracle
-    ///         needs time for TWAP → agent TX lands after expiresAt.
-    ///         [FIX R2] Changed from 1h to 24h: L2 sequencer downtime during
-    ///         catastrophic events (Base, Arbitrum precedent) can block TXs for hours.
-    ///         24h costs nothing (capital already in _allocatedAssets) but saves UX.
     uint256 public constant CLAIM_GRACE_PERIOD = 24 hours;
-
-    /// @notice Safety window after policy expiry before anyone can settle.
-    ///         Ensures the coverage period has fully elapsed and a buffer exists
-    ///         for price feeds to update before settlement is attempted.
     uint256 public constant SAFETY_WINDOW = 24 hours;
 
     // ═══════════════════════════════════════════════════════════
     //  ERRORS (additional)
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice [FIX] Proper error for zero address in constructor (was reusing OnlyRouter)
     error ZeroAddress(string param);
-
-    /// @notice [FIX] Oracle event occurred after policy expiry (not during coverage)
     error EventAfterExpiry(uint256 policyId, uint256 verifiedAt, uint256 expiresAt);
-
-    // NOTE: PolicySettledTriggered and PolicySettledExpired events are inherited from IShield
-
-    /// @notice Safety window has not elapsed yet
     error SafetyWindowNotPassed(uint256 policyId, uint256 earliest, uint256 current);
 
     // ═══════════════════════════════════════════════════════════
-    //  IMMUTABLES
+    //  STORAGE (was immutable)
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice CoverRouter — the ONLY caller for lifecycle functions
-    address public immutable router;
-
-    /// @notice Oracle contract for signature verification
-    address public immutable oracle;
+    address public router;
+    address public oracle;
 
     // ═══════════════════════════════════════════════════════════
     //  STORAGE
     // ═══════════════════════════════════════════════════════════
 
-    /// @dev Core policy data conforming to IShield.PolicyInfo
     struct CorePolicy {
         address insuredAgent;
-        uint256 coverageAmount; // 6 decimals (USDC scale)
+        uint256 coverageAmount;
         uint256 premiumPaid;
         uint256 maxPayout;
         uint256 startTimestamp;
         uint256 waitingEndsAt;
         uint256 expiresAt;
         uint256 cleanupAt;
-        bool finalized; // true once PAID_OUT or EXPIRED
-        PolicyStatus finalStatus; // only meaningful when finalized == true
+        bool finalized;
+        PolicyStatus finalStatus;
     }
 
     mapping(uint256 => CorePolicy) internal _policies;
@@ -91,10 +70,13 @@ abstract contract BaseShield is IShield {
     uint256 private _totalActiveCoverage;
 
     // ═══════════════════════════════════════════════════════════
-    //  CONSTRUCTOR
+    //  INITIALIZER (replaces constructor)
     // ═══════════════════════════════════════════════════════════
 
-    constructor(address router_, address oracle_) {
+    // solhint-disable-next-line func-name-mixedcase
+    function __BaseShield_init(address router_, address oracle_) internal onlyInitializing {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
         if (router_ == address(0)) revert ZeroAddress("router");
         if (oracle_ == address(0)) revert ZeroAddress("oracle");
         router = router_;
@@ -116,33 +98,27 @@ abstract contract BaseShield is IShield {
 
     /// @inheritdoc IShield
     function createPolicy(CreatePolicyParams calldata params) external onlyRouter returns (uint256 policyId) {
-        // Validate duration
         (uint32 minD, uint32 maxD) = this.durationRange();
         if (params.durationSeconds < minD || params.durationSeconds > maxD) {
             revert DurationOutOfRange(params.durationSeconds, minD, maxD);
         }
 
-        // Validate coverage
         if (params.coverageAmount < _minCoverage()) {
             revert CoverageOutOfRange(params.coverageAmount, _minCoverage(), type(uint256).max);
         }
 
-        // Generate policyId (1-indexed)
         unchecked {
             _policyCounter++;
         }
         policyId = _policyCounter;
 
-        // Compute maxPayout (product-specific)
         uint256 maxPay = _calculateMaxPayout(params.coverageAmount, params);
 
-        // Compute timestamps
         uint32 wp = this.waitingPeriod();
         uint256 waitEnds = block.timestamp + wp;
         uint256 expires = waitEnds + params.durationSeconds;
         uint256 cleanup = _calculateCleanupAt(expires);
 
-        // Store core policy
         _policies[policyId] = CorePolicy({
             insuredAgent: params.buyer,
             coverageAmount: params.coverageAmount,
@@ -156,10 +132,8 @@ abstract contract BaseShield is IShield {
             finalStatus: PolicyStatus.NONEXISTENT
         });
 
-        // Let concrete Shield store product-specific data
         _doCreatePolicy(policyId, params);
 
-        // Update counters
         _activePolicies++;
         _totalActiveCoverage += params.coverageAmount;
 
@@ -187,19 +161,14 @@ abstract contract BaseShield is IShield {
         }
 
         PolicyStatus current = _computeStatus(cp);
-
-        // Product-specific status check (IL Index requires SETTLEMENT, others require ACTIVE)
         _validateStatusForTrigger(policyId, current);
 
-        // Delegate to concrete Shield
         result = _doVerifyAndCalculate(policyId, oracleProof);
 
-        // Enforce maxPayout cap
         if (result.payoutAmount > cp.maxPayout) {
             result.payoutAmount = cp.maxPayout;
         }
 
-        // Enforce recipient = insuredAgent
         result.recipient = cp.insuredAgent;
     }
 
@@ -217,7 +186,6 @@ abstract contract BaseShield is IShield {
         _activePolicies--;
         _totalActiveCoverage -= cp.coverageAmount;
 
-        // Product-specific cleanup hook (e.g., ExploitShield wallet tracking)
         _afterFinalize(policyId, cp);
 
         emit PolicyPaidOut(policyId, cp.insuredAgent, cp.maxPayout, "PAID_OUT");
@@ -237,7 +205,6 @@ abstract contract BaseShield is IShield {
         _activePolicies--;
         _totalActiveCoverage -= cp.coverageAmount;
 
-        // Product-specific cleanup hook
         _afterFinalize(policyId, cp);
 
         emit PolicyExpired(policyId);
@@ -247,12 +214,6 @@ abstract contract BaseShield is IShield {
     //  NEW TRIGGER FLOW — permissionless settlement
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Check if a policy's trigger condition was met and settle accordingly.
-    /// @dev    Anyone can call this after coverage end + SAFETY_WINDOW.
-    ///         Reads price directly from oracle (Chainlink) — no signed proof needed.
-    ///         If triggered → marks PAID_OUT and emits PolicySettledTriggered.
-    ///         If not triggered → marks EXPIRED and emits PolicySettledExpired.
-    /// @param policyId The policy to check and settle
     function checkAndSettlePolicy(uint256 policyId) external {
         CorePolicy storage cp = _policies[policyId];
         if (cp.insuredAgent == address(0)) revert PolicyNotFound(policyId);
@@ -265,7 +226,6 @@ abstract contract BaseShield is IShield {
             revert SafetyWindowNotPassed(policyId, earliest, block.timestamp);
         }
 
-        // Check if trigger condition was met (reads oracle directly)
         bool triggered = _checkTriggerCondition(policyId);
 
         cp.finalized = true;
@@ -333,35 +293,12 @@ abstract contract BaseShield is IShield {
     //  INTERNAL — STATUS COMPUTATION
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * @dev Status computation for non-finalized policies.
-     *
-     *      TIMELINE:
-     *        |---WAITING---|--------ACTIVE--------|--GRACE PERIOD (24h)--|--EXPIRED-->
-     *                      waitingEndsAt    expiresAt          cleanupAt
-     *
-     *      IMPORTANT: For Router compatibility, non-finalized policies past expiresAt
-     *      return ACTIVE (not EXPIRED). This allows:
-     *        1. Agents to submit late claims during CLAIM_GRACE_PERIOD (24h)
-     *        2. Router.cleanupExpiredPolicy() to work (requires ACTIVE || SETTLEMENT)
-     *
-     *      Safety is enforced at two levels:
-     *        - _validateStatusForTrigger: rejects claims after cleanupAt
-     *        - Each Shield's _doVerifyAndCalculate: checks verifiedAt is in-coverage
-     *
-     *      IL Index: uses SETTLEMENT status (48h window) instead of ACTIVE grace.
-     */
     function _computeStatus(CorePolicy storage cp) internal view returns (PolicyStatus) {
         if (block.timestamp < cp.waitingEndsAt) return PolicyStatus.WAITING;
         if (block.timestamp < cp.expiresAt) return PolicyStatus.ACTIVE;
-        // IL Index: between expiresAt and cleanupAt → SETTLEMENT
         if (_hasSettlementWindow() && block.timestamp <= cp.cleanupAt) {
             return PolicyStatus.SETTLEMENT;
         }
-        // [FIX L-1] Past expiresAt (or past cleanupAt for settlement products)
-        // and not finalized → return EXPIRED. Previously returned ACTIVE which
-        // misrepresented policy status. Router.cleanupExpiredPolicy updated to
-        // also accept EXPIRED status.
         return PolicyStatus.EXPIRED;
     }
 
@@ -369,31 +306,11 @@ abstract contract BaseShield is IShield {
     //  INTERNAL — ORACLE VERIFICATION HELPER
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * @notice Verify an oracle-signed proof
-     * @param dataHash keccak256 of the encoded data
-     * @param signature Oracle signature over dataHash
-     * @return true if signature is from the authorized oracle key
-     */
     function _verifyOracleSignature(bytes32 dataHash, bytes memory signature) internal view returns (bool) {
         address signer = IOracle(oracle).verifySignature(dataHash, signature);
         return signer == IOracle(oracle).oracleKey();
     }
 
-    /**
-     * @notice [V2] Verify an EIP-712 typed PriceProof against the oracle.
-     * @dev    The oracle's domain separator pins the proof to (chainId, oracle).
-     *         A proof generated against a different chain or a different oracle
-     *         instance will not validate. This is the **only** verifier used by
-     *         V2 shields and supersedes the raw-digest path above.
-     *
-     *         The recovered signer must match the canonical oracleKey (or be
-     *         a member of the authorized signer set in multisig mode); the
-     *         oracle returns address(0) on any failure.
-     *
-     *         Requires the bound `oracle` to implement IOracle V2 (i.e.,
-     *         LuminaOracleV2 or later). V1 oracles will revert.
-     */
     function _verifyPriceProofEIP712(int256 price, bytes32 asset, uint256 verifiedAt, bytes memory signature)
         internal
         view
@@ -403,10 +320,6 @@ abstract contract BaseShield is IShield {
         return signer != address(0);
     }
 
-    /**
-     * @notice [V2] Verify an EIP-712 typed ExploitGovProof against the oracle.
-     * @dev    Used by ExploitShieldV2 for the gov-token-drop condition.
-     */
     function _verifyExploitGovProofEIP712(
         int256 govTokenPrice,
         int256 govTokenPrice24hAgo,
@@ -423,78 +336,42 @@ abstract contract BaseShield is IShield {
     //  ABSTRACT — PRODUCT-SPECIFIC (must override)
     // ═══════════════════════════════════════════════════════════
 
-    /// @dev Store product-specific data (strikePrice, stablecoin, etc.)
     function _doCreatePolicy(uint256 policyId, CreatePolicyParams calldata params) internal virtual;
 
-    /// @dev Verify trigger + calculate payout. Must set triggered, payoutAmount, reason.
-    /// @custom:deprecated Use checkAndSettlePolicy + _checkTriggerCondition for new flow.
     function _doVerifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
         internal
         virtual
         returns (PayoutResult memory);
 
-    /// @dev Each shield implements this to check its specific trigger condition
-    ///      by reading the oracle directly (no signed proof).
-    ///      Called by checkAndSettlePolicy after the safety window.
     function _checkTriggerCondition(uint256 policyId) internal view virtual returns (bool);
 
-    /// @dev Calculate maxPayout for this product (e.g., coverage * 80% for BSS)
     function _calculateMaxPayout(uint256 coverageAmount, CreatePolicyParams calldata params)
         internal
         view
         virtual
         returns (uint256);
 
-    /// @dev Return cleanupAt. Default: expiresAt + CLAIM_GRACE_PERIOD.
-    ///      [FIX] Grace period prevents bots from cleaning up before agents can claim
-    ///      events that occurred near expiry. IL Index overrides with 48h settlement.
     function _calculateCleanupAt(uint256 expiresAt) internal view virtual returns (uint256) {
         return expiresAt + CLAIM_GRACE_PERIOD;
     }
 
-    /// @dev Whether this product has a settlement window (IL Index: true, others: false)
     function _hasSettlementWindow() internal pure virtual returns (bool) {
         return false;
     }
 
-    /// @dev Minimum coverage in USDC (6 decimals). Default: $100 = 100e6
     function _minCoverage() internal pure virtual returns (uint256) {
         return 100e6;
     }
 
-    /// @dev Hook called after a policy is finalized (paid out or expired).
-    ///      Override for product-specific cleanup (e.g., ExploitShield wallet coverage release).
     function _afterFinalize(uint256 policyId, CorePolicy storage cp) internal virtual {
-        // Default: no-op. Suppress unused variable warnings.
         policyId;
         cp;
     }
 
-    /// @dev Validate status is correct for triggering.
-    ///      [FIX] Changed from `block.timestamp < expiresAt` to `block.timestamp < cleanupAt`.
-    ///      This creates a CLAIM_GRACE_PERIOD (24h) after expiry where agents can still submit
-    ///      claims for events that occurred during coverage. Each Shield's _doVerifyAndCalculate
-    ///      MUST verify `verifiedAt <= expiresAt` to ensure the event was during coverage.
-    ///
-    ///      Timeline: |---WAITING---|--------ACTIVE--------|--GRACE (24h)--|--CLEANUP-->
-    ///                              waitingEndsAt    expiresAt    cleanupAt
-    ///
-    ///      IL Index overrides: requires SETTLEMENT status (48h window replaces grace).
-    /// @dev [H-5] [FIX L-1] Accept ACTIVE or EXPIRED status for trigger validation.
-    ///      _computeStatus now correctly returns EXPIRED for non-finalized policies past expiresAt.
-    ///      During the grace period (expiresAt → cleanupAt), agents can still submit claims
-    ///      for events that occurred during coverage. The cleanupAt check is the temporal boundary.
-    ///      Both checks are needed: status prevents finalized policies, cleanupAt prevents stale claims.
     function _validateStatusForTrigger(uint256 policyId, PolicyStatus current) internal view virtual {
-        // Allow ACTIVE (during coverage) or EXPIRED (grace period, not yet finalized)
         if (current != PolicyStatus.ACTIVE && current != PolicyStatus.EXPIRED) {
             revert InvalidPolicyStatus(policyId, current, PolicyStatus.ACTIVE);
         }
-        // Allow claims during grace period (expiresAt → adjustedCleanupAt)
-        // [FIX M-9] Extend grace period by sequencer downtime.
-        // [DOC N-6] Collateral remains locked during sequencer downtime extension to protect
-        // insured agents' right to claim. This temporarily reduces vault free assets but ensures
-        // no legitimate claim is lost. Cleanup bots cannot release collateral until adjustedCleanupAt.
         CorePolicy storage cp = _policies[policyId];
         uint256 downtime = IOracle(oracle).getSequencerDowntime(cp.expiresAt);
         uint256 adjustedCleanupAt = cp.cleanupAt + downtime;
@@ -502,4 +379,9 @@ abstract contract BaseShield is IShield {
             revert InvalidPolicyStatus(policyId, PolicyStatus.EXPIRED, PolicyStatus.ACTIVE);
         }
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

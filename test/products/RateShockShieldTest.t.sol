@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../../src/products/RateShockShield.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // Minimal mock Aave V3 pool that returns a configurable borrow rate
 contract MockAaveV3Pool {
@@ -27,7 +28,7 @@ contract RateShockShieldTest is Test {
 
     function setUp() public {
         mockPool = new MockAaveV3Pool();
-        shield = new RateShockShield(router, oracle, address(mockPool), usdc);
+        shield = ProxyDeployer.deployRateShockShield(router, oracle, address(mockPool), usdc);
     }
 
     function test_productId() public view {

@@ -19,6 +19,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // ═══════════════════════════════════════════════════════════
 //  MOCK CONTRACTS
@@ -108,10 +109,16 @@ contract MockDexRouter {
 
 /// @notice Minimal concrete shield for testing. Implements all abstract methods.
 contract TestShield is BaseShield {
-    bytes32 public immutable _productId;
+    bytes32 public _productId;
     address public policyManagerAddr;
 
-    constructor(address router_, address oracle_, bytes32 productId_) BaseShield(router_, oracle_) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address router_, address oracle_, bytes32 productId_) public initializer {
+        __BaseShield_init(router_, oracle_);
         _productId = productId_;
     }
 
@@ -336,7 +343,12 @@ contract AttackVectors is Test, ERC1155Holder {
         router.setCapacityOracle(address(oracle));
 
         // Deploy TestShield
-        shield = new TestShield(address(policyManager), address(oracle), PRODUCT_ID);
+        TestShield shieldImpl = new TestShield();
+        ERC1967Proxy shieldProxy = new ERC1967Proxy(
+            address(shieldImpl),
+            abi.encodeWithSelector(TestShield.initialize.selector, address(policyManager), address(oracle), PRODUCT_ID)
+        );
+        shield = TestShield(address(shieldProxy));
         shield.setPolicyManager(address(policyManager));
 
         // Register product in PolicyManager

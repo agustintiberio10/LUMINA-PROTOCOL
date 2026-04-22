@@ -49,7 +49,14 @@ contract FlashBTCShield1h is BaseShield {
     error ProofTooOld(uint256 verifiedAt, uint256 currentTime);
     error AssetMismatch(bytes32 policyAsset, bytes32 proofAsset);
 
-    constructor(address router_, address oracle_) BaseShield(router_, oracle_) {}
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address router_, address oracle_) public initializer {
+        __BaseShield_init(router_, oracle_);
+    }
 
     function productId() external pure returns (bytes32) {
         return PRODUCT_ID;
