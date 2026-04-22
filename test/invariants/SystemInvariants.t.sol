@@ -48,7 +48,7 @@ contract SystemInvariants is Test {
         mockSolvencyOracle = new MockSolvencyOracle();
 
         // ── Deploy AdaptiveFeeDistributor with mock solvency oracle ──
-        distributor = new AdaptiveFeeDistributor(address(mockSolvencyOracle));
+        distributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(mockSolvencyOracle));
 
         // ── Deploy ClaimBond ──
         claimBond = ProxyDeployer.deployClaimBond();

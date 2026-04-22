@@ -140,7 +140,7 @@ contract DeploymentFlowTest is Test {
         claimBond.setBondVault(address(bondVault));
 
         // Deploy CapacityOracle (no pool set — will use emergency price)
-        capacityOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
+        capacityOracle = ProxyDeployer.deployCapacityOracle(address(0), address(token), address(usdc), 0.036e18);
 
         // Deploy CoverRouter
         coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));

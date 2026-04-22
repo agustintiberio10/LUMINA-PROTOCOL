@@ -201,8 +201,14 @@ contract DeployLuminaV5Sepolia is Script {
         // ──────────────────────────────────────────────────
         // PHASE 2: Deploy contracts without circular deps
         // ──────────────────────────────────────────────────
-        MaintenanceReserve maintenanceReserve = new MaintenanceReserve(address(usdc), deployer);
-        console.log("MaintenanceReserve:", address(maintenanceReserve));
+        // [V5.1] MaintenanceReserve via UUPS proxy
+        MaintenanceReserve maintenanceReserveImpl = new MaintenanceReserve();
+        ERC1967Proxy maintenanceProxy = new ERC1967Proxy(
+            address(maintenanceReserveImpl),
+            abi.encodeWithSelector(MaintenanceReserve.initialize.selector, address(usdc), deployer)
+        );
+        MaintenanceReserve maintenanceReserve = MaintenanceReserve(address(maintenanceProxy));
+        console.log("MaintenanceReserve (proxy):", address(maintenanceReserve));
 
         // [V5.1] ClaimBond via UUPS proxy
         ClaimBond claimBondImpl = new ClaimBond();
@@ -215,20 +221,27 @@ contract DeployLuminaV5Sepolia is Script {
         // PHASE 3: Predict LuminaTokenV2 PROXY address to break
         //          the circular dependency
         // ──────────────────────────────────────────────────
-        // Nonce count before LuminaTokenV2 proxy:
-        //   +1 capacityOracle, +1 bondVaultImpl, +1 bondVaultProxy,
-        //   +1 cexReserve, +1 treasuryVesting, +1 luminaImpl, +1 luminaProxy
+        // [V5.1] Nonce count before LuminaTokenV2 proxy:
+        //   +2 capacityOracle(proxy), +2 bondVault(proxy),
+        //   +2 cexReserve(proxy), +2 treasuryVesting(proxy), +2 lumina(proxy) = proxy at +9
         uint64 currentNonce = vm.getNonce(deployer);
-        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 6);
+        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 9);
         console.log("Predicted LUMINA proxy address:", predictedLumina);
 
-        CapacityOracle capacityOracle = new CapacityOracle(
-            address(0), // pool (none on Sepolia initially)
-            predictedLumina, // luminaToken (proxy address)
-            address(usdc), // usdcToken
-            EMERGENCY_PRICE
+        // [V5.1] CapacityOracle via UUPS proxy
+        CapacityOracle capacityOracleImpl = new CapacityOracle();
+        ERC1967Proxy capacityOracleProxy = new ERC1967Proxy(
+            address(capacityOracleImpl),
+            abi.encodeWithSelector(
+                CapacityOracle.initialize.selector,
+                address(0), // pool (none on Sepolia initially)
+                predictedLumina, // luminaToken (proxy address)
+                address(usdc), // usdcToken
+                EMERGENCY_PRICE
+            )
         );
-        console.log("CapacityOracle:", address(capacityOracle));
+        CapacityOracle capacityOracle = CapacityOracle(address(capacityOracleProxy));
+        console.log("CapacityOracle (proxy):", address(capacityOracle));
 
         // [V5.1] BondVault via UUPS proxy
         BondVault bondVaultImpl = new BondVault();
@@ -245,11 +258,22 @@ contract DeployLuminaV5Sepolia is Script {
         BondVault bondVault = BondVault(address(bondVaultProxy));
         console.log("BondVault (proxy):", address(bondVault));
 
-        CEXLiquidityReserve cexReserve = new CEXLiquidityReserve(predictedLumina, deployer);
-        console.log("CEXLiquidityReserve:", address(cexReserve));
+        // [V5.1] CEXLiquidityReserve via UUPS proxy
+        CEXLiquidityReserve cexReserveImpl = new CEXLiquidityReserve();
+        ERC1967Proxy cexReserveProxy = new ERC1967Proxy(
+            address(cexReserveImpl),
+            abi.encodeWithSelector(CEXLiquidityReserve.initialize.selector, predictedLumina, deployer)
+        );
+        CEXLiquidityReserve cexReserve = CEXLiquidityReserve(address(cexReserveProxy));
+        console.log("CEXLiquidityReserve (proxy):", address(cexReserve));
 
-        TreasuryVesting treasuryVesting = new TreasuryVesting(predictedLumina);
-        console.log("TreasuryVesting:", address(treasuryVesting));
+        // [V5.1] TreasuryVesting via UUPS proxy
+        TreasuryVesting treasuryVestingImpl = new TreasuryVesting();
+        ERC1967Proxy treasuryVestingProxy = new ERC1967Proxy(
+            address(treasuryVestingImpl), abi.encodeWithSelector(TreasuryVesting.initialize.selector, predictedLumina)
+        );
+        TreasuryVesting treasuryVesting = TreasuryVesting(address(treasuryVestingProxy));
+        console.log("TreasuryVesting (proxy):", address(treasuryVesting));
 
         // ──────────────────────────────────────────────────
         // PHASE 4: Deploy LuminaTokenV2 via UUPS proxy
@@ -282,11 +306,25 @@ contract DeployLuminaV5Sepolia is Script {
         // ──────────────────────────────────────────────────
         // PHASE 6: SolvencyOracle + AdaptiveFeeDistributor
         // ──────────────────────────────────────────────────
-        SolvencyOracle solvencyOracle = new SolvencyOracle(address(bondVault), address(capacityOracle), deployer);
-        console.log("SolvencyOracle:", address(solvencyOracle));
+        // [V5.1] SolvencyOracle via UUPS proxy
+        SolvencyOracle solvencyOracleImpl = new SolvencyOracle();
+        ERC1967Proxy solvencyOracleProxy = new ERC1967Proxy(
+            address(solvencyOracleImpl),
+            abi.encodeWithSelector(
+                SolvencyOracle.initialize.selector, address(bondVault), address(capacityOracle), deployer
+            )
+        );
+        SolvencyOracle solvencyOracle = SolvencyOracle(address(solvencyOracleProxy));
+        console.log("SolvencyOracle (proxy):", address(solvencyOracle));
 
-        AdaptiveFeeDistributor feeDistributor = new AdaptiveFeeDistributor(address(solvencyOracle));
-        console.log("AdaptiveFeeDistributor:", address(feeDistributor));
+        // [V5.1] AdaptiveFeeDistributor via UUPS proxy
+        AdaptiveFeeDistributor feeDistributorImpl = new AdaptiveFeeDistributor();
+        ERC1967Proxy feeDistributorProxy = new ERC1967Proxy(
+            address(feeDistributorImpl),
+            abi.encodeWithSelector(AdaptiveFeeDistributor.initialize.selector, address(solvencyOracle))
+        );
+        AdaptiveFeeDistributor feeDistributor = AdaptiveFeeDistributor(address(feeDistributorProxy));
+        console.log("AdaptiveFeeDistributor (proxy):", address(feeDistributor));
 
         // ──────────────────────────────────────────────────
         // PHASE 7: TWAPBurner

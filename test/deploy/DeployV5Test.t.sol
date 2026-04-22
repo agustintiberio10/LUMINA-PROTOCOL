@@ -194,7 +194,7 @@ contract DeployV5Test is Test {
         // ──────────────────────────────────────────────────────
         // PHASE 2: Deploy contracts that have NO circular deps
         // ──────────────────────────────────────────────────────
-        maintenanceReserve = new MaintenanceReserve(address(usdc), multisig);
+        maintenanceReserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), multisig);
         claimBond = ProxyDeployer.deployClaimBond();
 
         // ──────────────────────────────────────────────────────
@@ -235,14 +235,14 @@ contract DeployV5Test is Test {
         // Current nonce accounting: this is a test contract, so we track via vm.getNonce.
         uint64 currentNonce = vm.getNonce(deployer);
         // Contracts still to deploy before lumina:
-        //   capacityOracle (+1)
+        //   capacityOracle via ProxyDeployer (+2: impl + proxy)
         //   bondVault via ProxyDeployer (+2: impl + proxy)
-        //   cexReserve (+1)
-        //   treasuryVesting (+1)
-        //   then lumina impl at nonce+5, lumina proxy at nonce+6
-        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 6);
+        //   cexReserve via ProxyDeployer (+2: impl + proxy)
+        //   treasuryVesting via ProxyDeployer (+2: impl + proxy)
+        //   then lumina impl at nonce+8, lumina proxy at nonce+9
+        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 9);
 
-        capacityOracle = new CapacityOracle(
+        capacityOracle = ProxyDeployer.deployCapacityOracle(
             address(0), // pool (none yet)
             predictedLumina, // luminaToken
             address(usdc), // usdcToken
@@ -256,12 +256,12 @@ contract DeployV5Test is Test {
             address(0) // policyManager (set later via one-shot)
         );
 
-        cexReserve = new CEXLiquidityReserve(
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(
             predictedLumina, // lumina
             multisig // admin
         );
 
-        treasuryVesting = new TreasuryVesting(predictedLumina);
+        treasuryVesting = ProxyDeployer.deployTreasuryVesting(predictedLumina);
 
         // ──────────────────────────────────────────────────────
         // PHASE 4: Deploy LuminaTokenV2
@@ -280,9 +280,9 @@ contract DeployV5Test is Test {
         // ──────────────────────────────────────────────────────
         // PHASE 6: SolvencyOracle + AdaptiveFeeDistributor
         // ──────────────────────────────────────────────────────
-        solvencyOracle = new SolvencyOracle(address(bondVault), address(capacityOracle), multisig);
+        solvencyOracle = ProxyDeployer.deploySolvencyOracle(address(bondVault), address(capacityOracle), multisig);
 
-        feeDistributor = new AdaptiveFeeDistributor(address(solvencyOracle));
+        feeDistributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(solvencyOracle));
 
         // ──────────────────────────────────────────────────────
         // PHASE 7: TWAPBurner

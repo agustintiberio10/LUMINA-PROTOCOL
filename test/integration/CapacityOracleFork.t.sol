@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 /// @title CapacityOracleForkTest
 /// @notice Integration tests against a Base mainnet fork.
@@ -15,6 +16,8 @@ import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 ///         If BASE_RPC_URL is not set, the tests will be skipped with a
 ///         descriptive vm.skip message.
 contract CapacityOracleForkTest is Test {
+    using ProxyDeployer for *;
+
     address constant USDC_BASE = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
 
     /// @notice Skip tests if we're not on a fork (no RPC URL provided).
@@ -41,7 +44,7 @@ contract CapacityOracleForkTest is Test {
         // Even on a fork, we can deploy fresh contracts
         address mockLumina = makeAddr("lumina");
 
-        CapacityOracle oracle = new CapacityOracle(address(0), mockLumina, USDC_BASE, 0.036e18);
+        CapacityOracle oracle = ProxyDeployer.deployCapacityOracle(address(0), mockLumina, USDC_BASE, 0.036e18);
 
         uint256 price = oracle.getLuminaPrice();
         assertEq(price, 0.036e18, "Should return emergency price when no pool");
@@ -58,7 +61,7 @@ contract CapacityOracleForkTest is Test {
     /// @notice Test 4: Verify maxPoliciesPerDay returns sane values at various prices.
     function test_fork_maxPoliciesPerDay() public onlyFork {
         address mockLumina = makeAddr("lumina");
-        CapacityOracle oracle = new CapacityOracle(address(0), mockLumina, USDC_BASE, 0.036e18);
+        CapacityOracle oracle = ProxyDeployer.deployCapacityOracle(address(0), mockLumina, USDC_BASE, 0.036e18);
 
         uint256 policies = oracle.maxPoliciesPerDay();
         // At $0.036: ~404 policies/day

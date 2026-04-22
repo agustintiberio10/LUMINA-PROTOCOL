@@ -1,37 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title TreasuryVesting
 /// @notice 3M LUMINA locked 6 months, then max 250K/month.
-/// @dev Controlled by Gnosis Safe (owner). Never sold on open market.
-///      Used only for: liquidity top-ups, market maker deals,
-///      bug bounties, emergency bond reserve top-up.
-contract TreasuryVesting is Ownable {
+/// @dev [V5.1] UUPS upgradeable proxy pattern.
+contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public constant TOTAL_AMOUNT = 3_000_000 * 1e18;
-    uint256 public constant LOCK_DURATION = 180 days; // 6 months
-    uint256 public constant MAX_MONTHLY_RELEASE = 250_000 * 1e18; // 250K/month
+    uint256 public constant LOCK_DURATION = 180 days;
+    uint256 public constant MAX_MONTHLY_RELEASE = 250_000 * 1e18;
     uint256 public constant MONTH = 30 days;
 
-    IERC20 public immutable luminaToken;
-    uint256 public immutable deployedAt;
+    IERC20 public luminaToken;
+    uint256 public deployedAt;
 
     uint256 public totalReleased;
-    uint256 public lastReleaseMonth; // tracks which month was last released
+    uint256 public lastReleaseMonth;
 
     event Released(address indexed to, uint256 amount, uint256 month);
 
-    constructor(address _luminaToken) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _luminaToken) public initializer {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+
         require(_luminaToken != address(0), "Zero token");
         luminaToken = IERC20(_luminaToken);
         deployedAt = block.timestamp;
     }
 
-    /// @notice Release tokens after lock period. Max 250K per month.
-    /// @param to Destination address (liquidity pool, bounty recipient, etc.)
-    /// @param amount Amount to release (must be <= MAX_MONTHLY_RELEASE)
     function release(address to, uint256 amount) external onlyOwner {
         require(to != address(0), "Zero address");
         require(block.timestamp >= deployedAt + LOCK_DURATION, "Still locked");
@@ -39,11 +44,7 @@ contract TreasuryVesting is Ownable {
         require(amount <= MAX_MONTHLY_RELEASE, "Exceeds monthly max");
         require(totalReleased + amount <= TOTAL_AMOUNT, "Exceeds total");
 
-        // Calculate current month (0-indexed from end of lock)
         uint256 currentMonth = (block.timestamp - deployedAt - LOCK_DURATION) / MONTH;
-        // [V4/SR2] Use totalReleased==0 as "never released" sentinel. Previous code used
-        // lastReleaseMonth==0 which collided with the valid state "currently in month 0",
-        // allowing unlimited releases within the first 30 days post-lock.
         require(currentMonth > lastReleaseMonth || totalReleased == 0, "Already released this month");
 
         lastReleaseMonth = currentMonth;
@@ -53,7 +54,6 @@ contract TreasuryVesting is Ownable {
         emit Released(to, amount, currentMonth);
     }
 
-    // ═══════ VIEW FUNCTIONS ═══════
     function isLocked() external view returns (bool) {
         return block.timestamp < deployedAt + LOCK_DURATION;
     }
@@ -84,4 +84,8 @@ contract TreasuryVesting is Ownable {
         _currentMonth =
             block.timestamp >= deployedAt + LOCK_DURATION ? (block.timestamp - deployedAt - LOCK_DURATION) / MONTH : 0;
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    uint256[50] private __gap;
 }

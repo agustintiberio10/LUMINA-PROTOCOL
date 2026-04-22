@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
+/// @dev [V5.1] UUPS upgradeable proxy pattern.
 
 interface ISolvencyBondVault {
     function totalCommittedUSD() external view returns (uint256);
@@ -15,11 +20,11 @@ interface ISolvencyCapacityOracle {
     function getLuminaPrice() external view returns (uint256);
 }
 
-contract SolvencyOracle is AccessControl {
+contract SolvencyOracle is Initializable, UUPSUpgradeable, AccessControlUpgradeable {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    ISolvencyBondVault public immutable bondVault;
-    ISolvencyCapacityOracle public immutable capacityOracle;
-    IERC20Balance public immutable lumina;
+    ISolvencyBondVault public bondVault;
+    ISolvencyCapacityOracle public capacityOracle;
+    IERC20Balance public lumina;
     uint256 public constant EVALUATION_INTERVAL = 1 days;
     uint256 public constant COOLDOWN_BETWEEN_QUADRANT_CHANGES = 7 days;
     uint256 public constant SOLVENCY_ULTRA_BPS = 20000;
@@ -40,7 +45,15 @@ contract SolvencyOracle is AccessControl {
     event EvaluationExecuted(uint256 solvencyBps, uint256 momentumBps);
     event EmergencyPauseToggled(bool paused);
 
-    constructor(address _bondVault, address _capacityOracle, address _admin) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _bondVault, address _capacityOracle, address _admin) public initializer {
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+
         require(_bondVault != address(0), "BondVault zero");
         require(_capacityOracle != address(0), "CapacityOracle zero");
         require(_admin != address(0), "Admin zero");
@@ -59,7 +72,7 @@ contract SolvencyOracle is AccessControl {
         require(!emergencyPaused, "Oracle paused");
         require(block.timestamp >= lastEvaluation + EVALUATION_INTERVAL, "Evaluation interval not reached");
         uint256 solvencyBps = _calculateSolvencyRatio();
-        uint256 momentumBps = 10000; // Simplified: neutral momentum (no TWAP30d available yet)
+        uint256 momentumBps = 10000;
         solvencyHistory[historyIndex] = solvencyBps;
         momentumHistory[historyIndex] = momentumBps;
         historyIndex = (historyIndex + 1) % 3;
@@ -129,4 +142,8 @@ contract SolvencyOracle is AccessControl {
         if (bps >= MOMENTUM_DECLINE_BPS) return 2;
         return 3;
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    uint256[50] private __gap;
 }

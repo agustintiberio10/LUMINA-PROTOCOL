@@ -20,6 +20,12 @@ import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
 import {MicroDepegShield} from "../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../src/products/RateShockShield.sol";
+import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
+import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
+import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
+import {CEXLiquidityReserve} from "../../src/treasury/CEXLiquidityReserve.sol";
+import {MaintenanceReserve} from "../../src/treasury/MaintenanceReserve.sol";
+import {TreasuryVesting} from "../../src/token/TreasuryVesting.sol";
 
 /// @notice Helper library for deploying UUPS proxied contracts in tests.
 /// @dev Provides the same interface as the old constructors but deploys behind ERC1967Proxy.
@@ -211,5 +217,62 @@ library ProxyDeployer {
             abi.encodeWithSelector(RateShockShield.initialize.selector, router_, oracle_, _aavePool, _usdc)
         );
         return RateShockShield(address(proxy));
+    }
+
+    // ═══════ PHASE D: ORACLES & RESERVES ═══════
+
+    function deployCapacityOracle(address _pool, address _luminaToken, address _usdcToken, uint256 _emergencyPrice)
+        internal
+        returns (CapacityOracle)
+    {
+        CapacityOracle impl = new CapacityOracle();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(CapacityOracle.initialize.selector, _pool, _luminaToken, _usdcToken, _emergencyPrice)
+        );
+        return CapacityOracle(address(proxy));
+    }
+
+    function deploySolvencyOracle(address _bondVault, address _capacityOracle, address _admin)
+        internal
+        returns (SolvencyOracle)
+    {
+        SolvencyOracle impl = new SolvencyOracle();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(SolvencyOracle.initialize.selector, _bondVault, _capacityOracle, _admin)
+        );
+        return SolvencyOracle(address(proxy));
+    }
+
+    function deployAdaptiveFeeDistributor(address _solvencyOracle) internal returns (AdaptiveFeeDistributor) {
+        AdaptiveFeeDistributor impl = new AdaptiveFeeDistributor();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(AdaptiveFeeDistributor.initialize.selector, _solvencyOracle)
+        );
+        return AdaptiveFeeDistributor(address(proxy));
+    }
+
+    function deployCEXLiquidityReserve(address _lumina, address _multisigOwner) internal returns (CEXLiquidityReserve) {
+        CEXLiquidityReserve impl = new CEXLiquidityReserve();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(CEXLiquidityReserve.initialize.selector, _lumina, _multisigOwner)
+        );
+        return CEXLiquidityReserve(address(proxy));
+    }
+
+    function deployMaintenanceReserve(address _usdc, address _admin) internal returns (MaintenanceReserve) {
+        MaintenanceReserve impl = new MaintenanceReserve();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(MaintenanceReserve.initialize.selector, _usdc, _admin)
+        );
+        return MaintenanceReserve(address(proxy));
+    }
+
+    function deployTreasuryVesting(address _luminaToken) internal returns (TreasuryVesting) {
+        TreasuryVesting impl = new TreasuryVesting();
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(impl), abi.encodeWithSelector(TreasuryVesting.initialize.selector, _luminaToken));
+        return TreasuryVesting(address(proxy));
     }
 }

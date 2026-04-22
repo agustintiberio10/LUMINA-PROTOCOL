@@ -1,18 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract CEXLiquidityReserve is AccessControl, ReentrancyGuard {
+/// @dev [V5.1] UUPS upgradeable proxy pattern.
+contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
+
     bytes32 public constant ALLOCATOR_ROLE = keccak256("ALLOCATOR_ROLE");
+
     enum SubBucket {
         ImmediateUse,
         VestingLinear,
         StrategicReserve
     }
+
     enum Purpose {
         DEX_SECONDARY_POOL,
         CEX_LISTING_TIER_3,
@@ -30,8 +36,9 @@ contract CEXLiquidityReserve is AccessControl, ReentrancyGuard {
         uint256 timestamp;
         address allocator;
     }
-    IERC20 public immutable lumina;
-    uint256 public immutable deploymentTimestamp;
+
+    IERC20 public lumina;
+    uint256 public deploymentTimestamp;
     uint256 public constant TOTAL_AMOUNT = 14_000_000 * 1e18;
     uint256 public constant IMMEDIATE_AMOUNT = 2_800_000 * 1e18;
     uint256 public constant VESTING_AMOUNT = 8_400_000 * 1e18;
@@ -44,6 +51,7 @@ contract CEXLiquidityReserve is AccessControl, ReentrancyGuard {
     uint256 public allocatedFromStrategic;
     mapping(uint256 => uint256) public monthlyAllocations;
     Allocation[] public allocationHistory;
+
     event AllocationExecuted(
         uint256 indexed allocationId,
         address indexed recipient,
@@ -54,7 +62,16 @@ contract CEXLiquidityReserve is AccessControl, ReentrancyGuard {
     );
     event MonthlyCapWarning(uint256 month, uint256 spent, uint256 cap);
 
-    constructor(address _lumina, address _multisigOwner) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _lumina, address _multisigOwner) public initializer {
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
+
         require(_lumina != address(0), "Lumina zero address");
         require(_multisigOwner != address(0), "Multisig zero address");
         lumina = IERC20(_lumina);
@@ -138,4 +155,8 @@ contract CEXLiquidityReserve is AccessControl, ReentrancyGuard {
         if (spent >= MONTHLY_CAP) return 0;
         return MONTHLY_CAP - spent;
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    uint256[50] private __gap;
 }

@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
@@ -47,6 +48,8 @@ contract OracleMockCapacityOracle {
 // ═══════ TEST CONTRACT ═══════
 
 contract OracleEvaluationStress is Test {
+    using ProxyDeployer for *;
+
     uint256 constant BASE_TS = 1767225600;
 
     SolvencyOracle oracle;
@@ -69,7 +72,7 @@ contract OracleEvaluationStress is Test {
         // 70M * $0.036 = $2.52M value. Set committed to $500k (18-dec)
         mockVault.setTotalCommittedUSD(500_000e18);
 
-        oracle = new SolvencyOracle(
+        oracle = ProxyDeployer.deploySolvencyOracle(
             address(mockVault),
             address(capOracle),
             address(this) // admin

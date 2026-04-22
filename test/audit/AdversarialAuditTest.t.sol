@@ -196,7 +196,7 @@ contract AdversarialAuditTest is Test {
         swapRouter = new MockSwapRouter(address(token));
 
         // 5. Deploy CapacityOracle (no pool, emergency price)
-        capacityOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
+        capacityOracle = ProxyDeployer.deployCapacityOracle(address(0), address(token), address(usdc), 0.036e18);
 
         // 6. Deploy BondVault with 2-step init: policyManager set after PolicyManagerV2 deploy
         bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(0));
@@ -573,7 +573,7 @@ contract AdversarialAuditTest is Test {
     // ═══════════════════════════════════════════════════════════
 
     function test_treasury_nonowner_release() public {
-        TreasuryVesting tv = new TreasuryVesting(address(token));
+        TreasuryVesting tv = ProxyDeployer.deployTreasuryVesting(address(token));
         deal(address(token), address(tv), 3_000_000 * 1e18);
         vm.warp(block.timestamp + 180 days + 1);
 
@@ -583,7 +583,7 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_treasury_locked() public {
-        TreasuryVesting tv = new TreasuryVesting(address(token));
+        TreasuryVesting tv = ProxyDeployer.deployTreasuryVesting(address(token));
         deal(address(token), address(tv), 3_000_000 * 1e18);
 
         vm.expectRevert("Still locked");
@@ -591,7 +591,7 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_treasury_month0_no_double_drain() public {
-        TreasuryVesting tv = new TreasuryVesting(address(token));
+        TreasuryVesting tv = ProxyDeployer.deployTreasuryVesting(address(token));
         deal(address(token), address(tv), 3_000_000 * 1e18);
         vm.warp(block.timestamp + 180 days + 1);
 

@@ -296,7 +296,7 @@ contract AdaptiveAndMarketScenariosTest is Test {
         dexRouter = new SimMockDexRouter(address(lumina));
 
         // Deploy AdaptiveFeeDistributor with mock solvency oracle
-        distributor = new AdaptiveFeeDistributor(address(solvencyOracle));
+        distributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(solvencyOracle));
 
         // Deploy BuybackEngine
         buybackEngine = ProxyDeployer.deployBuybackEngine(

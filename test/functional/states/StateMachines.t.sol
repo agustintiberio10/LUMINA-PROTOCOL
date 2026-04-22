@@ -337,7 +337,7 @@ contract OracleStateMachineTest is Test {
         // Set obligations so solvency ratio is finite
         bondVault.setTotalCommittedUSD(1_000_000 * 1e18);
 
-        oracle = new SolvencyOracle(address(bondVault), address(capacityOracle), admin);
+        oracle = ProxyDeployer.deploySolvencyOracle(address(bondVault), address(capacityOracle), admin);
     }
 
     /// @notice Cooldown between quadrant changes is respected

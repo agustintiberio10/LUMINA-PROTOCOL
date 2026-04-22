@@ -214,13 +214,13 @@ contract RaceConditionsTest is Test {
 
         // 3. Predict BondVault address
         uint64 nonce = vm.getNonce(address(this));
-        // nonce+0 = cexReserve(1), +1,+2 = token via proxy(2), +3 = swapRouter(1),
-        // +4,+5 = twapBurner via proxy(2), +6,+7 = policyManager via proxy(2), +8,+9 = bondVault via proxy(2)
-        address predictedBondVault = vm.computeCreateAddress(address(this), nonce + 9);
-        address predictedCexReserve = vm.computeCreateAddress(address(this), nonce);
+        // nonce+0,+1 = cexReserve via proxy(2), +2,+3 = token via proxy(2), +4 = swapRouter(1),
+        // +5,+6 = twapBurner via proxy(2), +7,+8 = policyManager via proxy(2), +9,+10 = bondVault via proxy(2)
+        address predictedBondVault = vm.computeCreateAddress(address(this), nonce + 10);
+        address predictedCexReserve = vm.computeCreateAddress(address(this), nonce + 1);
 
         // 4. Deploy CEXLiquidityReserve
-        cexReserve = new CEXLiquidityReserve(address(0x1), address(this)); // placeholder lumina, fixed below
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(address(0x1), address(this)); // placeholder lumina, fixed below
         // We need the CEXReserve address for token constructor, but it needs lumina address.
         // Use a different ordering: predict further ahead.
 
@@ -884,7 +884,7 @@ contract RaceConditionsTest is Test {
     /// @notice Two allocations exhaust ImmediateUse sub-bucket.
     function test_Race_CEXAllocation_BucketExhaustion() public {
         // Deploy a fresh CEXLiquidityReserve with real lumina
-        CEXLiquidityReserve freshCex = new CEXLiquidityReserve(address(token), address(this));
+        CEXLiquidityReserve freshCex = ProxyDeployer.deployCEXLiquidityReserve(address(token), address(this));
         // Fund it with tokens
         deal(address(token), address(freshCex), 14_000_000e18);
 
@@ -929,7 +929,7 @@ contract RaceConditionsTest is Test {
 
     /// @notice Monthly cap race — two allocations hit the monthly cap.
     function test_Race_CEXAllocation_MonthlyCapRace() public {
-        CEXLiquidityReserve freshCex = new CEXLiquidityReserve(address(token), address(this));
+        CEXLiquidityReserve freshCex = ProxyDeployer.deployCEXLiquidityReserve(address(token), address(this));
         deal(address(token), address(freshCex), 14_000_000e18);
 
         address recipient1 = makeAddr("monthRecip1");

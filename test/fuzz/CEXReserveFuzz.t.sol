@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {CEXLiquidityReserve} from "../../src/treasury/CEXLiquidityReserve.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract MockLuminaForCEX {
     string public name = "MockLumina";
@@ -40,6 +41,8 @@ contract MockLuminaForCEX {
 /// @title CEXReserveFuzz
 /// @notice Fuzz tests for CEXLiquidityReserve monthly cap enforcement.
 contract CEXReserveFuzz is Test {
+    using ProxyDeployer for *;
+
     CEXLiquidityReserve reserve;
     MockLuminaForCEX lumina;
 
@@ -49,7 +52,7 @@ contract CEXReserveFuzz is Test {
     function setUp() public {
         lumina = new MockLuminaForCEX();
         vm.prank(admin);
-        reserve = new CEXLiquidityReserve(address(lumina), admin);
+        reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), admin);
 
         // Fund the reserve with the full ImmediateUse amount
         lumina.mint(address(reserve), 2_800_000 * 1e18);

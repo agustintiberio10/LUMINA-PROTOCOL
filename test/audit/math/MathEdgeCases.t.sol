@@ -157,7 +157,7 @@ contract MathEdgeCases is Test {
         router = ProxyDeployer.deployCoverRouterV2(usdc, address(policyManager), address(twapBurner));
 
         // Deploy CapacityOracle (no pool, uses emergency price)
-        capacityOracle = new CapacityOracle(
+        capacityOracle = ProxyDeployer.deployCapacityOracle(
             address(0), // no pool
             address(token),
             usdc,
@@ -165,14 +165,14 @@ contract MathEdgeCases is Test {
         );
 
         // Deploy SolvencyOracle
-        solvencyOracle = new SolvencyOracle(address(vault), address(capacityOracle), admin);
+        solvencyOracle = ProxyDeployer.deploySolvencyOracle(address(vault), address(capacityOracle), admin);
 
         // Deploy CEXLiquidityReserve
-        cexReserve = new CEXLiquidityReserve(address(token), admin);
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(address(token), admin);
         deal(address(token), address(cexReserve), 14_000_000e18);
 
         // Deploy TreasuryVesting
-        treasuryVesting = new TreasuryVesting(address(token));
+        treasuryVesting = ProxyDeployer.deployTreasuryVesting(address(token));
         deal(address(token), address(treasuryVesting), 3_000_000e18);
 
         // Deploy Marketplace

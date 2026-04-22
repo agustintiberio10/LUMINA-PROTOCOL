@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
+/// @dev [V5.1] UUPS upgradeable proxy pattern.
+
 interface ISolvencyOracleForDist {
     function getCurrentQuadrant() external view returns (uint8 solvencyLevel, uint8 momentumLevel);
     function isHealthy() external view returns (bool);
@@ -8,10 +14,18 @@ interface ISolvencyOracleForDist {
 
 /// @title AdaptiveFeeDistributor
 /// @notice Hardcoded 4x4 distribution matrix (4-bucket) based on SolvencyOracle quadrant.
-contract AdaptiveFeeDistributor {
-    ISolvencyOracleForDist public immutable solvencyOracle;
+contract AdaptiveFeeDistributor is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+    ISolvencyOracleForDist public solvencyOracle;
 
-    constructor(address _solvencyOracle) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _solvencyOracle) public initializer {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+
         require(_solvencyOracle != address(0), "Oracle zero");
         solvencyOracle = ISolvencyOracleForDist(_solvencyOracle);
     }
@@ -41,8 +55,6 @@ contract AdaptiveFeeDistributor {
         require(sLevel < 4, "Invalid solvency level");
         require(mLevel < 4, "Invalid momentum level");
 
-        // Solvency: 0=Ultra, 1=Healthy, 2=Stressed, 3=Crisis
-        // Momentum: 0=Rally, 1=Stable, 2=Decline, 3=Crash
         if (sLevel == 0) {
             if (mLevel == 0) return (9500, 0, 0, 500);
             if (mLevel == 1) return (9000, 500, 0, 500);
@@ -61,10 +73,13 @@ contract AdaptiveFeeDistributor {
             if (mLevel == 2) return (3800, 5500, 200, 500);
             return (1800, 7500, 200, 500);
         }
-        // Crisis
         if (mLevel == 0) return (4800, 4500, 200, 500);
         if (mLevel == 1) return (2800, 6500, 200, 500);
         if (mLevel == 2) return (800, 8500, 200, 500);
         return (0, 9600, 200, 200);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    uint256[50] private __gap;
 }

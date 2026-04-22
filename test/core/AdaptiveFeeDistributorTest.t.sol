@@ -4,14 +4,18 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
 import {MockSolvencyOracle} from "../mocks/MockSolvencyOracle.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract AdaptiveFeeDistributorTest is Test {
+    using ProxyDeployer for *;
+
     AdaptiveFeeDistributor distributor;
     MockSolvencyOracle oracle;
 
     function setUp() public {
         oracle = new MockSolvencyOracle();
-        distributor = new AdaptiveFeeDistributor(address(oracle));
+        distributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(oracle));
     }
 
     // ═══════ SUM VALIDATION ═══════
@@ -190,8 +194,9 @@ contract AdaptiveFeeDistributorTest is Test {
     }
 
     function test_Constructor_RevertIfZeroOracle() public {
-        vm.expectRevert("Oracle zero");
-        new AdaptiveFeeDistributor(address(0));
+        AdaptiveFeeDistributor impl = new AdaptiveFeeDistributor();
+        vm.expectRevert();
+        new ERC1967Proxy(address(impl), abi.encodeWithSelector(AdaptiveFeeDistributor.initialize.selector, address(0)));
     }
 
     // ═══════ MAINTENANCE-SPECIFIC TESTS ═══════

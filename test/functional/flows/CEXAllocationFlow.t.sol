@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../../../src/treasury/CEXLiquidityReserve.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // Minimal ERC20 mock for LUMINA in allocation tests
 contract MockLuminaToken is ERC20 {
@@ -28,7 +29,7 @@ contract CEXAllocationFlowTest is Test {
         lumina = new MockLuminaToken();
 
         vm.prank(multisig);
-        reserve = new CEXLiquidityReserve(address(lumina), multisig);
+        reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), multisig);
 
         // Fund reserve with TOTAL_AMOUNT of LUMINA
         lumina.mint(address(reserve), reserve.TOTAL_AMOUNT());
