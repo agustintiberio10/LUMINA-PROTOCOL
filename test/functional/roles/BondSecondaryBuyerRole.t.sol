@@ -108,7 +108,7 @@ contract BondSecondaryBuyerAudit is Test {
         deal(address(token), address(bondVault), 70_000_000e18);
 
         // Deploy marketplace (multisig is admin)
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, multisig);
+        marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, multisig);
 
         // Pre-compute epoch for bonds issued at current timestamp
         uint256 maturityTs = block.timestamp + 730 days;

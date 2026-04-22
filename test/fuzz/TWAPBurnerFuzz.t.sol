@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract MockERC20ForTWAP {
     string public name = "MockToken";
@@ -60,7 +61,7 @@ contract TWAPBurnerFuzz is Test {
         usdc = new MockERC20ForTWAP();
         lumina = new MockERC20ForTWAP();
         router = new MockSwapRouter();
-        burner = new TWAPBurner(address(usdc), address(lumina), address(router));
+        burner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(router));
     }
 
     /// @notice Verify fallback distribution constants sum to exactly 10000 BPS.

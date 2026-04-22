@@ -135,10 +135,10 @@ contract UserJourneysTest is Test {
         usdc.mint(address(maintenanceReserve), 500_000e6);
 
         // Marketplace (real, for listing tests)
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, multisig);
+        marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, multisig);
 
         // BuybackEngine (uses mock marketplace for engine-specific tests)
-        buybackEngine = new BuybackEngine(
+        buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),

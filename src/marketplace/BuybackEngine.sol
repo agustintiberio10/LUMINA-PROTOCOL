@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {
+    ERC1155HolderUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
 
 interface IBuybackClaimBond {
     function getFaceValue(uint256 epochId) external view returns (uint256);
@@ -34,17 +38,24 @@ interface IBuybackMarketplace {
 
 /// @title BuybackEngine
 /// @notice Buys ClaimBonds from marketplace + executes Double Burn.
-contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
+/// @dev [V5.1] UUPS upgradeable proxy pattern.
+contract BuybackEngine is
+    Initializable,
+    UUPSUpgradeable,
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable,
+    ERC1155HolderUpgradeable
+{
     using SafeERC20 for IERC20;
 
     bytes32 public constant BUYBACK_OPERATOR_ROLE = keccak256("BUYBACK_OPERATOR_ROLE");
 
-    IBuybackClaimBond public immutable claimBond;
-    IBuybackBondVault public immutable bondVault;
-    IBuybackSolvencyOracle public immutable solvencyOracle;
-    IBuybackCapacityOracle public immutable capacityOracle;
-    IBuybackMarketplace public immutable marketplace;
-    IERC20 public immutable usdc;
+    IBuybackClaimBond public claimBond;
+    IBuybackBondVault public bondVault;
+    IBuybackSolvencyOracle public solvencyOracle;
+    IBuybackCapacityOracle public capacityOracle;
+    IBuybackMarketplace public marketplace;
+    IERC20 public usdc;
 
     uint256 public constant MIN_SOLVENCY_FOR_DOUBLE_BURN = 15000; // 150%
 
@@ -62,7 +73,12 @@ contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
     event DoubleBurnExecuted(uint256 epochId, uint256 obligationsReduced, uint256 luminaBurned);
     event CircuitBreakerTriggered(uint256 currentSolvency, uint256 threshold);
 
-    constructor(
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address _claimBond,
         address _bondVault,
         address _solvencyOracle,
@@ -70,7 +86,12 @@ contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
         address _marketplace,
         address _usdc,
         address _multisigOwner
-    ) {
+    ) public initializer {
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+        __ERC1155Holder_init();
+        __UUPSUpgradeable_init();
+
         require(_claimBond != address(0) && _bondVault != address(0) && _solvencyOracle != address(0), "Zero addr core");
         require(
             _capacityOracle != address(0) && _marketplace != address(0) && _usdc != address(0)
@@ -150,9 +171,14 @@ contract BuybackEngine is AccessControl, ReentrancyGuard, ERC1155Holder {
         public
         view
         virtual
-        override(AccessControl, ERC1155Holder)
+        override(AccessControlUpgradeable, ERC1155HolderUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

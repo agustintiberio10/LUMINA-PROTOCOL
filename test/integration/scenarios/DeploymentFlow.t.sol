@@ -113,8 +113,8 @@ contract DeploymentFlowTest is Test {
 
         // Predict BondVault address for token + PM constructors
         uint64 currentNonce = vm.getNonce(address(this));
-        // token via proxy(+2), swapRouter(+1), twapBurner(+1), policyManager via proxy(+2), bondVault proxy at +7
-        address predictedBondVault = vm.computeCreateAddress(address(this), currentNonce + 7);
+        // token via proxy(+2), swapRouter(+1), twapBurner via proxy(+2), policyManager via proxy(+2), bondVault proxy at +8
+        address predictedBondVault = vm.computeCreateAddress(address(this), currentNonce + 8);
 
         // Deploy token
         token = ProxyDeployer.deployLuminaTokenV2(
@@ -125,7 +125,7 @@ contract DeploymentFlowTest is Test {
         swapRouter = new MockSwapRouterDeploy(address(token));
 
         // Deploy TWAPBurner
-        twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
 
         // Deploy PolicyManagerV2
         policyManager = ProxyDeployer.deployPolicyManagerV2(predictedBondVault);

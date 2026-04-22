@@ -112,7 +112,7 @@ contract UpgradePathsTest is Test {
         deal(address(token), address(swapRouter), 5_000_000e18);
 
         // TWAPBurner
-        twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
 
         // Two fee distributors
@@ -136,7 +136,8 @@ contract UpgradePathsTest is Test {
         claimBond.setBondVault(address(bondVault));
 
         // Marketplace (for test 3)
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), admin);
+        marketplace =
+            ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), admin);
     }
 
     // ═══════════════════════════════════════════════════════════════

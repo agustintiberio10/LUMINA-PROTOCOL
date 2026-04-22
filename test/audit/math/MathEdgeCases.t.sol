@@ -134,7 +134,7 @@ contract MathEdgeCases is Test {
         dexRouter = new MockDexRouter();
 
         // Deploy TWAPBurner
-        twapBurner = new TWAPBurner(usdc, address(token), address(dexRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(usdc, address(token), address(dexRouter));
 
         // Deploy PolicyManager mock
         policyManager = new MockPolicyManager();
@@ -176,7 +176,7 @@ contract MathEdgeCases is Test {
         deal(address(token), address(treasuryVesting), 3_000_000e18);
 
         // Deploy Marketplace
-        marketplace = new LuminaBondMarketplace(address(claimBond), usdc, address(twapBurner), admin);
+        marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), usdc, address(twapBurner), admin);
 
         // Configure a default product on the router
         router.configureProduct(

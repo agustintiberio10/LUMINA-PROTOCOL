@@ -169,7 +169,7 @@ contract RoleAuditTest is Test {
         usdc.mint(address(maintenanceReserve), 500_000e6);
 
         // Deploy BuybackEngine (multisig gets BUYBACK_OPERATOR_ROLE)
-        buybackEngine = new BuybackEngine(
+        buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {
+    ERC1155HolderUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
 
 interface IMarketClaimBond {
     function balanceOf(address account, uint256 epochId) external view returns (uint256);
@@ -14,13 +18,20 @@ interface IMarketClaimBond {
 
 /// @title LuminaBondMarketplace
 /// @notice Native marketplace for ClaimBonds ERC-1155 with 3% fees (1.5% buyer + 1.5% seller).
-contract LuminaBondMarketplace is AccessControl, ReentrancyGuard, ERC1155Holder {
+/// @dev [V5.1] UUPS upgradeable proxy pattern.
+contract LuminaBondMarketplace is
+    Initializable,
+    UUPSUpgradeable,
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable,
+    ERC1155HolderUpgradeable
+{
     using SafeERC20 for IERC20;
 
     bytes32 public constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
 
-    IMarketClaimBond public immutable claimBond;
-    IERC20 public immutable usdc;
+    IMarketClaimBond public claimBond;
+    IERC20 public usdc;
     address public twapBurner;
 
     uint256 public constant SELLER_FEE_BPS = 150; // 1.5%
@@ -53,7 +64,17 @@ contract LuminaBondMarketplace is AccessControl, ReentrancyGuard, ERC1155Holder 
     );
     event TwapBurnerUpdated(address indexed newTwapBurner);
 
-    constructor(address _claimBond, address _usdc, address _twapBurner, address _admin) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _claimBond, address _usdc, address _twapBurner, address _admin) public initializer {
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+        __ERC1155Holder_init();
+        __UUPSUpgradeable_init();
+
         require(
             _claimBond != address(0) && _usdc != address(0) && _twapBurner != address(0) && _admin != address(0),
             "Zero addr"
@@ -152,9 +173,14 @@ contract LuminaBondMarketplace is AccessControl, ReentrancyGuard, ERC1155Holder 
         public
         view
         virtual
-        override(AccessControl, ERC1155Holder)
+        override(AccessControlUpgradeable, ERC1155HolderUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

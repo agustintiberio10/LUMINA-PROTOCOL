@@ -264,7 +264,7 @@ contract RoundingErrors is Test {
         bondVault.setPolicyManager(address(policyManager));
 
         // 8. Deploy TWAPBurner + CoverRouter
-        twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
         coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         // 9. Wire everything

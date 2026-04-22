@@ -262,7 +262,7 @@ contract FullSystemIntegrationTest is Test {
         feeDistributor = new AdaptiveFeeDistributor(address(solvencyOracle));
 
         // --- Phase 7: Deploy TWAPBurner ---
-        twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
 
         // --- Phase 8: Deploy PolicyManagerV2 + CoverRouterV2 ---

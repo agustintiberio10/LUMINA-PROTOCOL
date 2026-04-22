@@ -8,6 +8,8 @@ import {MockCapacityOracleV5} from "../mocks/MockCapacityOracleV5.sol";
 import {MockClaimBondV5} from "../mocks/MockClaimBondV5.sol";
 import {MockBondVaultV5} from "../mocks/MockBondVaultV5.sol";
 import {MockMarketplace} from "../mocks/MockMarketplace.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockUSDCBB {
     mapping(address => uint256) public balanceOf;
@@ -37,6 +39,8 @@ contract MockUSDCBB {
 }
 
 contract BuybackEngineTest is Test {
+    using ProxyDeployer for *;
+
     BuybackEngine engine;
     MockClaimBondV5 claimBond;
     MockBondVaultV5 bondVault;
@@ -54,7 +58,7 @@ contract BuybackEngineTest is Test {
         capacityOracle = new MockCapacityOracleV5();
         marketplace = new MockMarketplace();
 
-        engine = new BuybackEngine(
+        engine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),
@@ -88,15 +92,20 @@ contract BuybackEngineTest is Test {
     }
 
     function test_Constructor_RevertIfZero() public {
-        vm.expectRevert("Zero addr core");
-        new BuybackEngine(
-            address(0),
-            address(bondVault),
-            address(solvencyOracle),
-            address(capacityOracle),
-            address(marketplace),
-            address(usdc),
-            multisig
+        BuybackEngine impl = new BuybackEngine();
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                BuybackEngine.initialize.selector,
+                address(0),
+                address(bondVault),
+                address(solvencyOracle),
+                address(capacityOracle),
+                address(marketplace),
+                address(usdc),
+                multisig
+            )
         );
     }
 

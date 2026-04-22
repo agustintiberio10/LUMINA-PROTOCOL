@@ -226,7 +226,7 @@ contract ShieldKeeperTest is Test {
         policyManager.setRouter(address(this));
 
         // Create keeper
-        keeper = new ShieldKeeper(address(policyManager));
+        keeper = ProxyDeployer.deployShieldKeeper(address(policyManager));
     }
 
     // ═══════ HELPERS ═══════

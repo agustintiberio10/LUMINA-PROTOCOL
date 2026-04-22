@@ -353,10 +353,11 @@ contract AttackVectors is Test, ERC1155Holder {
         );
 
         // Deploy marketplace
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), deployer);
+        marketplace =
+            ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), deployer);
 
         // Deploy BuybackEngine
-        buybackEngine = new BuybackEngine(
+        buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),
@@ -532,8 +533,9 @@ contract AttackVectors is Test, ERC1155Holder {
         // ClaimBond for marketplace isolation testing.
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         MockUSDC testUsdc = usdc;
-        LuminaBondMarketplace testMarket =
-            new LuminaBondMarketplace(address(testBond), address(testUsdc), address(twapBurner), deployer);
+        LuminaBondMarketplace testMarket = ProxyDeployer.deployLuminaBondMarketplace(
+            address(testBond), address(testUsdc), address(twapBurner), deployer
+        );
 
         // Create a mock BondVault for minting
         // ClaimBond.mint is onlyBondVault. We set this contract as BondVault.
@@ -559,7 +561,7 @@ contract AttackVectors is Test, ERC1155Holder {
     function test_A3_2_ListZeroAmount() public {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
-            new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
 
         uint256 futureEpoch = 202812;
@@ -576,7 +578,7 @@ contract AttackVectors is Test, ERC1155Holder {
     function test_A3_3_ListZeroPrice() public {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
-            new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
 
         uint256 futureEpoch = 202812;
@@ -600,7 +602,7 @@ contract AttackVectors is Test, ERC1155Holder {
     function test_A3_5_BuyCancelledListing() public {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
-            new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
 
         uint256 futureEpoch = 202812;
@@ -624,7 +626,7 @@ contract AttackVectors is Test, ERC1155Holder {
     function test_A3_6_CancelOthersListing() public {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
-            new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
 
         uint256 futureEpoch = 202812;
@@ -1059,7 +1061,7 @@ contract AttackVectors is Test, ERC1155Holder {
     function test_A3_7_ListingPreservesBalance() public {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
-            new LuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
 
         uint256 futureEpoch = 202812;

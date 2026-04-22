@@ -246,11 +246,11 @@ contract FullPolicyLifecycleTest is Test {
         uint64 currentNonce = vm.getNonce(address(this));
         // token via proxy at currentNonce+0,+1
         // swapRouter at currentNonce+2
-        // twapBurner at currentNonce+3
-        // policyManager via proxy at currentNonce+4,+5
-        // bondVault via proxy at currentNonce+6 (impl), +7 (proxy)
+        // twapBurner via proxy at currentNonce+3,+4
+        // policyManager via proxy at currentNonce+5,+6
+        // bondVault via proxy at currentNonce+7 (impl), +8 (proxy)
 
-        address predictedBondVault = vm.computeCreateAddress(address(this), currentNonce + 7);
+        address predictedBondVault = vm.computeCreateAddress(address(this), currentNonce + 8);
         bondVaultAddr = predictedBondVault;
 
         // 3. Deploy token with predicted bondVault
@@ -263,7 +263,7 @@ contract FullPolicyLifecycleTest is Test {
         deal(address(token), address(swapRouter), 1_000_000e18);
 
         // 5. Deploy TWAPBurner
-        twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
 
         // 6. Deploy PolicyManagerV2 with predicted bondVault
         policyManager = ProxyDeployer.deployPolicyManagerV2(predictedBondVault);

@@ -82,7 +82,7 @@ contract GasOptimizationStress is Test {
         lumina.mint(address(vault), 70_000_000e18);
 
         // Deploy marketplace
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
     }
 
     /// @notice Measure gas for issueBond. Must be under 300k gas.
@@ -123,7 +123,8 @@ contract GasOptimizationStress is Test {
         assertLt(gasUsed, 500_000, "redeemBond exceeds 500k gas");
     }
 
-    /// @notice Measure gas for marketplace list. Must be under 200k gas.
+    /// @notice Measure gas for marketplace list. Must be under 250k gas.
+    /// @dev [V5.1] Proxy overhead increases gas by ~10-15%.
     function test_Gas_ListBond_Under200kGas() public {
         // Issue bond to seller via BondVault (which mints via ClaimBond)
         vault.issueBond(seller, 50);
@@ -144,7 +145,7 @@ contract GasOptimizationStress is Test {
         uint256 gasUsed = gasBefore - gasleft();
         vm.stopPrank();
 
-        assertLt(gasUsed, 200_000, "list exceeds 200k gas");
+        assertLt(gasUsed, 250_000, "list exceeds 250k gas");
     }
 
     /// @notice Measure gas for marketplace executeBuy. Must be under 300k gas.

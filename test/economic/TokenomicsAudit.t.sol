@@ -260,7 +260,7 @@ contract TokenomicsAuditTest is Test {
         lumina.transfer(address(swapRouter), 2_000_000e18);
 
         // Deploy TWAPBurner
-        twapBurner = new TWAPBurner(address(usdc), address(lumina), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(swapRouter));
         twapBurner.setCapacityOracle(address(oracle));
 
         // Deploy AdaptiveFeeDistributor

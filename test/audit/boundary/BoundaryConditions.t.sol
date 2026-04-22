@@ -197,7 +197,7 @@ contract BoundaryConditions is Test {
         dexRouter = new SimpleDexRouter(address(lumina));
 
         // Deploy TWAPBurner
-        twapBurner = new TWAPBurner(address(usdc), address(lumina), address(dexRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(dexRouter));
 
         // Deploy CoverRouterV2
         coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
@@ -218,10 +218,12 @@ contract BoundaryConditions is Test {
         realSolvencyOracle = new SolvencyOracle(address(bondVault), address(capacityOracle), owner);
 
         // Deploy LuminaBondMarketplace
-        marketplace = new LuminaBondMarketplace(address(claimBondERC1155), address(usdc), address(twapBurner), owner);
+        marketplace = ProxyDeployer.deployLuminaBondMarketplace(
+            address(claimBondERC1155), address(usdc), address(twapBurner), owner
+        );
 
         // Deploy BuybackEngine
-        buybackEngine = new BuybackEngine(
+        buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBondERC1155),
             address(bondVault),
             address(mockSolvencyOracle),

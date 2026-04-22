@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @title AutomationCompatibleInterface
@@ -28,47 +30,34 @@ interface IPolicyManagerKeeper {
  * @title ShieldKeeper
  * @author Lumina Protocol
  * @notice Chainlink Automation-compatible keeper that settles expired policies.
- *
- * FLOW:
- *   1. Chainlink node calls checkUpkeep() off-chain (view, no gas)
- *   2. If upkeepNeeded == true, node calls performUpkeep() on-chain
- *   3. performUpkeep calls shield.checkAndSettlePolicy(policyId) for each pending policy
- *
- * DESIGN:
- *   - checkUpkeep scans active policies across all registered products
- *   - MAX_POLICIES_PER_UPKEEP limits gas per performUpkeep call
- *   - Off-chain Chainlink node handles scheduling; on-chain is stateless
- *   - Owner can pause/unpause for emergencies
- *
- * @dev NOT upgradeable. Deploy new keeper if logic changes.
+ * @dev [V5.1] UUPS upgradeable proxy pattern.
  */
-contract ShieldKeeper is AutomationCompatibleInterface, Ownable {
+contract ShieldKeeper is Initializable, UUPSUpgradeable, AutomationCompatibleInterface, OwnableUpgradeable {
     // ═══════ CONSTANTS ═══════
-
-    /// @notice Maximum policies to settle in a single performUpkeep call.
-    ///         Prevents gas limit issues on-chain.
     uint256 public constant MAX_POLICIES_PER_UPKEEP = 10;
 
     // ═══════ STATE ═══════
-
-    /// @notice PolicyManagerV2 reference
-    IPolicyManagerKeeper public immutable policyManager;
-
-    /// @notice Emergency pause
+    IPolicyManagerKeeper public policyManager;
     bool public paused;
 
     // ═══════ EVENTS ═══════
-
     event PolicySettled(bytes32 indexed productId, uint256 indexed policyId, address shield);
     event SettlementFailed(bytes32 indexed productId, uint256 indexed policyId, bytes reason);
     event KeeperPaused(address indexed by);
     event KeeperUnpaused(address indexed by);
 
     // ═══════ ERRORS ═══════
-
     error KeeperPausedError();
 
-    constructor(address _policyManager) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _policyManager) public initializer {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+
         require(_policyManager != address(0), "Zero policyManager");
         policyManager = IPolicyManagerKeeper(_policyManager);
     }
@@ -87,11 +76,6 @@ contract ShieldKeeper is AutomationCompatibleInterface, Ownable {
 
     // ═══════ CHAINLINK AUTOMATION ═══════
 
-    /// @notice Called off-chain by Chainlink node to determine if upkeep is needed.
-    /// @param checkData Encoded (bytes32 productId) to scope the check to one product.
-    ///        If empty, scans all products.
-    /// @return upkeepNeeded True if there are policies to settle
-    /// @return performData Encoded array of (bytes32 productId, uint256[] policyIds)
     function checkUpkeep(bytes calldata checkData)
         external
         view
@@ -101,7 +85,6 @@ contract ShieldKeeper is AutomationCompatibleInterface, Ownable {
         if (paused) return (false, "");
 
         if (checkData.length >= 32) {
-            // Scoped to a single product
             bytes32 productId = abi.decode(checkData, (bytes32));
             uint256[] memory ids = policyManager.getActivePolicyIds(productId, MAX_POLICIES_PER_UPKEEP);
             if (ids.length > 0) {
@@ -110,7 +93,6 @@ contract ShieldKeeper is AutomationCompatibleInterface, Ownable {
             return (false, "");
         }
 
-        // Scan all products
         uint256 productCount = policyManager.getProductCount();
         for (uint256 i = 0; i < productCount; i++) {
             bytes32 productId = policyManager.productIds(i);
@@ -123,8 +105,6 @@ contract ShieldKeeper is AutomationCompatibleInterface, Ownable {
         return (false, "");
     }
 
-    /// @notice Called on-chain by Chainlink node to settle policies.
-    /// @param performData Encoded (bytes32 productId, uint256[] policyIds)
     function performUpkeep(bytes calldata performData) external override {
         if (paused) revert KeeperPausedError();
 
@@ -143,4 +123,9 @@ contract ShieldKeeper is AutomationCompatibleInterface, Ownable {
             }
         }
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

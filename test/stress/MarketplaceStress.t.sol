@@ -60,7 +60,7 @@ contract MarketplaceStress is Test {
         claimBond.setBondVault(address(mockVault));
 
         // Deploy marketplace
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
     }
 
     /// @notice Create 100 marketplace listings. Verify nextListingId = 100.

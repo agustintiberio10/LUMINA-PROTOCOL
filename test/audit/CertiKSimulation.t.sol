@@ -335,7 +335,7 @@ contract CertiKSimulation is Test {
         bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(0));
         policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
         bondVault.setPolicyManager(address(policyManager));
-        twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
         coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
 
         claimBond.setBondVault(address(bondVault));
