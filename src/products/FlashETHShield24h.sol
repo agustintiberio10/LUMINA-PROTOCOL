@@ -149,4 +149,6 @@ contract FlashETHShield24h is BaseShield {
         if (_policies[policyId].insuredAgent == address(0)) revert PolicyNotFound(policyId);
         return _bssData[policyId];
     }
+
+    uint256[50] private __gap_shield;
 }

@@ -145,4 +145,6 @@ contract MicroDepegShield is BaseShield {
         if (_policies[policyId].insuredAgent == address(0)) revert PolicyNotFound(policyId);
         return _depegData[policyId];
     }
+
+    uint256[50] private __gap_shield;
 }

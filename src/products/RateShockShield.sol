@@ -174,4 +174,6 @@ contract RateShockShield is BaseShield {
     function currentBorrowRate() external view returns (uint256) {
         return uint256(aavePool.getReserveData(usdc).currentVariableBorrowRate);
     }
+
+    uint256[50] private __gap_shield;
 }
