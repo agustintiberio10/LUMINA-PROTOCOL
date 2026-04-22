@@ -2,12 +2,13 @@
 pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../../src/products/FlashBTCShield24h.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract FlashBTCShield24hTest is Test {
     FlashBTCShield24h shield;
 
     function setUp() public {
-        shield = new FlashBTCShield24h(makeAddr("r"), makeAddr("o"));
+        shield = ProxyDeployer.deployFlashBTCShield24h(makeAddr("r"), makeAddr("o"));
     }
 
     function test_productId() public view {

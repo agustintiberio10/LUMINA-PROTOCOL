@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "../../src/products/FlashBTCShield1h.sol";
 import "../../src/products/FlashBTCShield4h.sol";
 import "../../src/products/FlashETHShield1h.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract FlashShieldsTest is Test {
     FlashBTCShield1h btc1h;
@@ -15,9 +16,9 @@ contract FlashShieldsTest is Test {
     address oracle = makeAddr("oracle");
 
     function setUp() public {
-        btc1h = new FlashBTCShield1h(router, oracle);
-        btc4h = new FlashBTCShield4h(router, oracle);
-        eth1h = new FlashETHShield1h(router, oracle);
+        btc1h = ProxyDeployer.deployFlashBTCShield1h(router, oracle);
+        btc4h = ProxyDeployer.deployFlashBTCShield4h(router, oracle);
+        eth1h = ProxyDeployer.deployFlashETHShield1h(router, oracle);
     }
 
     // ═══════ FlashBTCShield1h ═══════

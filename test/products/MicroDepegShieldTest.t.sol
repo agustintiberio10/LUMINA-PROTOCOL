@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../../src/products/MicroDepegShield.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract MicroDepegShieldTest is Test {
     MicroDepegShield shield;
@@ -11,7 +12,7 @@ contract MicroDepegShieldTest is Test {
     address oracle = makeAddr("oracle");
 
     function setUp() public {
-        shield = new MicroDepegShield(router, oracle);
+        shield = ProxyDeployer.deployMicroDepegShield(router, oracle);
     }
 
     function test_productId() public view {

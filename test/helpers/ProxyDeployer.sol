@@ -11,6 +11,15 @@ import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
 import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
 import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
 import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
+import {FlashBTCShield1h} from "../../src/products/FlashBTCShield1h.sol";
+import {FlashBTCShield4h} from "../../src/products/FlashBTCShield4h.sol";
+import {FlashBTCShield24h} from "../../src/products/FlashBTCShield24h.sol";
+import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
+import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
+import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
+import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
+import {MicroDepegShield} from "../../src/products/MicroDepegShield.sol";
+import {RateShockShield} from "../../src/products/RateShockShield.sol";
 
 /// @notice Helper library for deploying UUPS proxied contracts in tests.
 /// @dev Provides the same interface as the old constructors but deploys behind ERC1967Proxy.
@@ -124,5 +133,83 @@ library ProxyDeployer {
         ERC1967Proxy proxy =
             new ERC1967Proxy(address(impl), abi.encodeWithSelector(ShieldKeeper.initialize.selector, _policyManager));
         return ShieldKeeper(address(proxy));
+    }
+
+    // ═══════ SHIELDS ═══════
+
+    function deployFlashBTCShield1h(address router_, address oracle_) internal returns (FlashBTCShield1h) {
+        FlashBTCShield1h impl = new FlashBTCShield1h();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, router_, oracle_)
+        );
+        return FlashBTCShield1h(address(proxy));
+    }
+
+    function deployFlashBTCShield4h(address router_, address oracle_) internal returns (FlashBTCShield4h) {
+        FlashBTCShield4h impl = new FlashBTCShield4h();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, router_, oracle_)
+        );
+        return FlashBTCShield4h(address(proxy));
+    }
+
+    function deployFlashBTCShield24h(address router_, address oracle_) internal returns (FlashBTCShield24h) {
+        FlashBTCShield24h impl = new FlashBTCShield24h();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, router_, oracle_)
+        );
+        return FlashBTCShield24h(address(proxy));
+    }
+
+    function deployFlashBTCShield48h(address router_, address oracle_) internal returns (FlashBTCShield48h) {
+        FlashBTCShield48h impl = new FlashBTCShield48h();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashBTCShield48h.initialize.selector, router_, oracle_)
+        );
+        return FlashBTCShield48h(address(proxy));
+    }
+
+    function deployFlashETHShield1h(address router_, address oracle_) internal returns (FlashETHShield1h) {
+        FlashETHShield1h impl = new FlashETHShield1h();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashETHShield1h.initialize.selector, router_, oracle_)
+        );
+        return FlashETHShield1h(address(proxy));
+    }
+
+    function deployFlashETHShield24h(address router_, address oracle_) internal returns (FlashETHShield24h) {
+        FlashETHShield24h impl = new FlashETHShield24h();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashETHShield24h.initialize.selector, router_, oracle_)
+        );
+        return FlashETHShield24h(address(proxy));
+    }
+
+    function deployFlashETHShield48h(address router_, address oracle_) internal returns (FlashETHShield48h) {
+        FlashETHShield48h impl = new FlashETHShield48h();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashETHShield48h.initialize.selector, router_, oracle_)
+        );
+        return FlashETHShield48h(address(proxy));
+    }
+
+    function deployMicroDepegShield(address router_, address oracle_) internal returns (MicroDepegShield) {
+        MicroDepegShield impl = new MicroDepegShield();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(MicroDepegShield.initialize.selector, router_, oracle_)
+        );
+        return MicroDepegShield(address(proxy));
+    }
+
+    function deployRateShockShield(address router_, address oracle_, address _aavePool, address _usdc)
+        internal
+        returns (RateShockShield)
+    {
+        RateShockShield impl = new RateShockShield();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(RateShockShield.initialize.selector, router_, oracle_, _aavePool, _usdc)
+        );
+        return RateShockShield(address(proxy));
     }
 }
