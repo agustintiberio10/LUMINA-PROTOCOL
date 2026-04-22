@@ -209,7 +209,7 @@ contract EmergencyResponseTest is Test {
         policyManager = ProxyDeployer.deployPolicyManagerV2(bondVaultAddr);
 
         // 6. TWAPBurner
-        twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
 
         // 7. SolvencyOracle
@@ -313,7 +313,7 @@ contract EmergencyResponseTest is Test {
         // Deploy BuybackEngine
         // Warp past activation delay for BuybackEngine
         vm.warp(block.timestamp); // record deployment time
-        BuybackEngine engine = new BuybackEngine(
+        BuybackEngine engine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             bondVaultAddr,
             address(mockSolvOracle),

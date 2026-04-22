@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Test, console} from "forge-std/Test.sol";
 import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
 import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════════════════════════════════════════════════════════════════════
 // MOCKS (self-contained for simulation isolation)
@@ -298,8 +299,7 @@ contract AdaptiveAndMarketScenariosTest is Test {
         distributor = new AdaptiveFeeDistributor(address(solvencyOracle));
 
         // Deploy BuybackEngine
-        vm.prank(multisig);
-        buybackEngine = new BuybackEngine(
+        buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),

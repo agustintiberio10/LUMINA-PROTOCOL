@@ -241,7 +241,8 @@ contract ReentrancyAttacks is Test {
         claimBond.setBondVault(address(bondVault));
 
         // Deploy marketplace
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, address(this));
+        marketplace =
+            ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, address(this));
 
         // Fund the vault with LUMINA
         deal(address(token), address(bondVault), 70_000_000 * 1e18);

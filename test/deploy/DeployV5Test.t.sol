@@ -287,7 +287,7 @@ contract DeployV5Test is Test {
         // ──────────────────────────────────────────────────────
         // PHASE 7: TWAPBurner
         // ──────────────────────────────────────────────────────
-        twapBurner = new TWAPBurner(address(usdc), address(lumina), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(swapRouter));
 
         // ──────────────────────────────────────────────────────
         // PHASE 8: PolicyManagerV2 + CoverRouterV2
@@ -304,9 +304,10 @@ contract DeployV5Test is Test {
         // ──────────────────────────────────────────────────────
         // PHASE 9: Marketplace + BuybackEngine
         // ──────────────────────────────────────────────────────
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), multisig);
+        marketplace =
+            ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), multisig);
 
-        buybackEngine = new BuybackEngine(
+        buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),

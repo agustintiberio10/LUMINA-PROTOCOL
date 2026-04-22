@@ -291,8 +291,14 @@ contract DeployLuminaV5Sepolia is Script {
         // ──────────────────────────────────────────────────
         // PHASE 7: TWAPBurner
         // ──────────────────────────────────────────────────
-        TWAPBurner twapBurner = new TWAPBurner(address(usdc), address(lumina), address(dexRouter));
-        console.log("TWAPBurner:", address(twapBurner));
+        // [V5.1] TWAPBurner via UUPS proxy
+        TWAPBurner twapBurnerImpl = new TWAPBurner();
+        ERC1967Proxy twapBurnerProxy = new ERC1967Proxy(
+            address(twapBurnerImpl),
+            abi.encodeWithSelector(TWAPBurner.initialize.selector, address(usdc), address(lumina), address(dexRouter))
+        );
+        TWAPBurner twapBurner = TWAPBurner(address(twapBurnerProxy));
+        console.log("TWAPBurner (proxy):", address(twapBurner));
 
         // ──────────────────────────────────────────────────
         // PHASE 8: PolicyManagerV2 + CoverRouterV2
@@ -331,26 +337,48 @@ contract DeployLuminaV5Sepolia is Script {
         // ──────────────────────────────────────────────────
         // PHASE 9: Marketplace + BuybackEngine
         // ──────────────────────────────────────────────────
-        LuminaBondMarketplace marketplace =
-            new LuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), deployer);
-        console.log("LuminaBondMarketplace:", address(marketplace));
-
-        BuybackEngine buybackEngine = new BuybackEngine(
-            address(claimBond),
-            address(bondVault),
-            address(solvencyOracle),
-            address(capacityOracle),
-            address(marketplace),
-            address(usdc),
-            deployer
+        // [V5.1] LuminaBondMarketplace via UUPS proxy
+        LuminaBondMarketplace marketplaceImpl = new LuminaBondMarketplace();
+        ERC1967Proxy marketplaceProxy = new ERC1967Proxy(
+            address(marketplaceImpl),
+            abi.encodeWithSelector(
+                LuminaBondMarketplace.initialize.selector,
+                address(claimBond),
+                address(usdc),
+                address(twapBurner),
+                deployer
+            )
         );
-        console.log("BuybackEngine:", address(buybackEngine));
+        LuminaBondMarketplace marketplace = LuminaBondMarketplace(address(marketplaceProxy));
+        console.log("LuminaBondMarketplace (proxy):", address(marketplace));
+
+        // [V5.1] BuybackEngine via UUPS proxy
+        BuybackEngine buybackImpl = new BuybackEngine();
+        ERC1967Proxy buybackProxy = new ERC1967Proxy(
+            address(buybackImpl),
+            abi.encodeWithSelector(
+                BuybackEngine.initialize.selector,
+                address(claimBond),
+                address(bondVault),
+                address(solvencyOracle),
+                address(capacityOracle),
+                address(marketplace),
+                address(usdc),
+                deployer
+            )
+        );
+        BuybackEngine buybackEngine = BuybackEngine(address(buybackProxy));
+        console.log("BuybackEngine (proxy):", address(buybackEngine));
 
         // ──────────────────────────────────────────────────
-        // PHASE 9b: ShieldKeeper (Chainlink Automation)
+        // PHASE 9b: ShieldKeeper via UUPS proxy (Chainlink Automation)
         // ──────────────────────────────────────────────────
-        ShieldKeeper shieldKeeper = new ShieldKeeper(address(policyManager));
-        console.log("ShieldKeeper:", address(shieldKeeper));
+        ShieldKeeper shieldKeeperImpl = new ShieldKeeper();
+        ERC1967Proxy shieldKeeperProxy = new ERC1967Proxy(
+            address(shieldKeeperImpl), abi.encodeWithSelector(ShieldKeeper.initialize.selector, address(policyManager))
+        );
+        ShieldKeeper shieldKeeper = ShieldKeeper(address(shieldKeeperProxy));
+        console.log("ShieldKeeper (proxy):", address(shieldKeeper));
 
         // ──────────────────────────────────────────────────
         // PHASE 9c: Deploy 9 Shields + mock oracles

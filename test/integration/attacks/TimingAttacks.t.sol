@@ -10,6 +10,7 @@ import {MockCapacityOracleV5} from "../../mocks/MockCapacityOracleV5.sol";
 import {MockClaimBondV5} from "../../mocks/MockClaimBondV5.sol";
 import {MockBondVaultV5} from "../../mocks/MockBondVaultV5.sol";
 import {MockMarketplace} from "../../mocks/MockMarketplace.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 /// @notice Minimal ERC20 mock for timing tests
 contract MockLumina_Time {
@@ -78,7 +79,7 @@ contract TimingAttacks is Test {
         MockMarketplace marketplace = new MockMarketplace();
         MockUSDC_Time usdc = new MockUSDC_Time();
 
-        BuybackEngine engine = new BuybackEngine(
+        BuybackEngine engine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),
@@ -181,7 +182,7 @@ contract TimingAttacks is Test {
         MockMarketplace marketplace = new MockMarketplace();
         MockUSDC_Time usdc = new MockUSDC_Time();
 
-        BuybackEngine engine = new BuybackEngine(
+        BuybackEngine engine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),

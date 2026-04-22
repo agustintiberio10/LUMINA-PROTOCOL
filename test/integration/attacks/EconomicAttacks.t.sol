@@ -252,7 +252,8 @@ contract EconomicAttacks is Test {
         ClaimBond claimBond = ProxyDeployer.deployClaimBond();
         address twapBurner = makeAddr("twapBurner");
 
-        LuminaBondMarketplace mp = new LuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        LuminaBondMarketplace mp =
+            ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
 
         // Setup: create a mock BondVault just to mint bonds via ClaimBond
         MockLumina_Econ lumina = new MockLumina_Econ();

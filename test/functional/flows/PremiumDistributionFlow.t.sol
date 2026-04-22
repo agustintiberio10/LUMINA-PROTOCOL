@@ -151,7 +151,7 @@ contract PremiumDistributionFlowTest is Test {
         deal(address(token), address(swapRouter), 10_000_000e18);
 
         // 4. Deploy TWAPBurner
-        twapBurner = new TWAPBurner(address(usdc), address(token), address(swapRouter));
+        twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
 
         // 5. Grant BURNER_ROLE to TWAPBurner
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));

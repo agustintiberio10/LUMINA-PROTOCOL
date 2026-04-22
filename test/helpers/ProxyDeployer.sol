@@ -7,6 +7,10 @@ import {BondVault} from "../../src/bonds/BondVault.sol";
 import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
 import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
 import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
+import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
+import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
+import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
+import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
 
 /// @notice Helper library for deploying UUPS proxied contracts in tests.
 /// @dev Provides the same interface as the old constructors but deploys behind ERC1967Proxy.
@@ -67,5 +71,58 @@ library ProxyDeployer {
             address(impl), abi.encodeWithSelector(CoverRouterV2.initialize.selector, _usdc, _policyManager, _twapBurner)
         );
         return CoverRouterV2(address(proxy));
+    }
+
+    function deployTWAPBurner(address _usdc, address _lumina, address _initialDexRouter) internal returns (TWAPBurner) {
+        TWAPBurner impl = new TWAPBurner();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(TWAPBurner.initialize.selector, _usdc, _lumina, _initialDexRouter)
+        );
+        return TWAPBurner(address(proxy));
+    }
+
+    function deployBuybackEngine(
+        address _claimBond,
+        address _bondVault,
+        address _solvencyOracle,
+        address _capacityOracle,
+        address _marketplace,
+        address _usdc,
+        address _multisigOwner
+    ) internal returns (BuybackEngine) {
+        BuybackEngine impl = new BuybackEngine();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                BuybackEngine.initialize.selector,
+                _claimBond,
+                _bondVault,
+                _solvencyOracle,
+                _capacityOracle,
+                _marketplace,
+                _usdc,
+                _multisigOwner
+            )
+        );
+        return BuybackEngine(address(proxy));
+    }
+
+    function deployLuminaBondMarketplace(address _claimBond, address _usdc, address _twapBurner, address _admin)
+        internal
+        returns (LuminaBondMarketplace)
+    {
+        LuminaBondMarketplace impl = new LuminaBondMarketplace();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(LuminaBondMarketplace.initialize.selector, _claimBond, _usdc, _twapBurner, _admin)
+        );
+        return LuminaBondMarketplace(address(proxy));
+    }
+
+    function deployShieldKeeper(address _policyManager) internal returns (ShieldKeeper) {
+        ShieldKeeper impl = new ShieldKeeper();
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(impl), abi.encodeWithSelector(ShieldKeeper.initialize.selector, _policyManager));
+        return ShieldKeeper(address(proxy));
     }
 }

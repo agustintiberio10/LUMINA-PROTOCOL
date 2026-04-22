@@ -219,11 +219,16 @@ contract DeployLuminaV5Complete is Script {
         console.log("11. AdaptiveFeeDistributor:", res.adaptiveFeeDistributor);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 12: TWAPBurner
+        // STEP 12: TWAPBurner via UUPS proxy
         // ═══════════════════════════════════════════════════════
-        TWAPBurner twapBurner = new TWAPBurner(cfg.usdc, res.luminaToken, cfg.swapRouter);
+        TWAPBurner twapBurnerImpl = new TWAPBurner();
+        ERC1967Proxy twapBurnerProxy = new ERC1967Proxy(
+            address(twapBurnerImpl),
+            abi.encodeWithSelector(TWAPBurner.initialize.selector, cfg.usdc, res.luminaToken, cfg.swapRouter)
+        );
+        TWAPBurner twapBurner = TWAPBurner(address(twapBurnerProxy));
         res.twapBurner = address(twapBurner);
-        console.log("12. TWAPBurner:", res.twapBurner);
+        console.log("12. TWAPBurner (proxy):", res.twapBurner);
 
         // ═══════════════════════════════════════════════════════
         // STEP 13: PolicyManagerV2 via UUPS proxy
@@ -261,27 +266,39 @@ contract DeployLuminaV5Complete is Script {
         console.log("16. PolicyManagerV2.setRouter done");
 
         // ═══════════════════════════════════════════════════════
-        // STEP 17: LuminaBondMarketplace
+        // STEP 17: LuminaBondMarketplace via UUPS proxy
         // ═══════════════════════════════════════════════════════
-        LuminaBondMarketplace marketplace =
-            new LuminaBondMarketplace(res.claimBond, cfg.usdc, res.twapBurner, cfg.multisig);
+        LuminaBondMarketplace mktImpl = new LuminaBondMarketplace();
+        ERC1967Proxy mktProxy = new ERC1967Proxy(
+            address(mktImpl),
+            abi.encodeWithSelector(
+                LuminaBondMarketplace.initialize.selector, res.claimBond, cfg.usdc, res.twapBurner, cfg.multisig
+            )
+        );
+        LuminaBondMarketplace marketplace = LuminaBondMarketplace(address(mktProxy));
         res.marketplace = address(marketplace);
-        console.log("17. LuminaBondMarketplace:", res.marketplace);
+        console.log("17. LuminaBondMarketplace (proxy):", res.marketplace);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 18: BuybackEngine
+        // STEP 18: BuybackEngine via UUPS proxy
         // ═══════════════════════════════════════════════════════
-        BuybackEngine buybackEngine = new BuybackEngine(
-            res.claimBond,
-            res.bondVault,
-            res.solvencyOracle,
-            res.capacityOracle,
-            res.marketplace,
-            cfg.usdc,
-            cfg.multisig
+        BuybackEngine bbImpl = new BuybackEngine();
+        ERC1967Proxy bbProxy = new ERC1967Proxy(
+            address(bbImpl),
+            abi.encodeWithSelector(
+                BuybackEngine.initialize.selector,
+                res.claimBond,
+                res.bondVault,
+                res.solvencyOracle,
+                res.capacityOracle,
+                res.marketplace,
+                cfg.usdc,
+                cfg.multisig
+            )
         );
+        BuybackEngine buybackEngine = BuybackEngine(address(bbProxy));
         res.buybackEngine = address(buybackEngine);
-        console.log("18. BuybackEngine:", res.buybackEngine);
+        console.log("18. BuybackEngine (proxy):", res.buybackEngine);
 
         // ═══════════════════════════════════════════════════════
         // STEP 19: Deploy 9 Shields

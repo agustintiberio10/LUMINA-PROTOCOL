@@ -451,7 +451,7 @@ contract Phase77Attacks is Test {
         bytes32 productId = keccak256("TEST-PRODUCT");
         pmk.addProduct(productId, address(shield));
 
-        ShieldKeeper keeper = new ShieldKeeper(address(pmk));
+        ShieldKeeper keeper = ProxyDeployer.deployShieldKeeper(address(pmk));
 
         // Create policies
         uint256 pid1 = shield.createPolicy(alice, 1 hours);
@@ -492,7 +492,7 @@ contract Phase77Attacks is Test {
             100e18 // actual swap return (way below slippage threshold)
         );
 
-        TWAPBurner burner = new TWAPBurner(address(usdc), address(lumina), address(maliciousRouter));
+        TWAPBurner burner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(maliciousRouter));
 
         // Fund burner
         usdc.mint(address(burner), 1000e6);
@@ -567,7 +567,7 @@ contract Phase77Attacks is Test {
     function test_Attack_TWAPBurner_ReentrancyViaAdapter() public {
         // Deploy TWAPBurner first with a placeholder router
         MockDexRouter77 placeholder = new MockDexRouter77(address(lumina), 1000e18, 1000e18);
-        TWAPBurner burner = new TWAPBurner(address(usdc), address(lumina), address(placeholder));
+        TWAPBurner burner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(placeholder));
 
         // Deploy reentrant router targeting the burner
         ReentrantDexRouter77 reentrantRouter = new ReentrantDexRouter77(address(burner), address(lumina));
@@ -612,7 +612,7 @@ contract Phase77Attacks is Test {
         ids[2] = 3; // normal
         pmk.setActivePolicies(productId, ids);
 
-        ShieldKeeper keeper = new ShieldKeeper(address(pmk));
+        ShieldKeeper keeper = ProxyDeployer.deployShieldKeeper(address(pmk));
 
         // performUpkeep should handle the poisoned policy gracefully via try/catch
         bytes memory performData = abi.encode(productId, ids);

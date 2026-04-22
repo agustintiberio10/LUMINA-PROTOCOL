@@ -4,6 +4,8 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
 import {MockClaimBondV5} from "../mocks/MockClaimBondV5.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockUSDCMP {
     mapping(address => uint256) public balanceOf;
@@ -34,6 +36,8 @@ contract MockUSDCMP {
 }
 
 contract LuminaBondMarketplaceTest is Test {
+    using ProxyDeployer for *;
+
     // Mirror events for vm.expectEmit
     event TwapBurnerUpdated(address indexed newTwapBurner);
     LuminaBondMarketplace mp;
@@ -49,7 +53,7 @@ contract LuminaBondMarketplaceTest is Test {
     function setUp() public {
         bond = new MockClaimBondV5();
         usdc = new MockUSDCMP();
-        mp = new LuminaBondMarketplace(address(bond), address(usdc), twapBurner, admin);
+        mp = ProxyDeployer.deployLuminaBondMarketplace(address(bond), address(usdc), twapBurner, admin);
 
         // Setup: mint bonds to seller, set maturity in future
         bond.mint(seller, EPOCH, 1000);
@@ -153,8 +157,14 @@ contract LuminaBondMarketplaceTest is Test {
     }
 
     function test_RevertIf_ConstructorZeroAddresses() public {
-        vm.expectRevert("Zero addr");
-        new LuminaBondMarketplace(address(0), address(usdc), twapBurner, admin);
+        LuminaBondMarketplace impl = new LuminaBondMarketplace();
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeWithSelector(
+                LuminaBondMarketplace.initialize.selector, address(0), address(usdc), twapBurner, admin
+            )
+        );
     }
 
     function test_RevertIf_CancelInactiveListing() public {

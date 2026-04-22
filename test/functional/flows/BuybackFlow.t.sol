@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../../../src/marketplace/BuybackEngine.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ MINIMAL MOCKS ═══════
 
@@ -122,7 +123,7 @@ contract BuybackFlowTest is Test {
         capacityOracle = new MockCapacityOracleBuyback();
         marketplace = new MockMarketplaceBuyback();
 
-        engine = new BuybackEngine(
+        engine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),

@@ -78,7 +78,7 @@ contract TWAPBurnerTest is Test {
         deal(address(token), address(router), 1_000_000 * 1e18);
 
         // Deploy burner
-        burner = new TWAPBurner(usdc, address(token), address(router));
+        burner = ProxyDeployer.deployTWAPBurner(usdc, address(token), address(router));
 
         // Grant BURNER_ROLE to the burner
         token.grantRole(token.BURNER_ROLE(), address(burner));

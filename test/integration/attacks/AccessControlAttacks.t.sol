@@ -135,7 +135,7 @@ contract AccessControlAttacks is Test {
         MockUSDC_AC lumina = new MockUSDC_AC();
         MockSwapRouter_AC router = new MockSwapRouter_AC();
 
-        TWAPBurner burner = new TWAPBurner(address(usdc), address(lumina), address(router));
+        TWAPBurner burner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(router));
 
         // attacker is not owner
         vm.prank(attacker);
@@ -154,7 +154,7 @@ contract AccessControlAttacks is Test {
         MockMarketplace marketplace = new MockMarketplace();
         MockUSDC_AC usdc = new MockUSDC_AC();
 
-        BuybackEngine engine = new BuybackEngine(
+        BuybackEngine engine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
             address(solvencyOracle),

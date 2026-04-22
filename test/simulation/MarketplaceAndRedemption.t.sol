@@ -127,7 +127,7 @@ contract MarketplaceAndRedemptionTest is Test {
         usdc = new MockUSDC6();
 
         // Deploy Marketplace
-        marketplace = new LuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
 
         // Issue bonds to seller (1000 bonds) and buyer2 (500 bonds) via policyManager
         // issueBond issues bonds with 730-day maturity from current time
