@@ -504,7 +504,12 @@ contract DeployLuminaV5Complete is Script {
     }
 
     /// @dev Configure all 9 products on CoverRouterV2 with default parameters.
-    function _configureProducts(CoverRouterV2 router, DeploymentResult memory) internal {
+    function _configureProducts(
+        CoverRouterV2 router,
+        DeploymentResult memory /* res */
+    )
+        internal
+    {
         // Product configs: payoutRatioBps, triggerProbBps, marginBps, durationSeconds, active
         // IDs MUST match the PRODUCT_ID constant in each shield contract
         // payoutRatioBps = 8000 (80% payout)
