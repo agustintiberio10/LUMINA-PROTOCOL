@@ -215,7 +215,7 @@ contract BoundaryConditions is Test {
         lumina.mint(address(bondVault), 70_000_000e18);
 
         // Deploy real SolvencyOracle for solvency level tests
-        realSolvencyOracle = new SolvencyOracle(address(bondVault), address(capacityOracle), owner);
+        realSolvencyOracle = ProxyDeployer.deploySolvencyOracle(address(bondVault), address(capacityOracle), owner);
 
         // Deploy LuminaBondMarketplace
         marketplace = ProxyDeployer.deployLuminaBondMarketplace(
@@ -237,14 +237,14 @@ contract BoundaryConditions is Test {
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
 
         // Deploy AdaptiveFeeDistributor
-        adaptiveFeeDistributor = new AdaptiveFeeDistributor(address(mockSolvencyOracle));
+        adaptiveFeeDistributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(mockSolvencyOracle));
 
         // Deploy CEXLiquidityReserve
-        cexReserve = new CEXLiquidityReserve(address(lumina), owner);
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), owner);
         lumina.mint(address(cexReserve), 14_000_000e18);
 
         // Deploy TreasuryVesting
-        treasuryVesting = new TreasuryVesting(address(lumina));
+        treasuryVesting = ProxyDeployer.deployTreasuryVesting(address(lumina));
         lumina.mint(address(treasuryVesting), 3_000_000e18);
 
         // Fund DEX router with LUMINA for swaps

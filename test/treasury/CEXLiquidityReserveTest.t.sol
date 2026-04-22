@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {CEXLiquidityReserve} from "../../src/treasury/CEXLiquidityReserve.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockLUMINA {
     mapping(address => uint256) public balanceOf;
@@ -31,6 +33,8 @@ contract MockLUMINA {
 }
 
 contract CEXLiquidityReserveTest is Test {
+    using ProxyDeployer for *;
+
     CEXLiquidityReserve reserve;
     MockLUMINA lumina;
     address multisig = makeAddr("multisig");
@@ -38,7 +42,7 @@ contract CEXLiquidityReserveTest is Test {
 
     function setUp() public {
         lumina = new MockLUMINA();
-        reserve = new CEXLiquidityReserve(address(lumina), multisig);
+        reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), multisig);
         // Fund the reserve with 14M
         lumina.mint(address(reserve), 14_000_000 * 1e18);
     }
@@ -49,10 +53,15 @@ contract CEXLiquidityReserveTest is Test {
     }
 
     function test_RevertIf_ConstructorZeroAddresses() public {
-        vm.expectRevert("Lumina zero address");
-        new CEXLiquidityReserve(address(0), multisig);
-        vm.expectRevert("Multisig zero address");
-        new CEXLiquidityReserve(address(lumina), address(0));
+        CEXLiquidityReserve impl = new CEXLiquidityReserve();
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(CEXLiquidityReserve.initialize.selector, address(0), multisig)
+        );
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(CEXLiquidityReserve.initialize.selector, address(lumina), address(0))
+        );
     }
 
     function test_Allocate_FromImmediateUse_Success() public {

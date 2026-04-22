@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "../../src/oracles/CapacityOracle.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract MockUniswapPool {
     int24 public mockTick = -92000; // approximately $0.036 for LUMINA/USDC
@@ -44,13 +45,15 @@ contract MockUniswapPool {
 }
 
 contract CapacityOracleTest is Test {
+    using ProxyDeployer for *;
+
     CapacityOracle oracle;
     address lumina = makeAddr("lumina");
     address usdc = makeAddr("usdc");
 
     function setUp() public {
         // Deploy without pool (emergency price only)
-        oracle = new CapacityOracle(address(0), lumina, usdc, 0.036e18);
+        oracle = ProxyDeployer.deployCapacityOracle(address(0), lumina, usdc, 0.036e18);
     }
 
     function test_emergency_price_when_no_pool() public view {

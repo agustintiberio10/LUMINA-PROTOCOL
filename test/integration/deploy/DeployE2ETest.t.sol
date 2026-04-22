@@ -214,19 +214,19 @@ contract DeployE2ETest is Test {
         aavePool = new MockAavePool_E2E();
 
         // ── Phase 2: No-dep contracts ──
-        maintenanceReserve = new MaintenanceReserve(address(usdc), multisig);
+        maintenanceReserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), multisig);
         claimBond = ProxyDeployer.deployClaimBond();
 
         // ── Phase 3: Predict lumina address ──
         uint64 currentNonce = vm.getNonce(deployer);
-        // capacityOracle(+1) + bondVault proxy(+2) + cexReserve(+1) + treasuryVesting(+1) = 5, then lumina impl+proxy
-        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 6);
+        // capacityOracle proxy(+2) + bondVault proxy(+2) + cexReserve proxy(+2) + treasuryVesting proxy(+2) = 8, then lumina impl+proxy
+        address predictedLumina = vm.computeCreateAddress(deployer, currentNonce + 9);
 
-        capacityOracle = new CapacityOracle(address(0), predictedLumina, address(usdc), EMERGENCY_PRICE);
+        capacityOracle = ProxyDeployer.deployCapacityOracle(address(0), predictedLumina, address(usdc), EMERGENCY_PRICE);
         bondVault =
             ProxyDeployer.deployBondVault(predictedLumina, address(claimBond), address(capacityOracle), address(0));
-        cexReserve = new CEXLiquidityReserve(predictedLumina, multisig);
-        treasuryVesting = new TreasuryVesting(predictedLumina);
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(predictedLumina, multisig);
+        treasuryVesting = ProxyDeployer.deployTreasuryVesting(predictedLumina);
 
         // ── Phase 4: Token ──
         lumina = ProxyDeployer.deployLuminaTokenV2(
@@ -238,8 +238,8 @@ contract DeployE2ETest is Test {
         claimBond.setBondVault(address(bondVault));
 
         // ── Phase 6: SolvencyOracle + FeeDistributor ──
-        solvencyOracle = new SolvencyOracle(address(bondVault), address(capacityOracle), multisig);
-        feeDistributor = new AdaptiveFeeDistributor(address(solvencyOracle));
+        solvencyOracle = ProxyDeployer.deploySolvencyOracle(address(bondVault), address(capacityOracle), multisig);
+        feeDistributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(solvencyOracle));
 
         // ── Phase 7: TWAPBurner ──
         twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(swapRouter));

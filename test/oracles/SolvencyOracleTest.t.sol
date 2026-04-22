@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
 import {MockCapacityOracleV5} from "../mocks/MockCapacityOracleV5.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract MockBVForSolvency {
     uint256 public totalCommittedUSD;
@@ -27,6 +28,8 @@ contract MockLuminaERC20 {
 }
 
 contract SolvencyOracleTest is Test {
+    using ProxyDeployer for *;
+
     // Mirror events for vm.expectEmit
     event QuadrantChanged(uint8 oldS, uint8 oldM, uint8 newS, uint8 newM, uint256 sBps, uint256 mBps);
     event EvaluationExecuted(uint256 solvencyBps, uint256 momentumBps);
@@ -41,7 +44,7 @@ contract SolvencyOracleTest is Test {
         bondVault = new MockBVForSolvency(address(lumina));
         capOracle = new MockCapacityOracleV5();
         capOracle.setPrice(0.036e18);
-        oracle = new SolvencyOracle(address(bondVault), address(capOracle), admin);
+        oracle = ProxyDeployer.deploySolvencyOracle(address(bondVault), address(capOracle), admin);
     }
 
     function test_Constructor_CorrectInit() public view {

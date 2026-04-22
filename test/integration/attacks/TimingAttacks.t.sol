@@ -104,7 +104,7 @@ contract TimingAttacks is Test {
         MockLumina_Time lumina = new MockLumina_Time();
         MockBondVaultV5 mockVault = new MockBondVaultV5(address(lumina));
 
-        SolvencyOracle solvency = new SolvencyOracle(address(mockVault), address(oracle), admin);
+        SolvencyOracle solvency = ProxyDeployer.deploySolvencyOracle(address(mockVault), address(oracle), admin);
 
         // Constructor sets lastEvaluation = block.timestamp
         // Try to evaluate immediately (before EVALUATION_INTERVAL = 1 day)
@@ -127,7 +127,7 @@ contract TimingAttacks is Test {
     function test_Attack_CEXStrategicBeforeUnlock() public {
         MockLumina_Time lumina = new MockLumina_Time();
 
-        CEXLiquidityReserve reserve = new CEXLiquidityReserve(address(lumina), admin);
+        CEXLiquidityReserve reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), admin);
 
         // Fund with full allocation
         lumina.mint(address(reserve), 14_000_000e18);

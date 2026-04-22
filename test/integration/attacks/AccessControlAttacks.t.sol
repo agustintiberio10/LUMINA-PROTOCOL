@@ -119,7 +119,7 @@ contract AccessControlAttacks is Test {
         // SolvencyOracle needs a BondVault that exposes totalCommittedUSD() and lumina()
         MockBondVaultV5 mockVault = new MockBondVaultV5(address(lumina));
 
-        SolvencyOracle solvency = new SolvencyOracle(address(mockVault), address(oracle), admin);
+        SolvencyOracle solvency = ProxyDeployer.deploySolvencyOracle(address(mockVault), address(oracle), admin);
 
         // attacker (no ADMIN_ROLE) tries to pause
         vm.prank(attacker);

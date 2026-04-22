@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {MaintenanceReserve} from "../../src/treasury/MaintenanceReserve.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract MockUSDCForMaint {
     string public name = "MockUSDC";
@@ -41,6 +42,8 @@ contract MockUSDCForMaint {
 /// @title MaintenanceReserveFuzz
 /// @notice Fuzz tests for MaintenanceReserve spend tracking.
 contract MaintenanceReserveFuzz is Test {
+    using ProxyDeployer for *;
+
     MaintenanceReserve reserve;
     MockUSDCForMaint usdc;
 
@@ -51,7 +54,7 @@ contract MaintenanceReserveFuzz is Test {
     function setUp() public {
         usdc = new MockUSDCForMaint();
         vm.prank(admin);
-        reserve = new MaintenanceReserve(address(usdc), admin);
+        reserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), admin);
 
         // Fund the reserve
         usdc.mint(address(reserve), FUND_AMOUNT);

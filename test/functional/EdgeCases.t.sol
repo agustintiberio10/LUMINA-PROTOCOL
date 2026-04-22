@@ -93,11 +93,11 @@ contract EdgeCasesTest is Test {
         bondVault.setAuthorizedCaller(deployer, true);
 
         // CEX Reserve
-        cexReserve = new CEXLiquidityReserve(address(token), multisig);
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(address(token), multisig);
         deal(address(token), address(cexReserve), 14_000_000e18);
 
         // Maintenance Reserve
-        maintenanceReserve = new MaintenanceReserve(address(usdc), multisig);
+        maintenanceReserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), multisig);
     }
 
     // ═══════ BOND VAULT EDGE CASES ═══════

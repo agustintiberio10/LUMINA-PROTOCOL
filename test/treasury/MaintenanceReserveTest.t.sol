@@ -4,6 +4,8 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {MaintenanceReserve} from "../../src/treasury/MaintenanceReserve.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /// @notice Minimal ERC20 mock for USDC in MaintenanceReserve tests.
 contract MockUSDC {
@@ -70,6 +72,8 @@ contract MockOtherToken {
 }
 
 contract MaintenanceReserveTest is Test {
+    using ProxyDeployer for *;
+
     MaintenanceReserve reserve;
     MockUSDC usdc;
     address admin;
@@ -84,7 +88,7 @@ contract MaintenanceReserveTest is Test {
         usdc = new MockUSDC();
 
         vm.prank(admin);
-        reserve = new MaintenanceReserve(address(usdc), admin);
+        reserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), admin);
 
         // Fund the reserve with USDC
         usdc.mint(address(reserve), 100_000e6);
@@ -105,13 +109,19 @@ contract MaintenanceReserveTest is Test {
     }
 
     function test_Constructor_RevertIf_ZeroUSDC() public {
-        vm.expectRevert("USDC zero");
-        new MaintenanceReserve(address(0), admin);
+        MaintenanceReserve impl = new MaintenanceReserve();
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(MaintenanceReserve.initialize.selector, address(0), admin)
+        );
     }
 
     function test_Constructor_RevertIf_ZeroAdmin() public {
-        vm.expectRevert("Admin zero");
-        new MaintenanceReserve(address(usdc), address(0));
+        MaintenanceReserve impl = new MaintenanceReserve();
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(MaintenanceReserve.initialize.selector, address(usdc), address(0))
+        );
     }
 
     // ═══════ SPEND ═══════

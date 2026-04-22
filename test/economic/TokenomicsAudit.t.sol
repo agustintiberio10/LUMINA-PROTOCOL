@@ -264,14 +264,14 @@ contract TokenomicsAuditTest is Test {
         twapBurner.setCapacityOracle(address(oracle));
 
         // Deploy AdaptiveFeeDistributor
-        feeDistributor = new AdaptiveFeeDistributor(address(solvencyOracle));
+        feeDistributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(solvencyOracle));
 
         // Deploy MaintenanceReserve
-        maintenanceReserve = new MaintenanceReserve(address(usdc), multisig);
+        maintenanceReserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), multisig);
 
         // Deploy CEXLiquidityReserve — reuse the cex address that got tokens
         // Note: In the real deploy, CEXLiquidityReserve holds the 14M. Here we just test economics.
-        cexReserve = new CEXLiquidityReserve(address(lumina), multisig);
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), multisig);
 
         // Configure TWAPBurner adaptive mode
         twapBurner.setFeeDistributor(address(feeDistributor));

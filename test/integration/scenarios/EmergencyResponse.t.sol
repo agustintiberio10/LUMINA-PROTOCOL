@@ -213,10 +213,10 @@ contract EmergencyResponseTest is Test {
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
 
         // 7. SolvencyOracle
-        solvencyOracle = new SolvencyOracle(bondVaultAddr, address(capacityOracle), admin);
+        solvencyOracle = ProxyDeployer.deploySolvencyOracle(bondVaultAddr, address(capacityOracle), admin);
 
         // 8. AdaptiveFeeDistributor
-        feeDistributor = new AdaptiveFeeDistributor(address(solvencyOracle));
+        feeDistributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(solvencyOracle));
 
         // 9. CoverRouter
         coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));

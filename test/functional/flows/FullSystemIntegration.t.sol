@@ -258,8 +258,8 @@ contract FullSystemIntegrationTest is Test {
         claimBond.setBondVault(address(bondVault));
 
         // --- Phase 6: Deploy SolvencyOracle + AdaptiveFeeDistributor ---
-        solvencyOracle = new SolvencyOracle(address(bondVault), address(capacityOracle), admin);
-        feeDistributor = new AdaptiveFeeDistributor(address(solvencyOracle));
+        solvencyOracle = ProxyDeployer.deploySolvencyOracle(address(bondVault), address(capacityOracle), admin);
+        feeDistributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(solvencyOracle));
 
         // --- Phase 7: Deploy TWAPBurner ---
         twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));

@@ -254,7 +254,7 @@ contract RoundingErrors is Test {
         swapRouter = new RoundingMockSwapRouter(address(token));
 
         // 5. Deploy CapacityOracle (no pool, emergency price)
-        capacityOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
+        capacityOracle = ProxyDeployer.deployCapacityOracle(address(0), address(token), address(usdc), 0.036e18);
 
         // 6. Deploy BondVault with 2-step init
         bondVault = ProxyDeployer.deployBondVault(address(token), address(claimBond), address(oracle), address(0));
@@ -278,14 +278,14 @@ contract RoundingErrors is Test {
         coverRouter.configureProduct(PRODUCT_ID, 8000, 20, 15000, 3600, true);
 
         // 11. Deploy SolvencyOracle
-        solvencyOracle = new SolvencyOracle(address(bondVault), address(capacityOracle), deployer);
+        solvencyOracle = ProxyDeployer.deploySolvencyOracle(address(bondVault), address(capacityOracle), deployer);
 
         // 12. Deploy FounderVesting
         founderVesting =
             new FounderVesting(address(oracleReader), address(aavePool), address(token), address(usdc), founder);
 
         // 13. Deploy TreasuryVesting
-        treasuryVesting = new TreasuryVesting(address(token));
+        treasuryVesting = ProxyDeployer.deployTreasuryVesting(address(token));
 
         // 14. Fund the system
         deal(address(token), address(bondVault), 70_000_000 * 1e18);
@@ -930,8 +930,10 @@ contract RoundingErrors is Test {
         deal(address(token), address(freshVault), 70_000_000e18);
 
         // Deploy a fresh SolvencyOracle pointing to the fresh vault
-        CapacityOracle freshCapOracle = new CapacityOracle(address(0), address(token), address(usdc), 0.036e18);
-        SolvencyOracle freshSolvency = new SolvencyOracle(address(freshVault), address(freshCapOracle), deployer);
+        CapacityOracle freshCapOracle =
+            ProxyDeployer.deployCapacityOracle(address(0), address(token), address(usdc), 0.036e18);
+        SolvencyOracle freshSolvency =
+            ProxyDeployer.deploySolvencyOracle(address(freshVault), address(freshCapOracle), deployer);
 
         // getSolvencyRatio should return max when obligations = 0
         uint256 ratio = freshSolvency.getSolvencyRatio();

@@ -157,13 +157,13 @@ contract RoleAuditTest is Test {
         bondVault.grantRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), multisig);
 
         // Deploy CEXLiquidityReserve (multisig gets ALLOCATOR_ROLE)
-        cexReserve = new CEXLiquidityReserve(address(token), multisig);
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(address(token), multisig);
 
         // Fund CEX reserve
         deal(address(token), address(cexReserve), 14_000_000e18);
 
         // Deploy MaintenanceReserve (multisig gets SPENDER_ROLE)
-        maintenanceReserve = new MaintenanceReserve(address(usdc), multisig);
+        maintenanceReserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), multisig);
 
         // Fund MaintenanceReserve with USDC
         usdc.mint(address(maintenanceReserve), 500_000e6);

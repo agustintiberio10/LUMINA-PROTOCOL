@@ -127,11 +127,11 @@ contract UserJourneysTest is Test {
         deal(address(token), address(bondVault), 70_000_000e18);
 
         // CEX Reserve
-        cexReserve = new CEXLiquidityReserve(address(token), multisig);
+        cexReserve = ProxyDeployer.deployCEXLiquidityReserve(address(token), multisig);
         deal(address(token), address(cexReserve), 14_000_000e18);
 
         // Maintenance Reserve
-        maintenanceReserve = new MaintenanceReserve(address(usdc), multisig);
+        maintenanceReserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), multisig);
         usdc.mint(address(maintenanceReserve), 500_000e6);
 
         // Marketplace (real, for listing tests)

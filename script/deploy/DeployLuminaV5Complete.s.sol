@@ -109,9 +109,14 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // STEP 1: MaintenanceReserve (needs USDC only)
         // ═══════════════════════════════════════════════════════
-        MaintenanceReserve maintenanceReserve = new MaintenanceReserve(cfg.usdc, cfg.multisig);
+        MaintenanceReserve maintenanceReserveImpl = new MaintenanceReserve();
+        ERC1967Proxy maintenanceReserveProxy = new ERC1967Proxy(
+            address(maintenanceReserveImpl),
+            abi.encodeWithSelector(MaintenanceReserve.initialize.selector, cfg.usdc, cfg.multisig)
+        );
+        MaintenanceReserve maintenanceReserve = MaintenanceReserve(address(maintenanceReserveProxy));
         res.maintenanceReserve = address(maintenanceReserve);
-        console.log("1. MaintenanceReserve:", res.maintenanceReserve);
+        console.log("1. MaintenanceReserve (proxy):", res.maintenanceReserve);
 
         // ═══════════════════════════════════════════════════════
         // STEP 2: ClaimBond via UUPS proxy (no deps)
@@ -125,22 +130,32 @@ contract DeployLuminaV5Complete is Script {
 
         // ═══════════════════════════════════════════════════════
         // STEP 3-7: Precompute LuminaTokenV2 PROXY address
-        // [V5.1] ClaimBond used 2 nonces (impl+proxy). BondVault will use 2 nonces.
-        // LuminaTokenV2 will use 2 nonces (impl+proxy), we predict the proxy.
-        // Nonce count: CapacityOracle(+1), BondVaultImpl(+1), BondVaultProxy(+1),
-        //              CEXReserve(+1), FounderVesting(+1), TreasuryVesting(+1),
-        //              LuminaImpl(+1), LuminaProxy(+1) = +8 total, proxy at +7
+        // [V5.2] All contracts before LuminaTokenV2 now use UUPS proxy (2 nonces each),
+        // except FounderVesting which remains non-proxied (1 nonce).
+        // Nonce count: CapacityOracleImpl(+1), CapacityOracleProxy(+1),
+        //              BondVaultImpl(+1), BondVaultProxy(+1),
+        //              CEXReserveImpl(+1), CEXReserveProxy(+1),
+        //              FounderVesting(+1),
+        //              TreasuryVestingImpl(+1), TreasuryVestingProxy(+1),
+        //              LuminaImpl(+1), LuminaProxy(+1) = +11 total, proxy at +10
         // ═══════════════════════════════════════════════════════
         uint64 currentNonce = vm.getNonce(deployer);
-        address precomputedLumina = vm.computeCreateAddress(deployer, currentNonce + 7);
+        address precomputedLumina = vm.computeCreateAddress(deployer, currentNonce + 10);
         console.log("   Precomputed LUMINA proxy address:", precomputedLumina);
 
         // ═══════════════════════════════════════════════════════
         // STEP 3: CapacityOracle (pool=address(0), emergencyPrice=0.036e18)
         // ═══════════════════════════════════════════════════════
-        CapacityOracle capacityOracle = new CapacityOracle(address(0), precomputedLumina, cfg.usdc, 0.036e18);
+        CapacityOracle capacityOracleImpl = new CapacityOracle();
+        ERC1967Proxy capacityOracleProxy = new ERC1967Proxy(
+            address(capacityOracleImpl),
+            abi.encodeWithSelector(
+                CapacityOracle.initialize.selector, address(0), precomputedLumina, cfg.usdc, 0.036e18
+            )
+        );
+        CapacityOracle capacityOracle = CapacityOracle(address(capacityOracleProxy));
         res.capacityOracle = address(capacityOracle);
-        console.log("3. CapacityOracle:", res.capacityOracle);
+        console.log("3. CapacityOracle (proxy):", res.capacityOracle);
 
         // ═══════════════════════════════════════════════════════
         // STEP 4: BondVault via UUPS proxy (policyManager=address(0) for 2-step init)
@@ -159,9 +174,14 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // STEP 5: CEXLiquidityReserve
         // ═══════════════════════════════════════════════════════
-        CEXLiquidityReserve cexReserve = new CEXLiquidityReserve(precomputedLumina, cfg.multisig);
+        CEXLiquidityReserve cexReserveImpl = new CEXLiquidityReserve();
+        ERC1967Proxy cexReserveProxy = new ERC1967Proxy(
+            address(cexReserveImpl),
+            abi.encodeWithSelector(CEXLiquidityReserve.initialize.selector, precomputedLumina, cfg.multisig)
+        );
+        CEXLiquidityReserve cexReserve = CEXLiquidityReserve(address(cexReserveProxy));
         res.cexLiquidityReserve = address(cexReserve);
-        console.log("5. CEXLiquidityReserve:", res.cexLiquidityReserve);
+        console.log("5. CEXLiquidityReserve (proxy):", res.cexLiquidityReserve);
 
         // ═══════════════════════════════════════════════════════
         // STEP 6: FounderVesting
@@ -174,9 +194,13 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // STEP 7: TreasuryVesting
         // ═══════════════════════════════════════════════════════
-        TreasuryVesting treasuryVesting = new TreasuryVesting(precomputedLumina);
+        TreasuryVesting treasuryVestingImpl = new TreasuryVesting();
+        ERC1967Proxy treasuryVestingProxy = new ERC1967Proxy(
+            address(treasuryVestingImpl), abi.encodeWithSelector(TreasuryVesting.initialize.selector, precomputedLumina)
+        );
+        TreasuryVesting treasuryVesting = TreasuryVesting(address(treasuryVestingProxy));
         res.treasuryVesting = address(treasuryVesting);
-        console.log("7. TreasuryVesting:", res.treasuryVesting);
+        console.log("7. TreasuryVesting (proxy):", res.treasuryVesting);
 
         // ═══════════════════════════════════════════════════════
         // STEP 8: LuminaTokenV2 via UUPS proxy — NOW the LUMINA token exists
@@ -207,16 +231,26 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // STEP 10: SolvencyOracle
         // ═══════════════════════════════════════════════════════
-        SolvencyOracle solvencyOracle = new SolvencyOracle(res.bondVault, res.capacityOracle, cfg.multisig);
+        SolvencyOracle solvencyOracleImpl = new SolvencyOracle();
+        ERC1967Proxy solvencyOracleProxy = new ERC1967Proxy(
+            address(solvencyOracleImpl),
+            abi.encodeWithSelector(SolvencyOracle.initialize.selector, res.bondVault, res.capacityOracle, cfg.multisig)
+        );
+        SolvencyOracle solvencyOracle = SolvencyOracle(address(solvencyOracleProxy));
         res.solvencyOracle = address(solvencyOracle);
-        console.log("10. SolvencyOracle:", res.solvencyOracle);
+        console.log("10. SolvencyOracle (proxy):", res.solvencyOracle);
 
         // ═══════════════════════════════════════════════════════
         // STEP 11: AdaptiveFeeDistributor
         // ═══════════════════════════════════════════════════════
-        AdaptiveFeeDistributor adaptiveFeeDistributor = new AdaptiveFeeDistributor(res.solvencyOracle);
+        AdaptiveFeeDistributor adaptiveFeeDistributorImpl = new AdaptiveFeeDistributor();
+        ERC1967Proxy adaptiveFeeDistributorProxy = new ERC1967Proxy(
+            address(adaptiveFeeDistributorImpl),
+            abi.encodeWithSelector(AdaptiveFeeDistributor.initialize.selector, res.solvencyOracle)
+        );
+        AdaptiveFeeDistributor adaptiveFeeDistributor = AdaptiveFeeDistributor(address(adaptiveFeeDistributorProxy));
         res.adaptiveFeeDistributor = address(adaptiveFeeDistributor);
-        console.log("11. AdaptiveFeeDistributor:", res.adaptiveFeeDistributor);
+        console.log("11. AdaptiveFeeDistributor (proxy):", res.adaptiveFeeDistributor);
 
         // ═══════════════════════════════════════════════════════
         // STEP 12: TWAPBurner via UUPS proxy

@@ -308,7 +308,7 @@ contract EconomicAttacks is Test {
     function test_Attack_CEXReserveDrainAttempt() public {
         MockLumina_Econ lumina = new MockLumina_Econ();
 
-        CEXLiquidityReserve reserve = new CEXLiquidityReserve(address(lumina), admin);
+        CEXLiquidityReserve reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), admin);
 
         // Fund the reserve with its full 14M allocation
         lumina.mint(address(reserve), 14_000_000e18);

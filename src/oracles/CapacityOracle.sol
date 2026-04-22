@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title CapacityOracle
 /// @notice Provides $LUMINA price and capacity calculations for BondVault.
-/// @dev Reads Uniswap V3 TWAP (30-min window) to resist manipulation.
-///      Implements IPriceOracle interface expected by BondVault.
-///      Owner can update the pool address if the main pool migrates.
+/// @dev [V5.1] UUPS upgradeable proxy pattern.
 
 interface IUniswapV3Pool {
     function observe(uint32[] calldata secondsAgos)
@@ -30,29 +30,39 @@ interface IUniswapV3Pool {
     function token1() external view returns (address);
 }
 
-contract CapacityOracle is Ownable {
-    // ═══════ STATE ═══════
-    address public pool; // Uniswap V3 LUMINA/USDC pool
-    // [M-7] luminaToken and usdcToken are set once in constructor, never rewritten → immutable
-    address public immutable luminaToken;
-    address public immutable usdcToken;
-    uint32 public twapWindow = 1800; // 30 minutes default
-    uint256 public emergencyPrice; // fallback price if TWAP fails (18 decimals)
-    bool public isToken0Lumina; // whether LUMINA is token0 in the pool
+contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+    // ═══════ STORAGE (was immutable) ═══════
+    address public pool;
+    address public luminaToken;
+    address public usdcToken;
+    uint32 public twapWindow;
+    uint256 public emergencyPrice;
+    bool public isToken0Lumina;
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant BOND_RESERVE = 70_000_000 * 1e18;
-    uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50%
-    uint256 public constant AVG_PAYOUT_USD = 500; // $500 average payout
-    uint256 public constant MATURITY_DAYS = 730; // 24 months
-    uint256 public constant AVG_TRIGGER_RATE_BPS = 100; // 1% average
+    uint256 public constant SAFETY_FACTOR_BPS = 5000;
+    uint256 public constant AVG_PAYOUT_USD = 500;
+    uint256 public constant MATURITY_DAYS = 730;
+    uint256 public constant AVG_TRIGGER_RATE_BPS = 100;
 
     // ═══════ EVENTS ═══════
     event PoolUpdated(address oldPool, address newPool);
     event TwapWindowUpdated(uint32 oldWindow, uint32 newWindow);
     event EmergencyPriceSet(uint256 price);
 
-    constructor(address _pool, address _luminaToken, address _usdcToken, uint256 _emergencyPrice) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _pool, address _luminaToken, address _usdcToken, uint256 _emergencyPrice)
+        public
+        initializer
+    {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+
         require(_luminaToken != address(0), "Zero lumina");
         require(_usdcToken != address(0), "Zero usdc");
         require(_emergencyPrice > 0, "Zero emergency price");
@@ -60,16 +70,15 @@ contract CapacityOracle is Ownable {
         luminaToken = _luminaToken;
         usdcToken = _usdcToken;
         emergencyPrice = _emergencyPrice;
+        twapWindow = 1800;
 
         if (_pool != address(0)) {
             _setPool(_pool);
         }
     }
 
-    // ═══════ IPriceOracle interface (called by BondVault) ═══════
+    // ═══════ IPriceOracle interface ═══════
 
-    /// @notice Current LUMINA price in USD with 18 decimals.
-    /// @return price e.g., 36000000000000000 = $0.036
     function getLuminaPrice() external view returns (uint256 price) {
         if (pool == address(0)) return emergencyPrice;
 
@@ -80,7 +89,6 @@ contract CapacityOracle is Ownable {
         }
     }
 
-    /// @notice TWAP price calculation (public for try/catch from getLuminaPrice)
     function _getTwapPrice() external view returns (uint256) {
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = twapWindow;
@@ -90,31 +98,18 @@ contract CapacityOracle is Ownable {
 
         int56 tickDiff = tickCumulatives[1] - tickCumulatives[0];
         int56 secs = int56(int32(twapWindow));
-        // [LBL-H3] Match Uniswap V3 OracleLibrary floor semantics: for negative
-        // tickDiff with non-zero remainder, round toward -infinity (subtract 1).
-        // Solidity division truncates toward zero; Uniswap's reference library
-        // explicitly floors to avoid upward-biased TWAP during price downtrends.
         int24 avgTick = int24(tickDiff / secs);
         if (tickDiff < 0 && (tickDiff % secs != 0)) {
             avgTick--;
         }
 
-        // Convert tick to price
-        // price = 1.0001^tick
-        // For LUMINA/USDC: if LUMINA is token0, price = USDC per LUMINA
-        // USDC has 6 decimals, LUMINA has 18 decimals
         uint256 sqrtPriceX96 = _getSqrtPriceFromTick(avgTick);
         uint256 priceRaw;
 
         if (isToken0Lumina) {
-            // price = (sqrtPriceX96^2 * 1e18) / (2^192)
-            // This gives USDC per LUMINA, but USDC is 6 decimals
-            // Adjust to 18 decimals
             priceRaw = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96) * 1e18) >> 192;
-            // priceRaw is in USDC (6 dec) terms, scale to 18 dec
-            priceRaw = priceRaw * 1e12; // 6 dec → 18 dec
+            priceRaw = priceRaw * 1e12;
         } else {
-            // LUMINA is token1 → invert
             priceRaw = (1 << 192) * 1e18 / (uint256(sqrtPriceX96) * uint256(sqrtPriceX96));
             priceRaw = priceRaw * 1e12;
         }
@@ -122,9 +117,6 @@ contract CapacityOracle is Ownable {
         return priceRaw;
     }
 
-    /// @notice Returns TWAP price over a specified period (for SolvencyOracle momentum)
-    /// @param secondsAgo Time window in seconds (e.g., 2592000 for 30 days)
-    /// @return TWAP price in 18 decimals (USD per LUMINA)
     function getTWAP(uint32 secondsAgo) external view returns (uint256) {
         require(secondsAgo > 0, "Period must be > 0");
         if (pool == address(0)) return emergencyPrice;
@@ -155,25 +147,19 @@ contract CapacityOracle is Ownable {
         }
     }
 
-    // ═══════ CAPACITY VIEW (informational) ═══════
+    // ═══════ CAPACITY VIEW ═══════
 
-    /// @notice Estimated max policies per day at current price (integer count).
-    /// @dev [SR3] Returns INTEGER policies (not 18-dec scaled). reserveValueUSD is
-    ///      in 18-dec USD (dollar-wei); dailyCommitUSD is integer dollars. Result of
-    ///      the division is 18-dec policies-scaled, so divide by 1e18 at the end.
     function maxPoliciesPerDay() external view returns (uint256) {
         uint256 price = this.getLuminaPrice();
         if (price == 0) return 0;
-        // max = (BOND_RESERVE * SAFETY_FACTOR * price) / (AVG_PAYOUT * MATURITY * AVG_TRIGGER)
-        // BOND_RESERVE is 18-dec LUMINA wei, price is 18-dec USD/LUMINA.
-        uint256 reserveValueUSD = (BOND_RESERVE * price) / 1e18; // 18-dec USD
-        uint256 maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000; // 18-dec USD
-        uint256 dailyCommitUSD = (AVG_PAYOUT_USD * AVG_TRIGGER_RATE_BPS) / 10000; // integer $
+        uint256 reserveValueUSD = (BOND_RESERVE * price) / 1e18;
+        uint256 maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000;
+        uint256 dailyCommitUSD = (AVG_PAYOUT_USD * AVG_TRIGGER_RATE_BPS) / 10000;
         if (dailyCommitUSD == 0) return type(uint256).max;
-        return maxCommitUSD / (MATURITY_DAYS * dailyCommitUSD) / 1e18; // integer policies
+        return maxCommitUSD / (MATURITY_DAYS * dailyCommitUSD) / 1e18;
     }
 
-    // ═══════ ADMIN (owner = Gnosis Safe in prod) ═══════
+    // ═══════ ADMIN ═══════
 
     function setPool(address _pool) external onlyOwner {
         _setPool(_pool);
@@ -204,9 +190,6 @@ contract CapacityOracle is Ownable {
     }
 
     function _getSqrtPriceFromTick(int24 tick) internal pure returns (uint256) {
-        // Simplified: use the Uniswap TickMath approximation
-        // sqrtPriceX96 = sqrt(1.0001^tick) * 2^96
-        // For production, import TickMath from Uniswap v3-core
         uint256 absTick = tick >= 0 ? uint256(int256(tick)) : uint256(-int256(tick));
 
         uint256 ratio = 0x100000000000000000000000000000000;
@@ -235,4 +218,9 @@ contract CapacityOracle is Ownable {
 
         return (ratio >> 32) + (ratio % (1 << 32) == 0 ? 0 : 1);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

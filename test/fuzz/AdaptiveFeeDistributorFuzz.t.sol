@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
+import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract MockSolvencyOracle {
     uint8 public solvencyLevel;
@@ -25,12 +26,14 @@ contract MockSolvencyOracle {
 /// @title AdaptiveFeeDistributorFuzz
 /// @notice Fuzz tests for AdaptiveFeeDistributor distribution matrix.
 contract AdaptiveFeeDistributorFuzz is Test {
+    using ProxyDeployer for *;
+
     AdaptiveFeeDistributor distributor;
     MockSolvencyOracle oracle;
 
     function setUp() public {
         oracle = new MockSolvencyOracle();
-        distributor = new AdaptiveFeeDistributor(address(oracle));
+        distributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(oracle));
     }
 
     /// @notice Fuzz: all valid quadrant distributions must sum to exactly 10000 BPS.

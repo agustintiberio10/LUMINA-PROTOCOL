@@ -20,7 +20,7 @@ contract TreasuryVestingTest is Test {
     function setUp() public {
         multisig = address(this); // deployer is owner (multisig in prod)
         token = ProxyDeployer.deployLuminaTokenV2(bondVault, makeAddr("cex"), founder, lbp, address(0xdead));
-        vesting = new TreasuryVesting(address(token));
+        vesting = ProxyDeployer.deployTreasuryVesting(address(token));
         deal(address(token), address(vesting), 3_000_000 * 1e18);
     }
 
