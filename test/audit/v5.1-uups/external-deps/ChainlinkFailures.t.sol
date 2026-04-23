@@ -203,16 +203,13 @@ contract ChainlinkFailures is Test {
     // ─────────────────────────────────────────────────────────────
     // Feed returns extreme outlier — no sanity bounds in Shield layer
     // ─────────────────────────────────────────────────────────────
-    function test_Chainlink_ExtremePriceAccepted_NoSanityBoundsInShield() public {
-        // 100x the normal price. Shield accepts it. Documented INFO: bounds
-        // should be enforced at the oracle-wrapper level.
+    function test_Chainlink_ExtremePrice_RevertsAfterM01Fix() public {
+        // [M-01 fix applied] 100x normal price now reverts with
+        // PriceOutOfSanityBounds (BTC MIN=$10k, MAX=$1M).
         oracle.setPrice("BTC", 6_000_000e8);
         FlashBTCShield1h s = _btc1h();
-        uint256 pid = s.createPolicy(_params(3600, "BTC"));
-        FlashBTCShield1h.BSSData memory data = s.getBSSData(pid);
-        assertEq(data.strikePrice, 6_000_000e8);
-        // Trigger is derived from strike — still respects the 5% drop.
-        assertEq(data.triggerPrice, (int256(6_000_000e8) * 9500) / 10000);
+        vm.expectRevert();
+        s.createPolicy(_params(3600, "BTC"));
     }
 
     // ─────────────────────────────────────────────────────────────

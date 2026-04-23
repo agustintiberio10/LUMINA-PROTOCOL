@@ -36,6 +36,10 @@ contract FlashETHShield48h is BaseShield {
 
     uint256 public constant MAX_PROOF_AGE = 900; // 15 minutes
 
+    // [M-01 fix] Per-asset sanity bounds (Chainlink 8-dec).
+    uint256 public constant MIN_PRICE = 500 * 1e8; // $500
+    uint256 public constant MAX_PRICE = 50_000 * 1e8; // $50,000
+
     struct BSSData {
         bytes32 asset; // "ETH"
         int256 strikePrice;
@@ -48,6 +52,7 @@ contract FlashETHShield48h is BaseShield {
     error InvalidOracleProof();
     error ProofTooOld(uint256 verifiedAt, uint256 currentTime);
     error AssetMismatch(bytes32 policyAsset, bytes32 proofAsset);
+    error PriceOutOfSanityBounds(uint256 price, uint256 min, uint256 max);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -83,11 +88,20 @@ contract FlashETHShield48h is BaseShield {
 
         int256 currentPrice = IOracle(oracle).getLatestPrice(params.asset);
         if (currentPrice <= 0) revert InvalidOracleProof();
+        _validatePriceBounds(currentPrice);
 
         // Trigger: strikePrice × (100 - 18) / 100
         int256 trigger = (currentPrice * int256(BPS - TRIGGER_DROP_BPS)) / int256(BPS);
 
         _bssData[policyId] = BSSData({asset: params.asset, strikePrice: currentPrice, triggerPrice: trigger});
+    }
+
+    /// @dev [M-01 fix] Enforce per-asset price sanity bounds.
+    function _validatePriceBounds(int256 price) private pure {
+        uint256 p = uint256(price);
+        if (p < MIN_PRICE || p > MAX_PRICE) {
+            revert PriceOutOfSanityBounds(p, MIN_PRICE, MAX_PRICE);
+        }
     }
 
     function _doVerifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
@@ -111,6 +125,7 @@ contract FlashETHShield48h is BaseShield {
         }
 
         if (verifiedPrice <= 0) revert InvalidOracleProof();
+        _validatePriceBounds(verifiedPrice);
 
         if (verifiedAt < cp.waitingEndsAt || verifiedAt > cp.expiresAt) {
             revert EventAfterExpiry(policyId, verifiedAt, cp.expiresAt);

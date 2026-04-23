@@ -37,6 +37,12 @@ contract MicroDepegShield is BaseShield {
 
     uint256 public constant MAX_PROOF_AGE = 900; // 15 minutes
 
+    // [M-01 fix] Per-asset sanity bounds (Chainlink 8-dec). Rejects extreme
+    // outlier prices that indicate oracle glitches rather than real depeg
+    // events. A depeg outside [$0.50, $1.50] is treated as an anomaly.
+    uint256 public constant MIN_PRICE = 50_000_000; // $0.50
+    uint256 public constant MAX_PRICE = 150_000_000; // $1.50
+
     struct DepegData {
         bytes32 asset; // "USDT"
     }
@@ -47,6 +53,7 @@ contract MicroDepegShield is BaseShield {
     error InvalidOracleProof();
     error ProofTooOld(uint256 verifiedAt, uint256 currentTime);
     error AssetMismatch(bytes32 policyAsset, bytes32 proofAsset);
+    error PriceOutOfSanityBounds(uint256 price, uint256 min, uint256 max);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -105,6 +112,7 @@ contract MicroDepegShield is BaseShield {
         }
 
         if (verifiedPrice <= 0) revert InvalidOracleProof();
+        _validatePriceBounds(verifiedPrice);
 
         if (verifiedAt < cp.waitingEndsAt || verifiedAt > cp.expiresAt) {
             revert EventAfterExpiry(policyId, verifiedAt, cp.expiresAt);
@@ -144,6 +152,14 @@ contract MicroDepegShield is BaseShield {
     function getDepegData(uint256 policyId) external view returns (DepegData memory) {
         if (_policies[policyId].insuredAgent == address(0)) revert PolicyNotFound(policyId);
         return _depegData[policyId];
+    }
+
+    /// @dev [M-01 fix] Enforce per-asset price sanity bounds.
+    function _validatePriceBounds(int256 price) private pure {
+        uint256 p = uint256(price);
+        if (p < MIN_PRICE || p > MAX_PRICE) {
+            revert PriceOutOfSanityBounds(p, MIN_PRICE, MAX_PRICE);
+        }
     }
 
     uint256[50] private __gap_shield;
