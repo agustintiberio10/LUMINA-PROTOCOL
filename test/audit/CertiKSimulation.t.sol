@@ -243,8 +243,8 @@ contract MockRouter2 is IDexRouter {
         lumina.transfer(msg.sender, out);
     }
 
-    function getQuote(address, address, uint256) external pure override returns (uint256) {
-        return 0;
+    function getQuote(address, address, uint256 amountIn) external view override returns (uint256) {
+        return (amountIn * 1e12 * 1e18) / oraclePrice;
     }
 }
 

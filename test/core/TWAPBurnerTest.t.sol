@@ -34,8 +34,8 @@ contract MockDexRouter is IDexRouter {
     }
 
     function getQuote(address, address, uint256 amountIn) external view override returns (uint256) {
-        if (quoteRate == 0) return 0;
-        return (amountIn * quoteRate * 1e12);
+        uint256 r = quoteRate == 0 ? rate : quoteRate;
+        return (amountIn * r * 1e12);
     }
 
     function setRate(uint256 r) external {

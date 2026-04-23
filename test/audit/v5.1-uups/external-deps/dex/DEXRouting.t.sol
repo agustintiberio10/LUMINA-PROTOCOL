@@ -221,22 +221,29 @@ contract DEXRouting is Test {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 5. Both routers revert on getQuote → fall back to dexRouters[0]
+    // 5. Both routers revert on getQuote → falls back to dexRouters[0]
+    //    when capacityOracle provides a minOut floor (post-M-02 fix).
     // ─────────────────────────────────────────────────────────────
     function test_DEX_BothQuotesRevert_FallsBackToFirst() public {
         _fundBurner(10e6);
         router1.setRevertOnQuote(true);
         router2.setRevertOnQuote(true);
-        deal(address(lumina), address(router1), 100e18);
-        router1.setSwapOutput(50e18); // some positive output
+
+        // [M-02 fix] Without an oracle backstop the guard "minOut > 0" trips.
+        // Provide an oracle so the fallback path can derive minOut and the
+        // first router still gets selected via dexRouters[0] default.
+        capOracle.setPrice(0.036e18);
+        burner.setCapacityOracle(address(capOracle));
+        uint256 expected = (uint256(10e6) * 1e12 * 1e18) / 0.036e18;
+        uint256 minOut = (expected * 9500) / 10000;
+        deal(address(lumina), address(router1), expected);
+        router1.setSwapOutput(minOut);
 
         address[] memory rs = new address[](2);
         rs[0] = address(router1);
         rs[1] = address(router2);
         burner.setDexRouters(rs);
 
-        // Without capacityOracle set, bestQuote = 0 and no oracle minOut.
-        // minOut = 0, router returns 50e18 > 0, burn succeeds.
         burner.executeBurn();
         assertEq(router1.callCount(), 1);
     }
@@ -304,6 +311,7 @@ contract DEXRouting is Test {
     function test_DEX_AtMinBurnAmount_Succeeds() public {
         _fundBurner(1e6); // exactly $1
         deal(address(lumina), address(router1), 1000e18);
+        router1.setQuote(1000e18);
         router1.setSwapOutput(1000e18);
         burner.executeBurn();
     }
@@ -312,6 +320,7 @@ contract DEXRouting is Test {
         // Max cap is 100_000e6 per setUp.
         _fundBurner(1_000_000e6); // $1M → cap to 100k
         deal(address(lumina), address(router1), 100_000_000e18);
+        router1.setQuote(100_000e18);
         router1.setSwapOutput(100_000e18); // 100k LUMINA for 100k USDC
         burner.executeBurn();
         // Only 100k USDC consumed.
@@ -324,6 +333,7 @@ contract DEXRouting is Test {
     function test_DEX_Cooldown_EnforcedBetweenBurns() public {
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         burner.executeBurn();
 
@@ -335,12 +345,14 @@ contract DEXRouting is Test {
     function test_DEX_Cooldown_ClearsAfterPeriod() public {
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         burner.executeBurn();
 
         vm.warp(block.timestamp + burner.burnCooldown());
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         burner.executeBurn(); // no revert
     }
@@ -414,6 +426,7 @@ contract DEXRouting is Test {
     function test_DEX_Burn_ReducesTotalSupply() public {
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         uint256 supplyBefore = lumina.totalSupply();
         burner.executeBurn();
@@ -426,6 +439,7 @@ contract DEXRouting is Test {
     function test_DEX_Approval_ConsumedBySwap() public {
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         burner.executeBurn();
         // After safeTransferFrom in the router, the allowance delta equals the
@@ -476,6 +490,7 @@ contract DEXRouting is Test {
         // by construction — covered by config-level test.
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         burner.executeBurn(); // works with current setup
     }
@@ -486,6 +501,7 @@ contract DEXRouting is Test {
     function test_DEX_TotalCounters_IncrementOnBurn() public {
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         uint256 burnedBefore = burner.totalLUMINABurned();
         uint256 usdcBefore = burner.totalUSDCBurned();
@@ -501,6 +517,7 @@ contract DEXRouting is Test {
         assertFalse(burner.adaptiveModeEnabled());
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         burner.executeBurn();
         assertEq(router1.callCount(), 1);
@@ -512,6 +529,7 @@ contract DEXRouting is Test {
     function test_DEX_Approval_Exact_NoOverApprove() public {
         _fundBurner(10e6);
         deal(address(lumina), address(router1), 100e18);
+        router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         burner.executeBurn();
         // After swap, allowance is 0 (forceApprove set it to 10e6, router

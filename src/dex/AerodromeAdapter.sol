@@ -21,6 +21,8 @@ interface IAerodromeRouter {
         address to,
         uint256 deadline
     ) external returns (uint256[] memory amounts);
+
+    function getAmountsOut(uint256 amountIn, Route[] memory routes) external view returns (uint256[] memory amounts);
 }
 
 /// @title AerodromeAdapter
@@ -60,9 +62,19 @@ contract AerodromeAdapter is IDexRouter, Ownable {
     }
 
     /// @inheritdoc IDexRouter
-    /// @dev Returns 0 — in production this would query Aerodrome pool reserves.
-    function getQuote(address, address, uint256) external pure override returns (uint256) {
-        return 0;
+    /// @dev [M-02 fix] Real quote via Aerodrome's `getAmountsOut`. Returns 0
+    ///      if the router reverts (pool missing, stable/volatile mismatch,
+    ///      etc.) so caller can fall back to oracle-based minOut.
+    function getQuote(address tokenIn, address tokenOut, uint256 amountIn) external view override returns (uint256) {
+        if (amountIn == 0) return 0;
+        IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](1);
+        routes[0] = IAerodromeRouter.Route({from: tokenIn, to: tokenOut, stable: stable, factory: factory});
+        try router.getAmountsOut(amountIn, routes) returns (uint256[] memory amounts) {
+            if (amounts.length == 0) return 0;
+            return amounts[amounts.length - 1];
+        } catch {
+            return 0;
+        }
     }
 
     function setFactory(address _factory) external onlyOwner {

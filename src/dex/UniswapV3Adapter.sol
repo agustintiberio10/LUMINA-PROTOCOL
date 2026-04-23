@@ -20,17 +20,34 @@ interface ISwapRouter {
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }
 
+interface IQuoterV2 {
+    struct QuoteExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
+        uint24 fee;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function quoteExactInputSingle(QuoteExactInputSingleParams memory params)
+        external
+        returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate);
+}
+
 /// @title UniswapV3Adapter
-/// @notice Wraps Uniswap V3 SwapRouter into the IDexRouter abstraction.
+/// @notice Wraps Uniswap V3 SwapRouter + QuoterV2 into the IDexRouter abstraction.
 contract UniswapV3Adapter is IDexRouter, Ownable {
     using SafeERC20 for IERC20;
 
     ISwapRouter public immutable router;
+    IQuoterV2 public immutable quoter;
     uint24 public poolFee;
 
-    constructor(address _router, uint24 _poolFee) Ownable(msg.sender) {
+    constructor(address _router, address _quoter, uint24 _poolFee) Ownable(msg.sender) {
         require(_router != address(0), "Zero router");
+        require(_quoter != address(0), "Zero quoter");
         router = ISwapRouter(_router);
+        quoter = IQuoterV2(_quoter);
         poolFee = _poolFee;
     }
 
@@ -57,10 +74,22 @@ contract UniswapV3Adapter is IDexRouter, Ownable {
     }
 
     /// @inheritdoc IDexRouter
-    /// @dev Returns 0 — in production this would query the pool for a TWAP or spot quote.
-    ///      TWAPBurner treats 0 as "no quote available" and falls back to first router.
-    function getQuote(address, address, uint256) external pure override returns (uint256) {
-        return 0;
+    /// @dev [M-02 fix] Real quote via Uniswap V3 QuoterV2. Returns 0 if the
+    ///      quoter reverts (pool missing, fee tier wrong, etc.) so caller
+    ///      can fall back to oracle-based minOut.
+    function getQuote(address tokenIn, address tokenOut, uint256 amountIn) external override returns (uint256) {
+        if (amountIn == 0) return 0;
+        try quoter.quoteExactInputSingle(
+            IQuoterV2.QuoteExactInputSingleParams({
+                tokenIn: tokenIn, tokenOut: tokenOut, amountIn: amountIn, fee: poolFee, sqrtPriceLimitX96: 0
+            })
+        ) returns (
+            uint256 amountOut, uint160, uint32, uint256
+        ) {
+            return amountOut;
+        } catch {
+            return 0;
+        }
     }
 
     function setPoolFee(uint24 _fee) external onlyOwner {

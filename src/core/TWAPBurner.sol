@@ -227,6 +227,11 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
             } catch {}
         }
 
+        // [M-02 fix] Defense-in-depth: refuse to swap without a protective
+        // minOut floor. If quote+oracle both fail we would otherwise accept
+        // any 1-wei return, enabling sandwich attacks.
+        require(minOut > 0, "TWAPBurner: minOut must be > 0");
+
         usdc.forceApprove(address(bestRouter), usdcAmount);
         uint256 luminaReceived = bestRouter.swap(address(usdc), address(lumina), usdcAmount, minOut);
 
