@@ -34,6 +34,10 @@ interface IBuybackMarketplace {
         external
         view
         returns (address seller, uint256 epochId, uint256 amount, uint256 priceUSDC, bool active);
+
+    // [M-03 fix] Needed so executeOffer approves priceUSDC + buyerFee.
+    function BUYER_FEE_BPS() external view returns (uint256);
+    function BPS_DENOMINATOR() external view returns (uint256);
 }
 
 /// @title BuybackEngine
@@ -138,11 +142,22 @@ contract BuybackEngine is
         uint256 faceValueUSD = claimBond.getFaceValue(epochId) * amount;
         uint256 maxAllowedPriceUSDC = (faceValueUSD * dailyConfig.maxPricePercent) / (100 * 1e12);
         require(priceUSDC <= maxAllowedPriceUSDC, "Price exceeds max");
-        require(dailyConfig.spentToday + priceUSDC <= dailyConfig.dailyBudget, "Daily budget exceeded");
 
-        usdc.forceApprove(address(marketplace), priceUSDC);
+        // [M-03 fix] Marketplace.executeBuy pulls priceUSDC + buyerFee from
+        // this engine. Approve the total AND count the total against the
+        // daily budget — anything less reverts at the marketplace transfer.
+        uint256 buyerFee = (priceUSDC * marketplace.BUYER_FEE_BPS()) / marketplace.BPS_DENOMINATOR();
+        uint256 totalRequired = priceUSDC + buyerFee;
+        require(dailyConfig.spentToday + totalRequired <= dailyConfig.dailyBudget, "Daily budget exceeded");
+
+        // CEI: update state before external call.
+        dailyConfig.spentToday += totalRequired;
+
+        usdc.forceApprove(address(marketplace), totalRequired);
         marketplace.executeBuy(listingId);
-        dailyConfig.spentToday += priceUSDC;
+        // Defensive reset — should already be zero after the marketplace
+        // drained the approval, but keep it explicit.
+        usdc.forceApprove(address(marketplace), 0);
 
         _executeDoubleBurn(epochId, amount, faceValueUSD);
         emit OfferExecuted(listingId, epochId, amount, priceUSDC);

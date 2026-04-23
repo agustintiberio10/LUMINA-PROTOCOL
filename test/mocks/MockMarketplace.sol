@@ -36,4 +36,14 @@ contract MockMarketplace {
         require(!shouldRevertOnBuy, "Mock: buy revert");
         mockListings[id].active = false;
     }
+
+    // [M-03 fix] BuybackEngine now reads fee from marketplace.
+    // Return 0 here so this mock preserves existing test semantics.
+    function BUYER_FEE_BPS() external pure returns (uint256) {
+        return 0;
+    }
+
+    function BPS_DENOMINATOR() external pure returns (uint256) {
+        return 10_000;
+    }
 }
