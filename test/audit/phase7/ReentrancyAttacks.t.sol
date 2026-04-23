@@ -243,6 +243,8 @@ contract ReentrancyAttacks is Test {
         // Deploy marketplace
         marketplace =
             ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, address(this));
+        // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
 
         // Fund the vault with LUMINA
         deal(address(token), address(bondVault), 70_000_000 * 1e18);

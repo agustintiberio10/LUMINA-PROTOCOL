@@ -470,7 +470,11 @@ contract AdversarialAuditTest is Test {
         bondVault.redeemBond(epochId, 300);
         assertEq(claimBond.balanceOf(user1, epochId), 500);
 
+        // [FIX-#18] Direct user-to-user transfers are blocked; use an
+        // authorised operator path.
+        claimBond.setAuthorizedOperator(address(this), true);
         vm.prank(user1);
+        claimBond.setApprovalForAll(address(this), true);
         claimBond.safeTransferFrom(user1, user2, epochId, 500, "");
         assertEq(claimBond.balanceOf(user1, epochId), 0);
         assertEq(claimBond.balanceOf(user2, epochId), 500);

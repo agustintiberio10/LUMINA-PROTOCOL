@@ -254,6 +254,8 @@ contract EconomicAttacks is Test {
 
         LuminaBondMarketplace mp =
             ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
+        claimBond.setAuthorizedOperator(address(mp), true);
 
         // Setup: create a mock BondVault just to mint bonds via ClaimBond
         MockLumina_Econ lumina = new MockLumina_Econ();

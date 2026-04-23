@@ -8,6 +8,7 @@ import {
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title ClaimBond
 /// @notice ERC-1155 bond tokens grouped by monthly maturity epoch.
@@ -25,11 +26,17 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
     mapping(uint256 => uint256) public maturityDate;
     mapping(uint256 => bool) public epochExists;
 
+    // [FIX-#18] HTTPS metadata base + restricted-transfer whitelist.
+    string private _baseURI; // slot 3 — was first slot of __gap[50]
+    mapping(address => bool) public authorizedOperators; // slot 4 — was second slot of __gap[50]
+
     event EpochCreated(uint256 indexed epochId, uint256 maturityDate);
     event BondsMinted(uint256 indexed epochId, address indexed to, uint256 usdAmount);
     event BondsBurned(uint256 indexed epochId, address indexed from, uint256 usdAmount);
     event BondVaultSet(address vault);
     event BondsBurnedByHolder(address indexed holder, uint256 indexed epochId, uint256 amount);
+    event BaseURIUpdated(string oldBaseURI, string newBaseURI);
+    event OperatorAuthorized(address indexed operator, bool authorized);
 
     modifier onlyBondVault() {
         require(_bondVaultSet, "BondVault not set");
@@ -47,6 +54,15 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
         __ERC1155Supply_init();
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
+        // [FIX-#18] Default HTTPS metadata base. Admin can rotate via setBaseURI.
+        _baseURI = "https://api.lumina-org.com/metadata/bond/";
+    }
+
+    /// @notice [FIX-#18] One-shot reinitializer for proxies upgraded from a
+    ///         pre-fix implementation. Seeds `_baseURI` to the canonical default.
+    ///         Use `version = 2` for the initial post-fix upgrade.
+    function reinitializeURI(uint64 version) external reinitializer(version) {
+        _baseURI = "https://api.lumina-org.com/metadata/bond/";
     }
 
     /// @notice Set BondVault address ONCE. Resolves circular dependency.
@@ -127,8 +143,38 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
         matured = exists && block.timestamp >= maturityDate[epochId];
     }
 
-    function uri(uint256 epochId) public pure override returns (string memory) {
-        return string(abi.encodePacked("lumina://claimbond/", _epochToString(epochId)));
+    /// @notice [FIX-#18] HTTPS metadata URI: `<baseURI><epoch>.json`.
+    ///         Was previously `lumina://claimbond/<epoch>` (non-resolvable).
+    function uri(uint256 epochId) public view override returns (string memory) {
+        return string(abi.encodePacked(_baseURI, _epochToString(epochId), ".json"));
+    }
+
+    /// @notice Collection name for marketplaces / wallets / explorers.
+    function name() external pure returns (string memory) {
+        return "LUMINA Bonds";
+    }
+
+    /// @notice Collection symbol for marketplaces / wallets / explorers.
+    function symbol() external pure returns (string memory) {
+        return "LBOND";
+    }
+
+    /// @notice [FIX-#18] Admin: rotate the metadata base URI. Emits ERC-1155
+    ///         `URI(newuri, 0)` so indexers refresh the whole collection.
+    function setBaseURI(string calldata newBaseURI) external onlyOwner {
+        string memory old = _baseURI;
+        _baseURI = newBaseURI;
+        emit BaseURIUpdated(old, newBaseURI);
+        emit URI(uri(0), 0);
+    }
+
+    /// @notice [FIX-#18] Admin: whitelist a contract to perform ERC-1155
+    ///         transfers between non-zero parties. Marketplace + BuybackEngine
+    ///         must be whitelisted post-deploy.
+    function setAuthorizedOperator(address operator, bool authorized) external onlyOwner {
+        require(operator != address(0), "ClaimBond: zero address");
+        authorizedOperators[operator] = authorized;
+        emit OperatorAuthorized(operator, authorized);
     }
 
     // ═══════ INTERNAL HELPERS ═══════
@@ -149,15 +195,26 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
         return string(b);
     }
 
+    /// @notice [FIX-#18] Restricted-transfer override: bonds may move only via
+    ///         mint (`from == 0`), burn (`to == 0`), or an authorised operator.
+    ///         Direct user-to-user transfers are blocked so the protocol
+    ///         captures all secondary-market fees through its own marketplace.
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
         internal
         override(ERC1155Upgradeable, ERC1155SupplyUpgradeable)
     {
+        if (from != address(0) && to != address(0)) {
+            require(
+                authorizedOperators[msg.sender] || authorizedOperators[from],
+                "ClaimBond: transfers only via authorized operators"
+            );
+        }
         super._update(from, to, ids, values);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    // Storage gap for future upgrades
-    uint256[50] private __gap;
+    // Storage gap for future upgrades — reduced from 50 to 48 by FIX-#18
+    // (added _baseURI + authorizedOperators above).
+    uint256[48] private __gap;
 }

@@ -382,6 +382,10 @@ contract AttackVectors is Test, ERC1155Holder {
         // Authorize BuybackEngine on BondVault
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
 
+        // [FIX-#18] Whitelist marketplace + buyback so ClaimBond allows their transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
+        claimBond.setAuthorizedOperator(address(buybackEngine), true);
+
         // Mint USDC to test users
         usdc.mint(alice, 1_000_000e6);
         usdc.mint(bob, 1_000_000e6);
@@ -616,6 +620,8 @@ contract AttackVectors is Test, ERC1155Holder {
         LuminaBondMarketplace testMarket =
             ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
+        // [FIX-#18] Whitelist testMarket on this local ClaimBond instance.
+        testBond.setAuthorizedOperator(address(testMarket), true);
 
         uint256 futureEpoch = 202812;
         testBond.mint(alice, futureEpoch, 100);
@@ -640,6 +646,8 @@ contract AttackVectors is Test, ERC1155Holder {
         LuminaBondMarketplace testMarket =
             ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
         testBond.setBondVault(address(this));
+        // [FIX-#18] Whitelist testMarket on this local ClaimBond instance.
+        testBond.setAuthorizedOperator(address(testMarket), true);
 
         uint256 futureEpoch = 202812;
         testBond.mint(alice, futureEpoch, 100);

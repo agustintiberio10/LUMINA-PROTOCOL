@@ -83,6 +83,8 @@ contract GasOptimizationStress is Test {
 
         // Deploy marketplace
         marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
     }
 
     /// @notice Measure gas for issueBond. Must be under 300k gas.

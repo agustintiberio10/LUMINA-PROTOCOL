@@ -568,8 +568,11 @@ contract CertiKSimulation is Test {
         _issueBondAsPM(attacker, 800);
         uint256 epoch = _getEpoch();
 
-        // Transfer all bonds to another address
+        // [FIX-#18] Direct user-to-user transfers are blocked; use an
+        // authorised operator path to preserve the attack semantics.
+        claimBond.setAuthorizedOperator(address(this), true);
         vm.prank(attacker);
+        claimBond.setApprovalForAll(address(this), true);
         claimBond.safeTransferFrom(attacker, victim, epoch, 800, "");
 
         // Warp to maturity
