@@ -61,6 +61,8 @@ contract MarketplaceStress is Test {
 
         // Deploy marketplace
         marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
     }
 
     /// @notice Create 100 marketplace listings. Verify nextListingId = 100.

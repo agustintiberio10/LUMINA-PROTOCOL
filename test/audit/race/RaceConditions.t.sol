@@ -285,6 +285,8 @@ contract RaceConditionsTest is Test {
         marketplace = ProxyDeployer.deployLuminaBondMarketplace(
             address(claimBond), address(usdc), address(twapBurner), address(this)
         );
+        // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
 
         // 17. Deploy SolvencyOracle mock
         solvencyOracle = new MockSolvencyOracle_RC();

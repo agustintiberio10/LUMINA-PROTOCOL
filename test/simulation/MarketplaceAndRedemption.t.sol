@@ -128,6 +128,8 @@ contract MarketplaceAndRedemptionTest is Test {
 
         // Deploy Marketplace
         marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
 
         // Issue bonds to seller (1000 bonds) and buyer2 (500 bonds) via policyManager
         // issueBond issues bonds with 730-day maturity from current time

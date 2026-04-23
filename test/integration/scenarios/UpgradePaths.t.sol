@@ -138,6 +138,8 @@ contract UpgradePathsTest is Test {
         // Marketplace (for test 3)
         marketplace =
             ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), admin);
+        // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
     }
 
     // ═══════════════════════════════════════════════════════════════

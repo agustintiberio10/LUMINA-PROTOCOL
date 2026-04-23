@@ -62,8 +62,18 @@ contract ClaimBondTest is Test {
         address user1 = makeAddr("user1");
         address user2 = makeAddr("user2");
         bond.mint(user1, 202804, 1000);
+
+        // [FIX-#18] Direct user-to-user transfers are now blocked.
         vm.prank(user1);
+        vm.expectRevert(bytes("ClaimBond: transfers only via authorized operators"));
         bond.safeTransferFrom(user1, user2, 202804, 400, "");
+
+        // Whitelisting an operator restores the transfer path.
+        bond.setAuthorizedOperator(address(this), true);
+        vm.prank(user1);
+        bond.setApprovalForAll(address(this), true);
+        bond.safeTransferFrom(user1, user2, 202804, 400, "");
+
         assertEq(bond.balanceOf(user1, 202804), 600);
         assertEq(bond.balanceOf(user2, 202804), 400);
     }

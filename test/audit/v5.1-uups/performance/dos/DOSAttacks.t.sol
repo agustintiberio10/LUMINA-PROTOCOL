@@ -223,6 +223,10 @@ contract DOSAttacks is Test {
         lumina.grantRole(lumina.BURNER_ROLE(), address(twapBurner));
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
 
+        // [FIX-#18] Whitelist marketplace + buyback so ClaimBond allows their transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
+        claimBond.setAuthorizedOperator(address(buybackEngine), true);
+
         flashBtc1h = ProxyDeployer.deployFlashBTCShield1h(address(policyManager), address(shieldOracle));
         policyManager.registerProduct(ID_FLASHBTC1H, address(flashBtc1h));
         coverRouter.configureProduct(ID_FLASHBTC1H, 8000, 200, 2000, 3600, true);

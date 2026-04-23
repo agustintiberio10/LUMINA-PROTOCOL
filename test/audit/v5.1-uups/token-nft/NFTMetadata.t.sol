@@ -113,20 +113,16 @@ contract NFTMetadata is Test {
     }
 
     function test_NFT_UUPS_URI_ContainsEpochId() public view {
-        // epoch encoded as 6-char ASCII string at the end.
+        // [FIX-#18] URI is now `<base><epoch>.json` — epoch sits in the middle,
+        // followed by the `.json` extension. Verify the 6-digit epoch appears
+        // directly before `.json`.
         string memory u = claimBond.uri(202912);
         bytes memory b = bytes(u);
-        // Last 6 bytes should be "202912".
-        bytes6 last;
-        assembly {
-            last := mload(add(b, mload(b)))
+        bytes memory tail = new bytes(11); // "202912.json" = 11 chars
+        for (uint256 i = 0; i < 11; i++) {
+            tail[i] = b[b.length - 11 + i];
         }
-        // Compare last 6 bytes via memory.
-        bytes memory tail = new bytes(6);
-        for (uint256 i = 0; i < 6; i++) {
-            tail[i] = b[b.length - 6 + i];
-        }
-        assertEq(string(tail), "202912", "URI must end with 6-digit epoch");
+        assertEq(string(tail), "202912.json", "URI must end with <epoch>.json");
     }
 
     function test_NFT_UUPS_URI_DifferentEpochs_DifferentURIs() public view {
@@ -146,31 +142,26 @@ contract NFTMetadata is Test {
         // 209912 is at the upper bound of the valid range.
         string memory u = claimBond.uri(209912);
         assertGt(bytes(u).length, 0);
-        // Last 6 chars = "209912".
         bytes memory b = bytes(u);
-        bytes memory tail = new bytes(6);
-        for (uint256 i = 0; i < 6; i++) {
-            tail[i] = b[b.length - 6 + i];
+        // [FIX-#18] `<epoch>.json` at the tail.
+        bytes memory tail = new bytes(11);
+        for (uint256 i = 0; i < 11; i++) {
+            tail[i] = b[b.length - 11 + i];
         }
-        assertEq(string(tail), "209912");
+        assertEq(string(tail), "209912.json");
     }
 
-    function test_NFT_UUPS_URI_FixedScheme_LuminaPrefix() public view {
-        // Documents the current scheme: `lumina://claimbond/<epoch>`. This
-        // is non-standard and not resolvable by OpenSea/MetaMask — flagged
-        // in REPORT.md §4.1.
+    function test_NFT_UUPS_URI_HTTPS_Prefix() public view {
+        // [FIX-#18] Scheme changed from `lumina://claimbond/<epoch>` to
+        // `https://api.lumina-org.com/metadata/bond/<epoch>.json`. This
+        // asserts the new HTTPS prefix.
         string memory u = claimBond.uri(202912);
         bytes memory b = bytes(u);
-        bytes memory prefix = new bytes(20); // "lumina://claimbond/" is 19 bytes
-        for (uint256 i = 0; i < 19; i++) {
+        bytes memory prefix = new bytes(8);
+        for (uint256 i = 0; i < 8; i++) {
             prefix[i] = b[i];
         }
-        // Trim to the actual prefix length.
-        bytes memory actualPrefix = new bytes(19);
-        for (uint256 i = 0; i < 19; i++) {
-            actualPrefix[i] = b[i];
-        }
-        assertEq(string(actualPrefix), "lumina://claimbond/", "current scheme is lumina://");
+        assertEq(string(prefix), "https://", "post-fix scheme is https://");
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -225,7 +216,12 @@ contract NFTMetadata is Test {
         _issueBond(holderA, 202912, 100);
         string memory before = claimBond.uri(202912);
 
+        // [FIX-#18] Direct user-to-user transfers are now blocked. Whitelist
+        // the test contract as an authorised operator so this test still
+        // exercises the "transfer doesn't mutate URI" property.
+        claimBond.setAuthorizedOperator(address(this), true);
         vm.prank(holderA);
+        claimBond.setApprovalForAll(address(this), true);
         claimBond.safeTransferFrom(holderA, holderB, 202912, 50, "");
 
         string memory after_ = claimBond.uri(202912);

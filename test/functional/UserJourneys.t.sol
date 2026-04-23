@@ -147,6 +147,10 @@ contract UserJourneysTest is Test {
             address(usdc),
             multisig
         );
+
+        // [FIX-#18] Whitelist marketplace + buyback so ClaimBond allows their transfers.
+        claimBond.setAuthorizedOperator(address(marketplace), true);
+        claimBond.setAuthorizedOperator(address(buybackEngine), true);
     }
 
     // ═══════ JOURNEY 1: Agent buys bonds and redeems after 730 days ═══════
