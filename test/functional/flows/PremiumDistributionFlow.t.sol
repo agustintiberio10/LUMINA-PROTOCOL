@@ -60,8 +60,8 @@ contract MockSwapRouter_PDF is IDexRouter {
         lumina.transfer(msg.sender, amountOut);
     }
 
-    function getQuote(address, address, uint256) external pure override returns (uint256) {
-        return 0;
+    function getQuote(address, address, uint256 amountIn) external view override returns (uint256) {
+        return amountIn * rate * 1e12;
     }
 }
 
