@@ -228,6 +228,16 @@ contract SimMockMarketplace {
     function executeBuy(uint256 id) external {
         mockListings[id].active = false;
     }
+
+    // [M-03 fix] BuybackEngine now reads the fee from the marketplace.
+    // Return 0 here so this mock preserves existing test budget math.
+    function BUYER_FEE_BPS() external pure returns (uint256) {
+        return 0;
+    }
+
+    function BPS_DENOMINATOR() external pure returns (uint256) {
+        return 10_000;
+    }
 }
 
 contract SimMockDexRouter {

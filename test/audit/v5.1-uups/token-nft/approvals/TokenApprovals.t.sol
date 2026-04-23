@@ -257,12 +257,14 @@ contract TokenApprovals is Test {
         assertEq(usdc.allowance(address(twapBurner), address(swapRouter)), 0);
     }
 
-    /// @notice [FINDING §4.1] BuybackEngine approves `priceUSDC` but
-    ///         Marketplace.executeBuy tries to pull `priceUSDC + buyerFee`.
-    ///         This test captures the bug — the `executeOffer` call reverts
-    ///         on the marketplace's `safeTransferFrom` due to insufficient
-    ///         allowance.
-    function test_Appr_UUPS_BuybackEngine_ShortApproval_RevealsBug() public {
+    /// @notice [FIX-M03] Previously this test asserted the allowance bug
+    ///         (executeOffer reverted because approval was short of the
+    ///         buyer fee). After the fix (BuybackEngine now approves
+    ///         `priceUSDC + buyerFee` and counts the fee against the
+    ///         daily budget), executeOffer SUCCEEDS. The test is now
+    ///         kept as a regression guard so the bug can't silently
+    ///         return.
+    function test_Appr_UUPS_BuybackEngine_ApprovalIncludesFee_FixM03() public {
         // Seed seller with 100 bonds, list at $20.
         vm.prank(address(policyManager));
         bondVault.issueBond(seller, 100);
@@ -273,17 +275,14 @@ contract TokenApprovals is Test {
         uint256 listingId = marketplace.list(epochId, 50, 20e6); // 50 bonds at $20
         vm.stopPrank();
 
-        // Activate buyback config that permits the $20 price.
         vm.prank(multisig);
         buybackEngine.setDailyBuyback(100e6, 95, 24);
-
-        // Seed buyback engine with enough USDC to cover price AND fee.
         usdc.mint(address(buybackEngine), 100e6);
 
-        // Fails because BuybackEngine only approves `priceUSDC` ($20)
-        // but marketplace.executeBuy pulls `priceUSDC + buyerFee` ($20.30).
-        vm.expectRevert();
+        // Post-fix: executeOffer now approves priceUSDC + buyerFee, so this
+        // call succeeds. Allowance is reset to 0 post-call.
         buybackEngine.executeOffer(listingId);
+        assertEq(usdc.allowance(address(buybackEngine), address(marketplace)), 0, "approval must reset to 0");
     }
 
     // ═══════════════════════════════════════════════════════════

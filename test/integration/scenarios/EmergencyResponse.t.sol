@@ -134,6 +134,16 @@ contract MockBuybackMarketplace {
         // Transfer ClaimBond tokens to buyer (simulated: the engine should already hold them
         // in a real scenario the marketplace holds escrowed bonds)
     }
+
+    // [M-03 fix] BuybackEngine now reads fee from marketplace.
+    // Return 0 here so this mock preserves existing test semantics.
+    function BUYER_FEE_BPS() external pure returns (uint256) {
+        return 0;
+    }
+
+    function BPS_DENOMINATOR() external pure returns (uint256) {
+        return 10_000;
+    }
 }
 
 contract EmergencyResponseTest is Test {
