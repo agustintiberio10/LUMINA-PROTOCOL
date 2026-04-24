@@ -85,6 +85,12 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     event Paused(bool state);
     /// @notice [LOW-2 fix] Emitted on successful non-core token rescue.
     event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+    /// @notice [Fix audit #27 INFO-4] Emitted when PolicyManager address is updated.
+    event PolicyManagerUpdated(address indexed oldPM, address indexed newPM);
+    /// @notice [Fix audit #27 INFO-4] Emitted when TwapBurner address is updated.
+    event TwapBurnerUpdated(address indexed oldTB, address indexed newTB);
+    /// @notice [Fix audit #27 INFO-4] Emitted when CapacityOracle address is updated.
+    event CapacityOracleUpdated(address indexed oldOracle, address indexed newOracle);
 
     // ═══════ ERRORS ═══════
     error ContractPaused();
@@ -233,17 +239,23 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     function setPolicyManager(address _pm) external onlyOwner {
         require(_pm != address(0), "Zero");
+        address old = address(policyManager);
         policyManager = IPolicyManagerV2(_pm);
+        emit PolicyManagerUpdated(old, _pm);
     }
 
     function setTwapBurner(address _burner) external onlyOwner {
         require(_burner != address(0), "Zero");
+        address old = address(twapBurner);
         twapBurner = ITWAPBurner(_burner);
+        emit TwapBurnerUpdated(old, _burner);
     }
 
     function setCapacityOracle(address _oracle) external onlyOwner {
         require(_oracle != address(0), "Zero");
+        address old = address(capacityOracle);
         capacityOracle = IPriceOracleForRouter(_oracle);
+        emit CapacityOracleUpdated(old, _oracle);
     }
 
     // ═══════ VIEW ═══════

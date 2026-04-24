@@ -96,6 +96,8 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ═══════ EVENTS ═══════
     event ProductRegistered(bytes32 indexed productId, address shield);
     event ProductDeactivated(bytes32 indexed productId);
+    /// @notice [Fix audit #27 INFO-5] Emitted when router address is updated.
+    event RouterUpdated(address indexed oldRouter, address indexed newRouter);
     event PolicyCreated(
         bytes32 indexed productId,
         uint256 indexed policyId,
@@ -137,7 +139,9 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     function setRouter(address _router) external onlyOwner {
         require(_router != address(0), "Zero router");
+        address old = router;
         router = _router;
+        emit RouterUpdated(old, _router);
     }
 
     function registerProduct(bytes32 _productId, address _shield) external onlyOwner {
