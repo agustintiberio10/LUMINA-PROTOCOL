@@ -69,6 +69,14 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     mapping(bytes32 => ProductConfig) public products;
     bytes32[] public productList;
 
+    /// @notice [Fix audit #28 INFO-7] Sticky auto-pause flag for hysteresis.
+    /// @dev    When true, purchases require `price >= RESET_PRICE_FOR_NEW_POLICIES`
+    ///         instead of the lower `MIN_PRICE_FOR_NEW_POLICIES` floor. Prevents
+    ///         auto-pause flapping when LUMINA price oscillates near the floor.
+    ///         Updated only via `syncCircuitBreaker()` (non-reverting external fn)
+    ///         so the flag persists across txs.
+    bool public autoPausedOnce;
+
     // ═══════ EVENTS ═══════
     event PolicyPurchased(
         bytes32 indexed productId,
@@ -91,6 +99,10 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     event TwapBurnerUpdated(address indexed oldTB, address indexed newTB);
     /// @notice [Fix audit #27 INFO-4] Emitted when CapacityOracle address is updated.
     event CapacityOracleUpdated(address indexed oldOracle, address indexed newOracle);
+    /// @notice [Fix audit #28 INFO-7] Emitted when circuit-breaker auto-pause is activated.
+    event AutoPauseActivated(uint256 priceWei);
+    /// @notice [Fix audit #28 INFO-7] Emitted when circuit-breaker auto-pause is deactivated.
+    event AutoPauseDeactivated(uint256 priceWei);
 
     // ═══════ ERRORS ═══════
     error ContractPaused();
@@ -168,10 +180,14 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         internal
         returns (uint256 policyId)
     {
-        // Auto-pause: block new policies if LUMINA price is below safety threshold
+        // [Fix audit #28 INFO-7] Auto-pause with hysteresis.
+        // If the sticky `autoPausedOnce` flag is set, require the HIGHER
+        // RESET threshold to resume — otherwise the standard MIN floor.
+        // The flag itself is updated out-of-band via `syncCircuitBreaker()`.
         if (address(capacityOracle) != address(0)) {
+            uint256 threshold = autoPausedOnce ? RESET_PRICE_FOR_NEW_POLICIES : MIN_PRICE_FOR_NEW_POLICIES;
             require(
-                capacityOracle.getLuminaPrice() >= MIN_PRICE_FOR_NEW_POLICIES,
+                capacityOracle.getLuminaPrice() >= threshold,
                 "Protocol auto-paused: LUMINA price below safety threshold"
             );
         }
@@ -283,9 +299,35 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     }
 
     /// @notice Returns true if LUMINA price is below the safety threshold for new policies.
+    /// @dev    [Fix audit #28 INFO-7] Uses the hysteresis threshold: RESET if
+    ///         auto-pause is currently sticky, MIN otherwise.
     function isProtocolAutoPaused() external view returns (bool) {
         if (address(capacityOracle) == address(0)) return false;
-        return capacityOracle.getLuminaPrice() < MIN_PRICE_FOR_NEW_POLICIES;
+        uint256 threshold = autoPausedOnce ? RESET_PRICE_FOR_NEW_POLICIES : MIN_PRICE_FOR_NEW_POLICIES;
+        return capacityOracle.getLuminaPrice() < threshold;
+    }
+
+    /// @notice [Fix audit #28 INFO-7] Synchronise the sticky auto-pause flag with
+    ///         current LUMINA price. Anyone can call — does not revert, only updates
+    ///         state and emits events. Intended to be called by keepers or any caller
+    ///         that wants to make the hysteresis flag reflect current price.
+    /// @dev    Because Solidity/EVM rolls back state mutations on `revert`, the flag
+    ///         cannot be persisted inside `_purchase` itself. This external entry point
+    ///         lets keepers/users commit the flag change in a successful tx.
+    function syncCircuitBreaker() external {
+        if (address(capacityOracle) == address(0)) return;
+        uint256 price = capacityOracle.getLuminaPrice();
+        if (autoPausedOnce) {
+            if (price >= RESET_PRICE_FOR_NEW_POLICIES) {
+                autoPausedOnce = false;
+                emit AutoPauseDeactivated(price);
+            }
+        } else {
+            if (price < MIN_PRICE_FOR_NEW_POLICIES) {
+                autoPausedOnce = true;
+                emit AutoPauseActivated(price);
+            }
+        }
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -304,5 +346,6 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     }
 
     // Storage gap for future upgrades
-    uint256[50] private __gap;
+    // [Fix audit #28 INFO-7] Reduced from 50 to 49 to make room for `autoPausedOnce`.
+    uint256[49] private __gap;
 }
