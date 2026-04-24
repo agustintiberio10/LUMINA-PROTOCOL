@@ -2,14 +2,18 @@
 pragma solidity ^0.8.20;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title TreasuryVesting
 /// @notice 3M LUMINA locked 6 months, then max 250K/month.
 /// @dev [V5.1] UUPS upgradeable proxy pattern.
-contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
+    using SafeERC20 for IERC20;
+
     uint256 public constant TOTAL_AMOUNT = 3_000_000 * 1e18;
     uint256 public constant LOCK_DURATION = 180 days;
     uint256 public constant MAX_MONTHLY_RELEASE = 250_000 * 1e18;
@@ -22,6 +26,13 @@ contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public lastReleaseMonth;
 
     event Released(address indexed to, uint256 amount, uint256 month);
+    /// @notice [LOW-2 fix] Emitted on successful non-core token rescue.
+    event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+
+    // ═══════ ERRORS (rescue) ═══════
+    error CoreTokenProtected(address token);
+    error ZeroAddressNotAllowed();
+    error RecoverAmountZero();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -86,6 +97,22 @@ contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
+
+    /// @notice Recover non-LUMINA ERC-20 tokens sent to this contract by mistake.
+    /// @dev    `ReentrancyGuardUpgradeable` added to inheritance; namespaced
+    ///         ERC-7201 storage means no initialization is required for the
+    ///         non-entered default to work — `$._status == 0 != ENTERED(2)`.
+    function recoverToken(address token, uint256 amount, address to) external onlyOwner nonReentrant {
+        if (token == address(0)) revert ZeroAddressNotAllowed();
+        if (to == address(0)) revert ZeroAddressNotAllowed();
+        if (amount == 0) revert RecoverAmountZero();
+        if (token == address(luminaToken)) revert CoreTokenProtected(token);
+
+        IERC20(token).safeTransfer(to, amount);
+        emit TokenRecovered(token, amount, to);
+    }
 
     uint256[50] private __gap;
 }

@@ -61,6 +61,13 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
         string description
     );
     event MonthlyCapWarning(uint256 month, uint256 spent, uint256 cap);
+    /// @notice [LOW-2 fix] Emitted on successful non-core token rescue.
+    event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+
+    // ═══════ ERRORS (rescue) ═══════
+    error CoreTokenProtected(address token);
+    error ZeroAddressNotAllowed();
+    error RecoverAmountZero();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -157,6 +164,23 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
+
+    /// @notice Recover non-LUMINA ERC-20 tokens sent to this contract by mistake.
+    function recoverToken(address token, uint256 amount, address to)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
+        if (token == address(0)) revert ZeroAddressNotAllowed();
+        if (to == address(0)) revert ZeroAddressNotAllowed();
+        if (amount == 0) revert RecoverAmountZero();
+        if (token == address(lumina)) revert CoreTokenProtected(token);
+
+        IERC20(token).safeTransfer(to, amount);
+        emit TokenRecovered(token, amount, to);
+    }
 
     uint256[50] private __gap;
 }

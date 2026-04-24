@@ -2,8 +2,11 @@
 pragma solidity ^0.8.20;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @dev [V5.1] UUPS upgradeable proxy pattern.
 
@@ -14,8 +17,17 @@ interface ISolvencyOracleForDist {
 
 /// @title AdaptiveFeeDistributor
 /// @notice Hardcoded 4x4 distribution matrix (4-bucket) based on SolvencyOracle quadrant.
-contract AdaptiveFeeDistributor is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract AdaptiveFeeDistributor is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
+    using SafeERC20 for IERC20;
+
     ISolvencyOracleForDist public solvencyOracle;
+
+    /// @notice [LOW-2 fix] Emitted on successful token rescue.
+    event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+
+    // ═══════ ERRORS (rescue) ═══════
+    error ZeroAddressNotAllowed();
+    error RecoverAmountZero();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -80,6 +92,22 @@ contract AdaptiveFeeDistributor is Initializable, UUPSUpgradeable, OwnableUpgrad
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
+
+    /// @notice Recover any ERC-20 tokens sent to this contract by mistake.
+    /// @dev    AdaptiveFeeDistributor is a pure view-only contract (returns
+    ///         distribution tuples); it never holds funds during normal
+    ///         operation and therefore has no core-token blacklist. Any token
+    ///         arriving here is accidental and fully rescuable.
+    function recoverToken(address token, uint256 amount, address to) external onlyOwner nonReentrant {
+        if (token == address(0)) revert ZeroAddressNotAllowed();
+        if (to == address(0)) revert ZeroAddressNotAllowed();
+        if (amount == 0) revert RecoverAmountZero();
+
+        IERC20(token).safeTransfer(to, amount);
+        emit TokenRecovered(token, amount, to);
+    }
 
     uint256[50] private __gap;
 }
