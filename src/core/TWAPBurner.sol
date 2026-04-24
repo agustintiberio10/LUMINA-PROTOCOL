@@ -75,6 +75,8 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     event BurnExecuted(uint256 usdcSpent, uint256 luminaBurned, uint256 effectivePrice, uint256 timestamp);
     event ConfigUpdated(string param, uint256 value);
     event MaintenanceReserveUpdated(address indexed newReserve);
+    /// @notice [LOW-1 fix] Emitted when `recoverToken` successfully rescues a non-core ERC-20.
+    event TokenRecovered(address indexed token, uint256 amount, address indexed to);
 
     // ═══════ AUTHORIZED SENDERS ═══════
     mapping(address => bool) public authorizedSenders;
@@ -383,6 +385,7 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
         require(token != address(usdc), "Cannot recover USDC");
         require(token != address(lumina), "Cannot recover LUMINA");
         IERC20(token).safeTransfer(owner(), amount);
+        emit TokenRecovered(token, amount, owner());
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

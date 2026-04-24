@@ -83,6 +83,8 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     event ProductConfigured(bytes32 indexed productId);
     event RelayerUpdated(address relayer, bool authorized);
     event Paused(bool state);
+    /// @notice [LOW-2 fix] Emitted on successful non-core token rescue.
+    event TokenRecovered(address indexed token, uint256 amount, address indexed to);
 
     // ═══════ ERRORS ═══════
     error ContractPaused();
@@ -91,6 +93,10 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     error InvalidCoverage(uint256 amount);
     error PremiumMismatch(uint256 expected, uint256 provided);
     error NotAuthorizedRelayer(address caller);
+    // ═══════ ERRORS (rescue) ═══════
+    error CoreTokenProtected(address token);
+    error ZeroAddressNotAllowed();
+    error RecoverAmountZero();
 
     modifier whenNotPaused() {
         if (paused) revert ContractPaused();
@@ -271,6 +277,19 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
+
+    /// @notice Recover non-USDC ERC-20 tokens sent to this contract by mistake.
+    function recoverToken(address token, uint256 amount, address to) external onlyOwner nonReentrant {
+        if (token == address(0)) revert ZeroAddressNotAllowed();
+        if (to == address(0)) revert ZeroAddressNotAllowed();
+        if (amount == 0) revert RecoverAmountZero();
+        if (token == address(usdc)) revert CoreTokenProtected(token);
+
+        IERC20(token).safeTransfer(to, amount);
+        emit TokenRecovered(token, amount, to);
+    }
 
     // Storage gap for future upgrades
     uint256[50] private __gap;

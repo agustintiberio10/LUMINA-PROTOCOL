@@ -6,6 +6,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {
     ERC1155HolderUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
@@ -76,6 +77,13 @@ contract BuybackEngine is
     event OfferExecuted(uint256 indexed listingId, uint256 epochId, uint256 amount, uint256 priceUSDC);
     event DoubleBurnExecuted(uint256 epochId, uint256 obligationsReduced, uint256 luminaBurned);
     event CircuitBreakerTriggered(uint256 currentSolvency, uint256 threshold);
+    /// @notice [LOW-2 fix] Emitted on successful non-core token rescue.
+    event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+
+    // ═══════ ERRORS (rescue) ═══════
+    error CoreTokenProtected(address token);
+    error ZeroAddressNotAllowed();
+    error RecoverAmountZero();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -193,6 +201,43 @@ contract BuybackEngine is
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
+
+    /// @notice Recover non-core ERC-20 tokens sent here by mistake.
+    /// @dev    USDC (budget) and ClaimBond are protected.
+    function recoverToken(address token, uint256 amount, address to)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
+        if (token == address(0)) revert ZeroAddressNotAllowed();
+        if (to == address(0)) revert ZeroAddressNotAllowed();
+        if (amount == 0) revert RecoverAmountZero();
+        if (_isCoreToken(token)) revert CoreTokenProtected(token);
+
+        IERC20(token).safeTransfer(to, amount);
+        emit TokenRecovered(token, amount, to);
+    }
+
+    /// @notice Recover non-core ERC-1155 tokens sent here by mistake.
+    function recoverERC1155(address token, uint256 id, uint256 amount, address to)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
+        if (token == address(0)) revert ZeroAddressNotAllowed();
+        if (to == address(0)) revert ZeroAddressNotAllowed();
+        if (amount == 0) revert RecoverAmountZero();
+        if (_isCoreToken(token)) revert CoreTokenProtected(token);
+
+        IERC1155(token).safeTransferFrom(address(this), to, id, amount, "");
+        emit TokenRecovered(token, amount, to);
+    }
+
+    function _isCoreToken(address token) private view returns (bool) {
+        return token == address(usdc) || token == address(claimBond);
+    }
 
     // Storage gap for future upgrades
     uint256[50] private __gap;

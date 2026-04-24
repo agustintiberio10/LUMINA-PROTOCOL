@@ -2,6 +2,8 @@
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -34,6 +36,8 @@ interface IPriceOracle {
 }
 
 contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AccessControlUpgradeable {
+    using SafeERC20 for IERC20;
+
     // ═══════ ROLES ═══════
     bytes32 public constant AUTHORIZED_CALLER_ADMIN_ROLE = keccak256("AUTHORIZED_CALLER_ADMIN_ROLE");
 
@@ -69,6 +73,13 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     event CapacityReserved(uint256 amount, uint256 newTotalReserved);
     event ReservationReleased(uint256 amount, uint256 newTotalReserved);
     event ReservationCommitted(uint256 amount, uint256 newTotalReserved);
+    /// @notice [LOW-2 fix] Emitted on successful non-core token rescue (ERC-20 or ERC-1155).
+    event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+
+    // ═══════ ERRORS (rescue) ═══════
+    error CoreTokenProtected(address token);
+    error ZeroAddressNotAllowed();
+    error RecoverAmountZero();
 
     // ═══════ MODIFIERS ═══════
     modifier onlyAuthorized() {
@@ -307,6 +318,44 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
+
+    /// @notice Recover ERC-20 tokens accidentally sent to this contract.
+    /// @dev    LUMINA and ClaimBond (as IERC20) are protected. Admin-gated, reentrancy-safe.
+    function recoverToken(address token, uint256 amount, address to)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
+        if (token == address(0)) revert ZeroAddressNotAllowed();
+        if (to == address(0)) revert ZeroAddressNotAllowed();
+        if (amount == 0) revert RecoverAmountZero();
+        if (_isCoreToken(token)) revert CoreTokenProtected(token);
+
+        IERC20(token).safeTransfer(to, amount);
+        emit TokenRecovered(token, amount, to);
+    }
+
+    /// @notice Recover ERC-1155 tokens accidentally sent to this contract.
+    /// @dev    ClaimBond is protected. Admin-gated, reentrancy-safe.
+    function recoverERC1155(address token, uint256 id, uint256 amount, address to)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
+        if (token == address(0)) revert ZeroAddressNotAllowed();
+        if (to == address(0)) revert ZeroAddressNotAllowed();
+        if (amount == 0) revert RecoverAmountZero();
+        if (_isCoreToken(token)) revert CoreTokenProtected(token);
+
+        IERC1155(token).safeTransferFrom(address(this), to, id, amount, "");
+        emit TokenRecovered(token, amount, to);
+    }
+
+    function _isCoreToken(address token) private view returns (bool) {
+        return token == address(lumina) || token == address(claimBond);
+    }
 
     // Storage gap for future upgrades
     uint256[50] private __gap;
