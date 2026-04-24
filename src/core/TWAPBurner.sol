@@ -77,6 +77,14 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     event MaintenanceReserveUpdated(address indexed newReserve);
     /// @notice [LOW-1 fix] Emitted when `recoverToken` successfully rescues a non-core ERC-20.
     event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+    /// @notice [Fix audit #27 INFO-1] Emitted on setAuthorizedSender.
+    event AuthorizedSenderUpdated(address indexed sender, bool authorized);
+    /// @notice [Fix audit #27 INFO-2] Emitted on setReserves.
+    event ReservesUpdated(
+        address indexed buybackReserve, address indexed opsReserve, address indexed maintenanceReserve
+    );
+    /// @notice [Fix audit #27 INFO-3] Emitted when adaptive mode is toggled.
+    event AdaptiveModeUpdated(bool enabled);
 
     // ═══════ AUTHORIZED SENDERS ═══════
     mapping(address => bool) public authorizedSenders;
@@ -288,6 +296,7 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
 
     function setAuthorizedSender(address sender, bool authorized) external onlyOwner {
         authorizedSenders[sender] = authorized;
+        emit AuthorizedSenderUpdated(sender, authorized);
     }
 
     function setCapacityOracle(address _oracle) external onlyOwner {
@@ -332,6 +341,7 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
         buybackReserve = _buybackReserve;
         opsReserve = _opsReserve;
         maintenanceReserve = _maintenanceReserve;
+        emit ReservesUpdated(_buybackReserve, _opsReserve, _maintenanceReserve);
     }
 
     function setMaintenanceReserve(address _maintenanceReserve) external onlyOwner {
@@ -347,6 +357,7 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
             "Reserves not set"
         );
         adaptiveModeEnabled = enabled;
+        emit AdaptiveModeUpdated(enabled);
     }
 
     // ═══════ VIEW FUNCTIONS ═══════
