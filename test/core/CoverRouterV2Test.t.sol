@@ -115,11 +115,14 @@ contract CoverRouterV2Test is Test {
         address relayer = makeAddr("relayer");
         router.setRelayer(relayer, true);
 
-        usdc.mint(relayer, 100e6);
-        vm.startPrank(relayer);
+        // [Fix RELAYER-PAYMENT] Buyer (user) pays the premium, not the relayer.
+        // The relayer only authorizes the call. Older code minted USDC to the
+        // relayer; that path no longer charges the relayer.
+        vm.prank(user);
         usdc.approve(address(router), 10e6);
+
+        vm.prank(relayer);
         uint256 policyId = router.purchasePolicyFor(pid, 1000e6, "BTC", user);
-        vm.stopPrank();
 
         assertEq(policyId, 1);
     }

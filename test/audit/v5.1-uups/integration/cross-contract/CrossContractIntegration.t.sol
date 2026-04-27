@@ -309,9 +309,15 @@ contract CrossContractIntegrationTest is Test {
     function test_CrossContract_RelayerPurchase_WorksLikeDirect() public {
         Stack memory s = _deployFullStack();
 
-        s.usdc.mint(relayer, 1000e6);
-        vm.prank(relayer);
+        // [Fix RELAYER-PAYMENT] Premium is pulled from the agent (buyer), not
+        // the relayer. The relayer signs but pays only gas. Older code funded
+        // the relayer; that path is now economically inert.
+        s.usdc.mint(agent, 1000e6);
+        vm.prank(agent);
         s.usdc.approve(address(s.router), type(uint256).max);
+
+        uint256 agentBefore = s.usdc.balanceOf(agent);
+        uint256 relayerBefore = s.usdc.balanceOf(relayer);
 
         vm.prank(relayer);
         uint256 policyId = s.router.purchasePolicyFor(s.productId, 1000e6, "BTC", agent);
@@ -320,6 +326,10 @@ contract CrossContractIntegrationTest is Test {
         PolicyManagerV2.PolicyRecord memory rec = s.pm.getPolicy(s.productId, policyId);
         assertEq(rec.buyer, agent);
         assertEq(s.pm.totalPolicies(), 1);
+
+        // Agent paid; relayer balance unchanged.
+        assertLt(s.usdc.balanceOf(agent), agentBefore, "agent paid premium");
+        assertEq(s.usdc.balanceOf(relayer), relayerBefore, "relayer balance unchanged");
     }
 
     function test_CrossContract_PolicyExpiration_ReservationReleased() public {
