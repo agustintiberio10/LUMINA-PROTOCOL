@@ -202,8 +202,12 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             / (10000 * 10000 * 10000);
         if (premium == 0) premium = 1; // minimum 1 unit USDC ($0.000001)
 
-        // Transfer USDC from payer
-        usdc.safeTransferFrom(payer, address(this), premium);
+        // [Fix audit RELAYER-PAYMENT] USDC is always pulled from `buyer`, never
+        // from `payer` (= msg.sender). In the relayer pattern, `payer` is the
+        // tx submitter (an authorized relayer); only `buyer` consents to pay
+        // by holding USDC + an approval to this router. `payer` is still emitted
+        // in PolicyPurchased so off-chain consumers can see who submitted.
+        usdc.safeTransferFrom(buyer, address(this), premium);
 
         // Send 100% to TWAPBurner for burn
         // [M-4] Use forceApprove to handle USDC-style approve-from-nonzero race.
