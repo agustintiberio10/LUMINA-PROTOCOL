@@ -43,6 +43,13 @@ interface IAccessControlWire {
     function hasRole(bytes32 role, address account) external view returns (bool);
 }
 
+/// @dev [Fix audit #31 HIGH-3] ClaimBond authorized-operator interface for the
+/// missing post-deploy helper.
+interface IClaimBondAuth {
+    function setAuthorizedOperator(address operator, bool authorized) external;
+    function authorizedOperators(address operator) external view returns (bool);
+}
+
 /// @title WireLuminaV5PostDeploy
 /// @notice Utility script for post-deploy reconfiguration of LUMINA Protocol V5.0.
 /// @dev Each function is a standalone broadcast operation. No single `run()` entry point.
@@ -54,6 +61,41 @@ interface IAccessControlWire {
 ///          $POLICY_MANAGER $COVER_ROUTER $SHIELD $PRODUCT_ID $PAYOUT $PROB $MARGIN $DURATION \
 ///          --rpc-url $RPC --broadcast
 contract WireLuminaV5PostDeploy is Script {
+    // ═══════════════════════════════════════════════════════════════════
+    // [Fix audit #31 HIGH-3] AUTHORIZE MARKETPLACE OPERATORS
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// @notice Add Marketplace + BuybackEngine to ClaimBond's authorized
+    ///         operator whitelist (required by Fix #18 transfer gate).
+    /// @dev    Idempotent — re-running on an already-authorized operator is a no-op write.
+    ///         If the deploy script omitted these calls, run this to recover.
+    /// @param  claimBond Address of the ClaimBond proxy.
+    /// @param  marketplace Address of the LuminaBondMarketplace proxy.
+    /// @param  buybackEngine Address of the BuybackEngine proxy.
+    function authorizeMarketplaceOperators(address claimBond, address marketplace, address buybackEngine) external {
+        console2.log("=== Authorize Marketplace Operators ===");
+        console2.log("ClaimBond:    ", claimBond);
+        console2.log("Marketplace:  ", marketplace);
+        console2.log("BuybackEngine:", buybackEngine);
+
+        vm.startBroadcast();
+        IClaimBondAuth(claimBond).setAuthorizedOperator(marketplace, true);
+        IClaimBondAuth(claimBond).setAuthorizedOperator(buybackEngine, true);
+        vm.stopBroadcast();
+
+        console2.log("Authorized.");
+    }
+
+    /// @notice View-only check of current authorization state — useful from a CI dry-run.
+    function checkMarketplaceOperatorsAuthorized(address claimBond, address marketplace, address buybackEngine)
+        external
+        view
+        returns (bool mpOk, bool bbOk)
+    {
+        mpOk = IClaimBondAuth(claimBond).authorizedOperators(marketplace);
+        bbOk = IClaimBondAuth(claimBond).authorizedOperators(buybackEngine);
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // ADD SHIELD
     // ═══════════════════════════════════════════════════════════════════

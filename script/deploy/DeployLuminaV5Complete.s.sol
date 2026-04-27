@@ -424,6 +424,13 @@ contract DeployLuminaV5Complete is Script {
         bondVault.setAuthorizedCaller(res.buybackEngine, true);
         console.log("  BuybackEngine authorized in BondVault");
 
+        // [Fix audit #31 CRITICAL] Authorize Marketplace + BuybackEngine as ClaimBond operators.
+        // Without these, Fix #18's transfer whitelist makes the Marketplace 100% non-functional
+        // (sellers cannot list bonds, buybacks cannot complete). MUST run pre-launch.
+        claimBond.setAuthorizedOperator(res.marketplace, true);
+        claimBond.setAuthorizedOperator(res.buybackEngine, true);
+        console.log("  Marketplace + BuybackEngine authorized as ClaimBond operators");
+
         // PolicyManagerV2.registerProduct for each shield
         // IDs MUST match the PRODUCT_ID constant in each shield contract
         policyManager.registerProduct(keccak256("FLASHBTC1H-001"), res.flashBTCShield1h);

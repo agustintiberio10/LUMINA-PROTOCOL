@@ -44,6 +44,9 @@ interface IBondVaultMinimal {
 
 interface IClaimBondMinimal {
     function bondVault() external view returns (address);
+    /// @dev [Fix audit #31 HIGH-1] Required to verify Marketplace + BuybackEngine
+    /// were registered as authorized operators after deploy.
+    function authorizedOperators(address operator) external view returns (bool);
 }
 
 interface ICapacityOracleMinimal {
@@ -76,6 +79,8 @@ contract VerifyLuminaV5Deployment is Script {
         address maintenanceReserve = vm.envAddress("MAINTENANCE_RESERVE");
         address capacityOracle = vm.envAddress("CAPACITY_ORACLE");
         address multisig = vm.envAddress("MULTISIG");
+        // [Fix audit #31 HIGH-1] Marketplace required to verify ClaimBond authorization.
+        address marketplace = vm.envAddress("MARKETPLACE");
 
         console2.log("=== LUMINA V5.0 Deployment Verification ===");
         console2.log("");
@@ -204,6 +209,27 @@ contract VerifyLuminaV5Deployment is Script {
         failures += _checkAddress(
             IClaimBondMinimal(claimBond).bondVault(), bondVault, "ClaimBond.bondVault == bondVault"
         );
+
+        // [Fix audit #31 HIGH-1] ClaimBond authorized operators (Fix #18 whitelist).
+        // If these are missing the marketplace is non-functional.
+        {
+            bool mpAuth = IClaimBondMinimal(claimBond).authorizedOperators(marketplace);
+            if (mpAuth) {
+                console2.log("[PASS] ClaimBond.authorizedOperators[marketplace] == true");
+            } else {
+                console2.log("[FAIL] ClaimBond.authorizedOperators[marketplace] != true (CRITICAL Fix #18)");
+                failures++;
+            }
+        }
+        {
+            bool bbAuth = IClaimBondMinimal(claimBond).authorizedOperators(buybackEngine);
+            if (bbAuth) {
+                console2.log("[PASS] ClaimBond.authorizedOperators[buybackEngine] == true");
+            } else {
+                console2.log("[FAIL] ClaimBond.authorizedOperators[buybackEngine] != true (CRITICAL Fix #18)");
+                failures++;
+            }
+        }
 
         // ═══════════════════════════════════════════
         // 4. OWNERSHIP CHECKS

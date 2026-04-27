@@ -535,6 +535,13 @@ contract DeployLuminaV5Sepolia is Script {
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
         console.log("BuybackEngine authorized in BondVault");
 
+        // [Fix audit #31 CRITICAL] Authorize Marketplace + BuybackEngine as ClaimBond operators.
+        // Required by Fix #18's transfer whitelist. Without these the Marketplace
+        // is non-functional post-deploy (every list/buy reverts).
+        claimBond.setAuthorizedOperator(address(marketplace), true);
+        claimBond.setAuthorizedOperator(address(buybackEngine), true);
+        console.log("Marketplace + BuybackEngine authorized as ClaimBond operators");
+
         // ──────────────────────────────────────────────────
         // PHASE 10: Wire TWAPBurner
         // ──────────────────────────────────────────────────
