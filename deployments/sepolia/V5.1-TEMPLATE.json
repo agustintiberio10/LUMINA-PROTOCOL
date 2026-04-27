@@ -1,0 +1,59 @@
+{
+  "version": "5.1",
+  "network": "base_sepolia",
+  "chainId": 84532,
+  "deployedAt": "YYYY-MM-DD",
+  "deployer": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+  "gitCommit": "<git rev-parse HEAD at deploy>",
+  "auditCycle": "V5.1 audits #1-31 + 8 fixes (M-01, M-02, M-03, #18, #26, #27, #28, #31)",
+  "contracts": {
+    "luminaToken": "0x...",
+    "bondVault": "0x...",
+    "claimBond": "0x...",
+    "policyManager": "0x...",
+    "coverRouter": "0x...",
+    "marketplace": "0x...",
+    "buybackEngine": "0x...",
+    "twapBurner": "0x...",
+    "capacityOracle": "0x...",
+    "solvencyOracle": "0x...",
+    "adaptiveFeeDistributor": "0x...",
+    "shieldKeeper": "0x...",
+    "cexLiquidityReserve": "0x...",
+    "maintenanceReserve": "0x...",
+    "treasuryVesting": "0x...",
+    "founderVesting": "PLACEHOLDER (Sepolia uses _labelToAddress)",
+    "shields": {
+      "FlashBTC1h": "0x...",
+      "FlashBTC4h": "0x...",
+      "FlashBTC24h": "0x...",
+      "FlashBTC48h": "0x...",
+      "FlashETH1h": "0x...",
+      "FlashETH24h": "0x...",
+      "FlashETH48h": "0x...",
+      "MicroDepeg": "0x...",
+      "RateShock": "0x..."
+    },
+    "mocks": {
+      "usdc": "0x...",
+      "btcOracle": "0x...",
+      "ethOracle": "0x...",
+      "shieldOracle": "0x...",
+      "aavePool": "0x...",
+      "dexRouter": "0x..."
+    }
+  },
+  "verifications": {
+    "marketplaceAuthorizedInClaimBond": "PASS / FAIL",
+    "buybackEngineAuthorizedInClaimBond": "PASS / FAIL",
+    "twapBurnerHasBurnerRole": "PASS / FAIL",
+    "buybackEngineAuthorizedInBondVault": "PASS / FAIL",
+    "tokenDistribution": "70M/14M/8M/5M/3M = 100M total",
+    "ninePoroductsRegistered": "PASS / FAIL",
+    "adaptiveModeEnabled": "PASS / FAIL"
+  },
+  "deployTxHash": "0x...",
+  "deployBlockNumber": 0,
+  "deployGasUsed": 0,
+  "verifyScriptOutput": "see deploy logs"
+}
