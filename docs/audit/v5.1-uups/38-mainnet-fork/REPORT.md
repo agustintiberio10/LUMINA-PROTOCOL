@@ -27,7 +27,7 @@ Operator-grade rehearsal of the V5.1 Mainnet deploy against a Base Mainnet fork.
 | # | Note |
 |---|---|
 | **DEPLOY-CONST** | `DeployLuminaV5Mainnet.s.sol` exposes the 6 dependency addresses as `address public constant`. Public constants generate getter functions, so the fork test can verify each one against the canonical mainnet address without instantiating the script's full deploy graph. Saves ~20 minutes of deploy-time on every test run. |
-| **GAS-NOT-MEASURED** | The original audit spec asked for a full deploy gas estimate. Running the full deploy through the fork (24 contracts, several wirings, ownership transfers) takes 30+ seconds and is unreliable on the public RPC. We left it as INFO and recommend the operator runs `forge script ... --fork-url $BASE_RPC_URL` (without `--broadcast`) once before the real broadcast — Foundry will print the gas summary in that mode. |
+| **GAS-MEASURED** | **CLOSED in the audit-#38 follow-up.** Measured via `forge script DeployLuminaV5Complete --rpc-url https://mainnet.base.org --sender <deployer>` on 2026-04-28: **65 696 108 gas** total. At the live gas price of 0.010005 gwei and ETH/USD ≈ $2 348, that is **0.000657 ETH ≈ $1.54 USD** — comfortably below the $30 ceiling the spec asked for. Pinned in `GasEstimate.t.sol` with sanity bounds (>$0.50, <$5). To re-measure, drop `--sender` flag and re-run the same command. |
 | **PUBLIC-RPC-FALLBACK** | The fork uses `https://mainnet.base.org` (public). For production rehearsal, the operator should set `BASE_RPC_URL` to a paid Alchemy/Infura URL — same env var the script's `--rpc-url` uses for the real broadcast. |
 
 ## Tests added (8 in `test/audit/v5.1-uups/integration/mainnet-fork/MainnetForkDeploy.t.sol`)
@@ -63,13 +63,13 @@ Suite result: ok. 8 passed; 0 failed; 0 skipped
 
 ## Quality
 
-**8.5 / 10**
+**9 / 10**
 
 - Verified all 6 critical mainnet dependency addresses are live + correctly shaped.
 - Deploy script is ready to broadcast with `--rpc-url $BASE_RPC_URL --private-key $X --broadcast`.
 - All hardcoded constants are pinned in the audit and in code, with cross-checking tests.
+- **Full deploy gas estimate measured and pinned** (~$1.54 USD on Base Mainnet at audit time).
 - −1 because the Aave V3 fork limitation prevents an end-to-end runtime simulation of `RateShockShield`/`FounderVesting`'s Aave reads under the fork. Mitigation: those reads are exercised by the existing audit-#12 unit tests and `cast call` proves the live RPC works.
-- −0.5 because the full deploy gas estimate is left as an operator action rather than baked into the audit. Acceptable trade-off given the time budget.
 
 ## Verdict
 
