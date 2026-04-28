@@ -14,9 +14,14 @@ remappings = [
     "forge-std/=lib/forge-std/src/",
 ]
 
-[profile.default.rpc_endpoints]
+[rpc_endpoints]
 base = "${BASE_RPC_URL}"
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+# [Audit #38] Public Base Mainnet endpoint for fork tests. Tests in
+# test/audit/v5.1-uups/integration/mainnet-fork/ select this fork to
+# exercise the deploy against real USDC, Chainlink oracles, Aave V3,
+# and Uniswap V3.
+base_mainnet = "https://mainnet.base.org"
 
 [etherscan]
 base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api", chain = 8453 }
