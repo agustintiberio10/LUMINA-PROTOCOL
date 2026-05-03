@@ -104,7 +104,7 @@ contract RaceConditions is Test {
         // issueBond's responsibility.
         assertEq(v.totalCommittedUSD(), 0);
 
-        v.issueBond(makeAddr("u"), 1_000);
+        v.issueBond(makeAddr("u"), 1_000, 0.036e18);
         assertEq(v.totalCommittedUSD(), 1_000e18);
     }
 
@@ -137,7 +137,7 @@ contract RaceConditions is Test {
         assertEq(v.totalReservedUSD(), 500e18);
         for (uint256 i = 0; i < 5; i++) {
             v.commitReservation(100e18);
-            v.issueBond(makeAddr(string(abi.encode("u", i))), 100);
+            v.issueBond(makeAddr(string(abi.encode("u", i))), 100, 0.036e18);
         }
         assertEq(v.totalReservedUSD(), 0);
         assertEq(v.totalCommittedUSD(), 500e18);
@@ -280,7 +280,7 @@ contract RaceConditions is Test {
 
         address[3] memory holders = [makeAddr("h1"), makeAddr("h2"), makeAddr("h3")];
         for (uint256 i = 0; i < 3; i++) {
-            v.issueBond(holders[i], 100);
+            v.issueBond(holders[i], 100, 0.036e18);
         }
         assertEq(v.totalCommittedUSD(), 300e18);
 
@@ -366,12 +366,12 @@ contract RaceConditions is Test {
     // ─────────────────────────────────────────────────────────────
     function test_Race_Upgrade_StatePreservedAndOperationsContinue() public {
         (BondVault v,,,) = _bvFull();
-        v.issueBond(makeAddr("pre"), 123);
+        v.issueBond(makeAddr("pre"), 123, 0.036e18);
         uint256 committedPre = v.totalCommittedUSD();
 
         v.upgradeToAndCall(address(new BondVault()), "");
         // Immediate subsequent op — no warp.
-        v.issueBond(makeAddr("post"), 456);
+        v.issueBond(makeAddr("post"), 456, 0.036e18);
         assertEq(v.totalCommittedUSD(), committedPre + 456e18);
     }
 
@@ -465,7 +465,7 @@ contract RaceConditions is Test {
         (BondVault v,,,) = _bvFull();
         uint256 expected;
         for (uint256 i = 1; i <= 100; i++) {
-            v.issueBond(makeAddr(string(abi.encode("u", i))), i);
+            v.issueBond(makeAddr(string(abi.encode("u", i))), i, 0.036e18);
             expected += i * 1e18;
         }
         assertEq(v.totalCommittedUSD(), expected);

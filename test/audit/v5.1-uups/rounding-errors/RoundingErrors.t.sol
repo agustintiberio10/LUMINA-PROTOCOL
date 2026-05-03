@@ -351,7 +351,7 @@ contract RoundingErrors is Test {
         // the sum of individual increments. Solidity adds exactly — no rounding.
         uint256 aggregated;
         for (uint256 i = 1; i <= 1000; i++) {
-            v.issueBond(makeAddr(string(abi.encode(i))), i); // 1..1000 USD
+            v.issueBond(makeAddr(string(abi.encode(i))), i, 0.036e18); // 1..1000 USD
             aggregated += i * 1e18; // stored 18-dec
         }
         assertEq(v.totalCommittedUSD() - totalCommittedBefore, aggregated);

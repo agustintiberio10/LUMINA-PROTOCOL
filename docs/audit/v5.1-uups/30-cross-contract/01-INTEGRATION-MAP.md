@@ -228,7 +228,7 @@ Verified by `_deployFullStack`.
 | BuybackEngine → BondVault | Vault allows obligation decrease + burnFromReserves | `onlyAuthorized` (set via `setAuthorizedCaller`) |
 | Marketplace → ClaimBond | ClaimBond transfers after authorizedOperator whitelist [Fix #18] | `safeTransferFrom` checks whitelist |
 | TWAPBurner → DexRouter | Best quote + minOut guard [Fix M-02] | `_swapAndBurn` enforces non-zero minOut |
-| TWAPBurner → LUMINA.burn | Burner holds BURNER_ROLE | `_grantRole(BURNER_ROLE, TWAPBurner)` at deploy |
+| TWAPBurner → LUMINA.burn | TWAPBurner burns its OWN swap-acquired balance via `burn(uint256)` (no role gate, no allowance needed). The `BURNER_ROLE` grant at deploy is a legacy reserved hook — **not consulted by this path post [Fix H-1]**. | `ERC20Burnable.burn(amount)` (self-burn) |
 | SolvencyOracle → BondVault | Read-only view of totalCommittedUSD + LUMINA balance | View-only; no mutations |
 | CapacityOracle → Uniswap Pool | Pool returns a valid TWAP price | fallback to emergency price on oracle failure |
 | AdaptiveFeeDistributor → SolvencyOracle | Quadrant returned is valid | `getCurrentQuadrant` enforces sLevel < 4 && mLevel < 4 |

@@ -105,6 +105,15 @@ contract MockShieldOracle_Stress {
         return 0;
     }
 
+    /// @dev [Audit fix H-13] Stub for the new IOracle method.
+    ///      Tests that exercise Chainlink-grace logic configure
+    ///      this mock via a setter (or override) — the default
+    ///      `0` keeps every other test green.
+    function getChainlinkDowntime(bytes32, uint256) external view returns (uint256) {
+        return 0;
+    }
+
+
     function verifySignature(bytes32, bytes calldata) external pure returns (address) {
         return address(0xdead);
     }
@@ -353,7 +362,7 @@ contract StressVolume is Test {
         // Gas-flat claim is about the steady-state curve, not cold init.
         for (uint256 i = 0; i < 10; i++) {
             vm.prank(address(policyManager));
-            bondVault.issueBond(address(uint160(0x200000 + i)), 100);
+            bondVault.issueBond(address(uint160(0x200000 + i)), 100, 0.036e18);
             issuedUSD += 100;
         }
 
@@ -361,7 +370,7 @@ contract StressVolume is Test {
             address holder = address(uint160(0x200000 + i));
             uint256 g = gasleft();
             vm.prank(address(policyManager));
-            bondVault.issueBond(holder, 100);
+            bondVault.issueBond(holder, 100, 0.036e18);
             uint256 used = g - gasleft();
             if (i == 10) gasFirst = used;
             if (i == 1_999) gasLast = used;
@@ -386,7 +395,7 @@ contract StressVolume is Test {
         for (uint256 i = 0; i < 500; i++) {
             holders[i] = address(uint160(0x300000 + i));
             vm.prank(address(policyManager));
-            bondVault.issueBond(holders[i], 100);
+            bondVault.issueBond(holders[i], 100, 0.036e18);
         }
 
         // All maturities map to one epoch. Warp past the shared maturity.
@@ -440,7 +449,7 @@ contract StressVolume is Test {
         for (uint256 i = 0; i < 300; i++) {
             address seller = address(uint160(0x400000 + i));
             vm.prank(address(policyManager));
-            bondVault.issueBond(seller, 100);
+            bondVault.issueBond(seller, 100, 0.036e18);
             if (i == 0) epochId = _anyHeldEpoch(seller);
         }
 

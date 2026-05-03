@@ -106,11 +106,11 @@ Residual risk: On thin-liquidity pools, cost to flash price below $0.005 may be 
 THREAT 12: CEXLiquidityReserve Monthly Cap Bypass via Timing
 Category: Governance
 Actor: malicious admin
-Description: ALLOCATOR_ROLE calls allocate() just before month boundary, then again just after, effectively allocating 2M LUMINA in a short window (1M per "month"). Month is calculated as `(timestamp - deploymentTimestamp) / 30 days`.
+Description: ALLOCATOR_ROLE calls allocate() just before month boundary, then again just after, effectively allocating up to 2 × `monthlyCap` LUMINA in a short window. Month is calculated as `(timestamp - deploymentTimestamp) / 30 days`.
 Impact: MEDIUM
-Current mitigation: MONTHLY_CAP of 1M LUMINA per 30-day period. Each allocation checks `monthlySpent + amount <= MONTHLY_CAP`.
+Current mitigation: `monthlyCap` per 30-day period (storage variable, default `DEFAULT_MONTHLY_CAP = 1M LUMINA`, ceiling `MAX_MONTHLY_CAP = TOTAL_AMOUNT = 14M LUMINA`). Each allocation checks `monthlySpent + amount <= monthlyCap`. Cap is mutable via `setMonthlyCap(uint256)` gated by `DEFAULT_ADMIN_ROLE` (multisig) — see [Fix H-2]: the original 1M constant was insufficient for CEX Tier-1 listings (Binance/Coinbase typically require 5–10M deposits), so the cap was made admin-tunable up to the total reserve.
 Test coverage: test_cex_reserve_monthly_cap
-Residual risk: Edge-case: allocating 1M at day 29.9 and 1M at day 30.1 yields 2M in ~5 hours. Multisig governance is the ultimate safeguard.
+Residual risk: Edge-case: allocating `monthlyCap` at day 29.9 and `monthlyCap` at day 30.1 yields 2 × cap in ~5 hours. Additionally, a compromised DEFAULT_ADMIN can raise the cap up to 14M; multisig governance + monitoring of `MonthlyCapUpdated` events is the ultimate safeguard.
 
 THREAT 13: BuybackEngine Activation Delay Bypass
 Category: Technical
@@ -178,11 +178,11 @@ Residual risk: If a custom authorized caller is added that does not burn bonds b
 THREAT 20: LuminaTokenV2 BURNER_ROLE Permanent Lock
 Category: Governance
 Actor: malicious admin
-Description: DEFAULT_ADMIN_ROLE holder renounces the admin role. BURNER_ROLE can never be granted to a new address. If TWAPBurner is replaced or compromised, no new burner can be authorized, permanently disabling the burn mechanism.
-Impact: HIGH
-Current mitigation: Warning comment in LuminaTokenV2 source code [L-10]. Admin should only renounce after confirming TWAPBurner stability.
+Description: DEFAULT_ADMIN_ROLE holder renounces the admin role. BURNER_ROLE can never be granted to a new address.
+Impact: LOW (downgraded from HIGH post [Fix H-1])
+Current mitigation: [Fix H-1] removed the `burnFrom` override that gated on BURNER_ROLE. The two production burn paths — `TWAPBurner._executeBurn` and `BondVault.burnFromReserves` (via `IBurnable.burn`) — both invoke `ERC20Burnable.burn(uint256)` on the calling contract's own balance, which requires no role and no allowance. Replacing or losing TWAPBurner does not disable the burn mechanism: a new TWAPBurner instance can swap USDC and call `burn(amount)` without holding any role on LuminaTokenV2. Warning comment in LuminaTokenV2 source code [L-10] retained for completeness.
 Test coverage: test_burner_role_management
-Residual risk: Human error. If admin renounces prematurely, burn mechanism is permanently locked to current TWAPBurner address.
+Residual risk: BURNER_ROLE is declared but no flow in V5.1 currently consumes it. Renouncing admin only forecloses the option of activating a *future* role-gated burn path (e.g., a privileged third-party-burn function added in a later upgrade). No present-day operational risk.
 
 THREAT 21: Cross-Contract Decimal Mismatch in BondVault Capacity Check
 Category: Technical

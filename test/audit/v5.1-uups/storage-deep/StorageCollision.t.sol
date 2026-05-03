@@ -166,7 +166,7 @@ contract StorageCollision is Test {
         (BondVault vault, LuminaTokenV2 token, ClaimBond cb) = _deployBondVaultFull();
         vault.setAuthorizedCaller(makeAddr("buyback"), true);
         vm.warp(1767225600 + 30 days);
-        vault.issueBond(makeAddr("user"), 777);
+        vault.issueBond(makeAddr("user"), 777, 0.036e18);
 
         uint256 committed = vault.totalCommittedUSD();
 
@@ -188,15 +188,15 @@ contract StorageCollision is Test {
     function test_Storage_BondVault_MultipleUpgradesSequential() public {
         (BondVault vault,,) = _deployBondVaultFull();
         vm.warp(1767225600 + 30 days);
-        vault.issueBond(makeAddr("u1"), 100);
+        vault.issueBond(makeAddr("u1"), 100, 0.036e18);
         uint256 afterV1 = vault.totalCommittedUSD();
 
         vault.upgradeToAndCall(address(new BondVault()), "");
-        vault.issueBond(makeAddr("u2"), 200);
+        vault.issueBond(makeAddr("u2"), 200, 0.036e18);
         uint256 afterV2 = vault.totalCommittedUSD();
 
         vault.upgradeToAndCall(address(new BondVault()), "");
-        vault.issueBond(makeAddr("u3"), 300);
+        vault.issueBond(makeAddr("u3"), 300, 0.036e18);
         uint256 afterV3 = vault.totalCommittedUSD();
 
         vault.upgradeToAndCall(address(new BondVault()), "");
@@ -305,6 +305,19 @@ contract StorageCollision is Test {
             abi.encode(uint256(1_000_000))
         );
         vm.mockCall(makeAddr("vault"), abi.encodeWithSelector(bytes4(keccak256("reserveCapacity(uint256)"))), "");
+        // [Audit fix H-6] recordPolicy now reads `bondVault.priceOracle().getLuminaPrice()`
+        // for the snapshot. Stub both to a deterministic price so the upgrade-storage
+        // test stays focused on storage layout, not price plumbing.
+        vm.mockCall(
+            makeAddr("vault"),
+            abi.encodeWithSelector(bytes4(keccak256("priceOracle()"))),
+            abi.encode(makeAddr("oracle"))
+        );
+        vm.mockCall(
+            makeAddr("oracle"),
+            abi.encodeWithSelector(bytes4(keccak256("getLuminaPrice()"))),
+            abi.encode(uint256(0.036e18))
+        );
         pm.recordPolicy(pid, makeAddr("buyer"), 500e6, 5e6, 3600, "BTC");
 
         uint256 totalBefore = pm.totalPolicies();
@@ -894,7 +907,7 @@ contract StorageCollision is Test {
     function test_Storage_BondVault_GapRegionIsZero() public {
         (BondVault vault,,) = _deployBondVaultFull();
         vm.warp(1767225600 + 30 days);
-        vault.issueBond(makeAddr("u"), 100);
+        vault.issueBond(makeAddr("u"), 100, 0.036e18);
 
         // Used slots are 0..7 for own state. The __gap runs at slots 8..57.
         for (uint256 i = 8; i < 58; i++) {

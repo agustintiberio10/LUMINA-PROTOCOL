@@ -88,7 +88,7 @@ contract LongTermSimulation is Test {
 
             // Issue bonds for this month
             for (uint256 i = 0; i < bondsPerMonth; i++) {
-                vault.issueBond(user, bondAmountUSD);
+                vault.issueBond(user, bondAmountUSD, 0.036e18);
                 totalBondsIssued++;
                 expectedCommittedUSD += bondAmountUSD * 1e18;
             }
@@ -137,7 +137,7 @@ contract LongTermSimulation is Test {
         // Phase 1: Issue 100 bonds at $0.036
         oracle.setPrice(0.036e18);
         for (uint256 i = 0; i < 100; i++) {
-            vault.issueBond(user, 800);
+            vault.issueBond(user, 800, 0.036e18);
         }
         assertEq(vault.totalCommittedUSD(), 100 * 800 * 1e18, "Should have 100 bonds committed");
 
@@ -149,14 +149,14 @@ contract LongTermSimulation is Test {
         // At $0.004 capacity is much lower. Try to issue beyond capacity.
         if (cap < 800) {
             vm.expectRevert("Exceeds capacity");
-            vault.issueBond(user, 800);
+            vault.issueBond(user, 800, 0.036e18);
         }
 
         // Phase 3: Price recovers to $0.036
         oracle.setPrice(0.036e18);
 
         // Phase 4: Confirm bonds can be issued again
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         assertEq(vault.totalCommittedUSD(), 101 * 800 * 1e18, "Should have 101 bonds now");
     }
 
@@ -184,7 +184,7 @@ contract LongTermSimulation is Test {
         // Issue bonds until we approach 80% of capacity
         uint256 targetCommitment = (capacityAtDollar * 80) / 100;
         while (vault.totalCommittedUSD() / 1e18 < targetCommitment && bondsIssued < 2000) {
-            vault.issueBond(user, bondSize);
+            vault.issueBond(user, bondSize, 0.036e18);
             bondsIssued++;
         }
 

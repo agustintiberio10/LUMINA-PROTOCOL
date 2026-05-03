@@ -252,9 +252,9 @@ contract InitializerSecurityOracles is Test {
         CEXLiquidityReserve c = ProxyDeployer.deployCEXLiquidityReserve(makeAddr("l"), address(this));
         assertEq(address(c.lumina()), makeAddr("l"));
         assertEq(c.deploymentTimestamp(), block.timestamp);
-        assertEq(c.allocatedFromImmediate(), 0);
-        assertEq(c.allocatedFromVesting(), 0);
-        assertEq(c.allocatedFromStrategic(), 0);
+        // Tier-1 redesign — single flat counter replaces V1 per-bucket trio.
+        assertEq(c.totalAllocated(), 0);
+        assertEq(c.monthlyCap(), c.DEFAULT_MONTHLY_CAP());
     }
 
     function test_Init_CEXLiquidityReserve_FrontRunningProtected() public {

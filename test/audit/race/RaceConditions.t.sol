@@ -883,7 +883,9 @@ contract RaceConditionsTest is Test {
     //  CATEGORY 10: CEX ALLOCATION RACE (2 tests)
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Two allocations exhaust ImmediateUse sub-bucket.
+    /// @notice Two allocations exhaust the monthly cap. (Post Tier-1
+    ///         redesign there is no per-bucket exhaustion — only the
+    ///         lifetime ceiling and the monthly cap remain.)
     function test_Race_CEXAllocation_BucketExhaustion() public {
         // Deploy a fresh CEXLiquidityReserve with real lumina
         CEXLiquidityReserve freshCex = ProxyDeployer.deployCEXLiquidityReserve(address(token), address(this));
@@ -893,17 +895,11 @@ contract RaceConditionsTest is Test {
         address recipient1 = makeAddr("cexRecip1");
         address recipient2 = makeAddr("cexRecip2");
 
-        // Monthly cap is 1M LUMINA. ImmediateUse bucket is 2.8M.
-        // Must respect monthly cap, so allocate 999_999e18 first, then try to exceed.
-        uint256 monthlyCap = freshCex.MONTHLY_CAP(); // 1M
+        uint256 monthlyCap = freshCex.monthlyCap(); // 1M (default)
 
-        // First allocation: almost all of monthly cap from immediate bucket
+        // First allocation: almost all of monthly cap
         freshCex.allocate(
-            recipient1,
-            monthlyCap - 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "First large allocation"
+            recipient1, monthlyCap - 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "First large allocation"
         );
 
         // Second allocation same block: exceeds monthly cap
@@ -911,18 +907,13 @@ contract RaceConditionsTest is Test {
         freshCex.allocate(
             recipient2,
             2e18, // more than the 1e18 remaining in monthly cap
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
             CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
             "Second allocation exceeds"
         );
 
         // But exactly the monthly remainder works
         freshCex.allocate(
-            recipient2,
-            1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Exact remainder allocation"
+            recipient2, 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Exact remainder allocation"
         );
 
         // Verify monthly cap fully used
@@ -937,39 +928,22 @@ contract RaceConditionsTest is Test {
         address recipient1 = makeAddr("monthRecip1");
         address recipient2 = makeAddr("monthRecip2");
 
-        // Monthly cap = 1M LUMINA (freshCex.MONTHLY_CAP())
+        // Monthly cap = 1M LUMINA (freshCex.monthlyCap(), default after init)
         // First allocation: 900k
-        freshCex.allocate(
-            recipient1,
-            900_000e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3,
-            "Large monthly alloc"
-        );
+        freshCex.allocate(recipient1, 900_000e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3, "Large monthly alloc");
 
         // Second allocation same block: 200k would exceed monthly cap of 1M
         vm.expectRevert("Monthly cap exceeded");
-        freshCex.allocate(
-            recipient2,
-            200_000e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3,
-            "Monthly cap race"
-        );
+        freshCex.allocate(recipient2, 200_000e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3, "Monthly cap race");
 
         // Exactly remaining 100k works
         freshCex.allocate(
-            recipient2,
-            100_000e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3,
-            "Exact monthly remainder"
+            recipient2, 100_000e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3, "Exact monthly remainder"
         );
 
-        assertEq(
-            freshCex.getAvailableInBucket(CEXLiquidityReserve.SubBucket.ImmediateUse),
-            freshCex.IMMEDIATE_AMOUNT() - 1_000_000e18
-        );
+        // Cumulative allocated across both recipients = 1M (the monthly cap).
+        assertEq(freshCex.totalAllocated(), 1_000_000e18, "totalAllocated reflects month spend");
+        assertEq(freshCex.getMonthlyCapRemaining(), 0, "monthly cap fully used");
     }
 
     // ═══════════════════════════════════════════════════════════

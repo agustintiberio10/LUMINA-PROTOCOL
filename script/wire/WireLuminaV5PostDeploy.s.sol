@@ -48,6 +48,9 @@ interface IAccessControlWire {
 interface IClaimBondAuth {
     function setAuthorizedOperator(address operator, bool authorized) external;
     function authorizedOperators(address operator) external view returns (bool);
+    /// @dev [Audit fix H-12] Escape hatch setter — see ClaimBond docs.
+    function setMarketplaceEscape(address marketplace) external;
+    function marketplaceEscape() external view returns (address);
 }
 
 /// @title WireLuminaV5PostDeploy
@@ -81,9 +84,13 @@ contract WireLuminaV5PostDeploy is Script {
         vm.startBroadcast();
         IClaimBondAuth(claimBond).setAuthorizedOperator(marketplace, true);
         IClaimBondAuth(claimBond).setAuthorizedOperator(buybackEngine, true);
+        // [Audit fix H-12] Always co-register the escape hatch alongside
+        // operator authorization so a forgotten step in the main deploy
+        // path can be recovered idempotently here.
+        IClaimBondAuth(claimBond).setMarketplaceEscape(marketplace);
         vm.stopBroadcast();
 
-        console2.log("Authorized.");
+        console2.log("Authorized + escape hatch registered.");
     }
 
     /// @notice View-only check of current authorization state — useful from a CI dry-run.

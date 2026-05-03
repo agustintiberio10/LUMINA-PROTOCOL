@@ -45,31 +45,49 @@ contract TreasuryVestingTest is Test {
     }
 
     function test_cannot_exceed_monthly_max() public {
+        // [Audit fix H-9] The dedicated "Exceeds monthly max" revert was
+        // removed; the cap is now enforced uniformly via `available()`.
+        // First call after unlock has 250K available, so 300K still reverts
+        // — but with the unified "Exceeds available" message.
         vm.warp(block.timestamp + 180 days);
-        vm.expectRevert("Exceeds monthly max");
+        vm.expectRevert("Exceeds available");
         vesting.release(makeAddr("dest"), 300_000 * 1e18);
     }
 
     function test_cannot_release_twice_same_month() public {
+        // [Audit fix H-9] Multiple releases in the SAME month are now
+        // allowed as long as their sum stays inside the accumulated cap.
+        // The test name is preserved to keep CI/git history clean; the
+        // semantics now verify that the cap is enforced on the SUM, not
+        // on the per-call count.
         vm.warp(block.timestamp + 180 days);
-        vesting.release(makeAddr("dest"), 200_000 * 1e18);
 
-        vm.expectRevert("Already released this month");
+        // Two small releases summing to under the 250K month-1 cap: OK.
+        vesting.release(makeAddr("dest"), 200_000 * 1e18);
         vesting.release(makeAddr("dest"), 50_000 * 1e18);
+        assertEq(vesting.totalReleased(), 250_000 * 1e18);
+
+        // A third call that would push us past the month-1 cap reverts.
+        vm.expectRevert("Exceeds available");
+        vesting.release(makeAddr("dest"), 1);
     }
 
-    /// @notice [V4/SR2] Regression: month-0 cap must prevent multi-release.
+    /// @notice [V4/SR2 + H-9] Regression: month-0 cap must prevent multi-release
+    ///         that would EXCEED the cumulative cap. Smaller releases within
+    ///         the cap are now allowed (see `test_cannot_release_twice_same_month`).
     function test_cannot_drain_month0() public {
         vm.warp(block.timestamp + 180 days + 1); // just after lock
 
-        // First release OK
+        // First release at the month-1 cap.
         vesting.release(makeAddr("dest"), 250_000 * 1e18);
 
-        // Second release same month MUST REVERT (would previously drain 3M)
-        vm.expectRevert("Already released this month");
+        // A second release in the SAME month must revert — the cumulative
+        // cap is exhausted (would previously also revert, but with a
+        // different message before the H-9 fix).
+        vm.expectRevert("Exceeds available");
         vesting.release(makeAddr("dest"), 250_000 * 1e18);
 
-        // Only 250K released
+        // Only 250K released.
         assertEq(vesting.totalReleased(), 250_000 * 1e18);
     }
 
@@ -94,9 +112,12 @@ contract TreasuryVestingTest is Test {
         }
         assertEq(vesting.totalReleased(), 3_000_000 * 1e18);
 
-        // No more room even in the next month
+        // [Audit fix H-9] After draining TOTAL_AMOUNT, `available()` now
+        // returns 0 BEFORE the legacy `totalReleased + amount <= TOTAL_AMOUNT`
+        // check trips, so the revert message switched to "Exceeds available".
+        // The protective invariant (cap == 3M) is unchanged.
         vm.warp(deployedAt + 180 days + (12 * 30 days));
-        vm.expectRevert("Exceeds total");
+        vm.expectRevert("Exceeds available");
         vesting.release(makeAddr("dest"), 1);
     }
 

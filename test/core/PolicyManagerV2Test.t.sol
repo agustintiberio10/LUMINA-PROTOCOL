@@ -6,11 +6,30 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "../../src/core/PolicyManagerV2.sol";
 
+contract MockPriceOracleStub {
+    uint256 public price = 0.036e18;
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
+
+    function setPrice(uint256 p) external {
+        price = p;
+    }
+}
+
 contract MockBondVault {
     uint256 public cap = 1_000_000; // integer dollars
     uint256 public totalReserved; // 18-dec USD-wei
     uint256 public lastPayoutUSD;
     address public lastTo;
+    /// @dev [Audit fix H-6] Mock now exposes the oracle so PolicyManagerV2
+    ///      can read the price snapshot at recordPolicy time.
+    MockPriceOracleStub public priceOracle;
+
+    constructor() {
+        priceOracle = new MockPriceOracleStub();
+    }
 
     function availableCapacityUSD() external view returns (uint256) {
         uint256 reservedDollars = totalReserved / 1e18;
@@ -18,7 +37,7 @@ contract MockBondVault {
         return cap - reservedDollars;
     }
 
-    function issueBond(address to, uint256 usdPayout) external {
+    function issueBond(address to, uint256 usdPayout, uint256 /*priceSnapshot*/ ) external {
         lastTo = to;
         lastPayoutUSD = usdPayout;
     }

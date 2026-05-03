@@ -18,6 +18,10 @@ interface IERC20Balance {
 
 interface ISolvencyCapacityOracle {
     function getLuminaPrice() external view returns (uint256);
+    /// @dev [Audit fix H-10] Reused for momentum calculation. CapacityOracle
+    ///      already wraps `IUniswapV3Pool.observe` with try/catch + emergency
+    ///      fallback, so SolvencyOracle does not need its own pool plumbing.
+    function getTWAP(uint32 secondsAgo) external view returns (uint256);
 }
 
 contract SolvencyOracle is Initializable, UUPSUpgradeable, AccessControlUpgradeable {
@@ -33,6 +37,16 @@ contract SolvencyOracle is Initializable, UUPSUpgradeable, AccessControlUpgradea
     uint256 public constant MOMENTUM_RALLY_BPS = 11000;
     uint256 public constant MOMENTUM_STABLE_LOW_BPS = 9500;
     uint256 public constant MOMENTUM_DECLINE_BPS = 8500;
+
+    /// @notice [Audit fix H-10] TWAP windows (in seconds) used by
+    ///         `_calculateMomentum`. Short = 30 minutes, long = 24 hours.
+    uint32 public constant TWAP_SHORT_SECONDS = 30 minutes;
+    uint32 public constant TWAP_LONG_SECONDS = 1 days;
+    /// @notice Caps on the computed `momentumBps` so an oracle that returns
+    ///         a wildly out-of-range price cannot push the system past the
+    ///         intended classification thresholds.
+    uint256 public constant MOMENTUM_BPS_FLOOR = 5000;
+    uint256 public constant MOMENTUM_BPS_CEILING = 15000;
     uint256[3] public solvencyHistory;
     uint256[3] public momentumHistory;
     uint8 public historyIndex;
@@ -44,6 +58,13 @@ contract SolvencyOracle is Initializable, UUPSUpgradeable, AccessControlUpgradea
     event QuadrantChanged(uint8 oldS, uint8 oldM, uint8 newS, uint8 newM, uint256 sBps, uint256 mBps);
     event EvaluationExecuted(uint256 solvencyBps, uint256 momentumBps);
     event EmergencyPauseToggled(bool paused);
+
+    /// @notice [Audit fix H-10] Emitted by `evaluate()` when the TWAP-based
+    ///         momentum calculation could not produce a usable ratio (either
+    ///         leg returned zero from the upstream oracle's emergency
+    ///         fallback). Momentum stays at STABLE (10000) so the rest of
+    ///         the evaluation continues uninterrupted.
+    event OracleFailure(string indexed source, string reason);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -72,7 +93,14 @@ contract SolvencyOracle is Initializable, UUPSUpgradeable, AccessControlUpgradea
         require(!emergencyPaused, "Oracle paused");
         require(block.timestamp >= lastEvaluation + EVALUATION_INTERVAL, "Evaluation interval not reached");
         uint256 solvencyBps = _calculateSolvencyRatio();
-        uint256 momentumBps = 10000;
+        // [Audit fix H-10] Replaces the previous hardcoded `momentumBps = 10000`
+        // with a TWAP-based ratio (short / long). On any TWAP read failure
+        // the helper returns `(10000, true)` so the rest of `evaluate()`
+        // proceeds with a STABLE classification — no flow break.
+        (uint256 momentumBps, bool momFailed) = _calculateMomentum();
+        if (momFailed) {
+            emit OracleFailure("TWAP", "TWAP unavailable, momentum defaulted to STABLE");
+        }
         solvencyHistory[historyIndex] = solvencyBps;
         momentumHistory[historyIndex] = momentumBps;
         historyIndex = (historyIndex + 1) % 3;
@@ -120,9 +148,76 @@ contract SolvencyOracle is Initializable, UUPSUpgradeable, AccessControlUpgradea
         }
     }
 
+    /// @dev [Audit fix H-10] Computes momentum bps from a short/long TWAP
+    ///      ratio. Mapping to the 4-level classifier downstream:
+    ///        ratio  < 0.85 → bps 7000  → mLevel 3 (CRISIS, max buyback)
+    ///        ≥ 0.85 < 0.95 → bps 8500  → mLevel 2 (DECLINE)
+    ///        ≥ 0.95 < 1.05 → bps 10000 → mLevel 1 (STABLE)
+    ///        ≥ 1.05 < 1.15 → bps 11500 → mLevel 0 (RALLY, max burn)
+    ///        ≥ 1.15        → bps 12500 → mLevel 0 (PUMP saturates RALLY)
+    ///      `_classifyMomentum` already partitions on these constants so
+    ///      every existing classification slot is reachable from a
+    ///      well-formed TWAP. The 5th label (PUMP) collapses into RALLY
+    ///      because the existing 4×4 distribution matrix has no slot for
+    ///      a 5th momentum level — distinguishing them would require a
+    ///      matrix expansion which is explicitly out of scope per the
+    ///      founder ("NO tocar la matriz 4x4 del AdaptiveFeeDistributor").
+    ///
+    ///      Failure modes:
+    ///        - capacityOracle returns 0 for either leg → fail-safe to STABLE.
+    ///        - any external call reverts → fail-safe to STABLE via try/catch.
+    ///      Either path makes `momFailed == true` so `evaluate()` can emit
+    ///      `OracleFailure` for off-chain monitors.
+    ///      A defensive cap to [MOMENTUM_BPS_FLOOR, MOMENTUM_BPS_CEILING]
+    ///      shields the classifier from values that would only arise from
+    ///      an oracle bug or a manipulation attempt.
+    function _calculateMomentum() internal view returns (uint256 bps, bool failed) {
+        try this._readTwapPair() returns (uint256 shortTwap, uint256 longTwap) {
+            if (shortTwap == 0 || longTwap == 0) {
+                return (10000, true);
+            }
+            uint256 ratioE18 = (shortTwap * 1e18) / longTwap;
+            if (ratioE18 < 0.85e18) bps = 7000;
+            else if (ratioE18 < 0.95e18) bps = 8500;
+            else if (ratioE18 < 1.05e18) bps = 10000;
+            else if (ratioE18 < 1.15e18) bps = 11500;
+            else bps = 12500;
+
+            if (bps < MOMENTUM_BPS_FLOOR) bps = MOMENTUM_BPS_FLOOR;
+            if (bps > MOMENTUM_BPS_CEILING) bps = MOMENTUM_BPS_CEILING;
+            return (bps, false);
+        } catch {
+            return (10000, true);
+        }
+    }
+
+    /// @dev External wrapper used purely so `_calculateMomentum` can wrap
+    ///      both TWAP reads in a single `try/catch`. Marked `external` and
+    ///      called via `this.` so the catch covers any revert path inside
+    ///      `capacityOracle.getTWAP` (including out-of-gas in the upstream
+    ///      `observe` call). View-only — no state changes.
+    function _readTwapPair() external view returns (uint256 shortTwap, uint256 longTwap) {
+        require(msg.sender == address(this), "Internal helper");
+        shortTwap = capacityOracle.getTWAP(TWAP_SHORT_SECONDS);
+        longTwap = capacityOracle.getTWAP(TWAP_LONG_SECONDS);
+    }
+
+    /// @dev [Audit fix H-11] When `obligations == 0` (pre-trigger or after
+    ///      every outstanding bond has been redeemed), the previous code
+    ///      returned `type(uint256).max` to side-step the divide-by-zero.
+    ///      That sentinel landed in `_classifySolvency` as `bps >= ULTRA`
+    ///      → sLevel 0 (ULTRA SOLVENT), which then drove
+    ///      AdaptiveFeeDistributor to its most aggressive burn quadrant
+    ///      and let BuybackEngine treat a zero-bond state as "infinite
+    ///      collateral surplus". Returning `SOLVENCY_HEALTHY_BPS` (= 10000)
+    ///      keeps the division guard (no zero divide) AND classifies the
+    ///      empty state as plain HEALTHY (sLevel 1) — the founder's
+    ///      desired neutral baseline. Note that `_classifySolvency` uses
+    ///      `>= SOLVENCY_HEALTHY_BPS` so 10000 is the LOW edge of the
+    ///      HEALTHY bucket, not the high edge of STRESSED.
     function _calculateSolvencyRatio() internal view returns (uint256) {
         uint256 obligations = bondVault.totalCommittedUSD();
-        if (obligations == 0) return type(uint256).max;
+        if (obligations == 0) return SOLVENCY_HEALTHY_BPS;
         uint256 bal = lumina.balanceOf(address(bondVault));
         uint256 price = capacityOracle.getLuminaPrice();
         uint256 valueUSD = (bal * price) / 1e18;

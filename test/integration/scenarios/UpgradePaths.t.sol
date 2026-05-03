@@ -186,7 +186,7 @@ contract UpgradePathsTest is Test {
         assertTrue(bondVault.authorizedCallers(caller), "Caller should be authorized");
 
         // Issue a bond to create some obligations
-        bondVault.issueBond(makeAddr("holder"), 100); // $100
+        bondVault.issueBond(makeAddr("holder"), 100, 0.036e18); // $100
         assertGt(bondVault.totalCommittedUSD(), 0, "Should have commitments");
 
         // Caller can decrease obligations
@@ -229,7 +229,7 @@ contract UpgradePathsTest is Test {
         // Setup: mint bonds, list them, buy them
         // Issue a bond for a seller
         address seller = makeAddr("seller");
-        bondVault.issueBond(seller, 100); // $100 bond
+        bondVault.issueBond(seller, 100, 0.036e18); // $100 bond
 
         uint256 maturityTs = block.timestamp + 730 days;
         uint256 BASE_TS = 1767225600;

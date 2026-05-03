@@ -218,9 +218,10 @@ exactly **zero** sequential slots.
 ### 22. CEXLiquidityReserve — `src/treasury/CEXLiquidityReserve.sol`
 - **Parents:** `Initializable`, `UUPSUpgradeable`, `AccessControlUpgradeable`, `ReentrancyGuardUpgradeable`
 - **Auth:** `AccessControlUpgradeable`
-- **Own state vars:** `lumina`, `deploymentTimestamp`, `allocatedFromImmediate`, `allocatedFromVesting`, `allocatedFromStrategic`, `monthlyAllocations (mapping)`, `allocationHistory (array)`
-- **__gap:** `uint256[50] private __gap` (line 161)
-- **Used slots:** 7 | **Free gap:** 50
+- **Own state vars (post Tier-1 redesign):** `lumina` (slot 0), `deploymentTimestamp` (1), `__deprecated_allocatedFromImmediate` (2 — was `allocatedFromImmediate` in V1), `__deprecated_allocatedFromVesting` (3 — was `allocatedFromVesting`), `__deprecated_allocatedFromStrategic` (4 — was `allocatedFromStrategic`), `monthlyAllocations` mapping (5), `allocationHistory` array (6), `monthlyCap` (7 — [Fix H-2], placed in the first slot of the original `__gap[50]`), `totalAllocated` (8 — Tier-1 redesign, replaces the V1 per-bucket trio; consumes the next gap slot).
+- **__gap:** `uint256[48] private __gap` (post Tier-1 redesign)
+- **Used slots:** 9 | **Free gap:** 48
+- **Upgrade safety:** Pre-existing V5.1 proxies upgrade via `initializeV2()` (reinitializer(2), `DEFAULT_ADMIN_ROLE`-gated) which sets `monthlyCap = DEFAULT_MONTHLY_CAP` AND seeds `totalAllocated = __deprecated_allocatedFromImmediate + __deprecated_allocatedFromVesting + __deprecated_allocatedFromStrategic`. Slots 0..7 are byte-for-byte identical to the V1 layout; the deprecated slots are preserved (private, never reused) so any future audit can still inspect historical per-bucket spending via `vm.load`.
 
 ### 23. MaintenanceReserve — `src/treasury/MaintenanceReserve.sol`
 - **Parents:** `Initializable`, `UUPSUpgradeable`, `AccessControlUpgradeable`, `ReentrancyGuardUpgradeable`
@@ -270,7 +271,7 @@ exactly **zero** sequential slots.
 | 20 | RateShockShield | Ownable (inh) | 6 + 3 | 50 (child) | Shield |
 | 21 | CapacityOracle | Ownable | 5 | 50 | Small |
 | 22 | SolvencyOracle | AccessControl | 12 | 50 | Medium |
-| 23 | CEXLiquidityReserve | AccessControl | 7 | 50 | Small |
+| 23 | CEXLiquidityReserve | AccessControl | 9 | 48 | Small ([Fix H-2] + Tier-1 redesign — V1 slots 2/3/4 preserved as `__deprecated_*`) |
 | 24 | MaintenanceReserve | AccessControl | 6 | 50 | Small |
 | 25 | TreasuryVesting | Ownable | 4 | 50 | Small |
 

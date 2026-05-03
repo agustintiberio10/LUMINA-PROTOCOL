@@ -192,7 +192,7 @@ contract RoleAuditTest is Test {
 
     function test_Agent_CanRedeemOwnBonds() public {
         // Issue bond to agent (deployer == policyManager)
-        bondVault.issueBond(agent, 500);
+        bondVault.issueBond(agent, 500, 0.036e18);
 
         // Calculate epoch for maturity
         uint256 maturityTs = block.timestamp + 730 days;
@@ -221,7 +221,7 @@ contract RoleAuditTest is Test {
     function test_Agent_CannotIssueBonds() public {
         vm.prank(agent);
         vm.expectRevert("Only PolicyManager");
-        bondVault.issueBond(agent, 100);
+        bondVault.issueBond(agent, 100, 0.036e18);
     }
 
     function test_Agent_CannotBurnFromReserves() public {
@@ -245,13 +245,7 @@ contract RoleAuditTest is Test {
     function test_Agent_CannotAllocateCEX() public {
         vm.prank(agent);
         vm.expectRevert();
-        cexReserve.allocate(
-            agent,
-            1000e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "unauthorized attempt"
-        );
+        cexReserve.allocate(agent, 1000e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "unauthorized attempt");
     }
 
     function test_Agent_CannotSpendMaintenance() public {
@@ -275,11 +269,7 @@ contract RoleAuditTest is Test {
         address recipient = makeAddr("cexRecipient");
         vm.prank(multisig);
         cexReserve.allocate(
-            recipient,
-            100_000e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3,
-            "Tier 3 listing deposit"
+            recipient, 100_000e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3, "Tier 3 listing deposit"
         );
         assertEq(token.balanceOf(recipient), 100_000e18);
     }

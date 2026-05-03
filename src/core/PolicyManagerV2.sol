@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {IPriceOracle} from "../bonds/BondVault.sol";
 
 /// @title PolicyManagerV2
 /// @notice Simplified brain of Lumina V2 — no vaults, no waterfall.
@@ -14,11 +15,16 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 ///      [V5.1] UUPS upgradeable proxy pattern.
 
 interface IBondVault {
-    function issueBond(address to, uint256 usdPayout) external;
+    /// @dev [Audit fix H-6] `priceSnapshot` is the LUMINA/USD price (18-dec)
+    ///      captured at policy purchase time. BondVault uses it (instead of
+    ///      the spot oracle price) to evaluate the capacity gate, so a price
+    ///      drop between purchase and trigger never strands the buyer.
+    function issueBond(address to, uint256 usdPayout, uint256 priceSnapshot) external;
     function availableCapacityUSD() external view returns (uint256);
     function reserveCapacity(uint256 amount) external;
     function releaseReservation(uint256 amount) external;
     function commitReservation(uint256 amount) external;
+    function priceOracle() external view returns (IPriceOracle);
 }
 
 interface IShieldV2 {
@@ -93,9 +99,19 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // [V5/M-RACE] Track reserved capacity per policy for release on expiry / commit on trigger
     mapping(bytes32 => mapping(uint256 => uint256)) public policyReservedUSD; // productId → policyId → reserved 18-dec USD-wei
 
+    /// @notice [Audit fix H-6] LUMINA/USD price (18-dec) at the moment a
+    ///         policy was recorded. Honoured at trigger time so the buyer
+    ///         always gets the bond the protocol promised, even if the
+    ///         spot price has dropped enough to fail the capacity gate
+    ///         that would otherwise be evaluated against `priceOracle`.
+    mapping(bytes32 => mapping(uint256 => uint256)) public policyPriceSnapshot;
+
     // ═══════ EVENTS ═══════
     event ProductRegistered(bytes32 indexed productId, address shield);
     event ProductDeactivated(bytes32 indexed productId);
+    /// @notice Emitted when a previously-deactivated product is reinstated.
+    ///         Pairs with `ProductDeactivated` for full state-transition audit.
+    event ProductReactivated(bytes32 indexed productId);
     /// @notice [Fix audit #27 INFO-5] Emitted when router address is updated.
     event RouterUpdated(address indexed oldRouter, address indexed newRouter);
     event PolicyCreated(
@@ -157,6 +173,23 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit ProductDeactivated(_productId);
     }
 
+    /// @notice Reinstate a previously-deactivated product. Same authority and
+    ///         immediate effect as `deactivateProduct` — no timelock. Designed
+    ///         for the "false positive" case where a shield was disabled in
+    ///         crisis but turns out to be safe; without this, a deactivation
+    ///         is irreversible and stuck-policy holders lose their trigger
+    ///         capacity permanently.
+    /// @dev    Reverts if the product was never registered (so a stranger
+    ///         cannot create a "fake" reactivation event for an arbitrary id)
+    ///         and if the product is already active (idempotent guard, makes
+    ///         operator mistakes loud rather than silent).
+    function reactivateProduct(bytes32 _productId) external onlyOwner {
+        require(productShield[_productId] != address(0), "Product not registered");
+        require(!productActive[_productId], "Product already active");
+        productActive[_productId] = true;
+        emit ProductReactivated(_productId);
+    }
+
     // ═══════ CORE: recordPolicy (called by CoverRouter) ═══════
 
     /// @notice Record a new policy. Called by CoverRouterV2 after receiving premium.
@@ -177,6 +210,13 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 payoutUSD = payoutAmount / 1e6; // integer dollars
         uint256 available = bondVault.availableCapacityUSD(); // integer dollars
         if (available < payoutUSD) revert InsufficientCapacity(payoutUSD, available);
+
+        // [Audit fix H-6] Snapshot the LUMINA price NOW so trigger time
+        // can issue the bond at the price the buyer was quoted, even if
+        // spot has since dropped. Captured before the reservation so a
+        // zero/oracle-failure here aborts the whole purchase atomically.
+        uint256 priceSnapshot = bondVault.priceOracle().getLuminaPrice();
+        require(priceSnapshot > 0, "Zero price at purchase");
 
         // [V5/M-RACE] Reserve capacity IMMEDIATELY
         uint256 reservedAmount = payoutUSD * 1e18; // 18-dec USD-wei (matches BondVault units)
@@ -220,13 +260,29 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // [V5/M-RACE] Store reservation for release on expiry or commit on trigger
         policyReservedUSD[productId][policyId] = reservedAmount;
 
+        // [Audit fix H-6] Persist the price snapshot keyed by policyId so
+        // it is available to triggerPayout / settlePolicy.
+        policyPriceSnapshot[productId][policyId] = priceSnapshot;
+
         emit PolicyCreated(productId, policyId, buyer, coverageAmount, premiumAmount, payoutAmount);
     }
 
     // ═══════ CORE: triggerPayout (called by CoverRouter) ═══════
 
     /// @notice Process a trigger. Verifies with shield, issues bond via BondVault.
+    /// @dev    [Audit V5.1 fix H-5] Reverts if the product was deactivated.
+    ///         `deactivateProduct` only blocks NEW policies in `recordPolicy`,
+    ///         so without this check an admin who disables a buggy shield
+    ///         could not stop already-issued policies from being triggered
+    ///         fraudulently. Per founder decision, leaving holders with a
+    ///         non-payable but un-exploitable policy ("stuck > drained") is
+    ///         the desired outcome — bonds already minted in BondVault are
+    ///         unaffected and remain redeemable. The companion
+    ///         `reactivateProduct` flow (added in h5-followup) lets an
+    ///         admin restore the product without re-deploying.
     function triggerPayout(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external onlyRouter {
+        if (!productActive[productId]) revert ProductNotActive(productId);
+
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");
         require(!pr.triggered, "Already triggered");
@@ -254,9 +310,23 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         IShieldV2.PayoutResult memory result = IShieldV2(shield).verifyAndCalculate(policyId, oracleProof);
         require(result.triggered, "Trigger not met");
 
-        bondVault.issueBond(pr.buyer, payoutUSD);
+        bondVault.issueBond(pr.buyer, payoutUSD, _resolvePriceSnapshot(productId, policyId));
 
         emit PolicyTriggered(productId, policyId, pr.buyer, payoutUSD, result.reason);
+    }
+
+    /// @dev [Audit fix H-6] Returns the LUMINA price snapshot stored for
+    ///      a policy at purchase, falling back to the live oracle price
+    ///      for any pre-fix policy that was created before this mapping
+    ///      existed. The fallback keeps the upgrade backwards-compatible
+    ///      and never reverts on legacy state. New policies always have
+    ///      a non-zero snapshot, so the fallback is dormant in practice.
+    function _resolvePriceSnapshot(bytes32 productId, uint256 policyId) internal view returns (uint256) {
+        uint256 snap = policyPriceSnapshot[productId][policyId];
+        if (snap == 0) {
+            return bondVault.priceOracle().getLuminaPrice();
+        }
+        return snap;
     }
 
     // ═══════ CORE: settlePolicy (new trigger flow) ═══════
@@ -289,7 +359,7 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                 bondVault.commitReservation(reserved);
             }
 
-            bondVault.issueBond(pr.buyer, payoutUSD);
+            bondVault.issueBond(pr.buyer, payoutUSD, _resolvePriceSnapshot(productId, policyId));
 
             emit PolicyTriggered(productId, policyId, pr.buyer, payoutUSD, "SETTLED_BY_KEEPER");
         } else {
@@ -384,5 +454,10 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // Storage gap for future upgrades
-    uint256[50] private __gap;
+    /// @dev [Audit fix H-6] Reduced from 50 to 49 to make room for
+    ///      `policyPriceSnapshot`. Storage layout remains UUPS-safe:
+    ///      the new mapping consumes one logical slot that was previously
+    ///      part of the gap, so any V5.1 deployment can upgrade without
+    ///      shifting any pre-existing storage variable.
+    uint256[49] private __gap;
 }

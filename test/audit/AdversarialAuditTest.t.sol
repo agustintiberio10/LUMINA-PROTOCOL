@@ -405,7 +405,7 @@ contract AdversarialAuditTest is Test {
         if (remaining < chunk) {
             vm.prank(address(policyManager));
             vm.expectRevert("Exceeds capacity");
-            bondVault.issueBond(user1, chunk);
+            bondVault.issueBond(user1, chunk, 0.036e18);
         }
     }
 
@@ -507,7 +507,7 @@ contract AdversarialAuditTest is Test {
     function test_attack_issueBond_not_policyManager() public {
         vm.prank(attacker);
         vm.expectRevert("Only PolicyManager");
-        bondVault.issueBond(attacker, 1_000_000);
+        bondVault.issueBond(attacker, 1_000_000, 0.036e18);
     }
 
     function test_attack_no_withdraw_function() public view {
@@ -767,7 +767,7 @@ contract AdversarialAuditTest is Test {
     /// @dev Helper: issue bond via policyManager (required since V5 reservation system)
     function _issueBondAsPM(address to, uint256 usdPayout) internal {
         vm.prank(address(policyManager));
-        bondVault.issueBond(to, usdPayout);
+        bondVault.issueBond(to, usdPayout, 0.036e18);
     }
 
     function _epochOfCurrentPlus24() internal view returns (uint256) {

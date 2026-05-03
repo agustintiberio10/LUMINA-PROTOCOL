@@ -157,7 +157,7 @@ contract UserJourneysTest is Test {
 
     function test_Journey_Agent_BuysAndRedeems_30Days() public {
         // Step 1: Agent receives bonds (via policy trigger, deployer == policyManager)
-        bondVault.issueBond(agent, 800);
+        bondVault.issueBond(agent, 800, 0.036e18);
 
         // Calculate epoch
         uint256 maturityTs = block.timestamp + 730 days;
@@ -194,7 +194,7 @@ contract UserJourneysTest is Test {
 
     function test_Journey_Agent_ListsOnMarketplace() public {
         // Step 1: Agent gets bonds
-        bondVault.issueBond(agent, 500);
+        bondVault.issueBond(agent, 500, 0.036e18);
 
         uint256 maturityTs = block.timestamp + 730 days;
         uint256 monthsFromBase = (maturityTs - BASE_TS) / 2629746;
@@ -245,11 +245,7 @@ contract UserJourneysTest is Test {
         address cexPartner = makeAddr("cexPartner");
         vm.prank(multisig);
         cexReserve.allocate(
-            cexPartner,
-            500_000e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_2,
-            "Tier 2 CEX listing deposit"
+            cexPartner, 500_000e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_2, "Tier 2 CEX listing deposit"
         );
         assertEq(token.balanceOf(cexPartner), 500_000e18);
 
@@ -281,7 +277,7 @@ contract UserJourneysTest is Test {
 
     function test_Journey_HumanBuyer_FirstMonth() public {
         // Step 1: Human buyer receives bonds (via policy trigger, same contract path as agent)
-        bondVault.issueBond(humanBuyer, 1200);
+        bondVault.issueBond(humanBuyer, 1200, 0.036e18);
 
         // Calculate epoch
         uint256 maturityTs = block.timestamp + 730 days;
@@ -337,7 +333,7 @@ contract UserJourneysTest is Test {
 
         // Issue bonds to all 5 sellers
         for (uint256 i = 0; i < 5; i++) {
-            bondVault.issueBond(sellers[i], 100);
+            bondVault.issueBond(sellers[i], 100, 0.036e18);
         }
 
         // Calculate epoch (same for all since same block)

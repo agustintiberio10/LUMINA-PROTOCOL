@@ -12,9 +12,9 @@ key is fully compromised (EOA theft or malicious signer).
 
 | # | Contract | Max Risk | $ Impact | Existing Mitigation | Priority |
 |---|----------|----------|----------|---------------------|:--------:|
-| 1 | **LuminaTokenV2** | Malicious upgrade mints unlimited LUMINA | $$$$ | DEFAULT_ADMIN separate; BURNER_ROLE distinct | **CRITICAL** |
+| 1 | **LuminaTokenV2** | Malicious upgrade mints unlimited LUMINA | $$$$ | DEFAULT_ADMIN separate; BURNER_ROLE distinct **and no longer gates `burnFrom` post [Fix H-1]** (allowance-checked default) | **CRITICAL** |
 | 2 | **BondVault** | Authorize attacker caller → drain 70M LUMINA | $$$$ | 5% cap/tx, ReentrancyGuard | **CRITICAL** |
-| 3 | **CEXLiquidityReserve** | Allocator drains 14M LUMINA | $$$ | Monthly caps, vesting buckets | **HIGH** |
+| 3 | **CEXLiquidityReserve** | Allocator drains 14M LUMINA (DAR can raise `monthlyCap` to 14M ceiling — see [Fix H-2]) | $$$ | Mutable monthly cap (default 1M, max 14M), vesting buckets, `MonthlyCapUpdated` event | **HIGH** |
 | 4 | **TreasuryVesting** | Release 3M LUMINA to attacker | $$$ | Schedule-based release | **HIGH** |
 | 5 | **ClaimBond** | Re-mint claim NFTs → redeem from BondVault | $$$ | `_bondVaultSet` one-shot | **HIGH** |
 | 6 | **PolicyManagerV2** | Register malicious shield that forces payouts | $$$ | `productActive` flag | **HIGH** |
@@ -48,8 +48,8 @@ row down by at least one priority tier.
 
 1. **LuminaTokenV2** — watch `Upgraded(address)` events on the token proxy.
 2. **BondVault** — watch `AuthorizedCallerSet` and `Upgraded`.
-3. **CEXLiquidityReserve** — watch `RoleGranted(ALLOCATOR_ROLE, …)` and
-   `Allocated` events.
+3. **CEXLiquidityReserve** — watch `RoleGranted(ALLOCATOR_ROLE, …)`,
+   `AllocationExecuted`, and `MonthlyCapUpdated` events ([Fix H-2]).
 4. **TreasuryVesting** — watch `Released(address, uint256)` events.
 5. **Every Shield** — watch `Upgraded(address)` across all 9 shield proxies.
 

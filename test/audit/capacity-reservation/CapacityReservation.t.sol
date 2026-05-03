@@ -2,10 +2,10 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../../src/token/LuminaTokenV2.sol";
-import "../../../src/bonds/ClaimBond.sol";
-import "../../../src/bonds/BondVault.sol";
-import "../../../src/core/PolicyManagerV2.sol";
+import {LuminaTokenV2} from "../../../src/token/LuminaTokenV2.sol";
+import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
+import {BondVault} from "../../../src/bonds/BondVault.sol";
+import {PolicyManagerV2, IShieldV2} from "../../../src/core/PolicyManagerV2.sol";
 import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 // ═══════ Minimal Mock Oracle ═══════

@@ -66,7 +66,7 @@ contract StorageLayout is Test {
         deal(address(token), address(vault), 70_000_000 * 1e18);
 
         vm.warp(1767225600 + 30 days);
-        vault.issueBond(makeAddr("user"), 500);
+        vault.issueBond(makeAddr("user"), 500, 0.036e18);
 
         // Record state
         uint256 committedBefore = vault.totalCommittedUSD();
@@ -175,7 +175,7 @@ contract StorageLayout is Test {
         deal(address(token), address(vault), 70_000_000 * 1e18);
 
         vm.warp(1767225600 + 30 days);
-        vault.issueBond(makeAddr("user"), 500);
+        vault.issueBond(makeAddr("user"), 500, 0.036e18);
 
         // Record V1 state
         uint256 committedBefore = vault.totalCommittedUSD();

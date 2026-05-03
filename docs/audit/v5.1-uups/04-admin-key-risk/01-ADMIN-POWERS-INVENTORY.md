@@ -15,18 +15,29 @@ mitigations**.
 
 ### 1. LuminaTokenV2
 - **Auth model:** AccessControlUpgradeable. `msg.sender` (deployer) receives
-  `DEFAULT_ADMIN_ROLE`. `BURNER_ROLE` is granted to TWAPBurner only.
+  `DEFAULT_ADMIN_ROLE`. `BURNER_ROLE` is granted to TWAPBurner at deploy
+  time as a legacy/reserved hook; **post [Fix H-1] no in-protocol path
+  consults it** (TWAPBurner and BondVault burn their own balance via
+  `burn(uint256)`).
 - **Admin-only functions:**
   - `_authorizeUpgrade(newImpl)` — `DEFAULT_ADMIN_ROLE`
   - `grantRole / revokeRole / renounceRole` — role admin
-  - `burnFrom` — `BURNER_ROLE`
+  - `burnFrom(account, amount)` — **standard ERC20Burnable allowance check
+    [Fix H-1]**; caller must hold `account`'s prior `approve` for `amount`.
+    Not gated by BURNER_ROLE.
 - **Max risk:**
   - Upgrade to malicious impl that mints unlimited LUMINA → dilution to zero.
-  - Grant `BURNER_ROLE` to arbitrary address → burn user balances.
+  - ~~Grant `BURNER_ROLE` to arbitrary address → burn user balances.~~
+    **[Fix H-1] No longer reachable** — `burnFrom` requires the holder's
+    allowance regardless of role membership. Granting BURNER_ROLE alone no
+    longer authorizes burning third-party balances.
 - **Impact:** CRITICAL — $LUMINA supply is the monetary anchor of the
-  protocol. Total affected supply: 100M LUMINA.
+  protocol. Total affected supply: 100M LUMINA. (The `burnFrom`-via-role
+  vector is closed by [Fix H-1]; the residual CRITICAL is the upgrade
+  authority.)
 - **Existing mitigations:** `constructor { _disableInitializers(); }`; roles
-  are namespaced; `BURNER_ROLE` separate from admin.
+  are namespaced; `BURNER_ROLE` separate from admin and **no longer
+  load-bearing for `burnFrom` after [Fix H-1]**.
 - **Recommended mitigations (pre-mainnet):** 48h timelock on upgrade; 3-of-5
   multisig for admin; on-chain monitoring of `Upgraded` and `RoleGranted`
   events; eventual `renounceRole(DEFAULT_ADMIN_ROLE)` once burner is stable.
@@ -67,20 +78,45 @@ mitigations**.
   - `_authorizeUpgrade` — owner
   - `setRouter(address)` — owner
   - `registerProduct(bytes32, address)` — owner
-  - `deactivateProduct(bytes32)` — owner
+  - `deactivateProduct(bytes32)` — owner (post-H-5: gates both
+    `recordPolicy` for new policies **and** `triggerPayout` for pre-existing
+    policies; flips `productActive[productId] = false`)
+  - `reactivateProduct(bytes32)` — owner. Symmetric pair to
+    `deactivateProduct`; same modifier (`onlyOwner`), no timelock (consistent
+    with deactivate). Emits `ProductReactivated(productId)`. Reverts if the
+    product was never registered or is already active. Mitigates the
+    "deactivation is irreversible / false-positive in crisis" risk: a product
+    deactivated in error (e.g. mistaken trigger, transient oracle anomaly) can
+    now be restored without redeploying or re-registering. Post-H-5
+    `triggerPayout` checks `productActive`, so reactivation is also the only
+    path to restore payout capability for legacy policies that became
+    "stuck" after a deactivation.
 - **Max risk:** Register malicious shield that mints claims; deactivate
   legitimate products to halt user claims; set router to attacker EOA.
+  `reactivateProduct` does not add new max-risk surface — it can re-enable a
+  previously deactivated product, but it cannot register new products or
+  bypass the existing shield-registration controls.
 - **Impact:** HIGH — policy lifecycle can be hijacked.
-- **Existing mitigations:** `productActive` flag; event emissions.
+- **Existing mitigations:** `productActive` flag (checked in both
+  `recordPolicy` and `triggerPayout` post-H-5 fix; bonds already minted
+  remain redeemable via BondVault — out of scope for the gate); event
+  emissions on every state change (`ProductDeactivated` /
+  `ProductReactivated`).
 - **Recommended:** Multisig + 48h timelock on `setRouter` and
-  `registerProduct`.
+  `registerProduct`. `deactivateProduct` / `reactivateProduct` may stay
+  timelock-free as emergency / corrective levers, but both should fire from
+  the multisig and be monitored on-chain.
 
 ### 5. CoverRouterV2
 - **Auth:** OwnableUpgradeable. Owner = deployer.
 - **Admin-only functions:**
   - `_authorizeUpgrade` — owner
   - `setRelayer(address, bool)` — owner
-  - `setPaused(bool)` — owner
+  - `setPaused(bool)` — owner. Gates 3 user-facing surfaces via the
+    `whenNotPaused` modifier: `purchasePolicy`, `purchasePolicyFor`, **and
+    `submitTrigger` (post-H-4)**. Bond redemption on BondVault is
+    intentionally **not** gated, so legitimate already-triggered policies
+    can still be redeemed by users while the router is paused.
   - `setPolicyManager(address)` — owner
   - `setTwapBurner(address)` — owner
   - `setCapacityOracle(address)` — owner
@@ -88,7 +124,9 @@ mitigations**.
 - **Max risk:** Set `policyManager`/`twapBurner` to attacker contracts;
   configure products with zero payout; pause forever.
 - **Impact:** HIGH — user-facing router can be misdirected.
-- **Existing mitigations:** Event emissions on every setter.
+- **Existing mitigations:** Event emissions on every setter; `setPaused`
+  acts as the multisig's circuit breaker covering policy purchase **and**
+  trigger submission (audit V5.1 fix H-4).
 - **Recommended:** Timelock + multisig.
 
 ### 6. TWAPBurner
@@ -176,13 +214,26 @@ mitigations**.
 ### 14. CEXLiquidityReserve
 - **Auth:** AccessControl. `_multisigOwner` receives `DEFAULT_ADMIN_ROLE` +
   `ALLOCATOR_ROLE`.
-- **Admin-only:** `_authorizeUpgrade` (DAR), `allocateTokens(...)`
-  (`ALLOCATOR_ROLE`).
+- **Admin-only:** `_authorizeUpgrade` (DAR), `initializeV2()` (DAR — gated
+  in the Tier-1 redesign so a stranger cannot front-run the multisig and
+  reset the cap to default mid-upgrade), `setMonthlyCap(uint256)` (DAR),
+  `recoverToken(...)` (DAR), `allocate(...)` (`ALLOCATOR_ROLE`).
 - **Max risk:** Allocate tokens to attacker address before multisig is
-  finalized.
+  finalized; or [Fix H-2] DAR raises `monthlyCap` to `MAX_MONTHLY_CAP` (14M)
+  and ALLOCATOR drains the entire reserve in a single 30-day bucket.
 - **Impact:** HIGH — CEX reserve (14M LUMINA).
-- **Existing:** Vesting schedule bucket limits; monthly caps; nonReentrant.
-- **Recommended:** Multisig at deploy; timelock on `allocateTokens`.
+- **Existing:** Single flat 14M reserve gated by lifetime ceiling
+  `totalAllocated <= TOTAL_AMOUNT`; monthly cap (mutable storage,
+  default `DEFAULT_MONTHLY_CAP = 1M`, ceiling `MAX_MONTHLY_CAP = 14M`,
+  enforced `0 < newCap <= MAX_MONTHLY_CAP`); `MonthlyCapUpdated` event;
+  nonReentrant. **Tier-1 redesign:** the V1 sub-bucket model (Immediate
+  2.8M / Vesting 8.4M linear-730d / Strategic 2.8M locked-547d) has been
+  removed; legacy storage slots 2/3/4 are preserved as
+  `__deprecated_allocatedFrom*` for upgrade safety and seed `totalAllocated`
+  exactly once via `initializeV2`.
+- **Recommended:** Multisig at deploy; timelock on `allocate`,
+  `setMonthlyCap`, and `initializeV2`; off-chain monitor on
+  `MonthlyCapUpdated`.
 
 ### 15. MaintenanceReserve
 - **Auth:** AccessControl. `_admin` param receives `DEFAULT_ADMIN_ROLE` +
@@ -211,7 +262,7 @@ mitigations**.
 |---|---|---|
 | `DEFAULT_ADMIN_ROLE` | LuminaTokenV2, BondVault, BuybackEngine, LuminaBondMarketplace, SolvencyOracle, CEXLiquidityReserve, MaintenanceReserve | deployer or `_admin` param |
 | `AUTHORIZED_CALLER_ADMIN_ROLE` | BondVault | deployer |
-| `BURNER_ROLE` | LuminaTokenV2 | TWAPBurner only (set post-deploy) |
+| `BURNER_ROLE` | LuminaTokenV2 | TWAPBurner (set post-deploy; legacy grant — **not load-bearing post [Fix H-1]**, see §1) |
 | `BUYBACK_OPERATOR_ROLE` | BuybackEngine | `_multisigOwner` param |
 | `FEE_MANAGER_ROLE` | LuminaBondMarketplace | `_admin` param |
 | `ADMIN_ROLE` | SolvencyOracle | `_admin` param |

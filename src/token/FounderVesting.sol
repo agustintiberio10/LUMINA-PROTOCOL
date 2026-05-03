@@ -74,6 +74,17 @@ contract FounderVesting is Ownable {
     event RecipientUpdated(address oldRecipient, address newRecipient);
     event FallbackTriggered(uint256 timestamp);
 
+    /// @notice [Audit fix H-7] Emitted from `checkAltSeason()` when a price
+    ///         feed reverts. The corresponding condition is still treated as
+    ///         "not met" (invariant preserved per founder), but the founder
+    ///         now has on-chain visibility into oracle health and can tell
+    ///         "conditions never triggered" from "oracle was down for years".
+    /// @dev    `oracleId` is one of: "ETH/USD", "ETH/BTC", "AAVE_USDC_RATE".
+    ///         `reason` is a short human-readable label describing which
+    ///         external call reverted. Indexed `oracleId` lets a log filter
+    ///         scope to a single feed cheaply.
+    event OracleFailure(string indexed oracleId, string reason, uint256 timestamp);
+
     constructor(address _oracle, address _aavePool, address _luminaToken, address _usdc, address _recipient)
         Ownable(msg.sender)
     {
@@ -95,7 +106,16 @@ contract FounderVesting is Ownable {
     function checkAltSeason() external {
         require(!altSeasonTriggered, "Already triggered");
 
-        (bool condA, bool condB, bool condC) = _evaluateConditions();
+        (bool condA, bool condB, bool condC, bool ethFailed, bool btcFailed, bool aaveFailed) = _evaluateConditions();
+
+        // [Audit fix H-7] Surface oracle outages so a multi-year "conditions
+        // not met" stretch can be distinguished from a multi-year oracle
+        // outage. Conditions still default to false on failure (founder
+        // decision: invariant preserved).
+        if (ethFailed) emit OracleFailure("ETH/USD", "Lumina oracle reverted on ETH price", block.timestamp);
+        if (btcFailed) emit OracleFailure("ETH/BTC", "Lumina oracle reverted on BTC price", block.timestamp);
+        if (aaveFailed) emit OracleFailure("AAVE_USDC_RATE", "Aave pool reverted on getReserveData", block.timestamp);
+
         uint256 metCount = (condA ? 1 : 0) + (condB ? 1 : 0) + (condC ? 1 : 0);
 
         emit ConditionsChecked(condA, condB, condC, metCount, block.timestamp);
@@ -157,7 +177,9 @@ contract FounderVesting is Ownable {
 
     // ═══════ VIEW FUNCTIONS ═══════
     function getConditions() external view returns (bool condA, bool condB, bool condC) {
-        return _evaluateConditions();
+        // [Audit fix H-7] Drop the failure flags — this view is part of the
+        // public ABI and existing off-chain consumers expect 3 booleans.
+        (condA, condB, condC,,,) = _evaluateConditions();
     }
 
     function getStatus()
@@ -185,19 +207,58 @@ contract FounderVesting is Ownable {
     }
 
     // ═══════ INTERNAL ═══════
-    function _evaluateConditions() internal view returns (bool condA, bool condB, bool condC) {
+    /// @dev [Audit fix H-7] Returns the three boolean conditions plus three
+    ///      failure flags so `checkAltSeason` can surface oracle health via
+    ///      `OracleFailure` events. Kept `view` so `getConditions()` (which
+    ///      callers may invoke off-chain) continues to compile and work
+    ///      without emitting events.
+    function _evaluateConditions()
+        internal
+        view
+        returns (bool condA, bool condB, bool condC, bool ethFailed, bool btcFailed, bool aaveFailed)
+    {
+        // [Audit fix H-7 follow-up] Each of the three protocol conditions
+        // must be evaluated INDEPENDENTLY. The pre-fix layout nested
+        // `condB = ethPrice > ETH_USD_THRESHOLD` inside the BTC try-block,
+        // so a BTC oracle outage spuriously dragged condB to false even
+        // when the ETH feed had returned a healthy price > $4K. That broke
+        // the founder's "2/3 conditions" promise: a real-world (BTC down,
+        // ETH > $4K, Aave > 7%) state would mistakenly count as 1/3.
+        // Restructured below: condB is set as soon as the ETH read
+        // succeeds; condA still gates on a successful BTC read because
+        // the ratio needs both prices.
         try oracle.getLatestPrice(bytes32("ETH")) returns (int256 ethPrice) {
+            // condB depends ONLY on ETH price; safe to evaluate before BTC.
+            // The `> 0` guard mirrors the pre-fix behaviour and shields
+            // against an oracle that returns a non-revert sentinel like
+            // `0` or a negative value.
+            if (ethPrice > 0) {
+                condB = ethPrice > ETH_USD_THRESHOLD;
+            }
+
+            // condA needs both ETH and BTC. Keep ETH price in scope by
+            // nesting; the inner catch flags BTC failure separately so
+            // the OracleFailure("ETH/BTC", ...) event still fires.
             try oracle.getLatestPrice(bytes32("BTC")) returns (int256 btcPrice) {
                 if (ethPrice > 0 && btcPrice > 0) {
                     uint256 ethBtcRatio = uint256(ethPrice) * 1e18 / uint256(btcPrice);
                     condA = ethBtcRatio > ETH_BTC_THRESHOLD;
-                    condB = ethPrice > ETH_USD_THRESHOLD;
                 }
-            } catch {}
-        } catch {}
+            } catch {
+                btcFailed = true;
+            }
+        } catch {
+            ethFailed = true;
+            // ETH revert blocks BOTH condA and condB; both stay false.
+            // We do NOT also flag btcFailed here because no BTC read was
+            // attempted — off-chain monitors infer downstream impact from
+            // the single ETH/USD failure event.
+        }
 
         try IAaveV3PoolReader(aavePool).getReserveData(usdc) returns (IAaveV3PoolReader.ReserveData memory data) {
             condC = uint256(data.currentVariableBorrowRate) > BORROW_RATE_THRESHOLD;
-        } catch {}
+        } catch {
+            aaveFailed = true;
+        }
     }
 }

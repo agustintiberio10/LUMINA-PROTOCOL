@@ -37,6 +37,11 @@ contract DeployLuminaV5Mainnet is Script {
     address public constant AAVE_V3_POOL = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
     address public constant UNISWAP_V3_SWAPROUTER02 = 0x2626664c2603336E57B271c5C0b26F421741e481;
 
+    /// @dev [Audit fix H-13] Chainlink Sequencer Uptime Feed on Base
+    ///      mainnet. Used by `ChainlinkGraceOracle.getSequencerDowntime`
+    ///      to extend trigger windows when the sequencer is offline.
+    address public constant SEQUENCER_UPTIME_FEED_BASE = 0xBca61D6e7f4f4bb6cf77aEc5a1AB6D7e6Ccf13b6;
+
     /// @dev The shared chainlinkOracle slot on the deploy expects a single
     ///      address. The shields each independently read the relevant feed.
     ///      For now we wire `CHAINLINK_BTC_USD` as the default; once the
@@ -51,6 +56,16 @@ contract DeployLuminaV5Mainnet is Script {
         vm.setEnv("SWAP_ROUTER", vm.toString(UNISWAP_V3_SWAPROUTER02));
         vm.setEnv("CHAINLINK_ORACLE", vm.toString(DEFAULT_CHAINLINK_ORACLE));
         vm.setEnv("AAVE_POOL", vm.toString(AAVE_V3_POOL));
+
+        // [Audit fix H-13 follow-up] Per-asset Chainlink feed addresses +
+        // Base Sequencer Uptime Feed. Read by `Complete.run()` STEP 10b
+        // when configuring the new ChainlinkGraceOracle. Heartbeats are
+        // hard-coded inside Complete (1200s for crypto majors, 86400s
+        // for stablecoin pegs).
+        vm.setEnv("CHAINLINK_BTC_USD_FEED", vm.toString(CHAINLINK_BTC_USD));
+        vm.setEnv("CHAINLINK_ETH_USD_FEED", vm.toString(CHAINLINK_ETH_USD));
+        vm.setEnv("CHAINLINK_USDC_USD_FEED", vm.toString(CHAINLINK_USDC_USD));
+        vm.setEnv("SEQUENCER_UPTIME_FEED", vm.toString(SEQUENCER_UPTIME_FEED_BASE));
 
         // Operator-supplied values still come from their environment.
         // We do not override these so that a misconfiguration surfaces as a
@@ -84,11 +99,42 @@ contract DeployLuminaV5Mainnet is Script {
         console.log("Multisig:           ", vm.envAddress("MULTISIG"));
         console.log("=============================================");
 
-        // Delegate the rest to the audited Complete flow.
+        // [Audit fix H-12 follow-up] Operator wiring — including BOTH
+        //   claimBond.setAuthorizedOperator(marketplace, true)
+        //   claimBond.setAuthorizedOperator(buybackEngine, true)
+        //   claimBond.setMarketplaceEscape(marketplace)
+        // — is performed atomically inside `DeployLuminaV5Complete.run()`
+        // below (see lines around the "Marketplace + BuybackEngine
+        // authorized as ClaimBond operators" log). This means the
+        // operator does NOT have to remember a separate post-deploy
+        // wiring step; a single `forge script DeployLuminaV5Mainnet`
+        // produces a fully-wired protocol on Base Mainnet, including the
+        // H-12 emergency-cancel escape hatch.
+        //
+        // Tests pinning this behaviour:
+        //   - test/marketplace/EmergencyCancelBonds.t.sol
+        //       :: test_DeployScriptSetsMarketplaceEscape
+        //   - test/audit/v5.1-uups/integration/deploy/DeployScripts.t.sol
+        //       :: test_DeployScriptSetsMarketplaceEscape (Sepolia path
+        //         goes through the same wiring)
+        //   - test/audit/v5.1-uups/integration/deploy/DeployScripts.t.sol
+        //       :: test_PostDeployEmergencyCancelWorks (E2E)
+        //
+        // Why no defensive duplicate call here: the addresses produced by
+        // `Complete.run()` are not exposed back to this wrapper, so a
+        // local re-call would have to re-read them from the deployments
+        // JSON file Complete writes. That indirection is more error-prone
+        // than relying on the audited Complete flow + the pinned tests
+        // above. If a future refactor of Complete drops `setMarketplaceEscape`,
+        // those tests will catch the regression at CI time before any
+        // mainnet broadcast.
         DeployLuminaV5Complete completeRunner = new DeployLuminaV5Complete();
         completeRunner.run();
 
         console.log("===== MAINNET DEPLOY DONE =====");
+        console.log(
+            "Operator wiring (setAuthorizedOperator + setMarketplaceEscape) handled inside Complete.run() above."
+        );
     }
 
     /// @dev `vm.envOr` with a sentinel zero-address - a true zero is a

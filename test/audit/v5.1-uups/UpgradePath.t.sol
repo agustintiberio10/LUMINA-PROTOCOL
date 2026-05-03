@@ -116,7 +116,7 @@ contract UpgradePath is Test {
         vm.warp(1767225600 + 30 days);
 
         // ── V1 state: issue first bond ──
-        vault.issueBond(makeAddr("user1"), 1000);
+        vault.issueBond(makeAddr("user1"), 1000, 0.036e18);
         uint256 committedAfterV1 = vault.totalCommittedUSD();
         assertEq(committedAfterV1, 1000 * 1e18);
 
@@ -129,7 +129,7 @@ contract UpgradePath is Test {
         assertEq(address(vault.lumina()), address(token));
 
         // ── V2 state: issue more bonds ──
-        vault.issueBond(makeAddr("user2"), 2000);
+        vault.issueBond(makeAddr("user2"), 2000, 0.036e18);
         uint256 committedAfterV2 = vault.totalCommittedUSD();
         assertEq(committedAfterV2, 3000 * 1e18);
 

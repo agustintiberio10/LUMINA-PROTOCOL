@@ -250,7 +250,7 @@ contract MathEdgeCases is Test {
         // We test indirectly via issueBond which calls _timestampToEpoch
         oracle.setPrice(LUMINA_PRICE);
         vm.warp(farFutureTs - 730 days);
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
         // If we get here without revert, epoch calc succeeded
         assertTrue(true, "Far-future epoch calculation succeeded");
     }
@@ -266,7 +266,7 @@ contract MathEdgeCases is Test {
     /// @notice type(uint256).max face value in LUMINA conversion should revert
     function test_overflow_maxUint256_luminaConversion_reverts() public {
         // redeemBond with enormous usdAmount — first issue bonds
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
         uint256 epochId = _currentEpochPlus24();
 
         // Warp to maturity
@@ -284,7 +284,7 @@ contract MathEdgeCases is Test {
 
     /// @notice Redeeming more bonds than balance must revert
     function test_underflow_redeemMoreThanBalance() public {
-        vault.issueBond(user, 500);
+        vault.issueBond(user, 500, 0.036e18);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
@@ -295,7 +295,7 @@ contract MathEdgeCases is Test {
 
     /// @notice decreaseObligations more than committed must revert
     function test_underflow_decreaseObligations_moreThanCommitted() public {
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
         assertEq(vault.totalCommittedUSD(), 100e18);
 
         vm.prank(admin);
@@ -313,7 +313,7 @@ contract MathEdgeCases is Test {
 
     /// @notice totalCommittedUSD must not underflow on partial redemption
     function test_underflow_totalCommittedUSD_partialRedemption() public {
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         assertEq(vault.totalCommittedUSD(), 800e18);
 
         uint256 epochId = _currentEpochPlus24();
@@ -344,7 +344,7 @@ contract MathEdgeCases is Test {
     /// @notice [Fix C-3] Oracle price = 0 → _getSafePrice now reverts (no silent fallback).
     function test_divZero_luminaPrice_zero_reverts() public {
         // Issue bonds while price is normal (capacity check needs non-zero price)
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
@@ -511,7 +511,7 @@ contract MathEdgeCases is Test {
     /// @notice USDC (6 dec) to LUMINA (18 dec) conversion via BondVault.redeemBond() with actual oracle price
     function test_decimal_usdcToLumina_conversion() public {
         // Issue bond for $800
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
@@ -547,7 +547,7 @@ contract MathEdgeCases is Test {
     /// @notice Capacity check: units must match (18-dec USD-wei) in BondVault
     function test_decimal_capacityCheck_unitsMatch() public {
         // totalCommittedUSD is in 18-dec USD-wei after V3/SR2 fix
-        vault.issueBond(user, 100); // $100 bond
+        vault.issueBond(user, 100, 0.036e18); // $100 bond
         uint256 committed = vault.totalCommittedUSD();
         assertEq(committed, 100e18, "totalCommittedUSD must be 18-dec USD-wei");
 
@@ -557,16 +557,12 @@ contract MathEdgeCases is Test {
         assertGt(available, 1_200_000, "Available capacity should be ~1.26M");
     }
 
-    /// @notice CEXReserve vesting: LUMINA amounts in 18-dec
-    function test_decimal_cexReserve_vestingDecimals() public {
-        // CEXReserve was deployed at warp time (BASE_TS + 60d), so warp forward 60 days
-        vm.warp(block.timestamp + 60 days);
-        uint256 vested = cexReserve.getVestedAmount();
-        // 60 days elapsed, VESTING_DURATION = 730 days
-        // vested = 8.4M * 60d / 730d = ~690,410e18
-        assertGt(vested, 600_000e18, "Vested should be > 600K LUMINA");
-        assertLt(vested, 800_000e18, "Vested should be < 800K LUMINA");
-    }
+    // ─── Tier-1 redesign: the linear vesting curve (and `getVestedAmount`)
+    //     was removed from `CEXLiquidityReserve`. The vesting-decimal
+    //     check that used to live here no longer applies; recipient-side
+    //     decimal handling for the flat reserve is covered by the
+    //     CEXReserveTier1Ready / CEXLiquidityReserveTest suites.
+    // ─── (test_decimal_cexReserve_vestingDecimals removed).
 
     // ═══════════════════════════════════════════════════════
     // CATEGORY 6: BOUNDARY CONDITIONS (6 tests)
@@ -641,7 +637,7 @@ contract MathEdgeCases is Test {
         uint256 bondsNeeded = targetObligations / 1e18; // integer dollars
         // This may exceed capacity — set a high price to allow it
         oracle.setPrice(1e18); // $1 per LUMINA → 70M LUMINA = $70M, 50% = $35M capacity
-        vault.issueBond(user, bondsNeeded);
+        vault.issueBond(user, bondsNeeded, 0.036e18);
 
         // Reset price for solvency check
         oracle.setPrice(LUMINA_PRICE);
@@ -663,7 +659,7 @@ contract MathEdgeCases is Test {
         // year = 2026 + 23/12 = 2026 + 1 = 2027, month = 1 + 23%12 = 12
         // epoch = 202712 (Dec 2027)
         // Actually 730 days = 730*86400 = 63072000, /2629746 = 23.98 → truncated to 23
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
         uint256 epochId = 202712; // Dec 2027
         uint256 bal = claimBond.balanceOf(user, epochId);
         assertEq(bal, 100, "Bond should be in epoch 202712 (Dec 2027)");
@@ -676,7 +672,7 @@ contract MathEdgeCases is Test {
         // monthsFromBase for maturity = (30*86400 + 730*86400) / 2629746
         // = 65664000 / 2629746 = ~24.97 → 24 → year = 2028, month = 1 (Jan)
         // epoch = 202801
-        vault.issueBond(user, 200);
+        vault.issueBond(user, 200, 0.036e18);
         uint256 epochId = 202801;
         uint256 bal = claimBond.balanceOf(user, epochId);
         assertEq(bal, 200, "Bond should cross into epoch 202801 (Jan 2028)");
@@ -693,14 +689,14 @@ contract MathEdgeCases is Test {
         uint256 issuanceTs = maturityTs - 730 days;
         vm.warp(issuanceTs);
 
-        vault.issueBond(user, 50);
+        vault.issueBond(user, 50, 0.036e18);
         uint256 bal = claimBond.balanceOf(user, 205001);
         assertEq(bal, 50, "Bond should be in epoch 205001 (Jan 2050)");
     }
 
     /// @notice Epoch consistency: maturityDate stored matches expected timestamp
     function test_epoch_maturityDateConsistency() public {
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
         uint256 epochId = _currentEpochPlus24();
 
         uint256 storedMaturity = claimBond.maturityDate(epochId);
@@ -729,7 +725,7 @@ contract MathEdgeCases is Test {
     function test_oracle_atFloorPrice() public {
         oracle.setPrice(5e15); // $0.005 — at new MIN_REDEEM_PRICE
 
-        vault.issueBond(user, 10);
+        vault.issueBond(user, 10, 0.036e18);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
@@ -747,7 +743,9 @@ contract MathEdgeCases is Test {
     function test_oracle_atOrAboveMaxPrice_reverts() public {
         oracle.setPrice(1000e18); // exactly MAX_REDEEM_PRICE — must revert (strict <)
 
-        vault.issueBond(user, 800);
+        // [Merge consolidation: c3 added this test pre-h6 signature change;
+        //  bumped to 3-arg to match the post-h6 issueBond signature.]
+        vault.issueBond(user, 800, 0.036e18);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
@@ -765,7 +763,7 @@ contract MathEdgeCases is Test {
     function test_oracle_justBelowMaxPrice() public {
         oracle.setPrice(999e18); // just below MAX
 
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 

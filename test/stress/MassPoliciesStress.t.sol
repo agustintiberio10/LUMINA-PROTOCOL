@@ -76,7 +76,7 @@ contract MassPoliciesStress is Test {
 
         for (uint256 i = 0; i < 100; i++) {
             address user = address(uint160(0xBEEF0000 + i));
-            vault.issueBond(user, payoutPerBond);
+            vault.issueBond(user, payoutPerBond, 0.036e18);
         }
 
         // totalCommittedUSD is stored in 18-dec USD-wei
@@ -90,7 +90,7 @@ contract MassPoliciesStress is Test {
         uint256 payoutPerBond = 10; // $10 each
 
         for (uint256 i = 0; i < 1000; i++) {
-            vault.issueBond(user, payoutPerBond);
+            vault.issueBond(user, payoutPerBond, 0.036e18);
         }
 
         uint256 expectedCommitted = 1000 * payoutPerBond * 1e18;
@@ -106,7 +106,7 @@ contract MassPoliciesStress is Test {
 
         // Issue 50 bonds
         for (uint256 i = 0; i < bondCount; i++) {
-            vault.issueBond(user, payoutPerBond);
+            vault.issueBond(user, payoutPerBond, 0.036e18);
         }
 
         uint256 expectedCommitted = bondCount * payoutPerBond * 1e18;

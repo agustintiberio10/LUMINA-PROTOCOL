@@ -355,7 +355,7 @@ contract CertiKSimulation is Test {
     /// @dev Helper: issue bond via policyManager (required since V5 reservation system)
     function _issueBondAsPM(address to, uint256 usdPayout) internal {
         vm.prank(address(policyManager));
-        bondVault.issueBond(to, usdPayout);
+        bondVault.issueBond(to, usdPayout, 0.036e18);
     }
 
     // Helper to get epoch from current timestamp + 24 months
@@ -433,7 +433,7 @@ contract CertiKSimulation is Test {
         // And policyManager only calls when a real shield verifies a trigger
         vm.prank(attacker);
         vm.expectRevert("Only PolicyManager");
-        bondVault.issueBond(attacker, 1_000_000);
+        bondVault.issueBond(attacker, 1_000_000, 0.036e18);
 
         // Even with inflated capacity, attacker can't issue bonds directly
     }
@@ -665,7 +665,7 @@ contract CertiKSimulation is Test {
         // This should fail on capacity check
         vm.prank(address(policyManager));
         vm.expectRevert(); // either "Exceeds capacity" or arithmetic overflow
-        bondVault.issueBond(attacker, type(uint256).max);
+        bondVault.issueBond(attacker, type(uint256).max, 0.036e18);
     }
 
     /// @notice Issue bond with amount that overflows in 1e18 multiplication
@@ -676,7 +676,7 @@ contract CertiKSimulation is Test {
         uint256 overflowPayout = type(uint256).max / 1e18 + 1;
         vm.prank(address(policyManager));
         vm.expectRevert(); // arithmetic overflow
-        bondVault.issueBond(attacker, overflowPayout);
+        bondVault.issueBond(attacker, overflowPayout, 0.036e18);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -851,7 +851,7 @@ contract CertiKSimulation is Test {
         // Issue bonds up to near capacity
         for (uint256 i = 0; i < 50; i++) {
             vm.prank(address(policyManager));
-            try bondVault.issueBond(makeAddr(string(abi.encodePacked("u", i))), 800) {}
+            try bondVault.issueBond(makeAddr(string(abi.encodePacked("u", i))), 800, 0.036e18) {}
             catch {
                 break;
             }

@@ -392,8 +392,8 @@ contract MigrationPath is Test {
         // Approach: re-deploy BondVault with address(this) as PM for bond-issuing convenience.
         // (We already have vault wired; use a direct prank.)
         vm.startPrank(address(pm));
-        vault.issueBond(makeAddr("alice"), 100);
-        vault.issueBond(makeAddr("bob"), 50);
+        vault.issueBond(makeAddr("alice"), 100, 0.036e18);
+        vault.issueBond(makeAddr("bob"), 50, 0.036e18);
         vm.stopPrank();
 
         uint256 aliceEpoch = _scanHolderEpoch(cb, makeAddr("alice"));
@@ -423,7 +423,7 @@ contract MigrationPath is Test {
     function test_Migration_UUPS_ActiveBonds_ReinitSetsMigrationFlag() public {
         (, ClaimBond cb, BondVault vault, PolicyManagerV2 pm,,,,) = _deployFullStack();
         vm.prank(address(pm));
-        vault.issueBond(makeAddr("u"), 42);
+        vault.issueBond(makeAddr("u"), 42, 0.036e18);
         uint256 epoch = _scanHolderEpoch(cb, makeAddr("u"));
         assertEq(cb.balanceOf(makeAddr("u"), epoch), 42);
 
@@ -455,7 +455,7 @@ contract MigrationPath is Test {
 
         // Issue bonds to seller.
         vm.prank(address(pm));
-        vault.issueBond(makeAddr("seller"), 200);
+        vault.issueBond(makeAddr("seller"), 200, 0.036e18);
         uint256 epoch = _scanHolderEpoch(cb, makeAddr("seller"));
 
         // Seller lists.
@@ -515,7 +515,7 @@ contract MigrationPath is Test {
 
         // Create varied state.
         vm.prank(address(pm));
-        vault.issueBond(makeAddr("a"), 1000);
+        vault.issueBond(makeAddr("a"), 1000, 0.036e18);
         vault.setAuthorizedCaller(makeAddr("buyback"), true);
 
         // Snapshot specific slot values (via public getters).
@@ -908,7 +908,7 @@ contract MigrationPath is Test {
 
         // Issue a $300 bond to alice (in 3 chunks of 100 to vary minting).
         vm.startPrank(address(pm));
-        vault.issueBond(makeAddr("alice"), 300);
+        vault.issueBond(makeAddr("alice"), 300, 0.036e18);
         vm.stopPrank();
 
         uint256 epoch = _scanHolderEpoch(cb, makeAddr("alice"));

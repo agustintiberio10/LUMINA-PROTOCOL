@@ -467,34 +467,16 @@ contract RoleRotationTest is Test {
         cex.grantRole(allocRole, newAlloc);
 
         vm.prank(oldAlloc);
-        cex.allocate(
-            makeAddr("r1"),
-            100e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "test"
-        );
+        cex.allocate(makeAddr("r1"), 100e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "test");
 
         cex.revokeRole(allocRole, oldAlloc);
 
         vm.prank(oldAlloc);
         vm.expectRevert();
-        cex.allocate(
-            makeAddr("r2"),
-            100e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "test2"
-        );
+        cex.allocate(makeAddr("r2"), 100e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "test2");
 
         vm.prank(newAlloc);
-        cex.allocate(
-            makeAddr("r3"),
-            100e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "test3"
-        );
+        cex.allocate(makeAddr("r3"), 100e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "test3");
     }
 
     // ═════════════════════ J. AuthorizedCaller mapping rotation (BondVault) ═════════════════════

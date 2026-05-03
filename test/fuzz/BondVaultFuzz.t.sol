@@ -63,10 +63,10 @@ contract BondVaultFuzz is Test {
         uint256 cap = vault.availableCapacityUSD();
         if (amount > cap) {
             vm.expectRevert("Exceeds capacity");
-            vault.issueBond(user, amount);
+            vault.issueBond(user, amount, 0.036e18);
         } else {
             uint256 commitBefore = vault.totalCommittedUSD();
-            vault.issueBond(user, amount);
+            vault.issueBond(user, amount, 0.036e18);
             assertEq(
                 vault.totalCommittedUSD(), commitBefore + amount * 1e18, "Committed should increase by amount * 1e18"
             );
@@ -86,7 +86,7 @@ contract BondVaultFuzz is Test {
         uint256 cap = vault.availableCapacityUSD();
         if (amount > cap) return; // skip if over capacity
 
-        vault.issueBond(user, amount);
+        vault.issueBond(user, amount, 0.036e18);
         uint256 epoch = _getEpoch();
 
         // Warp to maturity
@@ -123,7 +123,7 @@ contract BondVaultFuzz is Test {
         uint256 cap = vault.availableCapacityUSD();
         if (totalBond > cap) return;
 
-        vault.issueBond(user, totalBond);
+        vault.issueBond(user, totalBond, 0.036e18);
         uint256 epoch = _getEpoch();
 
         vm.warp(claimBond.maturityDate(epoch) + 1);
@@ -147,7 +147,7 @@ contract BondVaultFuzz is Test {
         uint256 cap = vault.availableCapacityUSD();
         if (amount > cap) return;
 
-        vault.issueBond(user, amount);
+        vault.issueBond(user, amount, 0.036e18);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 

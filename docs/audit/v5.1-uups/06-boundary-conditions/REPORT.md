@@ -118,7 +118,31 @@ documented. The UUPS migration preserved all threshold constants as
   Overlap with #5 for burn cap and distribution sum is intentional — #6
   specifically exercises the ±1 wei around the exact boundary.
 - **Coverage gaps:** AltSeason, founder tranches, and CEX vesting monthly
-  cap enforcement are flagged for a later audit (out of UUPS scope).
+  cap enforcement are flagged for a later audit (out of UUPS scope). Note:
+  post-[Fix H-2] the CEX `monthlyCap` is a mutable storage variable bounded
+  by `setMonthlyCap`'s `0 < newCap <= MAX_MONTHLY_CAP` (=14M) check —
+  boundary tests for that setter (zero, MAX, MAX+1) should be added when the
+  CEX vesting audit runs.
+
+  **CEX Tier-1 redesign (post sub-bucket retirement):** the original three
+  per-bucket boundaries — Immediate (2.8M), Vesting (8.4M @ 730d linear),
+  Strategic (2.8M @ 547d lock) — have been removed. The remaining boundary
+  surface for `CEXLiquidityReserve.allocate` is now exactly two checks:
+  - **Lifetime ceiling:** `totalAllocated + amount <= TOTAL_AMOUNT` (=14M).
+    Boundary tests in `test/treasury/CEXReserveTier1Ready.t.sol`
+    (`test_AllocateRevertsExceedsTotal`) and
+    `test/audit/boundary/BoundaryConditions.t.sol`
+    (`test_CEX_TotalReserveCeiling_ExceedsByOne_Reverts`) cover the
+    exact-and-±1 behaviour at 14M.
+  - **Per-30d-bucket cap:** `monthlyAllocations[currentMonth] + amount <=
+    monthlyCap`, with `monthlyCap` mutable as above. Already covered by
+    Group 10 (CEX MONTHLY CAP) in `BoundaryConditions.t.sol` and the
+    `CEXReserveMutableCap.t.sol` suite.
+
+  Group 17 (Strategic 547d lock) and Group 18 (730d linear vesting) of the
+  V5.0 boundary suite have been retired in favour of the single new
+  lifetime-ceiling test above; the V1 sub-bucket math no longer exists in
+  the contract and cannot be exercised at boundary.
 
 Quality ≥9/10 achieved.
 

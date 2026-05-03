@@ -134,8 +134,8 @@ contract MarketplaceAndRedemptionTest is Test {
         // Issue bonds to seller (1000 bonds) and buyer2 (500 bonds) via policyManager
         // issueBond issues bonds with 730-day maturity from current time
         vm.startPrank(policyManager);
-        bondVault.issueBond(seller, 1000); // $1000 = 1000 bond tokens
-        bondVault.issueBond(buyer2, 500); // $500 = 500 bond tokens
+        bondVault.issueBond(seller, 1000, 0.036e18); // $1000 = 1000 bond tokens
+        bondVault.issueBond(buyer2, 500, 0.036e18); // $500 = 500 bond tokens
         vm.stopPrank();
 
         // Calculate the epoch that was assigned (current time + 730 days)

@@ -178,15 +178,24 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @notice Issue ClaimBond tokens when a policy triggers.
     /// @param to User whose bet triggered
     /// @param usdPayout Payout in USD (e.g., 800 = $800). 1 bond token = $1.
-    function issueBond(address to, uint256 usdPayout) external nonReentrant {
+    /// @param priceSnapshot LUMINA/USD price (18-dec) captured at the time
+    ///        the originating policy was recorded. Used to evaluate the
+    ///        capacity gate at the price the protocol promised to honour,
+    ///        not at a (possibly worse) current spot price. See audit fix
+    ///        H-6: without this, a price drop between purchase and trigger
+    ///        could revert `issueBond` for a holder that already paid the
+    ///        premium and locked their reservation. Per the founder
+    ///        decision, the honest holder always gets the bond they were
+    ///        promised; any sub-collateralisation cost is absorbed by the
+    ///        protocol, never passed to the buyer.
+    function issueBond(address to, uint256 usdPayout, uint256 priceSnapshot) external nonReentrant {
         require(msg.sender == policyManager, "Only PolicyManager");
         require(to != address(0), "Zero address");
         require(usdPayout > 0, "Zero payout");
-
-        uint256 currentPrice = priceOracle.getLuminaPrice();
+        require(priceSnapshot > 0, "Zero price snapshot");
 
         uint256 reserveBalance = lumina.balanceOf(address(this));
-        uint256 reserveValueUSD = (reserveBalance * currentPrice) / 1e18;
+        uint256 reserveValueUSD = (reserveBalance * priceSnapshot) / 1e18;
         uint256 maxCommitUSD = (reserveValueUSD * SAFETY_FACTOR_BPS) / 10000;
         // [V3/SR2] Compare in matching 18-dec USD-wei units.
         require(totalCommittedUSD + (usdPayout * 1e18) <= maxCommitUSD, "Exceeds capacity");

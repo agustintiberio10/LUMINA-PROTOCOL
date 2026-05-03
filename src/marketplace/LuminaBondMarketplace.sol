@@ -15,6 +15,8 @@ interface IMarketClaimBond {
     function balanceOf(address account, uint256 epochId) external view returns (uint256);
     function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external;
     function maturityDate(uint256 epochId) external view returns (uint256);
+    /// @dev [Audit fix H-12] Escape hatch on ClaimBond — see ClaimBond docs.
+    function escapeTransfer(address to, uint256 id, uint256 amount) external;
 }
 
 /// @title LuminaBondMarketplace
@@ -55,6 +57,13 @@ contract LuminaBondMarketplace is
         uint256 indexed listingId, address indexed seller, uint256 indexed epochId, uint256 amount, uint256 priceUSDC
     );
     event Cancelled(uint256 indexed listingId, address indexed seller);
+
+    /// @notice [Audit fix H-12] Emitted when a listing is unwound through
+    ///         the emergency-cancel path, e.g. while the multisig has
+    ///         revoked the marketplace's `authorizedOperator` status.
+    ///         Bonds always flow back to the ORIGINAL seller stored on
+    ///         the listing — never to the caller.
+    event ListingEmergencyCancelled(uint256 indexed listingId, address indexed seller, uint256 timestamp);
     event Bought(
         uint256 indexed listingId,
         address indexed buyer,
@@ -130,6 +139,39 @@ contract LuminaBondMarketplace is
         l.active = false;
         claimBond.safeTransferFrom(address(this), l.seller, l.epochId, l.amount, "");
         emit Cancelled(listingId, msg.sender);
+    }
+
+    /// @notice [Audit fix H-12] Unwinds an active listing and returns the
+    ///         escrowed bonds to the ORIGINAL seller, even when the
+    ///         multisig has revoked this marketplace's `authorizedOperator`
+    ///         status on `ClaimBond`. The function relies on the
+    ///         `marketplaceEscape` bypass added to `ClaimBond._update` —
+    ///         see ClaimBond docs for the trust model.
+    /// @dev    Authorisation:
+    ///           - `msg.sender == listing.seller`: a holder can always
+    ///              recover their own bonds.
+    ///           - `hasRole(DEFAULT_ADMIN_ROLE, msg.sender)`: the multisig
+    ///              can recover bonds on behalf of any seller during a
+    ///              market-wide emergency.
+    ///         Importantly the destination is HARD-CODED to `l.seller`,
+    ///         the address recorded at list-time. The caller (whether
+    ///         seller or admin) cannot redirect bonds to a third party.
+    ///         CEI: the listing is marked inactive BEFORE the external
+    ///         transfer, and `nonReentrant` provides defence in depth.
+    function emergencyCancel(uint256 listingId) external nonReentrant {
+        Listing storage l = listings[listingId];
+        require(l.active, "Not active");
+        require(msg.sender == l.seller || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Only seller or admin");
+
+        l.active = false;
+        // [Audit fix H-12] `escapeTransfer` (vs `safeTransferFrom`) keeps
+        // working even when the multisig has revoked this marketplace's
+        // operator authorization on ClaimBond. The destination is hard-
+        // coded to `l.seller` (read from the listing record), so neither
+        // the seller nor the admin caller can redirect bonds to a third
+        // party through this entry point.
+        claimBond.escapeTransfer(l.seller, l.epochId, l.amount);
+        emit ListingEmergencyCancelled(listingId, l.seller, block.timestamp);
     }
 
     function executeBuy(uint256 listingId) external nonReentrant {

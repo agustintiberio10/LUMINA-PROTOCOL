@@ -55,7 +55,7 @@ contract BondVaultFuzzV2 is Test {
         vault.setAuthorizedCaller(caller, true);
 
         // Issue some bonds to create obligations
-        vault.issueBond(user, 100_000); // $100K in bonds => 100_000 * 1e18 committed
+        vault.issueBond(user, 100_000, 0.036e18); // $100K in bonds => 100_000 * 1e18 committed
     }
 
     /// @notice Fuzz: decreaseObligations never underflows totalCommittedUSD.

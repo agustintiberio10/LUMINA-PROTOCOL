@@ -11,6 +11,7 @@ import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
 import {BondVault} from "../../src/bonds/BondVault.sol";
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
+import {ChainlinkGraceOracle} from "../../src/oracles/ChainlinkGraceOracle.sol";
 import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
 import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
 import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
@@ -169,6 +170,32 @@ contract DeployLuminaV5Sepolia is Script {
     // ─── Configuration ───
     uint256 constant EMERGENCY_PRICE = 0.036e18; // $0.036
     uint256 constant TEST_USDC_AMOUNT = 1_000_000e6; // 1M USDC for testing
+
+    // ─────────────────────────────────────────────────────────────────
+    // [Audit fix H-13 follow-up #2] Real Chainlink feed addresses on
+    // Base Sepolia (chainId 84532). Used by the parallel-deployed
+    // ChainlinkGraceOracle so the H-13 grace flow can be validated
+    // end-to-end on testnet against real Chainlink data, while the
+    // pre-existing MockChainlinkOracle continues to drive the shield
+    // tests with deterministic prices.
+    //
+    // Sources (verify before mainnet broadcast):
+    //   - ETH/USD: docs.chain.link/data-feeds/price-feeds/addresses?network=base-sepolia
+    //   - USDC/USD: same page
+    //   - BTC/USD: same page (verify the address before broadcast — the
+    //              constant below is the value referenced by Chainlink's
+    //              public docs at audit time but Sepolia feeds occasionally
+    //              get redeployed; the operator's pre-flight runbook
+    //              should re-cross-check.)
+    //   - Sequencer Uptime Feed: Chainlink only ships a SUF on Base
+    //              MAINNET. Sepolia has none, so this constant is
+    //              `address(0)` — the new ChainlinkGraceOracle's
+    //              `getSequencerDowntime` returns 0 safely in that case.
+    // ─────────────────────────────────────────────────────────────────
+    address public constant SEPOLIA_BTC_USD_FEED = 0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298;
+    address public constant SEPOLIA_ETH_USD_FEED = 0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1;
+    address public constant SEPOLIA_USDC_USD_FEED = 0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165;
+    address public constant SEQUENCER_UPTIME_FEED_BASE_SEPOLIA = address(0);
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -540,7 +567,11 @@ contract DeployLuminaV5Sepolia is Script {
         // is non-functional post-deploy (every list/buy reverts).
         claimBond.setAuthorizedOperator(address(marketplace), true);
         claimBond.setAuthorizedOperator(address(buybackEngine), true);
+        // [Audit fix H-12] Register marketplace as escape hatch so a paused
+        // operator state cannot strand bonds in the marketplace escrow.
+        claimBond.setMarketplaceEscape(address(marketplace));
         console.log("Marketplace + BuybackEngine authorized as ClaimBond operators");
+        console.log("Marketplace registered as ClaimBond escape hatch (audit H-12)");
 
         // ──────────────────────────────────────────────────
         // PHASE 10: Wire TWAPBurner
@@ -559,6 +590,47 @@ contract DeployLuminaV5Sepolia is Script {
         // Grant BURNER_ROLE to TWAPBurner
         lumina.grantRole(lumina.BURNER_ROLE(), address(twapBurner));
         console.log("BURNER_ROLE granted to TWAPBurner");
+
+        // ──────────────────────────────────────────────────
+        // PHASE 10b: ChainlinkGraceOracle (audit fix H-13)
+        // ──────────────────────────────────────────────────
+        // Deploy a SECOND oracle alongside the testnet mocks. The shields
+        // continue to use MockChainlinkOracle so existing test fixtures
+        // keep their deterministic prices, but the H-13 grace flow can
+        // now be exercised end-to-end on Base Sepolia against real
+        // Chainlink data via this contract. If the operator wants to
+        // point the shields at the real oracle for a full-stack rehearsal,
+        // they can call `setOracle` on each shield post-deploy.
+        ChainlinkGraceOracle chainlinkGraceImpl = new ChainlinkGraceOracle();
+        ERC1967Proxy chainlinkGraceProxy = new ERC1967Proxy(
+            address(chainlinkGraceImpl), abi.encodeWithSelector(ChainlinkGraceOracle.initialize.selector, deployer)
+        );
+        ChainlinkGraceOracle chainlinkGraceOracle = ChainlinkGraceOracle(address(chainlinkGraceProxy));
+
+        chainlinkGraceOracle.setFeed(bytes32("BTC"), SEPOLIA_BTC_USD_FEED, 1200);
+        chainlinkGraceOracle.setFeed(bytes32("ETH"), SEPOLIA_ETH_USD_FEED, 1200);
+        chainlinkGraceOracle.setFeed(bytes32("USDC"), SEPOLIA_USDC_USD_FEED, 86400);
+        // Sepolia has no SUF — leaving sequencerUptimeFeed at the default
+        // address(0) means `getSequencerDowntime` returns 0 cleanly.
+        if (SEQUENCER_UPTIME_FEED_BASE_SEPOLIA != address(0)) {
+            chainlinkGraceOracle.setSequencerFeed(SEQUENCER_UPTIME_FEED_BASE_SEPOLIA);
+        }
+
+        // Mirror the env-var pattern that `DeployLuminaV5Mainnet.s.sol`
+        // sets up. Sepolia.run() does NOT delegate to Complete.run(), so
+        // these env vars are informational here — they document the
+        // wiring an operator would mirror if they ever switched Sepolia
+        // to the Complete flow.
+        vm.setEnv("CHAINLINK_BTC_USD_FEED", vm.toString(SEPOLIA_BTC_USD_FEED));
+        vm.setEnv("CHAINLINK_ETH_USD_FEED", vm.toString(SEPOLIA_ETH_USD_FEED));
+        vm.setEnv("CHAINLINK_USDC_USD_FEED", vm.toString(SEPOLIA_USDC_USD_FEED));
+        vm.setEnv("SEQUENCER_UPTIME_FEED", vm.toString(SEQUENCER_UPTIME_FEED_BASE_SEPOLIA));
+
+        console.log("ChainlinkGraceOracle (proxy):", address(chainlinkGraceOracle));
+        console.log("  BTC feed:                  ", SEPOLIA_BTC_USD_FEED);
+        console.log("  ETH feed:                  ", SEPOLIA_ETH_USD_FEED);
+        console.log("  USDC feed:                 ", SEPOLIA_USDC_USD_FEED);
+        console.log("  Sequencer Uptime feed:     ", SEQUENCER_UPTIME_FEED_BASE_SEPOLIA);
 
         // ──────────────────────────────────────────────────
         // PHASE 11: Summary
@@ -605,6 +677,11 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("--- Placeholders ---");
         console.log("  FounderVesting:     ", founderVesting);
         console.log("  LBP Deposit:        ", lbpDeposit);
+        console.log("");
+        console.log("--- Chainlink Grace Oracle (audit fix H-13) ---");
+        console.log("  ChainlinkGraceOracle:", address(chainlinkGraceOracle));
+        console.log("    Feeds wired:        BTC, ETH, USDC");
+        console.log("    Sequencer feed:     none on Base Sepolia");
 
         vm.stopBroadcast();
     }

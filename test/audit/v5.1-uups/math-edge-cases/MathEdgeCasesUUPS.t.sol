@@ -189,7 +189,7 @@ contract MathEdgeCasesUUPS is Test {
         oracle.setPrice(0.001e18);
         vm.warp(1767225600 + 30 days);
         // Issue a modest bond (committed = 500e18)
-        v.issueBond(makeAddr("u1"), 500);
+        v.issueBond(makeAddr("u1"), 500, 0.036e18);
         // availableCapacityUSD must be >= 0 (not underflow).
         uint256 avail = v.availableCapacityUSD();
         assertTrue(avail <= 70_000_000); // sanity
@@ -202,7 +202,7 @@ contract MathEdgeCasesUUPS is Test {
         vm.warp(1767225600 + 30 days);
         // Max commit is 50% of reserve = 35M USD @ $1/LUMINA.
         // Issue committed = 35M → availability = 0.
-        v.issueBond(makeAddr("u"), 35_000_000);
+        v.issueBond(makeAddr("u"), 35_000_000, 0.036e18);
         uint256 avail = v.availableCapacityUSD();
         assertEq(avail, 0);
     }
@@ -294,7 +294,7 @@ contract MathEdgeCasesUUPS is Test {
     function test_Math_UUPS_Epoch_WithinDomain_202600_to_210012() public {
         (BondVault v,,,) = _bvFull();
         vm.warp(1767225600 + 30 days); // ~Feb 2026
-        v.issueBond(makeAddr("u"), 100);
+        v.issueBond(makeAddr("u"), 100, 0.036e18);
         assertEq(v.totalCommittedUSD(), 100e18);
         // No revert → epoch fits the valid domain.
     }
@@ -304,7 +304,7 @@ contract MathEdgeCasesUUPS is Test {
         // warp back before Jan 1 2026.
         vm.warp(1);
         vm.expectRevert();
-        v.issueBond(makeAddr("u"), 100);
+        v.issueBond(makeAddr("u"), 100, 0.036e18);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -445,7 +445,7 @@ contract MathEdgeCasesUUPS is Test {
         v.commitReservation(1_000e18);
         assertEq(v.totalReservedUSD(), 0);
         // issueBond then commits the actual usdAmount to `totalCommittedUSD`.
-        v.issueBond(makeAddr("u"), 1_000);
+        v.issueBond(makeAddr("u"), 1_000, 0.036e18);
         assertEq(v.totalCommittedUSD(), 1_000e18);
     }
 

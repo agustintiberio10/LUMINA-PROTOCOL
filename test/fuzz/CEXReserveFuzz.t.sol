@@ -54,30 +54,22 @@ contract CEXReserveFuzz is Test {
         vm.prank(admin);
         reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), admin);
 
-        // Fund the reserve with the full ImmediateUse amount
-        lumina.mint(address(reserve), 2_800_000 * 1e18);
+        // Fund the reserve with the full 14M lifetime ceiling so the
+        // total-reserve check is never the binding constraint in this fuzz.
+        lumina.mint(address(reserve), 14_000_000 * 1e18);
     }
 
     /// @notice Fuzz: monthly cap of 1M LUMINA is never exceeded in a single month.
     function testFuzz_MonthlyCap_NeverExceeded(uint256 amount) public {
-        uint256 monthlyCap = reserve.MONTHLY_CAP(); // 1_000_000e18
-        uint256 immediateAvail = reserve.getAvailableInBucket(CEXLiquidityReserve.SubBucket.ImmediateUse);
+        uint256 monthlyCap = reserve.monthlyCap(); // 1_000_000e18 (default)
+        uint256 totalAmount = reserve.TOTAL_AMOUNT();
 
-        // Bound to amounts that would exceed the monthly cap
-        amount = bound(amount, monthlyCap + 1, immediateAvail > monthlyCap + 1 ? immediateAvail : monthlyCap + 1);
-
-        // If amount exceeds available bucket, it will revert for a different reason.
-        // We only test amounts within bucket but over monthly cap.
-        if (amount > immediateAvail) return;
+        // Bound to amounts strictly above the monthly cap and at or below
+        // the lifetime ceiling so only the monthly cap can cause the revert.
+        amount = bound(amount, monthlyCap + 1, totalAmount);
 
         vm.prank(admin);
         vm.expectRevert("Monthly cap exceeded");
-        reserve.allocate(
-            recipient,
-            amount,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Fuzz test allocation"
-        );
+        reserve.allocate(recipient, amount, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Fuzz test allocation");
     }
 }

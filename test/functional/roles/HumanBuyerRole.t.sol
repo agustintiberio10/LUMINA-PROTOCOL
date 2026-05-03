@@ -162,7 +162,7 @@ contract HumanBuyerRoleAudit is Test {
     ///         This simulates the result of a purchasePolicy flow: a triggered policy issues bonds.
     function test_HumanBuyer_CanPurchasePolicy_Directly() public {
         // Issue bond to humanBuyer (deployer == policyManager for testing)
-        bondVault.issueBond(humanBuyer, 500);
+        bondVault.issueBond(humanBuyer, 500, 0.036e18);
 
         // Verify human has bonds in the correct epoch
         assertEq(claimBond.balanceOf(humanBuyer, epochId), 500);
@@ -170,7 +170,7 @@ contract HumanBuyerRoleAudit is Test {
 
     /// @notice After bond issuance, the human holds ERC-1155 tokens (ClaimBond NFTs).
     function test_HumanBuyer_ReceivesNFT_WhenBondIssued() public {
-        bondVault.issueBond(humanBuyer, 800);
+        bondVault.issueBond(humanBuyer, 800, 0.036e18);
 
         // Human has 800 bond tokens (each = $1 USD face value) in the maturity epoch
         uint256 balance = claimBond.balanceOf(humanBuyer, epochId);
@@ -184,7 +184,7 @@ contract HumanBuyerRoleAudit is Test {
     /// @notice Human can approve and transfer their bonds (prerequisite for marketplace listing).
     function test_HumanBuyer_CanListBondInMarketplace() public {
         // Issue bonds to human
-        bondVault.issueBond(humanBuyer, 300);
+        bondVault.issueBond(humanBuyer, 300, 0.036e18);
 
         // Human approves a third party (simulating marketplace) for their bonds
         address mockMarketplace = makeAddr("mockMarketplace");
@@ -200,7 +200,7 @@ contract HumanBuyerRoleAudit is Test {
 
     /// @notice Human can cancel approval (revoke marketplace permission).
     function test_HumanBuyer_CanCancelListing() public {
-        bondVault.issueBond(humanBuyer, 200);
+        bondVault.issueBond(humanBuyer, 200, 0.036e18);
 
         address mockMarketplace = makeAddr("mockMarketplace");
 
@@ -221,7 +221,7 @@ contract HumanBuyerRoleAudit is Test {
     /// @notice After 730+ days maturity, human can redeem bonds for LUMINA.
     function test_HumanBuyer_CanRedeemAtMaturity() public {
         // Issue bonds
-        bondVault.issueBond(humanBuyer, 500);
+        bondVault.issueBond(humanBuyer, 500, 0.036e18);
         assertEq(claimBond.balanceOf(humanBuyer, epochId), 500);
 
         // Warp past maturity (730 days + buffer)
@@ -242,13 +242,7 @@ contract HumanBuyerRoleAudit is Test {
         // Cannot allocate from CEX reserve
         vm.prank(humanBuyer);
         vm.expectRevert();
-        cexReserve.allocate(
-            humanBuyer,
-            1000e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "unauthorized attempt"
-        );
+        cexReserve.allocate(humanBuyer, 1000e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "unauthorized attempt");
 
         // Cannot spend from maintenance reserve
         vm.prank(humanBuyer);
@@ -270,6 +264,6 @@ contract HumanBuyerRoleAudit is Test {
         // Cannot issue bonds directly (only policyManager can)
         vm.prank(humanBuyer);
         vm.expectRevert("Only PolicyManager");
-        bondVault.issueBond(humanBuyer, 100);
+        bondVault.issueBond(humanBuyer, 100, 0.036e18);
     }
 }

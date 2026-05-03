@@ -114,12 +114,12 @@ contract EconomicAttacks is Test {
 
         // Issue bonds right up to the limit
         vm.prank(policyManager);
-        vault.issueBond(attacker, 18_000); // exactly $18,000
+        vault.issueBond(attacker, 18_000, 0.036e18); // exactly $18,000
 
         // Next dollar should fail
         vm.prank(policyManager);
         vm.expectRevert("Exceeds capacity");
-        vault.issueBond(attacker, 1); // $1 over limit
+        vault.issueBond(attacker, 1, 0.036e18); // $1 over limit
     }
 
     // ================================================================
@@ -140,7 +140,7 @@ contract EconomicAttacks is Test {
 
         // Issue 100 bonds to attacker
         vm.prank(policyManager);
-        vault.issueBond(attacker, 100);
+        vault.issueBond(attacker, 100, 0.036e18);
 
         // Warp past maturity (730 days + buffer)
         vm.warp(block.timestamp + 731 days);
@@ -177,7 +177,7 @@ contract EconomicAttacks is Test {
 
         // Issue 100 bonds to attacker
         vm.prank(policyManager);
-        vault.issueBond(attacker, 100);
+        vault.issueBond(attacker, 100, 0.036e18);
 
         // Warp past maturity (730 days + 1 day buffer)
         vm.warp(block.timestamp + 731 days);
@@ -220,7 +220,7 @@ contract EconomicAttacks is Test {
 
         // Issue 100 bonds
         vm.prank(policyManager);
-        vault.issueBond(attacker, 100);
+        vault.issueBond(attacker, 100, 0.036e18);
 
         // Compute epoch
         uint256 maturityTs = (1767225600 + 1 days) + 730 days;
@@ -268,7 +268,7 @@ contract EconomicAttacks is Test {
 
         // Issue bonds to attacker
         vm.prank(policyManager);
-        vault.issueBond(attacker, 50);
+        vault.issueBond(attacker, 50, 0.036e18);
 
         uint256 maturityTs = block.timestamp + 730 days;
         uint256 monthsFromBase = (maturityTs - 1767225600) / 2629746;
@@ -315,14 +315,12 @@ contract EconomicAttacks is Test {
         // Fund the reserve with its full 14M allocation
         lumina.mint(address(reserve), 14_000_000e18);
 
-        // ImmediateUse bucket = 2.8M, monthly cap = 1M
-        // Try to allocate more than monthly cap at once
+        // Monthly cap = 1M (default). Try to allocate one wei over it.
         vm.prank(admin);
         vm.expectRevert("Monthly cap exceeded");
         reserve.allocate(
             attacker,
             1_000_001e18, // 1 token over the 1M monthly cap
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
             CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
             "Drain attempt"
         );

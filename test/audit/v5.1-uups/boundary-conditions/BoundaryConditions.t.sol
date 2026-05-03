@@ -150,14 +150,14 @@ contract BoundaryConditions is Test {
     function test_Boundary_SafetyFactor_Commit_AtExactly50Percent_ReturnsZeroAvailable() public {
         (BondVault v,,, MockOracleBoundary oracle) = _bvFull();
         oracle.setPrice(1e18); // $1/LUMINA → 70M LUMINA = 70M USD
-        v.issueBond(makeAddr("u"), 35_000_000); // exactly 50% = $35M
+        v.issueBond(makeAddr("u"), 35_000_000, 0.036e18); // exactly 50% = $35M
         assertEq(v.availableCapacityUSD(), 0);
     }
 
     function test_Boundary_SafetyFactor_Commit_OneUSDBelow50Percent_OneAvailable() public {
         (BondVault v,,, MockOracleBoundary oracle) = _bvFull();
         oracle.setPrice(1e18);
-        v.issueBond(makeAddr("u"), 34_999_999); // $1 under max
+        v.issueBond(makeAddr("u"), 34_999_999, 0.036e18); // $1 under max
         assertEq(v.availableCapacityUSD(), 1);
     }
 
@@ -565,7 +565,7 @@ contract BoundaryConditions is Test {
     function test_Boundary_Epoch_ExactlyAtBase_January2026() public {
         (BondVault v,,,) = _bvFull();
         vm.warp(1767225600); // Exactly Jan 1 2026
-        v.issueBond(makeAddr("u"), 100); // Should succeed at base.
+        v.issueBond(makeAddr("u"), 100, 0.036e18); // Should succeed at base.
     }
 
     function test_Boundary_Epoch_MaturityBeforeBase_Reverts() public {
@@ -575,7 +575,7 @@ contract BoundaryConditions is Test {
         (BondVault v,,,) = _bvFull();
         vm.warp(1);
         vm.expectRevert(bytes("Before base"));
-        v.issueBond(makeAddr("u"), 100);
+        v.issueBond(makeAddr("u"), 100, 0.036e18);
     }
 
     function test_Boundary_Epoch_AtOrAfterBase_Works() public {
@@ -583,7 +583,7 @@ contract BoundaryConditions is Test {
         // well after BASE_TS (base + 730 days − 1s), so no revert.
         (BondVault v,,,) = _bvFull();
         vm.warp(1767225600 - 1);
-        v.issueBond(makeAddr("u"), 100);
+        v.issueBond(makeAddr("u"), 100, 0.036e18);
         assertEq(v.totalCommittedUSD(), 100e18);
     }
 

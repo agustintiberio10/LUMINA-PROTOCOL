@@ -121,7 +121,7 @@ contract BondSecondaryBuyerAudit is Test {
         epochId = year * 100 + month;
 
         // Issue bonds to originalHolder
-        bondVault.issueBond(originalHolder, 1000);
+        bondVault.issueBond(originalHolder, 1000, 0.036e18);
         assertEq(claimBond.balanceOf(originalHolder, epochId), 1000);
     }
 

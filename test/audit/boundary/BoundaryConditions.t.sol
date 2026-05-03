@@ -374,7 +374,7 @@ contract BoundaryConditions is Test {
 
         // Issue bond via PolicyManager
         vm.prank(address(policyManager));
-        bondVault.issueBond(alice, 100); // $100 bond
+        bondVault.issueBond(alice, 100, 0.036e18); // $100 bond
 
         // Setup for redemption
         claimBondForVault.setMatured(epochId, true);
@@ -394,7 +394,7 @@ contract BoundaryConditions is Test {
         uint256 epochId = _computeEpochId(maturityTime);
 
         vm.prank(address(policyManager));
-        bondVault.issueBond(alice, 100);
+        bondVault.issueBond(alice, 100, 0.036e18);
 
         // NOT matured yet
         claimBondForVault.setMatured(epochId, false);
@@ -412,7 +412,7 @@ contract BoundaryConditions is Test {
         uint256 epochId = _computeEpochId(maturityTime);
 
         vm.prank(address(policyManager));
-        bondVault.issueBond(alice, 100);
+        bondVault.issueBond(alice, 100, 0.036e18);
 
         claimBondForVault.setMatured(epochId, true);
         claimBondForVault.setBalance(alice, epochId, 100);
@@ -623,14 +623,8 @@ contract BoundaryConditions is Test {
 
     function test_CEXMonthlyCap_ExactAmount_Succeeds() public {
         uint256 cap = 1_000_000e18;
-        // Allocate exactly 1M from ImmediateUse bucket (max 2.8M)
-        cexReserve.allocate(
-            alice,
-            cap,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Max monthly allocation"
-        );
+        // Allocate exactly the monthly cap (default 1M).
+        cexReserve.allocate(alice, cap, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Max monthly allocation");
         assertEq(lumina.balanceOf(alice), cap);
     }
 
@@ -638,32 +632,18 @@ contract BoundaryConditions is Test {
         uint256 cap = 1_000_000e18;
         vm.expectRevert("Monthly cap exceeded");
         cexReserve.allocate(
-            alice,
-            cap + 1,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Exceeds monthly cap by 1 wei"
+            alice, cap + 1, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Exceeds monthly cap by 1 wei"
         );
     }
 
     function test_CEXMonthlyCap_TwoAllocationsExceed_Reverts() public {
         uint256 firstAlloc = 900_000e18;
-        cexReserve.allocate(
-            alice,
-            firstAlloc,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "First allocation"
-        );
+        cexReserve.allocate(alice, firstAlloc, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "First allocation");
 
         uint256 secondAlloc = 100_000e18 + 1; // total would be 1M + 1 wei
         vm.expectRevert("Monthly cap exceeded");
         cexReserve.allocate(
-            bob,
-            secondAlloc,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3,
-            "Would exceed monthly cap"
+            bob, secondAlloc, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3, "Would exceed monthly cap"
         );
     }
 
@@ -797,12 +777,12 @@ contract BoundaryConditions is Test {
 
         // Issue exactly the max
         vm.prank(address(policyManager));
-        bondVault.issueBond(alice, maxIntegerDollars);
+        bondVault.issueBond(alice, maxIntegerDollars, 0.036e18);
 
         // Next dollar should fail
         vm.prank(address(policyManager));
         vm.expectRevert("Exceeds capacity");
-        bondVault.issueBond(bob, 1);
+        bondVault.issueBond(bob, 1, 0.036e18);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -817,7 +797,7 @@ contract BoundaryConditions is Test {
         uint256 epochId = _computeEpochId(maturityTime);
 
         vm.prank(address(policyManager));
-        bondVault.issueBond(alice, 10);
+        bondVault.issueBond(alice, 10, 0.036e18);
 
         claimBondForVault.setMatured(epochId, true);
         claimBondForVault.setBalance(alice, epochId, 10);
@@ -837,7 +817,7 @@ contract BoundaryConditions is Test {
         // Issuance at normal price
         capacityOracle.setPrice(36e15);
         vm.prank(address(policyManager));
-        bondVault.issueBond(alice, 10);
+        bondVault.issueBond(alice, 10, 0.036e18);
 
         claimBondForVault.setMatured(epochId, true);
         claimBondForVault.setBalance(alice, epochId, 10);
@@ -855,45 +835,25 @@ contract BoundaryConditions is Test {
     //  GROUP 17: CEX STRATEGIC LOCK (547 days)
     // ═══════════════════════════════════════════════════════════════
 
-    function test_CEXStrategicLock_Before547Days_ZeroAvailable() public view {
-        uint256 available = cexReserve.getAvailableInBucket(CEXLiquidityReserve.SubBucket.StrategicReserve);
-        assertEq(available, 0, "Strategic should be locked before 547 days");
-    }
+    // ─── GROUP 17/18 (legacy V1 strategic-lock + linear-vesting boundaries)
+    //     have been retired by the Tier-1 redesign. The replacement
+    //     constraints are:
+    //       (a) `totalAllocated <= TOTAL_AMOUNT` (lifetime ceiling), and
+    //       (b) `monthlyAllocations[curr] <= monthlyCap` (already covered
+    //            by GROUP 10 above).
+    //     The single new boundary test below pins the 14M lifetime ceiling.
 
-    function test_CEXStrategicLock_At547Days_Unlocked() public {
-        vm.warp(block.timestamp + 547 days);
-        uint256 available = cexReserve.getAvailableInBucket(CEXLiquidityReserve.SubBucket.StrategicReserve);
-        assertEq(available, 2_800_000e18, "Strategic should unlock 2.8M after 547 days");
-    }
+    function test_CEX_TotalReserveCeiling_ExceedsByOne_Reverts() public {
+        // Lift cap so the lifetime ceiling — not the monthly cap —
+        // is the binding constraint when probing the boundary.
+        cexReserve.setMonthlyCap(14_000_000e18);
+        cexReserve.allocate(alice, 14_000_000e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1, "Drain to ceiling");
 
-    function test_CEXStrategicLock_Before547Days_Reverts() public {
-        vm.warp(block.timestamp + 547 days - 1);
-        vm.expectRevert("Insufficient in sub-bucket");
-        cexReserve.allocate(
-            alice,
-            1e18,
-            CEXLiquidityReserve.SubBucket.StrategicReserve,
-            CEXLiquidityReserve.Purpose.MARKET_MAKER_LOAN,
-            "Attempt before lock"
-        );
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  GROUP 18: CEX VESTING DURATION (730 days linear)
-    // ═══════════════════════════════════════════════════════════════
-
-    function test_CEXVesting_HalfwayThrough_50PercentVested() public {
-        vm.warp(block.timestamp + 365 days);
-        uint256 vested = cexReserve.getVestedAmount();
-        // 365 / 730 * 8.4M = 4.2M
-        uint256 expected = (8_400_000e18 * 365 days) / 730 days;
-        assertEq(vested, expected, "Should be ~50% vested at 365 days");
-    }
-
-    function test_CEXVesting_FullDuration_AllVested() public {
-        vm.warp(block.timestamp + 730 days);
-        uint256 vested = cexReserve.getVestedAmount();
-        assertEq(vested, 8_400_000e18, "Should be fully vested at 730 days");
+        // Cross to next month so monthlyCap is fresh, then probe one
+        // wei over the lifetime ceiling.
+        vm.warp(block.timestamp + 31 days);
+        vm.expectRevert("Exceeds total reserve");
+        cexReserve.allocate(bob, 1, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1, "Over 14M ceiling by 1 wei");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -948,7 +908,7 @@ contract BoundaryConditions is Test {
         // Create obligations: issue bond for $10,000 via policyManager
         uint256 obligationsUSD = 10_000; // $10,000 in whole dollars
         vm.prank(address(policyManager));
-        bondVault.issueBond(alice, obligationsUSD);
+        bondVault.issueBond(alice, obligationsUSD, 0.036e18);
         // totalCommittedUSD is now obligationsUSD * 1e18
 
         // Set vault LUMINA balance so ratio = targetBps
@@ -1003,7 +963,7 @@ contract BoundaryConditions is Test {
         // Face value = 1e18 per bond token * 10 bonds = 10e18 USD-wei obligations.
         // Issue a bond via PolicyManager to create obligations first.
         vm.prank(address(policyManager));
-        bondVault.issueBond(bob, 100); // $100 in obligations (100 * 1e18 in totalCommittedUSD)
+        bondVault.issueBond(bob, 100, 0.036e18); // $100 in obligations (100 * 1e18 in totalCommittedUSD)
 
         // Create a mock listing
         uint256 epochId = 202801;

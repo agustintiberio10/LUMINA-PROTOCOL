@@ -32,7 +32,7 @@ Every admin-gated role + ownership pattern across the 24 UUPS contracts + Founde
 - `FEE_MANAGER_ROLE`: gates `setTwapBurner`.
 
 **CEXLiquidityReserve** (`src/treasury/CEXLiquidityReserve.sol`)
-- `DEFAULT_ADMIN_ROLE`: upgrades, rescue, grant/revoke allocator.
+- `DEFAULT_ADMIN_ROLE`: upgrades, `setMonthlyCap` ([Fix H-2]), `recoverToken`, grant/revoke allocator.
 - `ALLOCATOR_ROLE`: gates `allocate`. Rotatable.
 
 **MaintenanceReserve** (`src/treasury/MaintenanceReserve.sol`)
@@ -45,7 +45,7 @@ Every admin-gated role + ownership pattern across the 24 UUPS contracts + Founde
 
 **LuminaTokenV2** (`src/token/LuminaTokenV2.sol`)
 - `DEFAULT_ADMIN_ROLE`: upgrades, grant/revoke burner.
-- `BURNER_ROLE`: gates `burn` calls from authorized addresses (TWAPBurner, BondVault.burnFromReserves path).
+- `BURNER_ROLE`: declared on the contract and granted to TWAPBurner at deploy as a reserved/legacy hook. **Post [Fix H-1] it does NOT gate `burnFrom`** — that function uses the standard ERC20Burnable allowance check (caller must hold the holder's prior `approve`). The two existing burn paths (`TWAPBurner._executeBurn` and `BondVault.burnFromReserves` → `IBurnable.burn`) both call `burn(uint256)` on the contract's own balance and therefore never required `burnFrom`. BURNER_ROLE is preserved on-storage for potential future privileged burn paths.
 
 ---
 

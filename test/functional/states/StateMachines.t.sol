@@ -233,7 +233,7 @@ contract BondStateMachineTest is Test {
     function test_BondState_Issued_To_Matured_To_Redeemed() public {
         // Issue bond
         uint256 usdPayout = 800;
-        vault.issueBond(user, usdPayout);
+        vault.issueBond(user, usdPayout, 0.036e18);
 
         // Calculate epoch from maturity timestamp
         uint256 maturityTs = block.timestamp + vault.BOND_MATURITY_SECONDS();
@@ -269,7 +269,7 @@ contract BondStateMachineTest is Test {
 
     /// @notice Cannot redeem before maturity
     function test_BondState_Cannot_RedeemBeforeMaturity() public {
-        vault.issueBond(user, 500);
+        vault.issueBond(user, 500, 0.036e18);
 
         uint256 maturityTs = block.timestamp + vault.BOND_MATURITY_SECONDS();
         uint256 BASE_TS = 1767225600;
@@ -287,7 +287,7 @@ contract BondStateMachineTest is Test {
 
     /// @notice Cannot redeem the same bonds twice
     function test_BondState_Cannot_DoubleRedeem() public {
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
 
         uint256 maturityTs = block.timestamp + vault.BOND_MATURITY_SECONDS();
         uint256 BASE_TS = 1767225600;

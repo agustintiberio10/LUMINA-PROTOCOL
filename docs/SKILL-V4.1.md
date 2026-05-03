@@ -24,7 +24,7 @@ It's not just insurance. It's parametric speculation with built-in deflation.
 ## 2. TOKEN $LUMINA
 
 Total supply:     100,000,000 (fixed, no mint function)
-Burn:             ERC20Burnable + BURNER_ROLE
+Burn:             ERC20Burnable (self-burn via burn(uint256); burnFrom uses standard allowance check post [Fix H-1]). BURNER_ROLE declared but not load-bearing.
 Chain:            Base L2 (8453)
 DEX:              Uniswap V3 (LUMINA/USDC)
 
@@ -238,7 +238,7 @@ Circulating: ~5M LUMINA (5%). Price: ~$0.036. FDV: ~$3.6M.
   2. BondVault.sol               Immutable, no owner, 82M LUMINA
   3. ClaimBond.sol               ERC-1155, monthly epochs, USD-denominated
   4. CapacityOracle.sol          TWAP price + capacity formula + circuit breaker
-  5. TWAPBurner.sol              Distributed buy & burn, BURNER_ROLE
+  5. TWAPBurner.sol              Distributed buy & burn (calls LUMINA.burn(uint256) on its own swap-acquired balance; BURNER_ROLE granted at deploy as legacy hook, not required post [Fix H-1])
   6. FounderVesting.sol          10M, AltSeason conditions, 3 tranches
   7. TreasuryVesting.sol         3M, 6m lock, 250K/month post-lock
   8. LuminaBondMarketplace.sol   Orderbook for ERC-1155 bonds, 3% fee, 100% burn

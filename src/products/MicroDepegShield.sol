@@ -162,5 +162,12 @@ contract MicroDepegShield is BaseShield {
         }
     }
 
+    /// @inheritdoc BaseShield
+    /// @dev [Audit fix H-13] Signal the Chainlink asset this shield
+    ///      depends on so a feed outage extends the trigger window.
+    function _chainlinkGraceAsset() internal pure override returns (bytes32) {
+        return bytes32("USDC");
+    }
+
     uint256[50] private __gap_shield;
 }

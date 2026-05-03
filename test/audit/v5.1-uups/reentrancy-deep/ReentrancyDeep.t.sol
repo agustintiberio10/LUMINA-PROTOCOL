@@ -113,7 +113,7 @@ contract ReentrancyDeep is Test {
         // Legitimate issueBond — triggers onERC1155Received on the receiver,
         // which tries to re-enter issueBond. The outer call still succeeds
         // because the inner call reverts internally (guard trips).
-        v.issueBond(address(atk), 100);
+        v.issueBond(address(atk), 100, 0.036e18);
 
         // Primary call succeeded → bond minted.
         assertEq(cb.balanceOf(address(atk), 202801), 100);
@@ -131,7 +131,7 @@ contract ReentrancyDeep is Test {
         bytes memory reentry = abi.encodeWithSelector(BondVault.redeemBond.selector, uint256(202801), uint256(1));
         atk.arm(address(v), reentry);
 
-        v.issueBond(address(atk), 100);
+        v.issueBond(address(atk), 100, 0.036e18);
         assertTrue(atk.lastReentryFailed(), "cross-function redeem reentry blocked");
     }
 
@@ -162,7 +162,7 @@ contract ReentrancyDeep is Test {
         // BEFORE calling claimBond.mint.
         bytes memory readCall = abi.encodeWithSignature("totalCommittedUSD()");
         atk.arm(address(v), readCall);
-        v.issueBond(address(atk), 100);
+        v.issueBond(address(atk), 100, 0.036e18);
 
         // Reading a view function is always allowed (nonReentrant guards only
         // mutators). Attacker did NOT revert, which is correct.
@@ -182,7 +182,7 @@ contract ReentrancyDeep is Test {
         // Read claim bond balance during callback — should be the MINTED value.
         bytes memory readCall = abi.encodeWithSignature("balanceOf(address,uint256)", address(atk), uint256(202801));
         atk.arm(address(cb), readCall);
-        v.issueBond(address(atk), 100);
+        v.issueBond(address(atk), 100, 0.036e18);
 
         assertEq(cb.balanceOf(address(atk), 202801), 100);
     }
@@ -193,7 +193,7 @@ contract ReentrancyDeep is Test {
     function test_Reentrancy_BondVault_RedeemBond_NoHookAttack() public {
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         address holder = makeAddr("holder"); // EOA — not a contract.
-        v.issueBond(holder, 100);
+        v.issueBond(holder, 100, 0.036e18);
 
         // Warp past maturity.
         vm.warp(block.timestamp + 731 days);
@@ -311,9 +311,9 @@ contract ReentrancyDeep is Test {
         atk2.arm(address(v), reentry);
         atk3.arm(address(v), reentry);
 
-        v.issueBond(address(atk1), 100);
-        v.issueBond(address(atk2), 200);
-        v.issueBond(address(atk3), 300);
+        v.issueBond(address(atk1), 100, 0.036e18);
+        v.issueBond(address(atk2), 200, 0.036e18);
+        v.issueBond(address(atk3), 300, 0.036e18);
 
         assertEq(v.totalCommittedUSD(), 600e18);
         assertEq(cb.balanceOf(address(atk1), 202801), 100);
@@ -337,7 +337,7 @@ contract ReentrancyDeep is Test {
         uint256 capBefore = v.availableCapacityUSD();
         assertGt(capBefore, 0);
         // Read after a state-changing op.
-        v.issueBond(makeAddr("u"), 1000);
+        v.issueBond(makeAddr("u"), 1000, 0.036e18);
         uint256 capAfter = v.availableCapacityUSD();
         assertLt(capAfter, capBefore);
     }

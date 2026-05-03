@@ -165,5 +165,11 @@ contract FlashETHShield1h is BaseShield {
         return _bssData[policyId];
     }
 
+    /// @inheritdoc BaseShield
+    /// @dev [Audit fix H-13] FlashETH reads the ETH/USD Chainlink feed.
+    function _chainlinkGraceAsset() internal pure override returns (bytes32) {
+        return bytes32("ETH");
+    }
+
     uint256[50] private __gap_shield;
 }

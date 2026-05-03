@@ -74,6 +74,15 @@ contract MockShieldOracle_LR {
         return 0;
     }
 
+    /// @dev [Audit fix H-13] Stub for the new IOracle method.
+    ///      Tests that exercise Chainlink-grace logic configure
+    ///      this mock via a setter (or override) — the default
+    ///      `0` keeps every other test green.
+    function getChainlinkDowntime(bytes32, uint256) external view returns (uint256) {
+        return 0;
+    }
+
+
     function verifySignature(bytes32, bytes calldata) external pure returns (address) {
         return address(0xdead);
     }
@@ -198,7 +207,7 @@ contract LongRunning is Test {
             vm.warp(anchor + (i + 1) * 30 days);
             address h = address(uint160(0x700000 + i));
             vm.prank(deployer);
-            bondVault.issueBond(h, 10);
+            bondVault.issueBond(h, 10, 0.036e18);
             // Rather than recompute the epoch in the test (error-prone
             // with via_ir), find it by scanning for the new balance.
             for (uint256 e = 202600; e <= 210012; e++) {
@@ -232,7 +241,7 @@ contract LongRunning is Test {
         for (uint256 i = 0; i < 60; i++) {
             vm.warp(block.timestamp + 30 days);
             vm.prank(deployer);
-            bondVault.issueBond(makeAddr(string(abi.encodePacked("h", i))), 100);
+            bondVault.issueBond(makeAddr(string(abi.encodePacked("h", i))), 100, 0.036e18);
         }
         // Every bond is $100 in 18-dec USD wei → 100e18 each → 60 × 100e18.
         assertEq(bondVault.totalCommittedUSD(), 60 * 100e18);
@@ -280,7 +289,7 @@ contract LongRunning is Test {
     ///         remain coherent after a decade of disuse.
     function test_LongRun_UUPS_Bond_Redeem_10YearsLater() public {
         vm.prank(deployer); // policyManager
-        bondVault.issueBond(holder, 500);
+        bondVault.issueBond(holder, 500, 0.036e18);
 
         // Figure out the epoch (bonds issued today → matures in 730 d).
         uint256 epoch = _currentEpoch();
@@ -310,7 +319,7 @@ contract LongRunning is Test {
         vm.warp(3_950_000_000);
 
         vm.prank(deployer); // policyManager
-        bondVault.issueBond(holder, 100);
+        bondVault.issueBond(holder, 100, 0.036e18);
 
         // Find the epoch minted.
         uint256 epoch;
@@ -331,7 +340,7 @@ contract LongRunning is Test {
         vm.warp(4_200_000_000);
         vm.prank(deployer);
         vm.expectRevert(bytes("Invalid epoch"));
-        bondVault.issueBond(holder, 10);
+        bondVault.issueBond(holder, 10, 0.036e18);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -347,17 +356,17 @@ contract LongRunning is Test {
 
         // 3 issuances 45 days apart → 3 distinct epochs (most of the time).
         vm.prank(deployer);
-        bondVault.issueBond(h1, 100);
+        bondVault.issueBond(h1, 100, 0.036e18);
         uint256 e1 = _currentEpoch();
         vm.warp(block.timestamp + 45 days);
 
         vm.prank(deployer);
-        bondVault.issueBond(h2, 100);
+        bondVault.issueBond(h2, 100, 0.036e18);
         uint256 e2 = _currentEpoch();
         vm.warp(block.timestamp + 45 days);
 
         vm.prank(deployer);
-        bondVault.issueBond(h3, 100);
+        bondVault.issueBond(h3, 100, 0.036e18);
         uint256 e3 = _currentEpoch();
 
         // Past all maturities.
@@ -401,7 +410,7 @@ contract LongRunning is Test {
     ///         etc.). This is ERC-1155 default behaviour.
     function test_LongRun_UUPS_RedeemedEpoch_ResidualStorage() public {
         vm.prank(deployer);
-        bondVault.issueBond(holder, 100);
+        bondVault.issueBond(holder, 100, 0.036e18);
         uint256 epoch = _currentEpoch();
 
         vm.warp(block.timestamp + 730 days + 1);

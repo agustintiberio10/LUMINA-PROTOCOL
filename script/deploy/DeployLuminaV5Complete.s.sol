@@ -16,6 +16,7 @@ import {BondVault} from "../../src/bonds/BondVault.sol";
 // ═══════ Oracles ═══════
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
+import {ChainlinkGraceOracle} from "../../src/oracles/ChainlinkGraceOracle.sol";
 
 // ═══════ Core ═══════
 import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
@@ -271,6 +272,42 @@ contract DeployLuminaV5Complete is Script {
         console.log("10. SolvencyOracle (proxy):", res.solvencyOracle);
 
         // ═══════════════════════════════════════════════════════
+        // STEP 10b: ChainlinkGraceOracle (audit fix H-13)
+        // ═══════════════════════════════════════════════════════
+        // Concrete `IOracle` that the shields use at claim time. Wraps
+        // the real Chainlink AggregatorV3 feeds, tracks per-asset
+        // downtime windows for the grace period in BaseShield, and
+        // returns the Sequencer Uptime Feed downtime for the existing
+        // SUF grace path. Replaces the env-var-driven `chainlinkOracle`
+        // address (which used to point straight at a Chainlink feed) so
+        // the shields now talk to a proper IOracle implementation.
+        ChainlinkGraceOracle chainlinkGraceImpl = new ChainlinkGraceOracle();
+        ERC1967Proxy chainlinkGraceProxy = new ERC1967Proxy(
+            address(chainlinkGraceImpl), abi.encodeWithSelector(ChainlinkGraceOracle.initialize.selector, cfg.multisig)
+        );
+        ChainlinkGraceOracle chainlinkOracle = ChainlinkGraceOracle(address(chainlinkGraceProxy));
+        // Configure feeds. Addresses are read from env vars filled in by
+        // the chain-specific entry-point (DeployLuminaV5Mainnet for Base
+        // mainnet). Heartbeats follow Chainlink's published cadence on
+        // Base: 1200s for crypto majors, 86400s for stablecoin pegs.
+        address btcFeed = vm.envOr("CHAINLINK_BTC_USD_FEED", address(0));
+        address ethFeed = vm.envOr("CHAINLINK_ETH_USD_FEED", address(0));
+        address usdcFeed = vm.envOr("CHAINLINK_USDC_USD_FEED", address(0));
+        address sufFeed = vm.envOr("SEQUENCER_UPTIME_FEED", address(0));
+        if (btcFeed != address(0)) chainlinkOracle.setFeed(bytes32("BTC"), btcFeed, 1200);
+        if (ethFeed != address(0)) chainlinkOracle.setFeed(bytes32("ETH"), ethFeed, 1200);
+        if (usdcFeed != address(0)) chainlinkOracle.setFeed(bytes32("USDC"), usdcFeed, 86400);
+        if (sufFeed != address(0)) chainlinkOracle.setSequencerFeed(sufFeed);
+        // From this point on, every shield receives the wrapped oracle
+        // instead of the raw env-var address.
+        cfg.chainlinkOracle = address(chainlinkOracle);
+        console.log("10b. ChainlinkGraceOracle (proxy):", address(chainlinkOracle));
+        console.log("    BTC feed:", btcFeed);
+        console.log("    ETH feed:", ethFeed);
+        console.log("    USDC feed:", usdcFeed);
+        console.log("    Sequencer Uptime feed:", sufFeed);
+
+        // ═══════════════════════════════════════════════════════
         // STEP 11: AdaptiveFeeDistributor
         // ═══════════════════════════════════════════════════════
         AdaptiveFeeDistributor adaptiveFeeDistributorImpl = new AdaptiveFeeDistributor();
@@ -459,7 +496,14 @@ contract DeployLuminaV5Complete is Script {
         // (sellers cannot list bonds, buybacks cannot complete). MUST run pre-launch.
         claimBond.setAuthorizedOperator(res.marketplace, true);
         claimBond.setAuthorizedOperator(res.buybackEngine, true);
+        // [Audit fix H-12] Register the marketplace as the escape hatch so
+        // sellers / multisig can recover bonds via `emergencyCancel` even
+        // after the multisig revokes the operator authorization above.
+        // Without this call the escape hatch is dormant and bonds remain
+        // stuck under a paused-marketplace scenario.
+        claimBond.setMarketplaceEscape(res.marketplace);
         console.log("  Marketplace + BuybackEngine authorized as ClaimBond operators");
+        console.log("  Marketplace registered as ClaimBond escape hatch (audit H-12)");
 
         // PolicyManagerV2.registerProduct for each shield
         // IDs MUST match the PRODUCT_ID constant in each shield contract

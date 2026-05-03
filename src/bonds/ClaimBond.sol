@@ -30,6 +30,27 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
     string private _baseURI; // slot 3 — was first slot of __gap[50]
     mapping(address => bool) public authorizedOperators; // slot 4 — was second slot of __gap[50]
 
+    /// @notice [Audit fix H-12] Single registered marketplace contract that
+    ///         can call `escapeTransfer` to return escrowed bonds to the
+    ///         original seller, EVEN WHEN its `authorizedOperators` flag
+    ///         has been revoked. Set once post-deploy by the multisig.
+    ///         Setting to `address(0)` disables the hatch.
+    /// @dev    Slot 5 — consumes the first slot of the previous `__gap[48]`.
+    address public marketplaceEscape;
+
+    /// @notice [Audit fix H-12] Transient flag flipped inside
+    ///         `escapeTransfer` so the `_update` operator gate can
+    ///         distinguish a legitimate escape transfer from a normal
+    ///         marketplace transfer. Without this flag, registering a
+    ///         contract as `marketplaceEscape` would silently grant it
+    ///         general operator privileges — the flag scopes the bypass
+    ///         to the single `escapeTransfer` call frame. The variable is
+    ///         a true boolean (32-byte slot) — Solidity 0.8.20 has no
+    ///         transient storage; if the codebase moves to 0.8.24+ this
+    ///         can be migrated to `transient` for gas savings.
+    /// @dev    Slot 6.
+    bool private _escapeInProgress;
+
     event EpochCreated(uint256 indexed epochId, uint256 maturityDate);
     event BondsMinted(uint256 indexed epochId, address indexed to, uint256 usdAmount);
     event BondsBurned(uint256 indexed epochId, address indexed from, uint256 usdAmount);
@@ -37,6 +58,12 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
     event BondsBurnedByHolder(address indexed holder, uint256 indexed epochId, uint256 amount);
     event BaseURIUpdated(string oldBaseURI, string newBaseURI);
     event OperatorAuthorized(address indexed operator, bool authorized);
+
+    /// @notice [Audit fix H-12] Emitted when the marketplace escape hatch
+    ///         is set or cleared. Old/new addresses included so a multisig
+    ///         can audit the change. Setting to `address(0)` disables the
+    ///         hatch entirely.
+    event MarketplaceEscapeSet(address indexed oldEscape, address indexed newEscape);
 
     modifier onlyBondVault() {
         require(_bondVaultSet, "BondVault not set");
@@ -177,6 +204,55 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
         emit OperatorAuthorized(operator, authorized);
     }
 
+    /// @notice [Audit fix H-12] Register the marketplace contract that may
+    ///         use the emergency-cancel escape hatch in `_update`. The
+    ///         escape ONLY lets the registered marketplace move bonds out
+    ///         of its own escrow back to the original seller — it does NOT
+    ///         elevate the marketplace to a general operator. To pause the
+    ///         marketplace fully (no list / no buy) the multisig still
+    ///         calls `setAuthorizedOperator(marketplace, false)`; the
+    ///         escape hatch keeps `emergencyCancel` callable through the
+    ///         pause so bonds never get stuck.
+    /// @param  _marketplace New escape contract. Set to `address(0)` to
+    ///                      disable the hatch entirely.
+    function setMarketplaceEscape(address _marketplace) external onlyOwner {
+        address old = marketplaceEscape;
+        marketplaceEscape = _marketplace;
+        emit MarketplaceEscapeSet(old, _marketplace);
+    }
+
+    /// @notice [Audit fix H-12] Escape hatch that lets the registered
+    ///         marketplace return escrowed bonds to a seller even after
+    ///         its `authorizedOperators` flag was revoked. Scoped: works
+    ///         only for the duration of THIS function call (the
+    ///         `_escapeInProgress` flag is reset on the same line),
+    ///         and the caller must be the registered marketplace.
+    ///         The marketplace decides the destination based on its own
+    ///         listing record — see `LuminaBondMarketplace.emergencyCancel`.
+    /// @dev    Reentry into this function from inside the transfer
+    ///         (e.g. via an ERC-1155 receive hook on `to`) is harmless:
+    ///         a re-entrant caller would have to be `marketplaceEscape`
+    ///         itself, and the marketplace's `emergencyCancel` is
+    ///         `nonReentrant`.
+    function escapeTransfer(address to, uint256 id, uint256 amount) external {
+        require(marketplaceEscape != address(0), "ClaimBond: escape not configured");
+        require(msg.sender == marketplaceEscape, "ClaimBond: only registered marketplace");
+        // [Audit fix H-12 follow-up] Manual mutex via `_escapeInProgress`.
+        // Prevents recursive entry through an ERC-1155 receive hook on `to`
+        // — a hostile recipient that calls back into `escapeTransfer` would
+        // see the flag already set and revert here, before reaching the
+        // bypassed `_update` gate. Reusing the existing flag avoids
+        // pulling in `ReentrancyGuardUpgradeable` and the storage slot it
+        // would consume, which would risk shifting downstream slots in a
+        // post-V5.1 upgrade. If the tx reverts before reaching the reset
+        // line, Solidity's atomic revert restores `_escapeInProgress` to
+        // its pre-call value (false) — see `test_EscapeFlagResetsOnTransferRevert`.
+        require(!_escapeInProgress, "ClaimBond: reentrant escape");
+        _escapeInProgress = true;
+        _safeTransferFrom(msg.sender, to, id, amount, "");
+        _escapeInProgress = false;
+    }
+
     // ═══════ INTERNAL HELPERS ═══════
 
     function _timestampFromYearMonth(uint256 year, uint256 month) internal pure returns (uint256) {
@@ -203,7 +279,12 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
         internal
         override(ERC1155Upgradeable, ERC1155SupplyUpgradeable)
     {
-        if (from != address(0) && to != address(0)) {
+        if (from != address(0) && to != address(0) && !_escapeInProgress) {
+            // [Audit fix H-12] The bypass is now scoped to the
+            // `escapeTransfer` call frame via the `_escapeInProgress`
+            // flag. Outside that frame the original gate applies, so
+            // pausing the marketplace by revoking `authorizedOperators`
+            // remains effective for list / executeBuy / cancel.
             require(
                 authorizedOperators[msg.sender] || authorizedOperators[from],
                 "ClaimBond: transfers only via authorized operators"
@@ -216,5 +297,10 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
 
     // Storage gap for future upgrades — reduced from 50 to 48 by FIX-#18
     // (added _baseURI + authorizedOperators above).
-    uint256[48] private __gap;
+    /// @dev [Audit fix H-12] Reduced from 48 to 46 to make room for
+    ///      `marketplaceEscape` (slot 5) and `_escapeInProgress` (slot 6).
+    ///      Storage layout remains UUPS-safe: slots 0..4 (pre-existing)
+    ///      are untouched, slots 5..6 hold the new vars, slots 7.. are
+    ///      the shrunk gap.
+    uint256[46] private __gap;
 }

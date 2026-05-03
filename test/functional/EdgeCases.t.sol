@@ -104,7 +104,7 @@ contract EdgeCasesTest is Test {
 
     function test_EdgeCase_IssueBondWithMinimumAmount() public {
         // Issue a $1 bond — the smallest valid integer-dollar amount
-        bondVault.issueBond(user, 1);
+        bondVault.issueBond(user, 1, 0.036e18);
         assertEq(bondVault.totalCommittedUSD(), 1e18);
 
         // Verify bond token minted
@@ -117,7 +117,7 @@ contract EdgeCasesTest is Test {
     }
 
     function test_EdgeCase_RedeemBondAtExactMaturityTimestamp() public {
-        bondVault.issueBond(user, 100);
+        bondVault.issueBond(user, 100, 0.036e18);
 
         // Calculate epoch
         uint256 maturityTs = block.timestamp + 730 days;
@@ -146,29 +146,19 @@ contract EdgeCasesTest is Test {
     // ═══════ CEX RESERVE EDGE CASES ═══════
 
     function test_EdgeCase_CEXReserve_AllocateExactlyAtMonthlyCap() public {
-        // MONTHLY_CAP = 1_000_000e18
+        // monthlyCap default = DEFAULT_MONTHLY_CAP = 1_000_000e18
         // Allocate exactly at the cap boundary
         address recipient = makeAddr("recipient");
         vm.prank(multisig);
         cexReserve.allocate(
-            recipient,
-            1_000_000e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Exact monthly cap allocation"
+            recipient, 1_000_000e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Exact monthly cap allocation"
         );
         assertEq(token.balanceOf(recipient), 1_000_000e18);
 
         // Next allocation in same month should revert
         vm.prank(multisig);
         vm.expectRevert("Monthly cap exceeded");
-        cexReserve.allocate(
-            recipient,
-            1,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "One token over cap"
-        );
+        cexReserve.allocate(recipient, 1, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "One token over cap");
     }
 
     // ═══════ MAINTENANCE RESERVE EDGE CASES ═══════

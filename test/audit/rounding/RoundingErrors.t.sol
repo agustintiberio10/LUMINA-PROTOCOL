@@ -1050,7 +1050,7 @@ contract RoundingErrors is Test {
 
     function _issueBondAsPM(address to, uint256 usdPayout) internal {
         vm.prank(address(policyManager));
-        bondVault.issueBond(to, usdPayout);
+        bondVault.issueBond(to, usdPayout, 0.036e18);
     }
 
     function _epochOfCurrentPlus24() internal view returns (uint256) {

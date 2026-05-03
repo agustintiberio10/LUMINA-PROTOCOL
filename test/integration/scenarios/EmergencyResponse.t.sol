@@ -281,7 +281,7 @@ contract EmergencyResponseTest is Test {
 
     function test_Emergency_BondIssuanceAndRedemption() public {
         // Issue a bond (we are policyManager = address(this))
-        bondVault.issueBond(user, 100); // $100 bond
+        bondVault.issueBond(user, 100, 0.036e18); // $100 bond
 
         // Compute the epoch
         uint256 issuanceTime = block.timestamp;
@@ -342,7 +342,7 @@ contract EmergencyResponseTest is Test {
         // Create a listing in mock marketplace
         // First mint some ClaimBond tokens and give them to the engine
         // We need a valid epoch. Mint bonds via BondVault.issueBond
-        bondVault.issueBond(address(engine), 500); // $500 bond to engine
+        bondVault.issueBond(address(engine), 500, 0.036e18); // $500 bond to engine
 
         // Compute the epoch
         uint256 maturityTs = block.timestamp + 730 days;

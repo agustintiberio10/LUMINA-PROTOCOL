@@ -168,5 +168,14 @@ contract FlashBTCShield1h is BaseShield {
         return _bssData[policyId];
     }
 
+    /// @inheritdoc BaseShield
+    /// @dev [Audit fix H-13] FlashBTC reads the BTC/USD Chainlink feed;
+    ///      signal that to BaseShield so a BTC feed outage extends the
+    ///      trigger window proportionally and an honest claimant does
+    ///      not lose payout because the feed went stale at trigger time.
+    function _chainlinkGraceAsset() internal pure override returns (bytes32) {
+        return bytes32("BTC");
+    }
+
     uint256[50] private __gap_shield;
 }

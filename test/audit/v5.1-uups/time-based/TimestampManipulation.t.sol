@@ -81,6 +81,15 @@ contract MockShieldOracle_TS {
         return 0;
     }
 
+    /// @dev [Audit fix H-13] Stub for the new IOracle method.
+    ///      Tests that exercise Chainlink-grace logic configure
+    ///      this mock via a setter (or override) — the default
+    ///      `0` keeps every other test green.
+    function getChainlinkDowntime(bytes32, uint256) external view returns (uint256) {
+        return 0;
+    }
+
+
     function verifySignature(bytes32, bytes calldata) external pure returns (address) {
         return address(0xdead);
     }
@@ -167,7 +176,7 @@ contract TimestampManipulation is Test {
 
     function _issueBondViaPM(address to, uint256 usdAmount) internal returns (uint256 epochId) {
         vm.prank(deployer); // deployer == policyManager in this setup
-        bondVault.issueBond(to, usdAmount);
+        bondVault.issueBond(to, usdAmount, 0.036e18);
         // Compute the epoch that was just created — mirrors BondVault's
         // _timestampToEpoch(block.timestamp + BOND_MATURITY_SECONDS).
         uint256 maturity = block.timestamp + 730 days;

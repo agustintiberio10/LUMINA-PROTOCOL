@@ -144,7 +144,7 @@ contract FixM03BuybackApproval is Test {
         // Mint bonds via BondVault.issueBond so both claimBond balance and
         // bondVault.totalCommittedUSD are in sync (required for the
         // double-burn `decreaseObligations` path).
-        bondVault.issueBond(seller, amount);
+        bondVault.issueBond(seller, amount, 0.036e18);
 
         vm.startPrank(seller);
         claimBond.setApprovalForAll(address(marketplace), true);

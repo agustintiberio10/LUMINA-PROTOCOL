@@ -51,6 +51,15 @@ contract MockChainlinkOracle is IOracle {
         return sequencerDowntime;
     }
 
+    /// @dev [Audit fix H-13] Stub for the new IOracle method.
+    ///      Tests that exercise Chainlink-grace logic configure
+    ///      this mock via a setter (or override) — the default
+    ///      `0` keeps every other test green.
+    function getChainlinkDowntime(bytes32, uint256) external view returns (uint256) {
+        return 0;
+    }
+
+
     function verifySignature(bytes32, bytes calldata) external pure returns (address) {
         // Simulate an always-matching signer for tests that don't focus on
         // signatures. Tests that focus on the signature path use oracleKey()

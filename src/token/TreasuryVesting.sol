@@ -23,6 +23,13 @@ contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     uint256 public deployedAt;
 
     uint256 public totalReleased;
+    /// @notice [Audit fix H-9 — DEPRECATED] No longer read or written.
+    ///         Pre-fix the release flow used this slot to enforce a
+    ///         "one release per month" check that quietly forfeited any
+    ///         month the multisig forgot. The new accumulating cap
+    ///         (`available()`) makes the slot unnecessary, but it is
+    ///         preserved here so the UUPS storage layout of any V5.1
+    ///         deployment remains backwards-compatible after upgrade.
     uint256 public lastReleaseMonth;
 
     event Released(address indexed to, uint256 amount, uint256 month);
@@ -48,18 +55,28 @@ contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         deployedAt = block.timestamp;
     }
 
-    function release(address to, uint256 amount) external onlyOwner {
+    /// @notice Release `amount` of LUMINA to `to`. Multisig admin only.
+    /// @dev    [Audit fix H-9] The previous "one release per calendar month
+    ///         OR nothing" gate forfeited any month the multisig forgot.
+    ///         The new check is `amount <= available()`, where `available()`
+    ///         returns `monthsSinceUnlock × MAX_MONTHLY_RELEASE − totalReleased`,
+    ///         so a missed month carries forward into the next call instead
+    ///         of vanishing. The lifetime cap `TOTAL_AMOUNT` is enforced
+    ///         identically as before. `nonReentrant` added for defence in
+    ///         depth even though `transfer` to a known LUMINA token is the
+    ///         only external call.
+    function release(address to, uint256 amount) external onlyOwner nonReentrant {
         require(to != address(0), "Zero address");
         require(block.timestamp >= deployedAt + LOCK_DURATION, "Still locked");
         require(amount > 0, "Zero amount");
-        require(amount <= MAX_MONTHLY_RELEASE, "Exceeds monthly max");
+        require(amount <= _available(), "Exceeds available");
         require(totalReleased + amount <= TOTAL_AMOUNT, "Exceeds total");
 
-        uint256 currentMonth = (block.timestamp - deployedAt - LOCK_DURATION) / MONTH;
-        require(currentMonth > lastReleaseMonth || totalReleased == 0, "Already released this month");
-
-        lastReleaseMonth = currentMonth;
         totalReleased += amount;
+
+        // `month` field of the event keeps its pre-fix meaning so any
+        // off-chain consumer that filters by month continues to work.
+        uint256 currentMonth = (block.timestamp - deployedAt - LOCK_DURATION) / MONTH;
 
         require(luminaToken.transfer(to, amount), "Transfer failed");
         emit Released(to, amount, currentMonth);
@@ -69,10 +86,22 @@ contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         return block.timestamp < deployedAt + LOCK_DURATION;
     }
 
-    function available() external view returns (uint256) {
+    /// @dev [Audit fix H-9] Internal helper shared by the public `available()`
+    ///      view and the `release()` gate. Implements the accumulating-cap
+    ///      formula: `min(monthsSinceUnlock × MAX_MONTHLY_RELEASE, TOTAL_AMOUNT) − totalReleased`.
+    ///      `monthsSinceUnlock` starts at 1 at the unlock instant so the
+    ///      first 250K is immediately available without waiting an extra month.
+    function _available() internal view returns (uint256) {
         if (block.timestamp < deployedAt + LOCK_DURATION) return 0;
-        uint256 remaining = TOTAL_AMOUNT - totalReleased;
-        return remaining < MAX_MONTHLY_RELEASE ? remaining : MAX_MONTHLY_RELEASE;
+        uint256 monthsSinceUnlock = (block.timestamp - (deployedAt + LOCK_DURATION)) / MONTH + 1;
+        uint256 maxAccessibleSoFar = monthsSinceUnlock * MAX_MONTHLY_RELEASE;
+        if (maxAccessibleSoFar > TOTAL_AMOUNT) maxAccessibleSoFar = TOTAL_AMOUNT;
+        if (totalReleased >= maxAccessibleSoFar) return 0;
+        return maxAccessibleSoFar - totalReleased;
+    }
+
+    function available() external view returns (uint256) {
+        return _available();
     }
 
     function getStatus()

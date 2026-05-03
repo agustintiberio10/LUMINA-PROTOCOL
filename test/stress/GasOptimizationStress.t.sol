@@ -92,7 +92,7 @@ contract GasOptimizationStress is Test {
         address user = address(0xCAFE);
 
         uint256 gasBefore = gasleft();
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
         uint256 gasUsed = gasBefore - gasleft();
 
         assertLt(gasUsed, 300_000, "issueBond exceeds 300k gas");
@@ -103,7 +103,7 @@ contract GasOptimizationStress is Test {
         address user = address(0xCAFE);
 
         // Issue a bond first
-        vault.issueBond(user, 100);
+        vault.issueBond(user, 100, 0.036e18);
 
         // Calculate epoch
         uint256 maturityTs = block.timestamp + 730 days;
@@ -129,7 +129,7 @@ contract GasOptimizationStress is Test {
     /// @dev [V5.1] Proxy overhead increases gas by ~10-15%.
     function test_Gas_ListBond_Under200kGas() public {
         // Issue bond to seller via BondVault (which mints via ClaimBond)
-        vault.issueBond(seller, 50);
+        vault.issueBond(seller, 50, 0.036e18);
 
         // Calculate epoch for the issued bond
         uint256 maturityTs = block.timestamp + 730 days;
@@ -155,7 +155,7 @@ contract GasOptimizationStress is Test {
         uint256 priceUSDC = 40e6;
 
         // Issue bond to seller
-        vault.issueBond(seller, 50);
+        vault.issueBond(seller, 50, 0.036e18);
 
         // Calculate epoch
         uint256 maturityTs = block.timestamp + 730 days;

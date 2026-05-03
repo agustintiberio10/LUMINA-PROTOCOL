@@ -158,13 +158,26 @@ Complete checklist from current state (Phase 0) to mainnet launch (Phase 10) and
 ## PHASE 3 — New Contract Development
 
 ### 3.1 — CEXLiquidityReserve.sol
-- [ ] 3 sub-buckets structure
+- [x] ~~3 sub-buckets structure~~ **RETIRED in Tier-1 redesign** — replaced
+      by a single flat 14M reserve. V1 storage slots 2/3/4 preserved as
+      `__deprecated_allocatedFrom*` for upgrade safety; `totalAllocated`
+      consolidates the three counters.
 - [ ] Owner: Gnosis Safe 2-of-3
-- [ ] allocate() function
-- [ ] View functions
+- [ ] `allocate(recipient, amount, purpose, description)` function — no
+      SubBucket parameter (Tier-1 redesign).
+- [ ] View functions (`getMonthlyCapRemaining`, `getCurrentMonth`,
+      `getTotalAllocated`, `getAllocationHistoryLength`)
 - [ ] Purpose enum
-- [ ] Events
-- [ ] Monthly cap
+- [ ] Events: `Allocated`, `MonthlyCapWarning`, `MonthlyCapUpdated` (per
+      [Fix H-2]), `TokenRecovered`
+- [ ] Monthly cap (mutable storage, default `DEFAULT_MONTHLY_CAP = 1M`,
+      ceiling `MAX_MONTHLY_CAP = TOTAL_AMOUNT = 14M`; `setMonthlyCap` gated
+      by `DEFAULT_ADMIN_ROLE` — [Fix H-2])
+- [ ] Lifetime ceiling: `totalAllocated <= TOTAL_AMOUNT (=14M)` enforced
+      in `allocate()` (Tier-1 redesign).
+- [ ] `initializeV2()` reinitializer(2), `DEFAULT_ADMIN_ROLE`-gated, for
+      upgrades of pre-existing V5.1 proxies — sets default cap and seeds
+      `totalAllocated` from the deprecated buckets.
 - [ ] Tests
 
 ### 3.2 — SolvencyOracle.sol

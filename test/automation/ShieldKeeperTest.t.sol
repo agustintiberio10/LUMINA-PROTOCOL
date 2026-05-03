@@ -8,6 +8,18 @@ import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ INLINE MOCKS ═══════
 
+contract MockPriceOracleStub_SK {
+    uint256 public price = 0.036e18;
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
+
+    function setPrice(uint256 p) external {
+        price = p;
+    }
+}
+
 contract MockBondVault_SK {
     uint256 public cap = 1_000_000; // integer dollars
     uint256 public totalReserved; // 18-dec USD-wei (matches real BondVault)
@@ -15,13 +27,21 @@ contract MockBondVault_SK {
 
     mapping(address => uint256) public bondBalances;
 
+    /// @dev [Audit fix H-6] Mock now exposes the oracle so PolicyManagerV2
+    ///      can read the price snapshot at recordPolicy time.
+    MockPriceOracleStub_SK public priceOracle;
+
+    constructor() {
+        priceOracle = new MockPriceOracleStub_SK();
+    }
+
     function availableCapacityUSD() external view returns (uint256) {
         uint256 reservedDollars = totalReserved / 1e18;
         if (cap <= reservedDollars) return 0;
         return cap - reservedDollars;
     }
 
-    function issueBond(address to, uint256 usdPayout) external {
+    function issueBond(address to, uint256 usdPayout, uint256 /*priceSnapshot*/ ) external {
         bondBalances[to] += usdPayout;
         totalIssued += usdPayout;
     }
@@ -57,6 +77,15 @@ contract MockOracle_SK {
     function getSequencerDowntime(uint256) external pure returns (uint256) {
         return 0;
     }
+
+    /// @dev [Audit fix H-13] Stub for the new IOracle method.
+    ///      Tests that exercise Chainlink-grace logic configure
+    ///      this mock via a setter (or override) — the default
+    ///      `0` keeps every other test green.
+    function getChainlinkDowntime(bytes32, uint256) external view returns (uint256) {
+        return 0;
+    }
+
 
     function verifySignature(bytes32, bytes calldata) external pure returns (address) {
         return address(0);

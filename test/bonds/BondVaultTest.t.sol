@@ -76,7 +76,7 @@ contract BondVaultTest is Test {
     }
 
     function test_issueBond() public {
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         // [V3/SR2] totalCommittedUSD is now 18-dec USD-wei: 800 * 1e18
         assertEq(vault.totalCommittedUSD(), 800 * 1e18);
         // verify bond was minted to user
@@ -87,7 +87,7 @@ contract BondVaultTest is Test {
     function test_issueBond_only_policyManager() public {
         vm.prank(makeAddr("random"));
         vm.expectRevert("Only PolicyManager");
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
     }
 
     function test_capacity_check() public view {
@@ -101,11 +101,11 @@ contract BondVaultTest is Test {
     function test_exceeds_capacity_reverts() public {
         uint256 cap = vault.availableCapacityUSD();
         vm.expectRevert("Exceeds capacity");
-        vault.issueBond(user, cap + 1);
+        vault.issueBond(user, cap + 1, 0.036e18);
     }
 
     function test_redeemBond_price_up() public {
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         uint256 epoch = _currentEpochPlus24();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
@@ -121,7 +121,7 @@ contract BondVaultTest is Test {
     }
 
     function test_redeemBond_price_down() public {
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         uint256 epoch = _currentEpochPlus24();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
@@ -136,7 +136,7 @@ contract BondVaultTest is Test {
     }
 
     function test_partial_redeem() public {
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         uint256 epoch = _currentEpochPlus24();
         vm.warp(claimBond.maturityDate(epoch) + 1);
         oracle.setPrice(0.5e18);
@@ -149,7 +149,7 @@ contract BondVaultTest is Test {
     }
 
     function test_cannot_redeem_before_maturity() public {
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         uint256 epoch = _currentEpochPlus24();
         vm.prank(user);
         vm.expectRevert("Not matured");
@@ -157,7 +157,7 @@ contract BondVaultTest is Test {
     }
 
     function test_redemption_fails_below_min_redeem_price() public {
-        vault.issueBond(user, 800);
+        vault.issueBond(user, 800, 0.036e18);
         uint256 epoch = _currentEpochPlus24();
 
         vm.warp(claimBond.maturityDate(epoch) + 1);

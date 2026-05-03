@@ -108,6 +108,15 @@ contract MockShieldOracle_DOS {
         return 0;
     }
 
+    /// @dev [Audit fix H-13] Stub for the new IOracle method.
+    ///      Tests that exercise Chainlink-grace logic configure
+    ///      this mock via a setter (or override) — the default
+    ///      `0` keeps every other test green.
+    function getChainlinkDowntime(bytes32, uint256) external view returns (uint256) {
+        return 0;
+    }
+
+
     function verifySignature(bytes32, bytes calldata) external pure returns (address) {
         return address(0xdead);
     }
@@ -379,7 +388,7 @@ contract DOSAttacks is Test {
         for (uint256 i = 0; i < 5; i++) {
             holders[i] = address(uint160(0x500000 + i));
             vm.prank(address(policyManager));
-            bondVault.issueBond(holders[i], 100);
+            bondVault.issueBond(holders[i], 100, 0.036e18);
         }
         vm.warp(block.timestamp + 800 days); // past maturity
 
@@ -507,26 +516,26 @@ contract DOSAttacks is Test {
         // Warm up
         for (uint256 i = 0; i < 5; i++) {
             vm.prank(address(policyManager));
-            bondVault.issueBond(address(uint160(0x600000 + i)), 100);
+            bondVault.issueBond(address(uint160(0x600000 + i)), 100, 0.036e18);
             vm.warp(block.timestamp + 30 days);
         }
 
         uint256 g1 = gasleft();
         vm.prank(address(policyManager));
-        bondVault.issueBond(address(uint160(0x600005)), 100);
+        bondVault.issueBond(address(uint160(0x600005)), 100, 0.036e18);
         uint256 baseline = g1 - gasleft();
 
         // 30 more issuances each in a new epoch.
         for (uint256 i = 6; i < 36; i++) {
             vm.warp(block.timestamp + 30 days);
             vm.prank(address(policyManager));
-            bondVault.issueBond(address(uint160(0x600000 + i)), 100);
+            bondVault.issueBond(address(uint160(0x600000 + i)), 100, 0.036e18);
         }
 
         vm.warp(block.timestamp + 30 days);
         uint256 g2 = gasleft();
         vm.prank(address(policyManager));
-        bondVault.issueBond(address(uint160(0x600100)), 100);
+        bondVault.issueBond(address(uint160(0x600100)), 100, 0.036e18);
         uint256 final_ = g2 - gasleft();
 
         emit log_named_uint("issueBond  epoch baseline", baseline);
@@ -565,7 +574,7 @@ contract DOSAttacks is Test {
         if (n == 0) n = 1;
         for (uint256 i = 0; i < n; i++) {
             vm.prank(address(policyManager));
-            bondVault.issueBond(seller, perBondUsd);
+            bondVault.issueBond(seller, perBondUsd, 0.036e18);
         }
         epochId = _anyHeldEpoch(seller);
     }

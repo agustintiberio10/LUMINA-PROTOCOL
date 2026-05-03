@@ -31,6 +31,20 @@ interface IOracle {
     /// @notice Estimate sequencer downtime since a given timestamp
     function getSequencerDowntime(uint256 sinceTimestamp) external view returns (uint256 downtime);
 
+    /// @notice [Audit fix H-13] Estimate cumulative Chainlink price-feed
+    ///         downtime for `asset` since `sinceTimestamp`. Used by shields
+    ///         to grant a grace period at trigger time so a buyer who
+    ///         submits a claim while a feed is stale or reverting does not
+    ///         lose their payout. Implementations should detect down via
+    ///         (a) `latestRoundData()` revert, (b) `block.timestamp -
+    ///         updatedAt > heartbeat`, or (c) `answeredInRound < roundId`.
+    /// @param  asset Asset identifier registered in the oracle (e.g.
+    ///                "ETH", "BTC", "USDC").
+    /// @param  sinceTimestamp Lower bound of the window the caller cares
+    ///                about — typically `policy.expiresAt`.
+    /// @return downtime Total seconds the feed was DOWN inside the window.
+    function getChainlinkDowntime(bytes32 asset, uint256 sinceTimestamp) external view returns (uint256 downtime);
+
     // ═══════════════════════════════════════════════════════════
     //  SIGNATURE VERIFICATION
     // ═══════════════════════════════════════════════════════════

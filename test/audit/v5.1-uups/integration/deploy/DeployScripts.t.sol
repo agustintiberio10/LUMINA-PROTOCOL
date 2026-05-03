@@ -738,4 +738,11 @@ contract DeployScriptsTest is Test {
         assertEq(d.founderVesting.code.length, 0, "Sepolia uses _labelToAddress - placeholder only");
         assertEq(d.lumina.balanceOf(d.founderVesting), 8_000_000e18, "but still receives 8M LUMINA");
     }
+
+    // ═════════════════════ L. [Audit fix H-12] Marketplace escape hatch wiring
+    //                          See DeployScriptsEscapeHatch.t.sol — extracted
+    //                          to a sibling file because adding the 3 tests
+    //                          here pushed the contract past the Yul stack-
+    //                          depth limit.
+    // ═════════════════════════════════════════════════════════════════════
 }

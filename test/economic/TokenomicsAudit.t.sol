@@ -535,7 +535,7 @@ contract TokenomicsAuditTest is Test {
     function test_Incentive_BondHolder_FaceValueAtMaturity() public {
         // Issue a bond for $800
         vm.prank(address(policyManager));
-        bondVault.issueBond(buyer, 800);
+        bondVault.issueBond(buyer, 800, 0.036e18);
 
         // Compute epoch for maturity (730 days from now)
         uint256 maturityTs = block.timestamp + 730 days;
@@ -565,7 +565,7 @@ contract TokenomicsAuditTest is Test {
         // Issue a bond to seller
         address seller = address(0x5E);
         vm.prank(address(policyManager));
-        bondVault.issueBond(seller, 1000);
+        bondVault.issueBond(seller, 1000, 0.036e18);
 
         uint256 maturityTs = block.timestamp + 730 days;
         uint256 monthsFromBase = (maturityTs - BASE_TS) / 2629746;
@@ -702,7 +702,7 @@ contract TokenomicsAuditTest is Test {
         // Issue 50 bonds × $4K = $200K in new obligations
         for (uint256 i = 0; i < 50; i++) {
             vm.prank(address(policyManager));
-            bondVault.issueBond(buyer, 4000); // $4K each
+            bondVault.issueBond(buyer, 4000, 0.036e18); // $4K each
         }
 
         // Total committed: 50 × $4000 × 1e18 = $200K in 18-dec USD-wei
@@ -721,7 +721,7 @@ contract TokenomicsAuditTest is Test {
     function test_Solvency_50PercentCrash() public {
         // Issue some obligations first
         vm.prank(address(policyManager));
-        bondVault.issueBond(buyer, 100_000); // $100K
+        bondVault.issueBond(buyer, 100_000, 0.036e18); // $100K
 
         // Price crashes 50%: $0.10 → $0.05
         oracle.setPrice(0.05e18);
@@ -756,7 +756,7 @@ contract TokenomicsAuditTest is Test {
         // Issue max bonds first at normal price
         for (uint256 i = 0; i < 20; i++) {
             vm.prank(address(policyManager));
-            bondVault.issueBond(buyer, 10_000); // $10K each = $200K total
+            bondVault.issueBond(buyer, 10_000, 0.036e18); // $10K each = $200K total
         }
 
         // Price crashes 80%: $0.10 → $0.02

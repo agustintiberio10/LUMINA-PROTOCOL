@@ -59,7 +59,7 @@ contract SystemHandler is Test {
 
         address user = users[userIdx];
 
-        try bondVault.issueBond(user, amount) {
+        try bondVault.issueBond(user, amount, 0.036e18) {
             issueCalls++;
             // Track epoch for later redemption
             uint256 maturityTs = block.timestamp + 730 days;

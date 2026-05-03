@@ -32,6 +32,15 @@ abstract contract BaseShield is Initializable, UUPSUpgradeable, OwnableUpgradeab
     uint256 public constant CLAIM_GRACE_PERIOD = 24 hours;
     uint256 public constant SAFETY_WINDOW = 24 hours;
 
+    /// @notice [Audit fix H-13] Hard cap on the grace extension granted
+    ///         at trigger time when sequencer / Chainlink were down.
+    ///         Without this cap, a malformed oracle (or a buggy
+    ///         IOracle implementation that returned `type(uint256).max`)
+    ///         could keep claims open indefinitely. 30 days mirrors the
+    ///         maximum policy lifetime used elsewhere in the protocol
+    ///         and is well above any realistic real-world feed outage.
+    uint256 public constant MAX_GRACE_EXTENSION = 30 days;
+
     // ═══════════════════════════════════════════════════════════
     //  ERRORS (additional)
     // ═══════════════════════════════════════════════════════════
@@ -368,13 +377,45 @@ abstract contract BaseShield is Initializable, UUPSUpgradeable, OwnableUpgradeab
         cp;
     }
 
+    /// @dev [Audit fix H-13] Each shield identifies the Chainlink asset
+    ///      whose downtime should extend its claim window. Defaulting to
+    ///      `bytes32(0)` (= "no Chainlink dependency") makes the
+    ///      Chainlink-grace path a no-op for shields that do not consume
+    ///      a price feed — the SUF grace stays in effect regardless.
+    function _chainlinkGraceAsset() internal view virtual returns (bytes32) {
+        return bytes32(0);
+    }
+
+    /// @notice [Audit fix H-13 follow-up] Public read of the asset this
+    ///         shield depends on for its Chainlink-grace extension.
+    ///         Useful for off-chain monitors that want to confirm a shield
+    ///         is wired against the right feed before broadcast — and as
+    ///         a coverage anchor for the per-shield override tests.
+    function chainlinkGraceAsset() external view returns (bytes32) {
+        return _chainlinkGraceAsset();
+    }
+
     function _validateStatusForTrigger(uint256 policyId, PolicyStatus current) internal view virtual {
         if (current != PolicyStatus.ACTIVE && current != PolicyStatus.EXPIRED) {
             revert InvalidPolicyStatus(policyId, current, PolicyStatus.ACTIVE);
         }
         CorePolicy storage cp = _policies[policyId];
-        uint256 downtime = IOracle(oracle).getSequencerDowntime(cp.expiresAt);
-        uint256 adjustedCleanupAt = cp.cleanupAt + downtime;
+        // [Audit fix H-13] Sum the existing sequencer-uptime grace with
+        // a new Chainlink-feed grace so an honest user cannot lose a
+        // payout because the price feed was stale at claim time. Hard-
+        // capped at MAX_GRACE_EXTENSION as defence-in-depth against an
+        // adversarial / buggy oracle returning a huge number.
+        uint256 sequencerDowntime = IOracle(oracle).getSequencerDowntime(cp.expiresAt);
+        uint256 chainlinkDowntime = 0;
+        bytes32 graceAsset = _chainlinkGraceAsset();
+        if (graceAsset != bytes32(0)) {
+            chainlinkDowntime = IOracle(oracle).getChainlinkDowntime(graceAsset, cp.expiresAt);
+        }
+        uint256 totalDowntime = sequencerDowntime + chainlinkDowntime;
+        if (totalDowntime > MAX_GRACE_EXTENSION) {
+            totalDowntime = MAX_GRACE_EXTENSION;
+        }
+        uint256 adjustedCleanupAt = cp.cleanupAt + totalDowntime;
         if (block.timestamp >= adjustedCleanupAt) {
             revert InvalidPolicyStatus(policyId, PolicyStatus.EXPIRED, PolicyStatus.ACTIVE);
         }

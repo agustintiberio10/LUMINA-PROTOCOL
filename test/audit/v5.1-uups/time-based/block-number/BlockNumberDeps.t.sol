@@ -74,6 +74,15 @@ contract MockShieldOracle_BN {
         return 0;
     }
 
+    /// @dev [Audit fix H-13] Stub for the new IOracle method.
+    ///      Tests that exercise Chainlink-grace logic configure
+    ///      this mock via a setter (or override) — the default
+    ///      `0` keeps every other test green.
+    function getChainlinkDowntime(bytes32, uint256) external view returns (uint256) {
+        return 0;
+    }
+
+
     function verifySignature(bytes32, bytes calldata) external pure returns (address) {
         return address(0xdead);
     }
@@ -205,7 +214,7 @@ contract BlockNumberDeps is Test {
     ///         nothing.
     function test_BlockNum_UUPS_BondMaturity_DoesNotAdvanceOnBlockRoll() public {
         vm.prank(deployer); // policyManager
-        bondVault.issueBond(holder, 100);
+        bondVault.issueBond(holder, 100, 0.036e18);
 
         // Pick any epoch the holder now has.
         uint256 epoch;
@@ -226,7 +235,7 @@ contract BlockNumberDeps is Test {
     ///         zero time gap yields the same epoch.
     function test_BlockNum_UUPS_EpochComputation_IndependentOfBlockNumber() public {
         vm.prank(deployer);
-        bondVault.issueBond(holder, 10);
+        bondVault.issueBond(holder, 10, 0.036e18);
         uint256 epoch1;
         for (uint256 e = 202600; e <= 210012; e++) {
             if (claimBond.balanceOf(holder, e) > 0) {
@@ -240,7 +249,7 @@ contract BlockNumberDeps is Test {
         // Issue a second bond to a different holder.
         address holder2 = makeAddr("holder2");
         vm.prank(deployer);
-        bondVault.issueBond(holder2, 10);
+        bondVault.issueBond(holder2, 10, 0.036e18);
         uint256 epoch2;
         for (uint256 e = 202600; e <= 210012; e++) {
             if (claimBond.balanceOf(holder2, e) > 0) {

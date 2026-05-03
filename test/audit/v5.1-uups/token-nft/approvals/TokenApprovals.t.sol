@@ -101,6 +101,15 @@ contract MockShieldOracle_Appr {
         return 0;
     }
 
+    /// @dev [Audit fix H-13] Stub for the new IOracle method.
+    ///      Tests that exercise Chainlink-grace logic configure
+    ///      this mock via a setter (or override) — the default
+    ///      `0` keeps every other test green.
+    function getChainlinkDowntime(bytes32, uint256) external view returns (uint256) {
+        return 0;
+    }
+
+
     function verifySignature(bytes32, bytes calldata) external pure returns (address) {
         return address(0xdead);
     }
@@ -267,7 +276,7 @@ contract TokenApprovals is Test {
     function test_Appr_UUPS_BuybackEngine_ApprovalIncludesFee_FixM03() public {
         // Seed seller with 100 bonds, list at $20.
         vm.prank(address(policyManager));
-        bondVault.issueBond(seller, 100);
+        bondVault.issueBond(seller, 100, 0.036e18);
         uint256 epochId = _anyHeldEpoch(seller);
 
         vm.startPrank(seller);
@@ -325,7 +334,7 @@ contract TokenApprovals is Test {
 
     function test_Appr_UUPS_Marketplace_Buy_RequiresUSDCApproval() public {
         vm.prank(address(policyManager));
-        bondVault.issueBond(seller, 100);
+        bondVault.issueBond(seller, 100, 0.036e18);
         uint256 epochId = _anyHeldEpoch(seller);
 
         vm.startPrank(seller);
@@ -342,7 +351,7 @@ contract TokenApprovals is Test {
 
     function test_Appr_UUPS_Marketplace_List_RequiresClaimBondApproval() public {
         vm.prank(address(policyManager));
-        bondVault.issueBond(seller, 100);
+        bondVault.issueBond(seller, 100, 0.036e18);
         uint256 epochId = _anyHeldEpoch(seller);
 
         // Skip setApprovalForAll.

@@ -122,9 +122,11 @@ contract TimingAttacks is Test {
     }
 
     // ================================================================
-    // Test 3: CEXLiquidityReserve Strategic bucket locked for 18 months
+    // Test 3: CEXLiquidityReserve — Tier-1 redesign removed the 547-day
+    //         strategic lock. Confirm allocations on day-1 succeed
+    //         provided the monthly cap and lifetime ceiling allow it.
     // ================================================================
-    function test_Attack_CEXStrategicBeforeUnlock() public {
+    function test_Attack_CEXNoStrategicLock() public {
         MockLumina_Time lumina = new MockLumina_Time();
 
         CEXLiquidityReserve reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), admin);
@@ -132,41 +134,10 @@ contract TimingAttacks is Test {
         // Fund with full allocation
         lumina.mint(address(reserve), 14_000_000e18);
 
-        // Strategic lock = 547 days (~18 months)
-        // Try to allocate from Strategic immediately
+        // Day-1 allocate must succeed — there is no longer any
+        // time-locked sub-bucket gating amounts.
         vm.prank(admin);
-        vm.expectRevert("Insufficient in sub-bucket");
-        reserve.allocate(
-            attacker,
-            100e18,
-            CEXLiquidityReserve.SubBucket.StrategicReserve,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1,
-            "Early strategic grab"
-        );
-
-        // Warp to 546 days (still locked)
-        vm.warp(block.timestamp + 546 days);
-        vm.prank(admin);
-        vm.expectRevert("Insufficient in sub-bucket");
-        reserve.allocate(
-            attacker,
-            100e18,
-            CEXLiquidityReserve.SubBucket.StrategicReserve,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1,
-            "Still locked attempt"
-        );
-
-        // Warp to 548 days (past lock)
-        vm.warp(block.timestamp + 2 days);
-        vm.prank(admin);
-        reserve.allocate(
-            attacker,
-            100e18,
-            CEXLiquidityReserve.SubBucket.StrategicReserve,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1,
-            "Unlocked allocation"
-        );
-        // Verify allocation went through
+        reserve.allocate(attacker, 100e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1, "Day-1 allocation");
         assertEq(lumina.balanceOf(attacker), 100e18);
     }
 

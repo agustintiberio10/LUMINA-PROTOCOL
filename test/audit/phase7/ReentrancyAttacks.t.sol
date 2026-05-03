@@ -82,7 +82,7 @@ contract MaliciousBondReceiver {
         if (attackCount < 2) {
             // Try to re-enter issueBond via the policyManager impersonation
             // This will fail because BondVault.issueBond is nonReentrant
-            try vault.issueBond(address(this), 100) {
+            try vault.issueBond(address(this), 100, 0.036e18) {
             // If we reach here, the attack succeeded (should never happen)
             }
             catch {
@@ -261,7 +261,7 @@ contract ReentrancyAttacks is Test {
 
         // Issue bond to the malicious receiver -- triggers onERC1155Received
         // which tries to call issueBond again
-        bondVault.issueBond(address(attacker), 500);
+        bondVault.issueBond(address(attacker), 500, 0.036e18);
 
         // Verify: attacker's re-entrant call was blocked
         assertTrue(attacker.attackBlocked(), "Reentrancy via ERC-1155 hook was NOT blocked");
@@ -281,7 +281,7 @@ contract ReentrancyAttacks is Test {
     function test_Audit_Marketplace_NoReentrancyDuringExecuteBuy() public {
         // Setup: user1 lists a bond on the marketplace
         uint256 epochId = _epochOfCurrentPlus24();
-        bondVault.issueBond(user1, 100);
+        bondVault.issueBond(user1, 100, 0.036e18);
 
         vm.startPrank(user1);
         claimBond.setApprovalForAll(address(marketplace), true);
@@ -321,7 +321,7 @@ contract ReentrancyAttacks is Test {
         uint256 epochId = _epochOfCurrentPlus24();
 
         // Issue bonds to attacker
-        bondVault.issueBond(address(attacker), 500);
+        bondVault.issueBond(address(attacker), 500, 0.036e18);
         assertEq(claimBond.balanceOf(address(attacker), epochId), 500);
 
         // Warp past maturity
@@ -356,7 +356,7 @@ contract ReentrancyAttacks is Test {
     function test_Audit_CrossContract_BondVault_To_Marketplace() public {
         // Setup: user1 lists a bond on marketplace
         uint256 epochId = _epochOfCurrentPlus24();
-        bondVault.issueBond(user1, 100);
+        bondVault.issueBond(user1, 100, 0.036e18);
 
         vm.startPrank(user1);
         claimBond.setApprovalForAll(address(marketplace), true);
@@ -379,7 +379,7 @@ contract ReentrancyAttacks is Test {
         // This is cross-contract: BondVault's nonReentrant doesn't block marketplace
         // BUT marketplace.executeBuy has its OWN nonReentrant, so it succeeds independently.
         // The key assertion: the BondVault state is consistent after the cross-contract call.
-        bondVault.issueBond(address(attacker), 200);
+        bondVault.issueBond(address(attacker), 200, 0.036e18);
 
         // Verify: attacker got 200 bonds from issueBond
         assertEq(claimBond.balanceOf(address(attacker), epochId), 200 + 50, "Should have 250 bonds total");

@@ -168,8 +168,17 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     // ═══════ TRIGGER: Submit oracle proof ═══════
 
-    /// @notice Submit a trigger proof. Anyone can call (permissionless).
-    function submitTrigger(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external nonReentrant {
+    /// @notice Submit a trigger proof. Anyone can call (permissionless),
+    ///         BUT only while the router is unpaused. Pause is the multisig's
+    ///         circuit breaker for a buggy / exploited shield: it stops new
+    ///         fraudulent triggers from settling while leaving redeemBond on
+    ///         BondVault untouched, so legitimate already-triggered policies
+    ///         can still be redeemed by users. (Audit V5.1 fix H-4.)
+    function submitTrigger(bytes32 productId, uint256 policyId, bytes calldata oracleProof)
+        external
+        nonReentrant
+        whenNotPaused
+    {
         policyManager.triggerPayout(productId, policyId, oracleProof);
         emit TriggerSubmitted(productId, policyId, msg.sender);
     }

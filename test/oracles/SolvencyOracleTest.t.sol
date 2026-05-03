@@ -62,8 +62,13 @@ contract SolvencyOracleTest is Test {
     }
 
     function test_SolvencyRatio_NoObligations() public view {
+        // [Audit fix H-11] Pre-fix this returned `type(uint256).max`,
+        // which classified the empty-vault state as ULTRA SOLVENT and let
+        // BuybackEngine treat it as a surplus condition. Now we return
+        // SOLVENCY_HEALTHY_BPS (= 10000) so the empty state is plain
+        // HEALTHY (sLevel 1) — the founder's neutral baseline.
         uint256 ratio = oracle.getSolvencyRatio();
-        assertEq(ratio, type(uint256).max, "Max if no obligations");
+        assertEq(ratio, 10000, "empty obligations: HEALTHY (10000 bps), not infinity");
     }
 
     function test_Evaluate_RespectsInterval() public {

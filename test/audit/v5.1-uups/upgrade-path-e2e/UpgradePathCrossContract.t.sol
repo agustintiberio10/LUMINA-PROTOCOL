@@ -85,7 +85,7 @@ contract UpgradePathCrossContract is Test {
 
         // Issue a bond and mint claim bonds as state before upgrade.
         vm.warp(1767225600 + 30 days);
-        vault.issueBond(makeAddr("u1"), 1000);
+        vault.issueBond(makeAddr("u1"), 1000, 0.036e18);
 
         // Upgrade EVERY contract in sequence.
         token.upgradeToAndCall(address(new LuminaTokenV2()), "");
@@ -113,7 +113,7 @@ contract UpgradePathCrossContract is Test {
         assertTrue(productActive);
 
         // Continue operations post-upgrade.
-        vault.issueBond(makeAddr("u2"), 500);
+        vault.issueBond(makeAddr("u2"), 500, 0.036e18);
         assertEq(vault.totalCommittedUSD(), 1500e18);
         pm.registerProduct(keccak256("PROD2"), makeAddr("shield2"));
         assertTrue(pm.productActive(keccak256("PROD2")));
@@ -135,7 +135,7 @@ contract UpgradePathCrossContract is Test {
 
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(address(vault));
         pm.setRouter(address(this));
-        vault.issueBond(makeAddr("u"), 1000);
+        vault.issueBond(makeAddr("u"), 1000, 0.036e18);
         pm.registerProduct(keccak256("PID"), makeAddr("shield"));
 
         // Upgrade ONLY PolicyManager and BondVault; ClaimBond stays at V1.
@@ -148,7 +148,7 @@ contract UpgradePathCrossContract is Test {
         assertEq(cb.bondVault(), address(vault));
 
         // Continue operations.
-        vault.issueBond(makeAddr("u2"), 500);
+        vault.issueBond(makeAddr("u2"), 500, 0.036e18);
         assertEq(vault.totalCommittedUSD(), 1500e18);
     }
 

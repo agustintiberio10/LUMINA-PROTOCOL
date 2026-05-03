@@ -180,7 +180,7 @@ A policy with `payoutAmount = 499999` (≈ $0.499999 in USDC) truncates to `payo
 | L-7 | Slither `divide-before-multiply` on OZ Math (`mulDiv`) | Standard OZ pattern. Not a real finding. |
 | L-8 | `solc ^0.8.20` known issues | VerbatimInvalidDeduplication, FullInlinerNonExpressionSplitArgumentEvaluationOrder. Mainly YUL/via-ir edge cases. Foundry config has `via_ir = true` → confirm OZ version pins a patched compiler; else consider bumping to 0.8.24. |
 | L-9 | `PolicyManagerV2.bondVault` not immutable | Slither suggests. It's owner-settable via… actually, it's NOT re-writable (no setter). Mark `immutable` to enforce and save gas. |
-| L-10 | `LuminaTokenV2` `DEFAULT_ADMIN_ROLE` can be renounced | Renouncing admin permanently locks BURNER_ROLE management. If TWAPBurner is ever replaced, new burner cannot be granted. Document the operational tradeoff. |
+| L-10 | `LuminaTokenV2` `DEFAULT_ADMIN_ROLE` can be renounced | Renouncing admin permanently locks BURNER_ROLE management. Lower-impact post [Fix H-1]: `burnFrom` no longer depends on BURNER_ROLE (it now uses the standard ERC20Burnable allowance check), and TWAPBurner / BondVault burn their own balance via `burn(uint256)`. BURNER_ROLE is reserved for future use; renouncing admin now only forecloses *that* future, not the current burn flow. Still, document the operational tradeoff. |
 
 ---
 
@@ -189,7 +189,7 @@ A policy with `payoutAmount = 499999` (≈ $0.499999 in USDC) truncates to `payo
 ### 4.1 `LuminaTokenV2.sol`
 - [x] `totalSupply() == 100M` after constructor — `assert(totalSupply() == MAX_SUPPLY)` enforced at line 30.
 - [x] No mint post-constructor — `_mint` is internal, no external wrapper, no function calls it after constructor.
-- [x] `burnFrom` requires BURNER_ROLE (override at line 47). `burn()` from `ERC20Burnable` is free for holder.
+- [x] `burnFrom` requires standard ERC20Burnable allowance — caller must hold `account`'s pre-approved allowance for `amount`. **[Fix H-1]** The prior override that gated `burnFrom` on `BURNER_ROLE` and bypassed `_spendAllowance` has been removed; the default `ERC20BurnableUpgradeable.burnFrom` is now active. `burn()` from `ERC20Burnable` is still free for the holder. BURNER_ROLE remains declared on the contract but is no longer consulted by `burnFrom` — it is reserved for potential future privileged burn paths. (See branch `fix/h1-burnfrom-allowance-check`.)
 - [x] `burn(0)` — OZ `_burn` reverts on zero-amount check only if balance insufficient; otherwise emits `Transfer(addr, 0x0, 0)`. Not blocked, but harmless.
 - [ ] **DEFAULT_ADMIN_ROLE renounceable** — OZ AccessControl allows `renounceRole(DEFAULT_ADMIN_ROLE, msg.sender)`. Renouncing locks role management forever. See L-10.
 
@@ -330,7 +330,7 @@ If LUMINA drops 90% post-deploy to $0.0036, and 100% of bonds redeem at once:
 | `CapacityOracle` | `luminaToken`, `usdcToken` → `immutable`. |
 | `TWAPBurner.executeBurn` | `usdc.balanceOf` read once, then recompute `amountToSwap` from local. Already done. |
 | `ClaimBond._update` | Inherits ERC1155 + ERC1155Supply `super._update` — minimal overhead. No action. |
-| `LuminaTokenV2.burnFrom` | Override bypasses the `_spendAllowance` check from OZ ERC20Burnable. Correct for BURNER_ROLE but holder `burnFrom` path (which ISN'T used here since override gates to BURNER_ROLE only) is lost. Document that holders must use `burn(amount)`. |
+| `LuminaTokenV2.burnFrom` | **[Fix H-1] Override removed.** The previous override bypassed `_spendAllowance` and gated solely on BURNER_ROLE — this allowed any BURNER_ROLE holder to burn from arbitrary addresses without consent. The contract now uses the default `ERC20BurnableUpgradeable.burnFrom`, which calls `_spendAllowance(account, _msgSender(), amount)` before burning. Holders who want to delegate a burn must `approve` the burner first. TWAPBurner and BondVault burn their *own* balance via `burn(uint256)`, so they never needed `burnFrom` and are unaffected by the fix. |
 
 ---
 

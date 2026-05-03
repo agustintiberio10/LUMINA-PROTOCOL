@@ -60,7 +60,7 @@ contract BondVaultHandler is Test {
 
         address user = users[userIdx];
 
-        try vault.issueBond(user, amount) {
+        try vault.issueBond(user, amount, 0.036e18) {
             totalBondsIssued += amount;
             issueCalls++;
         } catch {

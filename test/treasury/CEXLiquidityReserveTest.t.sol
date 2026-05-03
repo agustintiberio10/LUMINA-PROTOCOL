@@ -32,6 +32,11 @@ contract MockLUMINA {
     }
 }
 
+/// @notice Core suite for `CEXLiquidityReserve`. Post-Tier-1-redesign:
+///         the V1 sub-bucket model (Immediate/Vesting/Strategic) is gone,
+///         so every test that gated on per-bucket availability, the
+///         linear vesting curve, or the 547d strategic lock has been
+///         removed or rewritten against the new flat-reserve semantics.
 contract CEXLiquidityReserveTest is Test {
     using ProxyDeployer for *;
 
@@ -50,6 +55,7 @@ contract CEXLiquidityReserveTest is Test {
     function test_Constructor_CorrectInit() public view {
         assertEq(address(reserve.lumina()), address(lumina));
         assertEq(reserve.TOTAL_AMOUNT(), 14_000_000 * 1e18);
+        assertEq(reserve.monthlyCap(), 1_000_000 * 1e18, "default cap");
     }
 
     function test_RevertIf_ConstructorZeroAddresses() public {
@@ -64,154 +70,50 @@ contract CEXLiquidityReserveTest is Test {
         );
     }
 
-    function test_Allocate_FromImmediateUse_Success() public {
+    function test_Allocate_Success() public {
         vm.prank(multisig);
-        reserve.allocate(
-            recipient,
-            1_000_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3,
-            "Tier 3 listing"
-        );
+        reserve.allocate(recipient, 1_000_000 * 1e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3, "Tier 3 listing");
         assertEq(lumina.balanceOf(recipient), 1_000_000 * 1e18);
-        assertEq(reserve.allocatedFromImmediate(), 1_000_000 * 1e18);
-    }
-
-    function test_RevertIf_AllocateFromStrategicBeforeUnlock() public {
-        vm.prank(multisig);
-        vm.expectRevert("Insufficient in sub-bucket");
-        reserve.allocate(
-            recipient,
-            1e18,
-            CEXLiquidityReserve.SubBucket.StrategicReserve,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1,
-            "Too early"
-        );
-    }
-
-    function test_Allocate_FromStrategicAfterUnlock() public {
-        vm.warp(block.timestamp + 548 days); // After 547d lock
-        vm.prank(multisig);
-        reserve.allocate(
-            recipient,
-            1_000_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.StrategicReserve,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1,
-            "Tier 1"
-        );
-        assertEq(reserve.allocatedFromStrategic(), 1_000_000 * 1e18);
+        assertEq(reserve.totalAllocated(), 1_000_000 * 1e18);
     }
 
     function test_RevertIf_AllocateExceedsMonthlyCap() public {
         vm.startPrank(multisig);
-        reserve.allocate(
-            recipient,
-            1_000_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Max"
-        );
+        reserve.allocate(recipient, 1_000_000 * 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Max");
         vm.expectRevert("Monthly cap exceeded");
-        reserve.allocate(
-            recipient,
-            1,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Over"
-        );
+        reserve.allocate(recipient, 1, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Over");
         vm.stopPrank();
     }
 
     function test_RevertIf_AllocateZeroAmount() public {
         vm.prank(multisig);
-        vm.expectRevert("Amount zero");
-        reserve.allocate(
-            recipient,
-            0,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Zero"
-        );
+        vm.expectRevert("Zero amount");
+        reserve.allocate(recipient, 0, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Zero");
+    }
+
+    function test_RevertIf_AllocateZeroRecipient() public {
+        vm.prank(multisig);
+        vm.expectRevert("Zero recipient");
+        reserve.allocate(address(0), 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Zero recipient");
     }
 
     function test_RevertIf_AllocateUnauthorized() public {
         vm.prank(makeAddr("random"));
         vm.expectRevert();
-        reserve.allocate(
-            recipient,
-            1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Unauth"
-        );
-    }
-
-    function test_GetVestedAmount_LinearOverTime() public {
-        assertEq(reserve.getVestedAmount(), 0);
-        vm.warp(block.timestamp + 365 days); // ~50% vested
-        uint256 vested = reserve.getVestedAmount();
-        assertGt(vested, 4_000_000 * 1e18);
-        assertLt(vested, 4_500_000 * 1e18);
-    }
-
-    function test_GetVestedAmount_FullAfter24Months() public {
-        vm.warp(block.timestamp + 731 days);
-        assertEq(reserve.getVestedAmount(), 8_400_000 * 1e18);
+        reserve.allocate(recipient, 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Unauth");
     }
 
     function test_AllocationHistory_RecordsAll() public {
         vm.prank(multisig);
-        reserve.allocate(
-            recipient,
-            100 * 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "First"
-        );
+        reserve.allocate(recipient, 100 * 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "First");
         assertEq(reserve.getAllocationHistoryLength(), 1);
-    }
-
-    // ---- New tests ----
-
-    function test_GetAvailableInBucket_Immediate() public view {
-        uint256 avail = reserve.getAvailableInBucket(CEXLiquidityReserve.SubBucket.ImmediateUse);
-        assertEq(avail, 2_800_000 * 1e18, "Full immediate amount available at start");
-    }
-
-    function test_GetAvailableInBucket_Vesting_AtMidpoint() public {
-        vm.warp(block.timestamp + 365 days);
-        uint256 avail = reserve.getAvailableInBucket(CEXLiquidityReserve.SubBucket.VestingLinear);
-        // 365/730 = 50% of 8.4M = 4.2M
-        assertGt(avail, 4_100_000 * 1e18, "Should be ~50% vested");
-        assertLt(avail, 4_300_000 * 1e18, "Should be ~50% vested");
-    }
-
-    function test_GetAvailableInBucket_Strategic_BeforeAndAfter() public {
-        uint256 before_ = reserve.getAvailableInBucket(CEXLiquidityReserve.SubBucket.StrategicReserve);
-        assertEq(before_, 0, "Strategic locked before 547d");
-
-        vm.warp(block.timestamp + 548 days);
-        uint256 after_ = reserve.getAvailableInBucket(CEXLiquidityReserve.SubBucket.StrategicReserve);
-        assertEq(after_, 2_800_000 * 1e18, "Full strategic after unlock");
     }
 
     function test_GetTotalAllocated_Correct() public {
         vm.startPrank(multisig);
-        reserve.allocate(
-            recipient,
-            500_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Alloc 1"
-        );
-        vm.warp(block.timestamp + 365 days);
-        reserve.allocate(
-            recipient,
-            200_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.VestingLinear,
-            CEXLiquidityReserve.Purpose.MARKET_MAKER_LOAN,
-            "Alloc 2"
-        );
+        reserve.allocate(recipient, 500_000 * 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Alloc 1");
+        vm.warp(block.timestamp + 31 days); // cross monthly bucket
+        reserve.allocate(recipient, 200_000 * 1e18, CEXLiquidityReserve.Purpose.MARKET_MAKER_LOAN, "Alloc 2");
         vm.stopPrank();
         assertEq(reserve.getTotalAllocated(), 700_000 * 1e18, "Sum of both allocations");
     }
@@ -224,25 +126,13 @@ contract CEXLiquidityReserveTest is Test {
 
     function test_GetMonthlyCapRemaining_DecreasesWithAllocations() public {
         vm.prank(multisig);
-        reserve.allocate(
-            recipient,
-            500_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3,
-            "Half cap"
-        );
+        reserve.allocate(recipient, 500_000 * 1e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3, "Half cap");
         assertEq(reserve.getMonthlyCapRemaining(), 500_000 * 1e18, "Remaining = 500K");
     }
 
     function test_GetMonthlyCapRemaining_ResetsNextMonth() public {
         vm.prank(multisig);
-        reserve.allocate(
-            recipient,
-            500_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3,
-            "Month 0 alloc"
-        );
+        reserve.allocate(recipient, 500_000 * 1e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_3, "Month 0 alloc");
         vm.warp(block.timestamp + 30 days);
         assertEq(reserve.getMonthlyCapRemaining(), 1_000_000 * 1e18, "Full cap in new month");
     }
@@ -255,77 +145,47 @@ contract CEXLiquidityReserveTest is Test {
         }
         vm.prank(multisig);
         vm.expectRevert("Description too long");
-        reserve.allocate(
-            recipient,
-            1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            string(longDesc)
-        );
+        reserve.allocate(recipient, 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, string(longDesc));
+    }
+
+    function test_DescriptionEmpty_Reverts() public {
+        vm.prank(multisig);
+        vm.expectRevert("Description required");
+        reserve.allocate(recipient, 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "");
     }
 
     function test_AllocateExactlyAtCap_Success() public {
         vm.prank(multisig);
-        reserve.allocate(
-            recipient,
-            1_000_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_2,
-            "Exactly at cap"
-        );
+        reserve.allocate(recipient, 1_000_000 * 1e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_2, "Exactly at cap");
         assertEq(reserve.getMonthlyCapRemaining(), 0, "Cap fully used");
         assertEq(lumina.balanceOf(recipient), 1_000_000 * 1e18);
     }
 
     function test_MultipleAllocationsTrackSeparately() public {
         vm.startPrank(multisig);
-        reserve.allocate(
-            recipient,
-            300_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.ImmediateUse,
-            CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL,
-            "Immediate alloc"
-        );
-        vm.warp(block.timestamp + 548 days);
-        reserve.allocate(
-            recipient,
-            200_000 * 1e18,
-            CEXLiquidityReserve.SubBucket.StrategicReserve,
-            CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1,
-            "Strategic alloc"
-        );
+        reserve.allocate(recipient, 300_000 * 1e18, CEXLiquidityReserve.Purpose.DEX_SECONDARY_POOL, "Alloc 1");
+        vm.warp(block.timestamp + 31 days);
+        reserve.allocate(recipient, 200_000 * 1e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1, "Alloc 2");
         vm.stopPrank();
 
-        assertEq(reserve.allocatedFromImmediate(), 300_000 * 1e18, "Immediate tracked");
-        assertEq(reserve.allocatedFromStrategic(), 200_000 * 1e18, "Strategic tracked");
-        assertEq(reserve.allocatedFromVesting(), 0, "Vesting untouched");
+        assertEq(reserve.totalAllocated(), 500_000 * 1e18, "Cumulative tracked");
+        assertEq(reserve.getAllocationHistoryLength(), 2);
     }
 
-    function test_AllocateFromVesting_RespectSchedule() public {
-        // At time 0, no vesting available
+    function test_AllocateAtTOTAL_AMOUNTCeiling() public {
+        // Lift cap so the cumulative ceiling, not the monthly cap, becomes
+        // the binding constraint for this drain pattern.
         vm.prank(multisig);
-        vm.expectRevert("Insufficient in sub-bucket");
-        reserve.allocate(
-            recipient,
-            1e18,
-            CEXLiquidityReserve.SubBucket.VestingLinear,
-            CEXLiquidityReserve.Purpose.MARKET_MAKER_LOAN,
-            "Too early vesting"
-        );
+        reserve.setMonthlyCap(14_000_000 * 1e18);
 
-        // Warp 365 days => ~4.2M vested, allocate up to monthly cap (1M)
-        vm.warp(block.timestamp + 365 days);
-        uint256 avail = reserve.getAvailableInBucket(CEXLiquidityReserve.SubBucket.VestingLinear);
-        assertGt(avail, 1_000_000 * 1e18, "Should have >1M vested");
-        uint256 allocAmount = 1_000_000 * 1e18; // monthly cap
         vm.prank(multisig);
-        reserve.allocate(
-            recipient,
-            allocAmount,
-            CEXLiquidityReserve.SubBucket.VestingLinear,
-            CEXLiquidityReserve.Purpose.MARKET_MAKER_LOAN,
-            "Allocate within cap"
-        );
-        assertEq(reserve.allocatedFromVesting(), allocAmount);
+        reserve.allocate(recipient, 14_000_000 * 1e18, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1, "Drain reserve");
+        assertEq(reserve.totalAllocated(), 14_000_000 * 1e18);
+
+        // One wei more — must revert "Exceeds total reserve".
+        vm.warp(block.timestamp + 31 days);
+        vm.prank(multisig);
+        vm.expectRevert("Exceeds total reserve");
+        reserve.allocate(recipient, 1, CEXLiquidityReserve.Purpose.CEX_LISTING_TIER_1, "Over total");
     }
 }

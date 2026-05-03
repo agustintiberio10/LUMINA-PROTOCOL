@@ -13,12 +13,27 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 /// @notice $LUMINA token — 100M fixed supply, deflationary by design.
 /// @dev Distribution V5.0: 70% BondVault | 14% CEX Reserve | 8% Founder | 5% LBP | 3% Treasury
 ///      No mint function. Supply only decreases via burn.
-///      BURNER_ROLE allows the TWAPBurner contract to burn tokens.
+///
+///      Burn paths (post [Fix H-1]):
+///      - `burn(amount)`        : holder burns their own balance (ERC20Burnable default).
+///      - `burnFrom(acct, amt)` : caller must hold `acct`'s ERC20 allowance for `amt`
+///                                (ERC20Burnable default — allowance check restored).
+///      TWAPBurner and BondVault burn their OWN balance via `burn()`, so no allowance
+///      is needed. BURNER_ROLE is kept as a reserved privilege for future use but is
+///      no longer required by `burnFrom` — the standard allowance check is sufficient.
+///
+///      [Fix H-1] Removed the prior override of `burnFrom` that bypassed the
+///      ERC20Burnable allowance check. The previous behavior allowed any
+///      BURNER_ROLE holder to burn tokens from any address without consent,
+///      which is exploitable if (a) the role is ever granted to a buggy
+///      contract, (b) the multisig is compromised and grants the role to an
+///      attacker, or (c) the token is upgraded to grant the role to additional
+///      callers. The standard ERC20Burnable.burnFrom now applies.
 ///
 ///      [L-10] WARNING: Renouncing DEFAULT_ADMIN_ROLE permanently locks
-///      BURNER_ROLE management. If TWAPBurner is ever replaced, the new
-///      burner cannot be granted the role. Only renounce after final
-///      TWAPBurner deployment is confirmed stable.
+///      BURNER_ROLE management. Only renounce after final TWAPBurner
+///      deployment is confirmed stable. (Less critical post H-1: no in-protocol
+///      flow currently depends on BURNER_ROLE for `burnFrom`.)
 ///
 ///      [V5.1] UUPS upgradeable proxy pattern.
 contract LuminaTokenV2 is
@@ -84,13 +99,14 @@ contract LuminaTokenV2 is
         return MAX_SUPPLY - totalSupply();
     }
 
-    /// @notice Allows BURNER_ROLE to burn tokens from any address (for TWAPBurner)
-    /// @param account The address to burn from
-    /// @param amount The amount to burn
-    function burnFrom(address account, uint256 amount) public override onlyRole(BURNER_ROLE) {
-        _burn(account, amount);
-    }
-
+    /// @notice Burns `amount` tokens from `account`, deducting from the caller's
+    ///         allowance. Standard ERC20Burnable semantics — caller MUST have
+    ///         been pre-approved by `account` for at least `amount` tokens.
+    /// @dev    [Fix H-1] The prior override that bypassed `_spendAllowance` and
+    ///         gated solely on BURNER_ROLE has been removed. The default
+    ///         `ERC20BurnableUpgradeable.burnFrom` is now active, which calls
+    ///         `_spendAllowance(account, _msgSender(), amount)` before burning.
+    ///         This is intentionally NOT overridden — see contract-level NatSpec.
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     // Storage gap for future upgrades

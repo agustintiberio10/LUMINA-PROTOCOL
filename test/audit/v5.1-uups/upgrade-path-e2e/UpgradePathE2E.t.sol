@@ -140,24 +140,24 @@ contract UpgradePathE2E is Test {
 
     function test_UpgradeE2E_BondVault_WithActiveState() public {
         (BondVault vault,,) = _deployBondVaultFull();
-        vault.issueBond(makeAddr("u1"), 1000);
-        vault.issueBond(makeAddr("u2"), 2000);
+        vault.issueBond(makeAddr("u1"), 1000, 0.036e18);
+        vault.issueBond(makeAddr("u2"), 2000, 0.036e18);
         uint256 committedBefore = vault.totalCommittedUSD();
 
         vault.upgradeToAndCall(address(new BondVault()), "");
 
         assertEq(vault.totalCommittedUSD(), committedBefore);
-        vault.issueBond(makeAddr("u3"), 500);
+        vault.issueBond(makeAddr("u3"), 500, 0.036e18);
         assertEq(vault.totalCommittedUSD(), committedBefore + 500e18);
     }
 
     function test_UpgradeE2E_BondVault_SequentialUpgrades() public {
         (BondVault vault,,) = _deployBondVaultFull();
-        vault.issueBond(makeAddr("u1"), 1000);
+        vault.issueBond(makeAddr("u1"), 1000, 0.036e18);
         vault.upgradeToAndCall(address(new BondVault()), "");
-        vault.issueBond(makeAddr("u2"), 2000);
+        vault.issueBond(makeAddr("u2"), 2000, 0.036e18);
         vault.upgradeToAndCall(address(new BondVault()), "");
-        vault.issueBond(makeAddr("u3"), 3000);
+        vault.issueBond(makeAddr("u3"), 3000, 0.036e18);
         vault.upgradeToAndCall(address(new BondVault()), "");
         assertEq(vault.totalCommittedUSD(), 6000e18);
     }
@@ -168,7 +168,7 @@ contract UpgradePathE2E is Test {
 
         vault.setAuthorizedCaller(makeAddr("buyback"), true);
         assertTrue(vault.authorizedCallers(makeAddr("buyback")));
-        vault.issueBond(makeAddr("u"), 100);
+        vault.issueBond(makeAddr("u"), 100, 0.036e18);
         assertEq(vault.totalCommittedUSD(), 100e18);
     }
 
