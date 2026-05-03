@@ -341,21 +341,19 @@ contract MathEdgeCases is Test {
         assertEq(ratio, type(uint256).max, "Solvency ratio should be max when no obligations");
     }
 
-    /// @notice LUMINA conversion when oracle price = 0 must use emergency fallback
-    function test_divZero_luminaPrice_zero_fallback() public {
+    /// @notice [Fix C-3] Oracle price = 0 → _getSafePrice now reverts (no silent fallback).
+    function test_divZero_luminaPrice_zero_reverts() public {
         // Issue bonds while price is normal (capacity check needs non-zero price)
         vault.issueBond(user, 100);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
-        // Now set price to 0 — redemption uses _getSafePrice which falls back to MIN_REDEEM_PRICE
+        // Set price to 0 — _getSafePrice reverts with the new check
         oracle.setPrice(0);
 
         vm.prank(user);
+        vm.expectRevert("Oracle price out of range");
         vault.redeemBond(epochId, 1);
-        // If no revert, fallback worked. Verify non-zero LUMINA received.
-        uint256 luminaBal = token.balanceOf(user);
-        assertGt(luminaBal, 0, "User should receive LUMINA even when oracle returns 0");
     }
 
     /// @notice Premium calc with triggerProbBps = 0 yields premium = 1 (minimum)
@@ -720,39 +718,52 @@ contract MathEdgeCases is Test {
     // CATEGORY 8: CHAINLINK / ORACLE EDGE CASES (3 tests)
     // ═══════════════════════════════════════════════════════
 
-    /// @notice Oracle returns 0 → _getSafePrice fallback to MIN_REDEEM_PRICE
-    function test_oracle_returnsZero_fallback() public {
+    /// @notice [Fix C-3] Oracle returns 0 → _getSafePrice reverts.
+    function test_oracle_returnsZero_reverts() public {
         oracle.setPrice(0);
-        // _getSafePrice: price > 0 ? price : MIN_REDEEM_PRICE
-        // MIN_REDEEM_PRICE = 0.001e18
-
-        // Verify via previewRedemption which uses _getSafePrice
-        uint256 preview = vault.previewRedemption(100);
-        // 100 * 1e36 / 0.001e18 = 100e36 / 1e15 = 1e23
-        uint256 expected = (100 * 1e36) / 0.001e18;
-        assertEq(preview, expected, "Should use MIN_REDEEM_PRICE when oracle returns 0");
+        vm.expectRevert("Oracle price out of range");
+        vault.previewRedemption(100);
     }
 
-    /// @notice Oracle returns very small value (near floor)
-    function test_oracle_verySmallPrice() public {
-        oracle.setPrice(0.001e18); // $0.001 — at MIN_REDEEM_PRICE
+    /// @notice [Fix C-3] Oracle returns at the new floor ($0.005).
+    function test_oracle_atFloorPrice() public {
+        oracle.setPrice(5e15); // $0.005 — at new MIN_REDEEM_PRICE
 
         vault.issueBond(user, 10);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
-        // At $0.001, $10 of bonds = 10 * 1e36 / 1e15 = 1e22 LUMINA wei = 10,000 LUMINA
+        // At $0.005, $10 of bonds = 10 * 1e36 / 5e15 = 2e21 LUMINA wei = 2,000 LUMINA
         vm.prank(user);
         vault.redeemBond(epochId, 10);
 
         uint256 received = token.balanceOf(user);
-        uint256 expected = (10 * 1e36) / 0.001e18;
-        assertEq(received, expected, "Redemption at floor price must be exact");
+        uint256 expected = (uint256(10) * 1e36) / 5e15;
+        assertEq(received, expected, "Redemption at new floor price must be exact");
+        assertEq(received, 2000 * 1e18, "Should receive 2000 LUMINA for $10 at $0.005/LUMINA");
     }
 
-    /// @notice Oracle returns very large value ($1000 per LUMINA)
-    function test_oracle_veryLargePrice() public {
-        oracle.setPrice(1000e18); // $1000 per LUMINA
+    /// @notice [F-REVERSE-1] Oracle returns >= MAX_REDEEM_PRICE → reverts.
+    function test_oracle_atOrAboveMaxPrice_reverts() public {
+        oracle.setPrice(1000e18); // exactly MAX_REDEEM_PRICE — must revert (strict <)
+
+        vault.issueBond(user, 800);
+        uint256 epochId = _currentEpochPlus24();
+        vm.warp(block.timestamp + 731 days);
+
+        vm.prank(user);
+        vm.expectRevert("Oracle price out of range");
+        vault.redeemBond(epochId, 800);
+
+        oracle.setPrice(type(uint256).max);
+        vm.prank(user);
+        vm.expectRevert("Oracle price out of range");
+        vault.redeemBond(epochId, 800);
+    }
+
+    /// @notice [F-REVERSE-1] Oracle just below MAX_REDEEM_PRICE works.
+    function test_oracle_justBelowMaxPrice() public {
+        oracle.setPrice(999e18); // just below MAX
 
         vault.issueBond(user, 800);
         uint256 epochId = _currentEpochPlus24();
@@ -762,10 +773,8 @@ contract MathEdgeCases is Test {
         vault.redeemBond(epochId, 800);
 
         uint256 received = token.balanceOf(user);
-        // 800 * 1e36 / 1000e18 = 800e36 / 1e21 = 8e17 = 0.8 LUMINA
-        uint256 expected = (800 * 1e36) / 1000e18;
-        assertEq(received, expected, "Redemption at high price must be exact");
-        assertEq(received, 8e17, "Should receive 0.8 LUMINA for $800 at $1000/LUMINA");
+        uint256 expected = (uint256(800) * 1e36) / 999e18;
+        assertEq(received, expected, "Redemption just below MAX must be exact");
     }
 
     // ═══════════════════════════════════════════════════════

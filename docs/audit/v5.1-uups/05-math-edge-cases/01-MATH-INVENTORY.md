@@ -17,7 +17,8 @@ post-deploy admin action or upgrade (unless the implementation itself is replace
 |----------|----------|-------|------|
 | `SAFETY_FACTOR_BPS` | BondVault | 5000 | `public constant` |
 | `BOND_MATURITY_SECONDS` | BondVault | 730 days | `public constant` |
-| `MIN_REDEEM_PRICE` | BondVault | 0.001e18 | `public constant` |
+| `MIN_REDEEM_PRICE` | BondVault | 5e15 (0.005 USD) — [Fix C-3] raised from 1e15 | `public constant` |
+| `MAX_REDEEM_PRICE` | BondVault | 1000e18 (1000 USD) — [F-REVERSE-1] new upper bound | `public constant` |
 | `BOND_RESERVE` | CapacityOracle | 70_000_000e18 | `public constant` |
 | `SAFETY_FACTOR_BPS` | CapacityOracle | 5000 | `public constant` |
 | `AVG_PAYOUT_USD` | CapacityOracle | 500 | `public constant` |
@@ -63,8 +64,9 @@ if premium == 0 → premium = 1   // minimum 1 µUSD
 luminaAmount = (usdAmount × 1e36) / currentPrice
 ```
 - `currentPrice` in 18-dec; `usdAmount` in integer dollars; result 18-dec LUMINA wei.
-- Price floored to `MIN_REDEEM_PRICE = 0.001e18` by `_getSafePrice`, preventing
-  div-by-zero.
+- [Fix C-3] Price NO LONGER floored — `_getSafePrice` reverts if oracle returns 0,
+  reverts if oracle returns ≥ `MAX_REDEEM_PRICE` (1000e18). `redeemBond` also
+  enforces `currentPrice >= MIN_REDEEM_PRICE = 5e15` (= CoverRouter floor).
 - Rounds DOWN — holder receives floor LUMINA, protocol keeps dust.
 
 ### 3. Capacity (`BondVault.availableCapacityUSD`)
@@ -136,7 +138,7 @@ an APY threshold. Comparisons stay in RAY space to avoid precision loss.
 | 2 | Premium overflow on large coverage | Explicit revert or graceful min. |
 | 3 | Capacity underflow | `<=` check returns 0, never underflows. |
 | 4 | Solvency div-by-zero | Returns ULTRA_BPS fallback. |
-| 5 | Redeem div-by-zero | Price floored to `MIN_REDEEM_PRICE`. |
+| 5 | Redeem div-by-zero | [Fix C-3] _getSafePrice reverts on 0 (no silent fallback). [F-REVERSE-1] also reverts on price ≥ MAX_REDEEM_PRICE. |
 | 6 | USDC-6 → LUMINA-18 precision | Always multiply before divide. |
 | 7 | Epoch at year boundary | IDs stay within [202600, 210012]. |
 | 8 | Distribution sum invariant | All 16 rows sum exactly 10000. |

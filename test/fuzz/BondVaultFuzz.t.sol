@@ -78,7 +78,9 @@ contract BondVaultFuzz is Test {
     /// @notice Fuzz: issue then redeem at random price, verify LUMINA received.
     function testFuzz_issueAndRedeem(uint256 amount, uint256 priceWad) public {
         amount = bound(amount, 1, 100_000);
-        priceWad = bound(priceWad, 0.001e18, 100e18);
+        // [Fix C-3] MIN_REDEEM_PRICE raised from 0.001e18 to 5e15 — fuzz lower bound
+        // updated to match the new floor.
+        priceWad = bound(priceWad, 5e15, 100e18);
 
         // Limit to capacity
         uint256 cap = vault.availableCapacityUSD();
@@ -115,7 +117,8 @@ contract BondVaultFuzz is Test {
     /// @notice Fuzz: issue, partial redeem at random amount, verify remainder.
     function testFuzz_partialRedeem(uint256 totalBond, uint256 redeemPart, uint256 priceWad) public {
         totalBond = bound(totalBond, 2, 50_000);
-        priceWad = bound(priceWad, 0.001e18, 100e18);
+        // [Fix C-3] Floor raised to 5e15 — see testFuzz_issueAndRedeem.
+        priceWad = bound(priceWad, 5e15, 100e18);
 
         uint256 cap = vault.availableCapacityUSD();
         if (totalBond > cap) return;
@@ -136,6 +139,8 @@ contract BondVaultFuzz is Test {
     }
 
     /// @notice Fuzz: redemption at MIN_REDEEM_PRICE boundary.
+    /// @dev    [Fix C-3] Updated to test the new floor 5e15 ($0.005). At the
+    ///         floor, $1 of bond pays 200 LUMINA (= 1e36 / 5e15 = 2e20 = 200 * 1e18).
     function testFuzz_redeemAtFloorPrice(uint256 amount) public {
         amount = bound(amount, 1, 1000);
 
@@ -146,15 +151,15 @@ contract BondVaultFuzz is Test {
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        // Set to exactly MIN_REDEEM_PRICE ($0.001)
-        oracle.setPrice(0.001e18);
+        // Set to exactly MIN_REDEEM_PRICE ($0.005)
+        oracle.setPrice(5e15);
 
         uint256 balBefore = token.balanceOf(user);
         vm.prank(user);
         vault.redeemBond(epoch, amount);
         uint256 received = token.balanceOf(user) - balBefore;
 
-        // amount * 1e36 / 0.001e18 = amount * 1e36 / 1e15 = amount * 1e21
-        assertEq(received, amount * 1e21, "Floor redemption should give amount * 1000 LUMINA");
+        // amount * 1e36 / 5e15 = amount * 1e36 / 5e15 = amount * 2e20 = amount * 200 * 1e18
+        assertEq(received, amount * 200 * 1e18, "Floor redemption should give amount * 200 LUMINA");
     }
 }

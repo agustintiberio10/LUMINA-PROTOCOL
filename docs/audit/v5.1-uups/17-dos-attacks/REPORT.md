@@ -57,7 +57,8 @@ We mapped every DOS class (griefing, gas exhaustion, state lock, economic DOS, u
 - `validUntil` window (BuybackEngine)
 - Capacity reservation flow (BondVault.reserveCapacity / commitReservation / releaseReservation)
 - `SAFETY_FACTOR_BPS = 5000` (BondVault)
-- `MIN_REDEEM_PRICE = 0.001e18` (BondVault)
+- `MIN_REDEEM_PRICE = 5e15` (BondVault) — [Fix C-3] aligned with CoverRouter floor
+- `MAX_REDEEM_PRICE = 1000e18` (BondVault) — [F-REVERSE-1] sanity upper bound
 - `MIN_PRICE_FOR_NEW_POLICIES = 5e15` (CoverRouterV2 auto-pause)
 - `_authorizeUpgrade` role check (every UUPS contract)
 - Mapping-only architecture (no iterable arrays in user paths)

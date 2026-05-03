@@ -87,6 +87,27 @@ contract DeployLuminaV5Complete is Script {
         address rateShockShield;
     }
 
+    /// @dev Base Mainnet chain ID. Used to gate mainnet-only safety checks
+    ///      (e.g. enforcing that LBP_DEPOSIT is a contract / multisig) so
+    ///      the same script can still be exercised on forks / anvil / other
+    ///      chains by tests that supply EOA placeholders.
+    uint256 internal constant BASE_MAINNET_CHAIN_ID = 8453;
+
+    /// @notice Reverts if the supplied LBP deposit address has no contract code.
+    /// @dev On Base Mainnet (chainId 8453) the founder commits to using a
+    ///      Gnosis Safe (multisig contract) as the LBP recipient. Without this
+    ///      guard, a misconfiguration that points `LBP_DEPOSIT` at a fresh
+    ///      EOA would silently mint the 5M LUMINA LBP allocation to that EOA
+    ///      with no recovery path. See audit V5.1 fix C-1.
+    /// @dev Exposed as `internal` so tests can exercise the check directly
+    ///      without running the full deploy.
+    function _validateLBPDeposit(address lbpDeposit) internal view {
+        require(
+            lbpDeposit.code.length > 0,
+            "LBP_DEPOSIT must be a contract (multisig), not an EOA. Deploy your Gnosis Safe first and set LBP_DEPOSIT to its address."
+        );
+    }
+
     function run() external {
         // ───── Load config from env ─────
         DeploymentConfig memory cfg = DeploymentConfig({
@@ -99,6 +120,15 @@ contract DeployLuminaV5Complete is Script {
             chainlinkOracle: vm.envAddress("CHAINLINK_ORACLE"),
             aavePool: vm.envAddress("AAVE_POOL")
         });
+
+        // ───── Mainnet-only safety gate (audit V5.1 fix C-1) ─────
+        // On Base Mainnet, LBP_DEPOSIT must be a contract (Gnosis Safe).
+        // FOUNDER_RECIPIENT is intentionally an EOA per
+        // docs/audit/v5.1-uups/39-mainnet-dry-run/REPORT.md and is NOT
+        // checked here.
+        if (block.chainid == BASE_MAINNET_CHAIN_ID) {
+            _validateLBPDeposit(cfg.lbpDeposit);
+        }
 
         DeploymentResult memory res;
 

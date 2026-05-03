@@ -687,7 +687,10 @@ contract DeployScriptsTest is Test {
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.vault.SAFETY_FACTOR_BPS(), 5000);
         assertEq(d.vault.BOND_MATURITY_SECONDS(), 730 days);
-        assertEq(d.vault.MIN_REDEEM_PRICE(), 0.001e18);
+        // [Fix C-3] MIN_REDEEM_PRICE raised from 0.001e18 to 5e15.
+        assertEq(d.vault.MIN_REDEEM_PRICE(), 5e15);
+        // [F-REVERSE-1] MAX_REDEEM_PRICE upper bound added.
+        assertEq(d.vault.MAX_REDEEM_PRICE(), 1000e18);
     }
 
     function test_Deploy_InitialParams_Marketplace_FeeConstants() public {

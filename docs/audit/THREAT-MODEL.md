@@ -18,9 +18,9 @@ Category: Economic
 Actor: whale
 Description: Attacker suppresses LUMINA price, then redeems matured bonds. At lower price, `luminaAmount = usdAmount * 1e36 / currentPrice` yields more LUMINA per dollar of bonds, draining reserves faster.
 Impact: HIGH
-Current mitigation: MIN_REDEEM_PRICE at $0.001 caps maximum LUMINA per redemption. _getSafePrice() returns MIN_REDEEM_PRICE on oracle failure.
-Test coverage: test_redeem_bond_min_price, test_safe_price_fallback
-Residual risk: At $0.001 floor, $1 bond redeems 1M LUMINA. With 70M reserves, 70 bonds drain the vault. Floor may be too low.
+Current mitigation: [Fix C-3] MIN_REDEEM_PRICE raised to $0.005 (aligned with CoverRouter auto-pause floor). At the floor, $1 bond redeems 200 LUMINA (was 1M LUMINA at the old $0.001 floor). With 70M reserves, the vault sustains $350K of redemptions at the worst-case floor (was $70K). _getSafePrice() now reverts on oracle failure (no silent fallback to floor) and on prices ≥ MAX_REDEEM_PRICE = 1000e18 [F-REVERSE-1].
+Test coverage: test_RedemptionAtMinPrice, test_RedemptionWithFailingOracle, test_RedemptionWithZeroOracle, test_DrainAttackBlocked, test_RedemptionWithAnomalouslyHighOracle.
+Residual risk: At $0.005 floor, large epoch concentration ($350K+) still drains the vault. Bank-run defense (per-epoch cap, queue, pause) is the C-4 follow-up fix.
 
 THREAT 3: BuybackEngine Double Burn Draining Reserves Below Solvency
 Category: Economic

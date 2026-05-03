@@ -16,7 +16,8 @@ and **1 wei/unit above** wherever applicable.
 |-----------|-------|------|
 | burn cap per tx | 5% of reserve | exact / below / above |
 | SAFETY_FACTOR_BPS | 5000 (50%) | commit = 50% → avail = 0; −$1 → avail = $1 |
-| MIN_REDEEM_PRICE | 1e15 (0.001 USD/LUMINA) | value assertion |
+| MIN_REDEEM_PRICE | 5e15 (0.005 USD/LUMINA) — [Fix C-3] raised from 1e15 | value assertion |
+| MAX_REDEEM_PRICE | 1000e18 (1000 USD/LUMINA) — [F-REVERSE-1] new sanity upper bound | value assertion |
 | BOND_MATURITY_SECONDS | 730 days | value assertion |
 
 ### SolvencyOracle

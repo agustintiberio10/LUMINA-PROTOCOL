@@ -71,7 +71,8 @@ contract BondVaultHandler is Test {
     function redeemBond(uint256 userIdx, uint256 amount, uint256 priceWad) external {
         userIdx = bound(userIdx, 0, users.length - 1);
         amount = bound(amount, 1, 10_000);
-        priceWad = bound(priceWad, 0.001e18, 100e18);
+        // [Fix C-3] MIN_REDEEM_PRICE raised to 5e15.
+        priceWad = bound(priceWad, 5e15, 100e18);
 
         address user = users[userIdx];
 

@@ -148,7 +148,7 @@ Despite the CRITICAL finding, every OTHER aspect of the deploy scripts works cor
 - ✅ BuybackEngine authorized as BondVault caller.
 - ✅ TWAPBurner: adaptiveMode on, reserves wired, BURNER_ROLE granted, authorized sender set, capacity oracle linked.
 - ✅ Admin roles on deployer (pre-transfer).
-- ✅ Constants unchanged: SAFETY_FACTOR_BPS=5000, MIN_REDEEM_PRICE=0.001e18, MIN_PRICE_FOR_NEW_POLICIES=5e15, fees=150/150.
+- ✅ Constants: SAFETY_FACTOR_BPS=5000, MIN_REDEEM_PRICE=5e15 ([Fix C-3] raised from 0.001e18), MAX_REDEEM_PRICE=1000e18 ([F-REVERSE-1] new), MIN_PRICE_FOR_NEW_POLICIES=5e15, fees=150/150.
 
 ---
 

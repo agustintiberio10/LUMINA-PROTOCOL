@@ -728,11 +728,13 @@ contract AttackVectors is Test, ERC1155Holder {
         // trigger a policy, get a bond, then crash price and redeem.
 
         // Simpler: directly test that the BondVault's redeemBond function has NO reference to
-        // circuit breaker by calling it with a very low oracle price that's still above MIN_REDEEM_PRICE.
-        // MIN_REDEEM_PRICE = 0.001e18
-
-        // The circuit breaker threshold is $0.005 (5e15). Set price to $0.002 (below CB, above MIN_REDEEM).
-        testOracle.setPrice(2e15); // $0.002 — below circuit breaker but above MIN_REDEEM_PRICE
+        // circuit breaker by calling it with a low oracle price.
+        // [Fix C-3] MIN_REDEEM_PRICE is now 5e15 (aligned with circuit breaker).
+        // Below 5e15, both router AND redeemBond reject — they share the same floor by design.
+        // This test verifies the architectural property (router blocks new policies, but bondVault
+        // redeemBond doesn't call the router/paused flag), so we use a price BELOW the floor here
+        // and only call the router (not redeemBond directly).
+        testOracle.setPrice(2e15); // $0.002 — below the aligned floor (router blocks, vault redeem would also block)
 
         // We can't easily get bonds without going through policyManager flow.
         // Instead, verify the code path architecturally: the router blocks new policies,
@@ -1185,11 +1187,16 @@ contract AttackVectors is Test, ERC1155Holder {
 
     /// @notice A.4.5 — BondVault MIN_REDEEM_PRICE prevents redemption at dust prices
     function test_A4_5_MinRedeemPricePreventsRedemption() public {
-        // BondVault.redeemBond requires currentPrice >= MIN_REDEEM_PRICE (0.001e18)
+        // [Fix C-3] BondVault.redeemBond requires currentPrice >= MIN_REDEEM_PRICE = 5e15 ($0.005)
         // This prevents redemption at absurdly low prices that would drain the vault.
-        assertEq(bondVault.MIN_REDEEM_PRICE(), 0.001e18, "Min redeem price should be $0.001");
+        // The floor is aligned with CoverRouterV2.MIN_PRICE_FOR_NEW_POLICIES so the protocol
+        // pauses new policies and blocks redemptions at the same price boundary.
+        assertEq(bondVault.MIN_REDEEM_PRICE(), 5e15, "Min redeem price should be $0.005");
 
-        // At $0.001, redeeming $800 bond would require 800 / 0.001 = 800,000 LUMINA
+        // [F-REVERSE-1] Upper bound also enforced.
+        assertEq(bondVault.MAX_REDEEM_PRICE(), 1000e18, "Max redeem price should be $1000");
+
+        // At $0.005, redeeming $800 bond would require 800 / 0.005 = 160,000 LUMINA.
         // The floor prevents exploitation at near-zero prices.
         assertTrue(true, "MIN_REDEEM_PRICE guard verified");
     }

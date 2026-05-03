@@ -806,12 +806,12 @@ contract BoundaryConditions is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  GROUP 16: MIN_REDEEM_PRICE (0.001e18)
+    //  GROUP 16: MIN_REDEEM_PRICE (5e15) — [Fix C-3] raised from 1e15
     // ═══════════════════════════════════════════════════════════════
 
     function test_BondVault_MinRedeemPrice_Exact() public {
-        // Set price to exactly MIN_REDEEM_PRICE
-        capacityOracle.setPrice(0.001e18);
+        // Set price to exactly MIN_REDEEM_PRICE = 5e15 ($0.005)
+        capacityOracle.setPrice(5e15);
         uint256 issueTime = block.timestamp;
         uint256 maturityTime = issueTime + 730 days;
         uint256 epochId = _computeEpochId(maturityTime);
@@ -827,26 +827,27 @@ contract BoundaryConditions is Test {
         bondVault.redeemBond(epochId, 10); // Should succeed at MIN_REDEEM_PRICE
     }
 
-    function test_BondVault_BelowMinRedeemPrice_UsesFloor() public {
-        // _getSafePrice returns MIN_REDEEM_PRICE when oracle returns 0
-        capacityOracle.setPrice(0);
+    /// @dev [Fix C-3] Renamed from "_UsesFloor". Now oracle returning 0 reverts —
+    ///      no silent fallback. Test asserts the revert.
+    function test_BondVault_OracleZero_Reverts() public {
         uint256 issueTime = block.timestamp;
         uint256 maturityTime = issueTime + 730 days;
         uint256 epochId = _computeEpochId(maturityTime);
 
-        // Need to set price high for issuance, then drop it
+        // Issuance at normal price
         capacityOracle.setPrice(36e15);
         vm.prank(address(policyManager));
         bondVault.issueBond(alice, 10);
 
         claimBondForVault.setMatured(epochId, true);
         claimBondForVault.setBalance(alice, epochId, 10);
-        capacityOracle.setPrice(0); // force _getSafePrice to return MIN_REDEEM_PRICE
+
+        // Oracle returns 0 → _getSafePrice reverts
+        capacityOracle.setPrice(0);
 
         vm.warp(maturityTime);
-        // _getSafePrice returns MIN_REDEEM_PRICE (0.001e18) when oracle returns 0
-        // This is >= MIN_REDEEM_PRICE so redeem proceeds at the floor price
         vm.prank(alice);
+        vm.expectRevert("Oracle price out of range");
         bondVault.redeemBond(epochId, 10);
     }
 

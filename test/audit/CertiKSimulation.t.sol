@@ -440,28 +440,31 @@ contract CertiKSimulation is Test {
 
     /// @notice Oracle returns extremely low price — attempt to drain vault
     ///         by redeeming at deflated price (getting more LUMINA per dollar)
+    /// @dev    [Fix C-3] Updated: post-fix, MIN_REDEEM_PRICE = 5e15 ($0.005).
+    ///         A price of $0.001 is now BELOW the floor and redemption reverts.
+    ///         Test now demonstrates the fix BLOCKS the drain attack.
     function test_ATTACK_oracle_deflate_for_drain() public {
         // Issue bond at normal price
         _issueBondAsPM(victim, 800);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        // Oracle reports $0.001 (floor price)
+        // Oracle reports $0.001 — below new MIN_REDEEM_PRICE floor of $0.005
         oracle.setPrice(0.001e18);
 
-        // Victim redeems — gets 800,000 LUMINA ($800 / $0.001)
+        // Redemption MUST revert — the new floor prevents the drain.
         vm.prank(victim);
+        vm.expectRevert("Price too low");
         bondVault.redeemBond(epoch, 800);
 
+        // Sanity: at the new floor ($0.005), redemption works and pays
+        // 800 / 0.005 = 160,000 LUMINA — much less than the pre-fix 800,000.
+        oracle.setPrice(5e15);
+        vm.prank(victim);
+        bondVault.redeemBond(epoch, 800);
         uint256 received = token.balanceOf(victim);
-        uint256 priceLow = 0.001e18;
-        uint256 expected = (uint256(800) * 1e36) / priceLow; // 800,000 LUMINA
+        uint256 expected = (uint256(800) * 1e36) / 5e15; // 160,000 LUMINA
         assertEq(received, expected);
-
-        // This IS a lot of LUMINA, but it's the correct behavior:
-        // The bond is worth $800. At $0.001/LUMINA, that IS 800K LUMINA.
-        // The vault has 82M, so it can handle this.
-        // The risk is if MANY bonds redeem at $0.001 simultaneously.
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -680,35 +683,44 @@ contract CertiKSimulation is Test {
     // ATAQUE 10: REDEMPTION OVERFLOW
     // ═══════════════════════════════════════════════════════════
 
-    /// @notice Redeem at extremely low price to get absurd LUMINA amount
+    /// @notice Redeem at the floor price — should pay correct LUMINA amount
+    /// @dev    [Fix C-3] Floor raised from 0.001e18 to 5e15 ($0.005). At the floor,
+    ///         $800 bond pays 800 / 0.005 = 160,000 LUMINA (was 800,000 pre-fix).
     function test_ATTACK_redeem_at_dust_price() public {
         _issueBondAsPM(attacker, 800);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        // Set price to minimum
-        oracle.setPrice(0.001e18); // MIN_REDEEM_PRICE
+        // Set price to the new floor MIN_REDEEM_PRICE = 5e15
+        oracle.setPrice(5e15);
 
-        // luminaAmount = 800 * 1e36 / 0.001e18 = 800 * 1e36 / 1e15 = 800e21 = 800,000e18
-        // = 800,000 LUMINA. Vault has 82M, so this is fine.
+        // luminaAmount = 800 * 1e36 / 5e15 = 1.6e23 = 160,000e18 = 160,000 LUMINA
+        // Vault has 82M, so this is fine.
         vm.prank(attacker);
         bondVault.redeemBond(epoch, 800);
 
         uint256 received = token.balanceOf(attacker);
-        assertEq(received, 800_000 * 1e18); // 800K LUMINA
-        // Vault still has 82M - 800K = 81.2M. Solvent.
+        assertEq(received, 160_000 * 1e18); // 160K LUMINA at the floor
+        // Vault still has 82M - 160K = 81.84M. Solvent.
     }
 
     /// @notice What if price is below MIN_REDEEM_PRICE?
+    /// @dev    [Fix C-3] Old test used 0.0005e18 (below old 1e15 floor). New floor
+    ///         is 5e15, so test prices like 0.001e18 and 0.004e18 (below new floor)
+    ///         must also revert.
     function test_ATTACK_redeem_below_floor_price() public {
         _issueBondAsPM(attacker, 800);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        oracle.setPrice(0.0005e18); // below $0.001 floor
+        // Below new floor 5e15
+        oracle.setPrice(0.001e18); // 1e15, below new 5e15 floor
+        vm.prank(attacker);
+        vm.expectRevert("Price too low");
+        bondVault.redeemBond(epoch, 800);
 
-        // _getSafePrice returns the oracle price if > 0.
-        // redeemBond then requires currentPrice >= MIN_REDEEM_PRICE → revert.
+        // Even further below
+        oracle.setPrice(0.0005e18);
         vm.prank(attacker);
         vm.expectRevert("Price too low");
         bondVault.redeemBond(epoch, 800);
@@ -730,19 +742,18 @@ contract CertiKSimulation is Test {
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        // Price crashes to $0.001
-        oracle.setPrice(0.001e18);
+        // [Fix C-3] Price crashes to the new floor $0.005 (was $0.001 pre-fix).
+        oracle.setPrice(5e15);
 
-        // Each $800 bond now needs 800,000 LUMINA
-        // 80 bonds × 800,000 = 64M LUMINA needed
-        // Vault has 70M — enough for 80 bonds at crash price
+        // Each $800 bond now needs 160,000 LUMINA at the floor
+        // 80 bonds × 160,000 = 12.8M LUMINA needed
+        // Vault has 82M — easily enough.
         for (uint256 i = 0; i < 80; i++) {
             address user = makeAddr(string(abi.encodePacked("user", i)));
             vm.prank(user);
             bondVault.redeemBond(epoch, 800);
         }
 
-        // Vault remaining: 70M - 64M = 6M LUMINA
         assertGt(token.balanceOf(address(bondVault)), 0);
     }
 

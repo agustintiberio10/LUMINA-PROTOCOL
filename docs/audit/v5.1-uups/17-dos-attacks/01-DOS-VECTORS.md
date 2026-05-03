@@ -69,7 +69,8 @@
 | `validUntil` window | Buyback expiration | `BuybackEngine.executeOffer` |
 | Capacity reservation (`reserveCapacity` / `commitReservation`) | Race-free capacity accounting | `BondVault` + `PolicyManager` |
 | `SAFETY_FACTOR_BPS = 5000` | Reserve never < 50 % committed | `BondVault.issueBond` |
-| `MIN_REDEEM_PRICE = 0.001e18` | Anti-zero-price redeem | `BondVault.redeemBond` |
+| `MIN_REDEEM_PRICE = 5e15` ([Fix C-3] raised from 0.001e18) | Anti-low-price redeem (aligned with CoverRouter floor) | `BondVault.redeemBond` |
+| `MAX_REDEEM_PRICE = 1000e18` ([F-REVERSE-1] new) | Anti-anomalous-high-price (silent loss prevention) | `BondVault._getSafePrice` |
 | `MIN_PRICE_FOR_NEW_POLICIES = 5e15` | Auto-pause at depressed price | `CoverRouterV2._purchase` |
 | `_authorizeUpgrade` access control | Anti-unauthorised upgrade | every UUPS contract |
 | Mappings instead of iterable arrays | No O(N) blow-up | architecture-wide |

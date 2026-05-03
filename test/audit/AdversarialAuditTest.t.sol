@@ -730,21 +730,25 @@ contract AdversarialAuditTest is Test {
         assertEq(token.balanceOf(user1), expected);
     }
 
+    /// @dev [Fix C-3] Floor raised from 0.001e18 to 5e15. At the new floor,
+    ///      $100 bond pays 100 / 0.005 = 20,000 LUMINA (was 100,000 pre-fix).
     function test_redeem_floor_price() public {
         _issueBondAsPM(user1, 100);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
-        oracle.setPrice(0.001e18);
+        oracle.setPrice(5e15); // new MIN_REDEEM_PRICE
 
         vm.prank(user1);
         bondVault.redeemBond(epochId, 100);
 
-        uint256 expected = (100 * 1e36) / 0.001e18;
+        uint256 expected = (uint256(100) * 1e36) / 5e15;
         assertEq(token.balanceOf(user1), expected);
     }
 
-    function test_oracle_zero_uses_floor() public {
+    /// @dev [Fix C-3] Removed silent fallback. Oracle returning 0 now reverts in
+    ///      _getSafePrice — redeemBond bubbles the revert.
+    function test_oracle_zero_reverts() public {
         _issueBondAsPM(user1, 800);
         uint256 epochId = _epochOfCurrentPlus24();
 
@@ -752,10 +756,8 @@ contract AdversarialAuditTest is Test {
         oracle.setPrice(0);
 
         vm.prank(user1);
+        vm.expectRevert("Oracle price out of range");
         bondVault.redeemBond(epochId, 800);
-
-        uint256 expected = (800 * 1e36) / 0.001e18;
-        assertEq(token.balanceOf(user1), expected);
     }
 
     // ═══════════════════════════════════════════════════════════

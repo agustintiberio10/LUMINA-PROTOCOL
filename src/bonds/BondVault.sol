@@ -52,7 +52,18 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     // ═══════ CONSTANTS ═══════
     uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50% — max commitment
     uint256 public constant BOND_MATURITY_SECONDS = 730 days; // 24 months
-    uint256 public constant MIN_REDEEM_PRICE = 0.001e18; // absolute floor for redemption
+    /// @dev [Fix C-3] Raised from 0.001e18 to 5e15 ($0.005) to align with
+    ///      CoverRouterV2.MIN_PRICE_FOR_NEW_POLICIES auto-pause floor.
+    ///      Previously, a 36x gap with CapacityOracle.emergencyPrice (0.036e18)
+    ///      enabled vault drain if the oracle was upgraded to one that returns
+    ///      0/reverts. The new floor + revert-on-oracle-failure (see _getSafePrice)
+    ///      eliminates that vector.
+    uint256 public constant MIN_REDEEM_PRICE = 5e15; // 0.005 USD — aligned with CoverRouter floor
+
+    /// @dev [F-REVERSE-1] Upper bound for oracle-reported price. Prevents silent
+    ///      loss when oracle returns anomalously high values (e.g. type(uint256).max).
+    ///      $1000/LUMINA is well above any plausible market price (current spot ~$0.036).
+    uint256 public constant MAX_REDEEM_PRICE = 1000e18; // 1000 USD — sanity upper bound
 
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
@@ -266,12 +277,25 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     // ═══════ INTERNAL ═══════
 
+    /// @notice Reads LUMINA price from the configured oracle.
+    /// @dev    [Fix C-3] Removed silent fallback to MIN_REDEEM_PRICE on oracle
+    ///         failure or zero return. Previously, a failing oracle silently
+    ///         floored to 0.001e18, causing redemptions to mint up to 36x more
+    ///         LUMINA per dollar than fair value. Now the function reverts —
+    ///         callers (redeemBond, previewRedemption, getStatus, availableCapacityUSD)
+    ///         propagate the revert, forcing admin to pause + replace the oracle
+    ///         before further redemptions. Production oracle (CapacityOracle)
+    ///         never reverts and never returns 0 in steady state, so this path
+    ///         is dead code unless the oracle is replaced via UUPS upgrade.
+    /// @dev    [F-REVERSE-1] Upper bound MAX_REDEEM_PRICE ($1000) added: prevents
+    ///         silent loss when oracle returns anomalously high price (e.g.
+    ///         type(uint256).max). At p = max, `usdAmount * 1e36 / p` underflows
+    ///         to 0 — user would burn bonds and receive 0 LUMINA. The cap is
+    ///         well above any plausible market price (current spot ~$0.036).
     function _getSafePrice() internal view returns (uint256) {
-        try priceOracle.getLuminaPrice() returns (uint256 p) {
-            return p > 0 ? p : MIN_REDEEM_PRICE;
-        } catch {
-            return MIN_REDEEM_PRICE;
-        }
+        uint256 p = priceOracle.getLuminaPrice();
+        require(p > 0 && p < MAX_REDEEM_PRICE, "Oracle price out of range");
+        return p;
     }
 
     function _timestampToEpoch(uint256 ts) internal pure returns (uint256) {

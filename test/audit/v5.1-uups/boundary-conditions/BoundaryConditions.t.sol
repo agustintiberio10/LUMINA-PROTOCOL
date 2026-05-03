@@ -618,9 +618,11 @@ contract BoundaryConditions is Test {
         assertEq(v.SAFETY_FACTOR_BPS(), 5000);
     }
 
-    function test_Boundary_BondVault_MinRedeemPrice_Is1e15() public {
+    function test_Boundary_BondVault_MinRedeemPrice_Is5e15() public {
+        // [Fix C-3] MIN_REDEEM_PRICE raised from 1e15 to 5e15 to align with
+        // CoverRouterV2.MIN_PRICE_FOR_NEW_POLICIES.
         (BondVault v,,,) = _bvFull();
-        assertEq(v.MIN_REDEEM_PRICE(), 1e15);
+        assertEq(v.MIN_REDEEM_PRICE(), 5e15);
     }
 
     function test_Boundary_BondVault_MaturityPeriod_730Days() public {

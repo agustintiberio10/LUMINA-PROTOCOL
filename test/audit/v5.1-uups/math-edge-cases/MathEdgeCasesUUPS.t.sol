@@ -111,7 +111,10 @@ contract MathEdgeCasesUUPS is Test {
         (BondVault v,,,) = _bvFull();
         assertEq(v.SAFETY_FACTOR_BPS(), 5000, "BondVault SAFETY_FACTOR_BPS");
         assertEq(v.BOND_MATURITY_SECONDS(), 730 days, "BondVault BOND_MATURITY_SECONDS");
-        assertEq(v.MIN_REDEEM_PRICE(), 0.001e18, "BondVault MIN_REDEEM_PRICE");
+        // [Fix C-3] MIN_REDEEM_PRICE raised from 0.001e18 to 5e15.
+        assertEq(v.MIN_REDEEM_PRICE(), 5e15, "BondVault MIN_REDEEM_PRICE");
+        // [F-REVERSE-1] MAX_REDEEM_PRICE upper bound added.
+        assertEq(v.MAX_REDEEM_PRICE(), 1000e18, "BondVault MAX_REDEEM_PRICE");
 
         CapacityOracle co = ProxyDeployer.deployCapacityOracle(address(0), makeAddr("l"), makeAddr("u"), 0.036e18);
         assertEq(co.BOND_RESERVE(), 70_000_000e18);
@@ -218,24 +221,35 @@ contract MathEdgeCasesUUPS is Test {
         assertEq(bps, type(uint256).max);
     }
 
-    function test_Math_UUPS_Redeem_PriceFlooredToMinWhenOracleZero() public {
+    function test_Math_UUPS_Redeem_RevertsWhenOracleZero() public {
         (BondVault v,, ClaimBond cb, MockPriceOracleMath oracle) = _bvFull();
-        // When oracle returns 0, _getSafePrice falls back to MIN_REDEEM_PRICE.
+        // [Fix C-3] When oracle returns 0, _getSafePrice now reverts (no silent
+        // fallback to MIN_REDEEM_PRICE).
         oracle.setPrice(0);
-        uint256 previewZero = v.previewRedemption(100);
-        // Floor price = MIN_REDEEM_PRICE = 1e15.
-        // 100 × 1e36 / 1e15 = 1e23 LUMINA wei.
-        assertEq(previewZero, (uint256(100) * 1e36) / 1e15);
+        vm.expectRevert("Oracle price out of range");
+        v.previewRedemption(100);
         cb; // silence unused
     }
 
     function test_Math_UUPS_Redeem_UsesOraclePriceWhenNonzero() public {
         (BondVault v,,, MockPriceOracleMath oracle) = _bvFull();
         // Oracle returns a tiny non-zero price — _getSafePrice does NOT floor
-        // (only the oracle-revert / zero-return path falls back to MIN).
+        // for previewRedemption (only redeemBond checks >= MIN_REDEEM_PRICE).
         oracle.setPrice(1e14); // 0.0001e18, below MIN_REDEEM_PRICE
         uint256 preview = v.previewRedemption(100);
         assertEq(preview, (uint256(100) * 1e36) / 1e14);
+    }
+
+    function test_Math_UUPS_Redeem_RevertsWhenOracleAboveMax() public {
+        (BondVault v,,, MockPriceOracleMath oracle) = _bvFull();
+        // [F-REVERSE-1] Oracle returning >= MAX_REDEEM_PRICE reverts.
+        oracle.setPrice(1000e18);
+        vm.expectRevert("Oracle price out of range");
+        v.previewRedemption(100);
+
+        oracle.setPrice(type(uint256).max);
+        vm.expectRevert("Oracle price out of range");
+        v.previewRedemption(100);
     }
 
     function test_Math_UUPS_CapacityOracle_ZeroPrice_UsesEmergencyPrice() public {

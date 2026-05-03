@@ -8,8 +8,8 @@ Document version: 2026-04-15 | Branch: `feat/v5-phase4-integration-tests`
 
 ASSUMPTION 1: Chainlink / Custom Oracle Liveness
 Description: CapacityOracle's `getLuminaPrice()` returns a valid TWAP within 30 minutes of real-time. BondVault, SolvencyOracle, and BuybackEngine all depend on this single price source.
-Why it matters: If the oracle returns stale or zero price, BondVault falls back to `MIN_REDEEM_PRICE` ($0.001), potentially overpaying redemptions by 36x at $0.036 fair value. SolvencyOracle computes infinite solvency when obligations are zero, masking real risk.
-How we validate: Integration test: mock oracle returning 0 and verify `_getSafePrice()` returns MIN_REDEEM_PRICE; verify SolvencyOracle.isHealthy() returns false when price is 0.
+Why it matters: If the oracle returns stale or zero price, BondVault's `_getSafePrice()` reverts ([Fix C-3] removed silent fallback to MIN_REDEEM_PRICE; [F-REVERSE-1] also reverts on values ≥ MAX_REDEEM_PRICE = 1000e18). Redemptions block until admin replaces the oracle. SolvencyOracle computes infinite solvency when obligations are zero, masking real risk.
+How we validate: Integration test: mock oracle returning 0 and verify `_getSafePrice()` reverts with "Oracle price out of range"; mock oracle returning ≥ 1000e18 and verify same revert; verify SolvencyOracle.isHealthy() returns false when price is 0.
 Risk if fails: CRITICAL
 
 ASSUMPTION 2: Uniswap V3 TWAP Manipulation Resistance

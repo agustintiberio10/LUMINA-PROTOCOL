@@ -161,7 +161,7 @@ contract BondVaultTest is Test {
         uint256 epoch = _currentEpochPlus24();
 
         vm.warp(claimBond.maturityDate(epoch) + 1);
-        oracle.setPrice(0.0005e18); // below MIN_REDEEM_PRICE
+        oracle.setPrice(0.0005e18); // [Fix C-3] below MIN_REDEEM_PRICE (5e15)
 
         vm.prank(user);
         vm.expectRevert("Price too low");

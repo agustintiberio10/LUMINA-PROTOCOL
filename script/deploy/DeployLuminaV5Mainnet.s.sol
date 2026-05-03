@@ -60,6 +60,20 @@ contract DeployLuminaV5Mainnet is Script {
         require(_envIsSet("OPS_WALLET"), "OPS_WALLET env var required");
         require(_envIsSet("FOUNDER_RECIPIENT"), "FOUNDER_RECIPIENT env var required");
 
+        // ─── Audit V5.1 fix C-1: LBP_DEPOSIT must be a contract on mainnet ───
+        // The 5M LUMINA LBP allocation is minted directly to LBP_DEPOSIT
+        // during `LuminaTokenV2.initialize`. If that address is an EOA the
+        // tokens are stranded with no recovery path. The founder commits to
+        // a Gnosis Safe; this check makes a misconfiguration impossible to
+        // broadcast. FOUNDER_RECIPIENT is intentionally an EOA (see
+        // docs/audit/v5.1-uups/39-mainnet-dry-run/REPORT.md) and is not
+        // checked here.
+        address lbpDeposit = vm.envAddress("LBP_DEPOSIT");
+        require(
+            lbpDeposit.code.length > 0,
+            "LBP_DEPOSIT must be a contract (multisig), not an EOA. Deploy your Gnosis Safe first and set LBP_DEPOSIT to its address."
+        );
+
         console.log("===== DEPLOY LUMINA V5.1 - BASE MAINNET =====");
         console.log("USDC:               ", USDC_BASE_MAINNET);
         console.log("Uniswap V3 Router:  ", UNISWAP_V3_SWAPROUTER02);
