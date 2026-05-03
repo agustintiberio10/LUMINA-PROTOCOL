@@ -75,7 +75,7 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
         require(recipient != address(0), "Recipient zero");
         require(amount > 0, "Amount zero");
 
-        _enforceMonthlycap(amount);
+        _enforceMonthlyCap(amount);
 
         currentMonthSpent += amount;
         totalSpent += amount;
@@ -97,18 +97,26 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
         emit MonthlyCapUpdated(oldCap, _cap);
     }
 
-    /// @dev [Fix M-9] Routed through `MonthCalculator` for protocol-wide
-    ///      formula consistency. Anchor = `0` (Unix epoch) preserves the
-    ///      pre-fix semantic: this contract has no `deploymentTimestamp`
-    ///      slot and tracks "absolute month-since-epoch" — which is fine
-    ///      because the cap-tracking only cares about *transitions* (when
+    /// @dev [Merge consolidation: L-1 rename + M-9 library substitution]
+    ///      L-1 renamed the misleadingly-named `_enforceMonthlyCap()` view
+    ///      to `_currentMonthIndex()` (it computes a month index, it does
+    ///      NOT enforce a cap). M-9 routed the body through
+    ///      `MonthCalculator` for protocol-wide formula consistency.
+    ///      Anchor = `0` (Unix epoch) preserves the pre-fix semantic:
+    ///      this contract has no `deploymentTimestamp` slot and tracks
+    ///      "absolute month-since-epoch" — which is fine because the
+    ///      cap-tracking only cares about *transitions* (when
     ///      `month != currentMonth`), not the absolute value.
-    function _enforceMonthlyCap() internal view returns (uint256) {
+    function _currentMonthIndex() internal view returns (uint256) {
         return MonthCalculator.currentMonthSinceDeploy(0);
     }
 
-    function _enforceMonthlycap(uint256 amount) internal {
-        uint256 month = _enforceMonthlyCap();
+    /// @dev [Fix L-1] Renamed from `_enforceMonthlycap(uint256)` (lowercase
+    ///      `c` colliding visually with the view-only `_enforceMonthlyCap`).
+    ///      Now correctly cased and the only function actually enforcing
+    ///      the cap.
+    function _enforceMonthlyCap(uint256 amount) internal {
+        uint256 month = _currentMonthIndex();
         if (month != currentMonth) {
             currentMonth = month;
             currentMonthSpent = 0;

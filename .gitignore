@@ -8,6 +8,8 @@ node_modules/
 .vscode/
 .idea/
 coverage/
+coverage-*.txt
+*.lcov
 lcov.info
 *.env*
 !.env.example
