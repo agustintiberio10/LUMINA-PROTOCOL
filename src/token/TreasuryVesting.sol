@@ -7,6 +7,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {MonthCalculator} from "../libraries/MonthCalculator.sol";
 
 /// @title TreasuryVesting
 /// @notice 3M LUMINA locked 6 months, then max 250K/month.
@@ -72,11 +73,17 @@ contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         require(amount <= _available(), "Exceeds available");
         require(totalReleased + amount <= TOTAL_AMOUNT, "Exceeds total");
 
+        // [Merge consolidation: H-9 deprecated `lastReleaseMonth` and replaced
+        //  the per-month gate with the accumulating `_available()` cap. M-9's
+        //  library substitution still applies to the surviving inline formula
+        //  used purely for the event payload below.]
         totalReleased += amount;
 
         // `month` field of the event keeps its pre-fix meaning so any
         // off-chain consumer that filters by month continues to work.
-        uint256 currentMonth = (block.timestamp - deployedAt - LOCK_DURATION) / MONTH;
+        // [Fix M-9] Routed through MonthCalculator for protocol-wide
+        // formula consistency. Anchor = `deployedAt + LOCK_DURATION`.
+        uint256 currentMonth = MonthCalculator.currentMonthSinceDeploy(deployedAt + LOCK_DURATION);
 
         require(luminaToken.transfer(to, amount), "Transfer failed");
         emit Released(to, amount, currentMonth);
@@ -121,8 +128,11 @@ contract TreasuryVesting is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         _remaining = TOTAL_AMOUNT - totalReleased;
         _isLocked = block.timestamp < deployedAt + LOCK_DURATION;
         _unlockDate = deployedAt + LOCK_DURATION;
-        _currentMonth =
-            block.timestamp >= deployedAt + LOCK_DURATION ? (block.timestamp - deployedAt - LOCK_DURATION) / MONTH : 0;
+        // [Fix M-9] Same library call as `release()` for the post-lock branch;
+        // the pre-lock branch returns 0 (consistent with previous behavior).
+        _currentMonth = block.timestamp >= deployedAt + LOCK_DURATION
+            ? MonthCalculator.currentMonthSinceDeploy(deployedAt + LOCK_DURATION)
+            : 0;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

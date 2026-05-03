@@ -110,13 +110,26 @@ contract BuybackEngineTest is Test {
     }
 
     function test_ExecuteOffer_RevertIf_OfferExpired() public {
-        // Set daily config with short duration
+        // [Fix M-10] Test the equivalent flow under commit-reveal: the
+        // operator commits BEFORE the daily window expires; the reveal
+        // then races past validUntil and the dailyConfig check fires.
         vm.prank(multisig);
         engine.setDailyBuyback(10000e6, 60, 1);
-        // Warp past validUntil
+
+        // Operator commits inside the still-valid window.
+        bytes32 salt = keccak256(abi.encode("m10-test-salt", uint256(0)));
+        bytes32 commitment = keccak256(abi.encode(0, type(uint256).max, salt));
+        vm.prank(multisig); // multisig holds BUYBACK_OPERATOR_ROLE
+        engine.commitBuyback(commitment);
+
+        // Warp past validUntil and advance enough blocks to satisfy the min
+        // reveal delay.
         vm.warp(block.timestamp + 2 hours);
+        vm.roll(block.number + engine.MIN_REVEAL_DELAY_BLOCKS());
+
         vm.expectRevert("Daily offer expired");
-        engine.executeOffer(0);
+        vm.prank(multisig);
+        engine.revealAndExecute(0, type(uint256).max, salt);
     }
 
     function test_GetDailyConfig_ReturnsCorrectValues() public {

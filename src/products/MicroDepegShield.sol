@@ -35,7 +35,7 @@ contract MicroDepegShield is BaseShield {
     int256 public constant TRIGGER_PRICE = 99_500_000; // $0.995 in Chainlink 8 decimals
     uint256 private constant BPS = 10_000;
 
-    uint256 public constant MAX_PROOF_AGE = 900; // 15 minutes
+    uint256 public constant MAX_PROOF_AGE = 86400; // [Fix M-8] 24 hours (was 900 = 15 min). Replay protection comes from policy-finalization state, not proof-age — extending the window absorbs keeper-bot delays + Base congestion without weakening security.
 
     // [M-01 fix] Per-asset sanity bounds (Chainlink 8-dec). Rejects extreme
     // outlier prices that indicate oracle glitches rather than real depeg

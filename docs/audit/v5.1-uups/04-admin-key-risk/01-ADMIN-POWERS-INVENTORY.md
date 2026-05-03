@@ -2,12 +2,18 @@
 
 **Audit:** V5.1 #4 — Admin Key Risk
 **Branch:** `audit/v5.1-04-admin-key-risk`
-**Date:** 2026-04-22
+**Date:** 2026-04-22 (refreshed 2026-04-30 for audit-fix M-1 sync)
 
 This document catalogues **every admin-only function** on every UUPS
 upgradeable contract, the **worst-case impact** if the admin key is
 compromised or behaves maliciously, and the **existing + recommended
 mitigations**.
+
+> **See also:** `ACCESS-CONTROL-MATRIX-V5.1.md` is the auditor-facing master
+> matrix of *function × role* for the post-fix codebase, including every
+> admin function added or modified during the C/H audit-fix sprints. This
+> document focuses on **risk + mitigation narrative**; the matrix focuses
+> on **call gating**.
 
 ---
 
@@ -64,12 +70,25 @@ mitigations**.
 - **Admin-only functions:**
   - `_authorizeUpgrade` — owner
   - `setBondVault(address)` — owner (one-shot; `_bondVaultSet` gate)
+  - `setBaseURI(string)` — owner (metadata)
+  - `setAuthorizedOperator(addr, bool)` — owner (per-bond NFT operator allowlist)
+  - `setMinRedeemPrice(price)` — owner *(post-fix C-3)*
+  - `setMarketplaceEscape(addr)` — owner *(post-fix H-12)*
+- **Other gating (not admin-bound):**
+  - `escapeTransfer(from, to, id, amt)` — gated by mutex
+    `_escapeInProgress` set by Marketplace during `emergencyCancel`
+    *(post-fix H-12 fu²)*. Bypasses normal transfer rules but is
+    callable only inside one Marketplace transaction.
 - **Max risk:** Upgrade to malicious impl that re-mints NFT claims for
   attackers. `setBondVault` is gated to single use so it cannot be changed
-  once set.
+  once set. `setMarketplaceEscape` could redirect to attacker — but
+  `escapeTransfer` only runs while Marketplace asserts the mutex, so the
+  bypass window is the duration of one tx.
 - **Impact:** HIGH — attackers could mint claim tokens and redeem them
   against BondVault.
-- **Existing mitigations:** `_bondVaultSet` one-shot; ERC-1155 namespace.
+- **Existing mitigations:** `_bondVaultSet` one-shot; ERC-1155 namespace;
+  `_escapeInProgress` mutex narrows the H-12 bypass to a single Marketplace
+  transaction.
 - **Recommended:** Same as BondVault.
 
 ### 4. PolicyManagerV2
@@ -121,6 +140,10 @@ mitigations**.
   - `setTwapBurner(address)` — owner
   - `setCapacityOracle(address)` — owner
   - `configureProduct(...)` — owner (with `active` flag)
+  - `recoverToken(token, amt)` — owner
+- **Hot-path gating (post-fix H-4):** `submitTrigger` is now
+  `whenNotPaused` *and* relayer-only. Pause therefore short-circuits
+  trigger submission even if a relayer key is compromised.
 - **Max risk:** Set `policyManager`/`twapBurner` to attacker contracts;
   configure products with zero payout; pause forever.
 - **Impact:** HIGH — user-facing router can be misdirected.
@@ -165,10 +188,20 @@ mitigations**.
 ### 9. LuminaBondMarketplace
 - **Auth:** AccessControl. `_admin` param receives
   `DEFAULT_ADMIN_ROLE` + `FEE_MANAGER_ROLE`.
-- **Admin-only:** `_authorizeUpgrade` (DAR), `setTwapBurner` (FEE_MANAGER).
+- **Admin-only:** `_authorizeUpgrade` (DAR), `setTwapBurner` (FEE_MANAGER),
+  `emergencyCancel(listingId)` (DAR) *(post-fix H-12)*.
+- **`emergencyCancel` semantics:** cancels an active listing and returns
+  the bond NFT to the seller via `ClaimBond.escapeTransfer`. The escape
+  path is mutex-protected (`_escapeInProgress`) on ClaimBond's side, so
+  Marketplace cannot use it for arbitrary transfers — only inside its own
+  `emergencyCancel` tx.
 - **Max risk:** Redirect fee flow by pointing `twapBurner` at attacker.
+  `emergencyCancel` is admin-only and the bond returns to the *original
+  seller*, so the worst case is a forced no-op cancellation rather than
+  fund movement.
 - **Impact:** MEDIUM — affects burn stream only; doesn't drain listings.
-- **Recommended:** Timelock on `setTwapBurner`.
+- **Recommended:** Timelock on `setTwapBurner`. `emergencyCancel` should
+  remain admin-immediate (the whole point is fast unwinding).
 
 ### 10. ShieldKeeper
 - **Auth:** OwnableUpgradeable.
@@ -205,11 +238,68 @@ mitigations**.
   and `ADMIN_ROLE`.
 - **Admin-only:** `_authorizeUpgrade` (DAR), `setEmergencyPause`
   (`ADMIN_ROLE`).
+- **Behavior change post-fix H-11:** `getSolvencyState()` returns
+  `SOLVENCY_HEALTHY_BPS` (10_000) when total obligations == 0, instead of
+  reverting on division-by-zero. No new admin surface.
 - **Max risk:** Pause solvency oracle indefinitely; upgrade to force a
   specific solvency quadrant.
 - **Impact:** HIGH — affects adaptive fee distribution and upgrade
   sequencing.
 - **Recommended:** Timelock; pause separated into guardian role.
+
+### 13b. ChainlinkGraceOracle (NEW post-fix H-13)
+- **Auth:** **AccessControl** (not Ownable as originally spec'd).
+  `_admin` ctor param receives `DEFAULT_ADMIN_ROLE` + `ADMIN_ROLE`.
+- **Admin-only functions:**
+  - `_authorizeUpgrade` — `DEFAULT_ADMIN_ROLE`
+  - `setFeed(asset, feed, heartbeat)` — `ADMIN_ROLE`
+  - `setHeartbeat(asset, sec)` — `ADMIN_ROLE`
+  - `setSequencerFeed(addr)` — `ADMIN_ROLE`
+  - `setOracleKey(addr)` — `ADMIN_ROLE`
+- **Permissionless functions (self-validating, by design):**
+  - `markChainlinkDown(asset)` — anyone can open a downtime window, BUT
+    only when the feed is independently observable as down (revert /
+    stale round). Idempotent. Reverts otherwise.
+  - `markChainlinkUp(asset)` — anyone can close, but only after the feed
+    has independently recovered.
+- **No `setGracePeriod`** — the grace window is derived from the
+  observable downtime, not an admin parameter (founder-confirmed
+  design decision; see box below).
+
+> ### Design Decision: Grace Period is Derived (NOT Configurable)
+>
+> The grace period extended to policies after a Chainlink / sequencer
+> downtime is **NOT an admin-configurable parameter**. It is computed
+> automatically from:
+>
+> 1. The actual on-chain downtime duration (delta between
+>    `markChainlinkDown` and `markChainlinkUp` timestamps).
+> 2. The protocol-wide cap `MAX_GRACE_EXTENSION = 30 days` (constant on
+>    `BaseShield`).
+>
+> There is **no `setGracePeriod`** and none will be added. Rationale:
+>
+> - **No admin abuse vector** — admin cannot extend policy maturity
+>   arbitrarily; extension is bounded by observable downtime.
+> - **Proportional remediation** — extension is proportional to actual
+>   time the oracle was unreadable, not a negotiated flat number.
+> - **Operational simplicity** — no parameter to tune post-deploy, no
+>   governance proposal needed mid-incident.
+>
+> Admin functions on `ChainlinkGraceOracle` (all `ADMIN_ROLE`-gated) are
+> limited to `setFeed`, `setHeartbeat`, `setSequencerFeed`,
+> `setOracleKey`. `markChainlinkDown`/`Up` are permissionless and
+> self-validate against `latestRoundData`.
+- **Max risk:** Set a feed to attacker-controlled aggregator → shields
+  read manipulated price; set heartbeat to MAX → stale prices accepted.
+  Mark up/down are self-validating so admin compromise can't fake them.
+- **Impact:** HIGH — every Chainlink-anchored shield (BTC, ETH, MicroDepeg,
+  RateShock) routes its grace-period check through this oracle.
+- **Existing mitigations:** mark up/down are events-emitting;
+  permissionless side keeps incident response open even if the admin
+  multisig is unreachable.
+- **Recommended:** Same as other oracles — multisig + timelock on
+  `setFeed`, `setHeartbeat`, `setSequencerFeed`, `setOracleKey`.
 
 ### 14. CEXLiquidityReserve
 - **Auth:** AccessControl. `_multisigOwner` receives `DEFAULT_ADMIN_ROLE` +
@@ -248,11 +338,32 @@ mitigations**.
 
 ### 16. TreasuryVesting
 - **Auth:** OwnableUpgradeable.
-- **Admin-only:** `_authorizeUpgrade`, `release(address, uint256)`.
-- **Max risk:** Release all vested tokens to attacker in a single call.
+- **Admin-only:** `_authorizeUpgrade`, `release(uint256)`, `recoverToken`.
+- **Behavior change post-fix H-9:** `release` now `nonReentrant` and
+  uses delta accumulation (was: overwrite). This blocks the
+  reentrancy-into-release attack and prevents accumulator under-counting.
+  No new admin surface.
+- **Max risk:** Release all vested tokens in a single call (capped by
+  `lastReleaseMonth` schedule).
 - **Impact:** HIGH — 3M LUMINA vest pool.
-- **Existing:** Monotonic `lastReleaseMonth`; schedule-based release.
+- **Existing:** Monotonic `lastReleaseMonth`; schedule-based release;
+  `nonReentrant` (post-H-9).
 - **Recommended:** Timelock on `release`; multisig.
+
+### 17. FounderVesting (immutable, no admin)
+- **Auth:** none — contract is **immutable**, no admin / no owner. Only
+  the configured `recipient` address can call vesting fns.
+- **Admin-bound functions:** none (recipient is *not* an admin role —
+  it controls only its own vested tokens).
+- **Behavior change post-fix H-7:** the contract emits an `OracleFailure`
+  event when an oracle read fails during vesting calculation. No admin
+  gate (impossible — no admin exists). The event is for off-chain
+  monitoring so a stuck vesting can be diagnosed without a contract
+  upgrade.
+- **Impact:** N/A — no admin surface.
+- **Recommended:** keep monitoring `OracleFailure` events; if they
+  recur, the upgrade-path conversation has to go through governance and
+  redeploy.
 
 ---
 
@@ -269,5 +380,7 @@ mitigations**.
 | `ALLOCATOR_ROLE` | CEXLiquidityReserve | `_multisigOwner` param |
 | `SPENDER_ROLE` | MaintenanceReserve | `_admin` param |
 | `Ownable.owner` | ClaimBond, PolicyManagerV2, CoverRouterV2, TWAPBurner, AdaptiveFeeDistributor, ShieldKeeper, 9 Shields, CapacityOracle, TreasuryVesting | deployer |
+| `ADMIN_ROLE` *(extended post-H13)* | SolvencyOracle, ChainlinkGraceOracle | `_admin` param |
+| `recipient` (literal addr, not a role) | FounderVesting | constructor `_recipient` |
 
 See `02-RISK-MATRIX.md` for the consolidated risk ranking.

@@ -20,6 +20,12 @@ contract MockPriceOracleRA {
     function getLuminaPrice() external view returns (uint256) {
         return price;
     }
+    /// @dev [Fix M-6 mock] Returns the same value as `getLuminaPrice()` so
+    ///      tests that don't drive the TWAP path explicitly remain unaffected.
+    function getTWAP(uint32 /*secondsAgo*/) external view returns (uint256) {
+        return this.getLuminaPrice();
+    }
+
 
     function setPrice(uint256 p) external {
         price = p;

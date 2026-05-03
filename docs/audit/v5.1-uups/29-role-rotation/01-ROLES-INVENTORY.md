@@ -1,10 +1,16 @@
 # Audit V5.1 #29 — Roles Inventory
 
-Every admin-gated role + ownership pattern across the 24 UUPS contracts + FounderVesting.
+Every admin-gated role + ownership pattern across the UUPS contracts + FounderVesting.
+
+> **Post-fix M-1 sync (2026-04-30):** added `ChainlinkGraceOracle`
+> (Ownable, post-H13) to the Ownable contracts table. See
+> `04-admin-key-risk/ACCESS-CONTROL-MATRIX-V5.1.md` for the master
+> function × role matrix that includes every admin function added or
+> changed during the C/H audit-fix sprints (post-fix C-3, H-1..H-13).
 
 ---
 
-## 1. AccessControl contracts (7)
+## 1. AccessControl contracts (8)
 
 | # | Contract | Roles | Admin of role | Granted at init |
 |---|---|---|---|---|
@@ -15,6 +21,7 @@ Every admin-gated role + ownership pattern across the 24 UUPS contracts + Founde
 | 5 | `MaintenanceReserve` | `DEFAULT_ADMIN_ROLE`, `SPENDER_ROLE` | DEFAULT admins both | `_admin` (both) |
 | 6 | `SolvencyOracle` | `DEFAULT_ADMIN_ROLE`, `ADMIN_ROLE` | DEFAULT admins both | `_admin` (both) |
 | 7 | `LuminaTokenV2` | `DEFAULT_ADMIN_ROLE`, `BURNER_ROLE` | DEFAULT admins both | deployer (DEFAULT only) |
+| 8 | `ChainlinkGraceOracle` *(post-H13)* | `DEFAULT_ADMIN_ROLE`, `ADMIN_ROLE` | DEFAULT admins both | `_admin` (both) |
 
 ### 1.1 Role details per contract
 
@@ -47,6 +54,11 @@ Every admin-gated role + ownership pattern across the 24 UUPS contracts + Founde
 - `DEFAULT_ADMIN_ROLE`: upgrades, grant/revoke burner.
 - `BURNER_ROLE`: declared on the contract and granted to TWAPBurner at deploy as a reserved/legacy hook. **Post [Fix H-1] it does NOT gate `burnFrom`** — that function uses the standard ERC20Burnable allowance check (caller must hold the holder's prior `approve`). The two existing burn paths (`TWAPBurner._executeBurn` and `BondVault.burnFromReserves` → `IBurnable.burn`) both call `burn(uint256)` on the contract's own balance and therefore never required `burnFrom`. BURNER_ROLE is preserved on-storage for potential future privileged burn paths.
 
+**ChainlinkGraceOracle** (`src/oracles/ChainlinkGraceOracle.sol`) *(post-H13)*
+- `DEFAULT_ADMIN_ROLE`: gates `_authorizeUpgrade`.
+- `ADMIN_ROLE`: gates `setFeed`, `setHeartbeat`, `setSequencerFeed`, `setOracleKey`.
+- **Permissionless** (no role): `markChainlinkDown`, `markChainlinkUp` — caller-side checks reject calls when feed state doesn't match.
+
 ---
 
 ## 2. Ownable contracts (13)
@@ -57,7 +69,7 @@ All use **OpenZeppelin v5 `OwnableUpgradeable`** — **1-step** `transferOwnersh
 |---|---|---|
 | `TWAPBurner` | deployer | setPoolFee, setMaxSlippageBps, setMinBurnAmount, setMaxBurnAmount, setBurnCooldown, setAuthorizedSender, setCapacityOracle, setDexRouters, addDexRouter, setFeeDistributor, setReserves, setMaintenanceReserve, setAdaptiveMode, recoverToken, upgradeToAndCall |
 | `CoverRouterV2` | deployer | configureProduct, setRelayer, setPaused, setPolicyManager, setTwapBurner, setCapacityOracle, recoverToken, syncCircuitBreaker (*permissionless*), upgradeToAndCall |
-| `PolicyManagerV2` | deployer | setRouter, registerProduct, deactivateProduct, upgradeToAndCall |
+| `PolicyManagerV2` | deployer | setRouter, registerProduct, deactivateProduct, **reactivateProduct** *(branch `feat/reactivate-product`, pending merge — see note below)*, upgradeToAndCall |
 | `ClaimBond` | deployer | setBondVault, setAuthorizedOperator, setBaseURI, upgradeToAndCall |
 | `TreasuryVesting` | deployer | release, recoverToken, upgradeToAndCall |
 | `CapacityOracle` | deployer | setEmergencyPrice, setTwapPeriod, setFallbackTolerance, upgradeToAndCall |
@@ -67,6 +79,18 @@ All use **OpenZeppelin v5 `OwnableUpgradeable`** — **1-step** `transferOwnersh
 | 9 Shields (BTC/ETH 1h/4h/24h/48h, MicroDepeg, RateShock) | deployer | (via BaseShield) |
 
 Total: 13 Ownable-style proxies + 9 shield instances sharing BaseShield semantics.
+
+> ⚠️ **PRE-MAINNET RELEASE NOTE — `PolicyManagerV2.reactivateProduct`**
+>
+> The `reactivateProduct(bytes32)` admin function is implemented on
+> branch `feat/reactivate-product`, NOT yet on `main`. It will land via
+> the V5.1 consolidated squash-merge before mainnet deploy. It is the
+> intended counterpart of `deactivateProduct` (post-H-5, `triggerPayout`
+> hard-checks `productActive`).
+>
+> **Workaround pre-merge** (NOT official pattern): re-call
+> `registerProduct` to set `productActive = true` as a side-effect — but
+> this re-emits `ProductRegistered` and may confuse indexers.
 
 ---
 
@@ -103,6 +127,7 @@ Total: 13 Ownable-style proxies + 9 shield instances sharing BaseShield semantic
 | ClaimBond | owner | Ownable | owner | — | 1-step |
 | TreasuryVesting | owner | Ownable | owner | — | 1-step |
 | CapacityOracle | owner | Ownable | owner | — | 1-step |
+| ChainlinkGraceOracle *(post-H13)* | DEFAULT_ADMIN_ROLE + ADMIN_ROLE | AccessControl | DEFAULT admin | DEFAULT admin | Safe (multi-admin allowed) |
 | AdaptiveFeeDistributor | owner | Ownable | owner | — | 1-step |
 | ShieldKeeper | owner | Ownable | owner | — | 1-step |
 | 9 Shields | owner | Ownable (via BaseShield) | owner | — | 1-step |

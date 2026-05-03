@@ -33,6 +33,12 @@ interface IPriceOracle {
     /// @notice Current $LUMINA price in USD with 18 decimals.
     /// @return price e.g., 36000000000000000 = $0.036
     function getLuminaPrice() external view returns (uint256 price);
+
+    /// @notice [Fix M-6] TWAP-derived $LUMINA price over `secondsAgo` window.
+    /// @dev    Implemented by CapacityOracle. Returns `emergencyPrice` on
+    ///         pool revert. BondVault.availableCapacityUSD() uses this to
+    ///         smooth out spot-dump-driven capacity collapses.
+    function getTWAP(uint32 secondsAgo) external view returns (uint256 price);
 }
 
 contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AccessControlUpgradeable {
@@ -51,6 +57,16 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50% — max commitment
+    /// @notice [Fix M-11] Solvency floor below which `burnFromReserves`
+    ///         refuses to consume more LUMINA. 12500 bps = 125%.
+    /// @dev    Bull-case double-burn flows (BuybackEngine.executeOffer →
+    ///         _executeDoubleBurn → bondVault.burnFromReserves) can drain
+    ///         the vault when solvency is high. If a sudden market crash
+    ///         immediately follows, the remaining LUMINA at the lower
+    ///         price may no longer cover outstanding bonds, triggering a
+    ///         bank run. This guard caps the burn so that POST-burn
+    ///         solvency stays at or above 125%.
+    uint256 public constant SOLVENCY_BURN_FLOOR_BPS = 12500;
     uint256 public constant BOND_MATURITY_SECONDS = 730 days; // 24 months
     /// @dev [Fix C-3] Raised from 0.001e18 to 5e15 ($0.005) to align with
     ///      CoverRouterV2.MIN_PRICE_FOR_NEW_POLICIES auto-pause floor.
@@ -64,6 +80,13 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///      loss when oracle returns anomalously high values (e.g. type(uint256).max).
     ///      $1000/LUMINA is well above any plausible market price (current spot ~$0.036).
     uint256 public constant MAX_REDEEM_PRICE = 1000e18; // 1000 USD — sanity upper bound
+
+    /// @notice [Fix M-6] TWAP window used by `availableCapacityUSD` to
+    ///         smooth spot dumps. 1 hour balances reactivity (a real
+    ///         crisis is still reflected within 60 minutes) against
+    ///         resistance to single-block manipulation. Reuses the
+    ///         CapacityOracle.getTWAP infrastructure introduced in FIX #13.
+    uint32 public constant TWAP_CAPACITY_SECONDS = 1 hours;
 
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
@@ -86,6 +109,29 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     event ReservationCommitted(uint256 amount, uint256 newTotalReserved);
     /// @notice [LOW-2 fix] Emitted on successful non-core token rescue (ERC-20 or ERC-1155).
     event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+    /// @notice [Fix M-6] Emitted by `pingCapacityHealth()` when the 1h TWAP
+    ///         is unavailable / corrupt and the capacity calculation falls
+    ///         back to spot. View callers (`availableCapacityUSD`) silently
+    ///         use the same fallback; this event exists so off-chain
+    ///         monitoring can poll a non-view path and detect oracle health.
+    event OracleFailure(string indexed source, string reason);
+    /// @notice [Fix M-6] Emitted by `pingCapacityHealth()` to publish the
+    ///         capacity number alongside the price source actually used.
+    event CapacityHealthPinged(uint256 capacity, uint256 priceUsed, bool usedFallback);
+    /// @notice [Fix M-11] Emitted by `burnFromReserves` when the solvency
+    ///         floor reduced the actual burn below the requested amount.
+    /// @param  requested The amount the caller asked to burn.
+    /// @param  actual The amount actually burned (≤ requested, may be 0).
+    /// @param  currentSolvencyBps Solvency BEFORE the (limited) burn,
+    ///         in basis points. Useful for monitoring how often the
+    ///         guard fires near the 12500 bps floor.
+    event BurnLimitedBySolvencyFloor(uint256 requested, uint256 actual, uint256 currentSolvencyBps);
+
+    /// @notice [Fix M-11] Thrown by `burnFromReserves` when the requested
+    ///         burn would breach the 125% solvency floor and reducing it
+    ///         to a non-zero amount is also impossible (e.g. solvency is
+    ///         already at or below the floor).
+    error BurnBreachesSolvencyFloor();
 
     // ═══════ ERRORS (rescue) ═══════
     error CoreTokenProtected(address token);
@@ -244,15 +290,31 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     // ═══════ VIEW FUNCTIONS ═══════
 
     /// @notice Remaining USD capacity that can be issued as new bonds.
+    /// @dev    [Fix M-6] Uses 1h TWAP price (not spot) to smooth out
+    ///         single-block dumps that would otherwise collapse capacity
+    ///         instantly and starve the protocol of premium income. If
+    ///         the TWAP is unavailable / corrupt (< MIN_REDEEM_PRICE),
+    ///         falls back to spot. View-mode keeps the fallback silent;
+    ///         off-chain monitors call `pingCapacityHealth()` to receive
+    ///         the same calculation with an `OracleFailure` event when
+    ///         fallback was used.
     function availableCapacityUSD() external view returns (uint256) {
-        uint256 currentPrice = _getSafePrice();
-        uint256 reserveBalance = lumina.balanceOf(address(this));
-        uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
-        uint256 maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
-        // [V5/M-RACE] Subtract BOTH committed and reserved to prevent race condition
-        uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
-        if (maxCommitUSD18 <= totalUsed) return 0;
-        return (maxCommitUSD18 - totalUsed) / 1e18; // return integer dollars
+        (uint256 currentPrice,) = _getCapacityPrice();
+        return _capacityFromPrice(currentPrice);
+    }
+
+    /// @notice [Fix M-6] Off-chain monitoring entry point. Computes the
+    ///         exact same capacity number as `availableCapacityUSD` but
+    ///         is non-view so it can emit `OracleFailure` when the TWAP
+    ///         path fell back to spot. Idempotent — does not mutate any
+    ///         BondVault state.
+    function pingCapacityHealth() external returns (uint256 capacity, uint256 priceUsed, bool usedFallback) {
+        (priceUsed, usedFallback) = _getCapacityPrice();
+        capacity = _capacityFromPrice(priceUsed);
+        if (usedFallback) {
+            emit OracleFailure("CapacityTWAP", "1h TWAP unavailable or below floor; fell back to spot");
+        }
+        emit CapacityHealthPinged(capacity, priceUsed, usedFallback);
     }
 
     /// @notice [V2/SR2] Preview LUMINA (18-dec wei) for redeeming `usdAmount` integer dollars.
@@ -307,6 +369,37 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return p;
     }
 
+    /// @dev [Fix M-6] Capacity-side price oracle: prefer the 1h TWAP, fall
+    ///      back to spot if TWAP reverts OR comes back below the
+    ///      MIN_REDEEM_PRICE floor (defensive against a corrupted /
+    ///      attacker-fed pool). Returns (price, usedFallback).
+    function _getCapacityPrice() internal view returns (uint256 price, bool usedFallback) {
+        try priceOracle.getTWAP(TWAP_CAPACITY_SECONDS) returns (uint256 twapPrice) {
+            if (twapPrice >= MIN_REDEEM_PRICE) {
+                return (twapPrice, false);
+            }
+            // TWAP returned but below floor — treat as failure and fall through.
+        } catch {
+            // TWAP reverted — fall through to spot.
+        }
+        // Fallback: spot price (with the same safe-price clamp as redemptions).
+        uint256 spot = _getSafePrice();
+        return (spot, true);
+    }
+
+    /// @dev [Fix M-6] Pure capacity arithmetic, factored out so both
+    ///      `availableCapacityUSD` (view) and `pingCapacityHealth`
+    ///      (non-view) share the exact same number.
+    function _capacityFromPrice(uint256 price) internal view returns (uint256) {
+        uint256 reserveBalance = lumina.balanceOf(address(this));
+        uint256 reserveValueUSD18 = (reserveBalance * price) / 1e18;
+        uint256 maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
+        // [V5/M-RACE] Subtract BOTH committed and reserved to prevent race condition
+        uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
+        if (maxCommitUSD18 <= totalUsed) return 0;
+        return (maxCommitUSD18 - totalUsed) / 1e18; // return integer dollars
+    }
+
     function _timestampToEpoch(uint256 ts) internal pure returns (uint256) {
         uint256 BASE_TS = 1767225600; // Jan 1 2026 UTC
         require(ts >= BASE_TS, "Before base");
@@ -328,7 +421,16 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /// @notice Burn LUMINA from vault reserves (Double Burn by BuybackEngine)
-    /// @param amount Quantity of LUMINA to burn
+    /// @param amount Quantity of LUMINA to burn (may be reduced internally
+    ///        if it would breach the M-11 solvency floor).
+    /// @dev   [Fix M-11] If burning the full requested amount would push
+    ///        post-burn solvency below `SOLVENCY_BURN_FLOOR_BPS` (125%),
+    ///        the burn is silently capped to the largest amount that
+    ///        keeps solvency at or above the floor. If the floor is
+    ///        already at or below 125%, the entire call reverts with
+    ///        `BurnBreachesSolvencyFloor`. Callers (BuybackEngine) do
+    ///        not need to check the actual amount burned — events
+    ///        provide visibility.
     function burnFromReserves(uint256 amount) external onlyAuthorized {
         require(amount > 0, "Amount must be > 0");
         uint256 currentBalance = lumina.balanceOf(address(this));
@@ -336,9 +438,47 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         // Cap: max 5% of vault per tx
         uint256 maxBurnPerTx = (currentBalance * 5) / 100;
         require(amount <= maxBurnPerTx, "Exceeds 5% per-tx cap");
+
+        // [Fix M-11] Solvency floor guard.
+        uint256 actualBurn = _maxBurnPreservingSolvency(amount);
+        if (actualBurn == 0) revert BurnBreachesSolvencyFloor();
+        if (actualBurn < amount) {
+            uint256 currentObligations = totalCommittedUSD;
+            uint256 currentPrice = priceOracle.getLuminaPrice();
+            // currentObligations > 0 here (else `_maxBurnPreservingSolvency`
+            // would have returned `requestedBurn` and we'd be in the
+            // `actualBurn == amount` branch). currentPrice > 0 likewise
+            // (else `_maxBurnPreservingSolvency` would have returned 0).
+            uint256 currentSolvencyBps = (currentBalance * currentPrice * 10000) / (currentObligations * 1e18);
+            emit BurnLimitedBySolvencyFloor(amount, actualBurn, currentSolvencyBps);
+        }
+
         // Burn via ERC20Burnable.burn (BondVault holds the tokens)
-        IBurnable(address(lumina)).burn(amount);
-        emit ReservesBurned(msg.sender, amount, lumina.balanceOf(address(this)));
+        IBurnable(address(lumina)).burn(actualBurn);
+        emit ReservesBurned(msg.sender, actualBurn, lumina.balanceOf(address(this)));
+    }
+
+    /// @dev [Fix M-11] Computes the largest burn that keeps post-burn
+    ///      solvency ≥ `SOLVENCY_BURN_FLOOR_BPS` (12500 = 125%). Returns
+    ///      0 when the floor is already breached or the oracle reports a
+    ///      zero price (defense against a broken oracle). When there are
+    ///      no outstanding obligations, the full requested amount is
+    ///      allowed (FIX #14 zero-obligations semantics preserved).
+    function _maxBurnPreservingSolvency(uint256 requestedBurn) internal view returns (uint256) {
+        uint256 currentObligations = totalCommittedUSD;
+        if (currentObligations == 0) return requestedBurn; // FIX #14 path
+
+        uint256 currentPrice = priceOracle.getLuminaPrice();
+        if (currentPrice == 0) return 0; // oracle broken — refuse to burn
+
+        uint256 currentBalance = lumina.balanceOf(address(this));
+        // Min balance such that: (balance * price * 10000) / (obligations * 1e18) >= 12500
+        //   => balance >= (12500 * obligations * 1e18) / (10000 * price)
+        uint256 minBalance = (SOLVENCY_BURN_FLOOR_BPS * currentObligations * 1e18) / (10000 * currentPrice);
+        if (currentBalance <= minBalance) return 0;
+
+        uint256 maxAllowedBurn = currentBalance - minBalance;
+        return requestedBurn > maxAllowedBurn ? maxAllowedBurn : requestedBurn;
     }
 
     /// @notice Authorize/revoke a caller (e.g. BuybackEngine) for decreaseObligations/burnFromReserves

@@ -56,6 +56,12 @@ contract MockPriceOracle {
     function getLuminaPrice() external view returns (uint256) {
         return price;
     }
+    /// @dev [Fix M-6 mock] Returns the same value as `getLuminaPrice()` so
+    ///      tests that don't drive the TWAP path explicitly remain unaffected.
+    function getTWAP(uint32 /*secondsAgo*/) external view returns (uint256) {
+        return this.getLuminaPrice();
+    }
+
 }
 
 // ═══════ SIMULATION TEST ═══════
@@ -128,6 +134,11 @@ contract MarketplaceAndRedemptionTest is Test {
 
         // Deploy Marketplace
         marketplace = ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+        // test - it predates the M-3 spam floor and uses arbitrary price/amount
+        // ratios that aren't relevant to the M-3 behavior under test.
+        vm.prank(admin);
+        marketplace.setMinPricePerUnit(1);
         // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
         claimBond.setAuthorizedOperator(address(marketplace), true);
 

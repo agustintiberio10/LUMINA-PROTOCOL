@@ -66,6 +66,12 @@ contract MockCapacityOracleBuyback {
     function getLuminaPrice() external view returns (uint256) {
         return price;
     }
+    /// @dev [Fix M-6 mock] Returns the same value as `getLuminaPrice()` so
+    ///      tests that don't drive the TWAP path explicitly remain unaffected.
+    function getTWAP(uint32 /*secondsAgo*/) external view returns (uint256) {
+        return this.getLuminaPrice();
+    }
+
 }
 
 contract MockMarketplaceBuyback {
@@ -142,6 +148,12 @@ contract BuybackFlowTest is Test {
             address(usdc),
             multisig
         );
+        // [M-10 grant] grant BUYBACK_OPERATOR_ROLE to address(this) so test calls reach the gated path.
+        {
+            bytes32 _m10_role_engine = engine.BUYBACK_OPERATOR_ROLE();
+            vm.prank(multisig);
+            engine.grantRole(_m10_role_engine, address(this));
+        }
     }
 
     // ─── Test 1: setDailyBuyback succeeds immediately ───
@@ -174,14 +186,29 @@ contract BuybackFlowTest is Test {
         usdc.mint(address(engine), 200e6);
 
         // First buy succeeds (spentToday: 0 + 40e6 = 40e6 <= 100e6)
-        engine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_81_0 = keccak256(abi.encode("m10-test-salt", uint256(0)));
+            bytes32 _m10_commit_81_0 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_81_0));
+            engine.commitBuyback(_m10_commit_81_0);
+            vm.roll(block.number + engine.MIN_REVEAL_DELAY_BLOCKS());
+            engine.revealAndExecute(0, type(uint256).max, _m10_salt_81_0);
+        }
 
         // Create second listing that would exceed budget (40e6 + 70e6 = 110e6 > 100e6)
         marketplace.setListing(1, makeAddr("seller"), 202804, 100, 70e6, true);
 
         // Second buy reverts (spentToday: 40e6 + 70e6 = 110e6 > 100e6)
-        vm.expectRevert("Daily budget exceeded");
-        engine.executeOffer(1);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_81_1 = keccak256(abi.encode("m10-test-salt", uint256(1)));
+            bytes32 _m10_commit_81_1 = keccak256(abi.encode(1, type(uint256).max, _m10_salt_81_1));
+            engine.commitBuyback(_m10_commit_81_1);
+            vm.roll(block.number + engine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert("Daily budget exceeded");
+            engine.revealAndExecute(1, type(uint256).max, _m10_salt_81_1);
+        }
     }
 
     // ─── Test 3: Expiration is respected ───
@@ -197,7 +224,15 @@ contract BuybackFlowTest is Test {
         marketplace.setListing(0, makeAddr("seller"), 202804, 10, 5e6, true);
         usdc.mint(address(engine), 10e6);
 
-        vm.expectRevert("Daily offer expired");
-        engine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_81_2 = keccak256(abi.encode("m10-test-salt", uint256(2)));
+            bytes32 _m10_commit_81_2 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_81_2));
+            engine.commitBuyback(_m10_commit_81_2);
+            vm.roll(block.number + engine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert("Daily offer expired");
+            engine.revealAndExecute(0, type(uint256).max, _m10_salt_81_2);
+        }
     }
 }

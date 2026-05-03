@@ -34,7 +34,7 @@ contract FlashBTCShield24h is BaseShield {
     uint256 public constant TRIGGER_DROP_BPS = 1000; // 10% drop
     uint256 private constant BPS = 10_000;
 
-    uint256 public constant MAX_PROOF_AGE = 900; // 15 minutes
+    uint256 public constant MAX_PROOF_AGE = 86400; // [Fix M-8] 24 hours (was 900 = 15 min). Replay protection comes from policy-finalization state, not proof-age — extending the window absorbs keeper-bot delays + Base congestion without weakening security.
 
     // [M-01 fix] Per-asset sanity bounds (Chainlink 8-dec).
     uint256 public constant MIN_PRICE = 10_000 * 1e8; // $10,000

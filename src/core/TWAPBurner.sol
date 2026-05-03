@@ -42,6 +42,11 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     // ═══════ MULTI-DEX ROUTING ═══════
     IDexRouter[] public dexRouters;
 
+    /// @notice [Fix M-12] Maximum number of DEX adapters in the fallback
+    ///         chain. Caps gas cost of `_swapAndBurn` at a known upper
+    ///         bound (one swap + try-catch per adapter).
+    uint256 public constant MAX_DEX_ADAPTERS = 5;
+
     // ═══════ [H-2] SLIPPAGE PROTECTION ═══════
     address public capacityOracle;
 
@@ -85,6 +90,28 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     );
     /// @notice [Fix audit #27 INFO-3] Emitted when adaptive mode is toggled.
     event AdaptiveModeUpdated(bool enabled);
+    /// @notice [Fix M-12] Emitted on `setDexRouters` so off-chain monitors
+    ///         can audit the full adapter chain in one event.
+    event DexAdaptersUpdated(address[] adapters);
+    /// @notice [Fix M-12] Emitted by `_swapAndBurn` when a specific DEX
+    ///         adapter successfully fulfilled the swap. Complements the
+    ///         existing `BurnExecuted` (which tracks aggregate stats);
+    ///         this one identifies WHICH adapter was used so off-chain
+    ///         monitoring can detect adapter-level failures.
+    event BurnAdapterUsed(address indexed adapter, uint256 usdcAmount, uint256 luminaReceived);
+    /// @notice [Fix M-12] Emitted by `_swapAndBurn` whenever an adapter
+    ///         in the chain reverts. The chain continues to the next
+    ///         adapter; this event lets ops detect & fix bad adapters
+    ///         even when the overall burn ultimately succeeded.
+    event DexAdapterFailed(address indexed adapter, bytes reason);
+    /// @notice [Fix M-12] Emitted by `_swapAndBurn` when EVERY adapter
+    ///         in the chain reverted. The transaction itself reverts
+    ///         right after this event so the USDC stays in the contract
+    ///         for retry.
+    event AllDexAdaptersFailed(uint256 usdcAmount);
+    /// @notice [Fix M-12] Emitted on `retryBurn` to distinguish manual
+    ///         retry from the regular cooldown-gated `executeBurn`.
+    event BurnRetried(uint256 amount, address indexed by);
 
     // ═══════ AUTHORIZED SENDERS ═══════
     mapping(address => bool) public authorizedSenders;
@@ -209,19 +236,72 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     function _swapAndBurn(uint256 usdcAmount) internal {
         require(dexRouters.length > 0, "No DEX routers configured");
 
-        IDexRouter bestRouter = dexRouters[0];
-        uint256 bestQuote = 0;
+        // Compute slippage-protective minOut from the best quote across
+        // all adapters + the oracle. Same logic as pre-M-12, just
+        // factored out so the fallback loop can reuse it.
+        uint256 minOut = _computeMinOut(usdcAmount);
 
+        // [M-02 fix] Defense-in-depth: refuse to swap without a protective
+        // minOut floor. If quote+oracle both fail we would otherwise accept
+        // any 1-wei return, enabling sandwich attacks.
+        require(minOut > 0, "TWAPBurner: minOut must be > 0");
+
+        // [Fix M-12] Sequential fallback chain. Try each adapter in array
+        // order; the first that succeeds wins. Pre-M-12 we picked the
+        // best-quote adapter then attempted ONLY that one — if it
+        // reverted (e.g. DEX paused, pool drained, slippage breach), the
+        // entire executeBurn reverted, leaving USDC stuck pending the
+        // next cooldown window. Post-M-12, a primary outage degrades
+        // gracefully to a secondary / tertiary adapter.
+        for (uint256 i = 0; i < dexRouters.length; i++) {
+            IDexRouter adapter = dexRouters[i];
+            usdc.forceApprove(address(adapter), usdcAmount);
+
+            try adapter.swap(address(usdc), address(lumina), usdcAmount, minOut) returns (uint256 luminaReceived) {
+                // Defensive reset (the adapter should have spent the full
+                // approval, but reset anyway to be safe).
+                usdc.forceApprove(address(adapter), 0);
+
+                require(luminaReceived > 0, "Swap returned 0");
+
+                IBurnable(address(lumina)).burn(luminaReceived);
+                totalUSDCBurned += usdcAmount;
+                totalLUMINABurned += luminaReceived;
+
+                uint256 effectivePrice = (usdcAmount * 1e18) / luminaReceived;
+                emit BurnAdapterUsed(address(adapter), usdcAmount, luminaReceived);
+                emit BurnExecuted(usdcAmount, luminaReceived, effectivePrice, block.timestamp);
+                return;
+            } catch (bytes memory reason) {
+                // Reset approval on the failing adapter so a subsequent
+                // re-grant to the next adapter doesn't accumulate.
+                usdc.forceApprove(address(adapter), 0);
+                emit DexAdapterFailed(address(adapter), reason);
+                // continue to next adapter
+            }
+        }
+
+        // [Fix M-12] Every adapter in the chain reverted. Emit, then
+        // revert ourselves so the USDC stays in the contract (the swap
+        // never moved tokens out — the approvals were also reset above).
+        // The revert cleans up `lastBurnTimestamp`, so subsequent
+        // `executeBurn` calls remain unblocked once any adapter recovers.
+        emit AllDexAdaptersFailed(usdcAmount);
+        revert("All DEX adapters failed");
+    }
+
+    /// @dev [Fix M-12] Computes the slippage-protective `minOut` floor
+    ///      shared by both the regular `executeBurn` path and the M-12
+    ///      manual `retryBurn` path.
+    function _computeMinOut(uint256 usdcAmount) internal returns (uint256 minOut) {
+        uint256 bestQuote = 0;
         for (uint256 i = 0; i < dexRouters.length; i++) {
             try dexRouters[i].getQuote(address(usdc), address(lumina), usdcAmount) returns (uint256 quote) {
                 if (quote > bestQuote) {
                     bestQuote = quote;
-                    bestRouter = dexRouters[i];
                 }
             } catch {}
         }
-
-        uint256 minOut = 0;
         if (bestQuote > 0) {
             minOut = (bestQuote * (10_000 - maxSlippageBps)) / 10_000;
         }
@@ -236,24 +316,21 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
                 }
             } catch {}
         }
+    }
 
-        // [M-02 fix] Defense-in-depth: refuse to swap without a protective
-        // minOut floor. If quote+oracle both fail we would otherwise accept
-        // any 1-wei return, enabling sandwich attacks.
-        require(minOut > 0, "TWAPBurner: minOut must be > 0");
-
-        usdc.forceApprove(address(bestRouter), usdcAmount);
-        uint256 luminaReceived = bestRouter.swap(address(usdc), address(lumina), usdcAmount, minOut);
-
-        require(luminaReceived > 0, "Swap returned 0");
-
-        IBurnable(address(lumina)).burn(luminaReceived);
-
-        totalUSDCBurned += usdcAmount;
-        totalLUMINABurned += luminaReceived;
-
-        uint256 effectivePrice = (usdcAmount * 1e18) / luminaReceived;
-        emit BurnExecuted(usdcAmount, luminaReceived, effectivePrice, block.timestamp);
+    /// @notice [Fix M-12] Manual retry entry point for the case where
+    ///         all DEX adapters previously failed and the operator
+    ///         wants to retry once one or more adapters recover. Bypasses
+    ///         the cooldown + min/maxBurnAmount limits because the
+    ///         operator (multisig) is the trusted decision-maker here.
+    /// @dev    Slippage protection (minOut floor + best-quote selection)
+    ///         continues to apply — the operator cannot bypass the
+    ///         oracle-anchored sandwich-protection.
+    function retryBurn(uint256 amount) external onlyOwner nonReentrant {
+        require(amount > 0, "Zero amount");
+        require(usdc.balanceOf(address(this)) >= amount, "Insufficient USDC");
+        emit BurnRetried(amount, msg.sender);
+        _swapAndBurn(amount);
     }
 
     // ═══════ V5.0 EVENTS ═══════
@@ -309,16 +386,23 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
 
     function setDexRouters(address[] calldata _routers) external onlyOwner {
         require(_routers.length > 0, "Empty routers");
+        // [Fix M-12] Cap the chain at MAX_DEX_ADAPTERS so worst-case
+        // gas of `_swapAndBurn` (try-catch per adapter) is bounded.
+        require(_routers.length <= MAX_DEX_ADAPTERS, "Exceeds max adapters");
         delete dexRouters;
         for (uint256 i = 0; i < _routers.length; i++) {
             require(_routers[i] != address(0), "Zero router");
             dexRouters.push(IDexRouter(_routers[i]));
         }
+        // [Fix M-12] Emit the full chain so monitors can audit in one event.
+        emit DexAdaptersUpdated(_routers);
         emit ConfigUpdated("dexRouters", _routers.length);
     }
 
     function addDexRouter(address _router) external onlyOwner {
         require(_router != address(0), "Zero router");
+        // [Fix M-12] Cap enforced incrementally on append.
+        require(dexRouters.length < MAX_DEX_ADAPTERS, "Max adapters reached");
         dexRouters.push(IDexRouter(_router));
         emit ConfigUpdated("dexRouterAdded", dexRouters.length);
     }

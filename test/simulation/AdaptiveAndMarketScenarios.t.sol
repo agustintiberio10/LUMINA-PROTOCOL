@@ -131,6 +131,12 @@ contract SimMockCapacityOracle {
     function getLuminaPrice() external view returns (uint256) {
         return mockPrice;
     }
+    /// @dev [Fix M-6 mock] Returns the same value as `getLuminaPrice()` so
+    ///      tests that don't drive the TWAP path explicitly remain unaffected.
+    function getTWAP(uint32 /*secondsAgo*/) external view returns (uint256) {
+        return this.getLuminaPrice();
+    }
+
 }
 
 contract SimMockBondVault {
@@ -318,6 +324,12 @@ contract AdaptiveAndMarketScenariosTest is Test {
             address(usdc),
             multisig
         );
+        // [M-10 grant] grant BUYBACK_OPERATOR_ROLE to address(this) so test calls reach the gated path.
+        {
+            bytes32 _m10_role_buybackEngine = buybackEngine.BUYBACK_OPERATOR_ROLE();
+            vm.prank(multisig);
+            buybackEngine.grantRole(_m10_role_buybackEngine, address(this));
+        }
 
         // Initial oracle state
         capacityOracle.setPrice(36e15); // $0.036
@@ -649,7 +661,21 @@ contract AdaptiveAndMarketScenariosTest is Test {
         uint256 obligationsBefore = bondVault.totalCommittedUSD();
         uint256 luminaReservesBefore = bondVault.luminaBalanceStored();
 
-        buybackEngine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+
+        {
+
+            bytes32 _m10_salt_130_0 = keccak256(abi.encode("m10-test-salt", uint256(0)));
+
+            bytes32 _m10_commit_130_0 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_130_0));
+
+            buybackEngine.commitBuyback(_m10_commit_130_0);
+
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+
+            buybackEngine.revealAndExecute(0, type(uint256).max, _m10_salt_130_0);
+
+        }
 
         // Verify: obligations reduced by face value
         uint256 obligationsAfter = bondVault.totalCommittedUSD();
@@ -686,14 +712,36 @@ contract AdaptiveAndMarketScenariosTest is Test {
         }
 
         // First buy: $500 spent, $500 remaining
-        buybackEngine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_130_1 = keccak256(abi.encode("m10-test-salt", uint256(1)));
+            bytes32 _m10_commit_130_1 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_130_1));
+            buybackEngine.commitBuyback(_m10_commit_130_1);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(0, type(uint256).max, _m10_salt_130_1);
+        }
 
         // Second buy: $500 spent, $0 remaining
-        buybackEngine.executeOffer(1);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_130_2 = keccak256(abi.encode("m10-test-salt", uint256(2)));
+            bytes32 _m10_commit_130_2 = keccak256(abi.encode(1, type(uint256).max, _m10_salt_130_2));
+            buybackEngine.commitBuyback(_m10_commit_130_2);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(1, type(uint256).max, _m10_salt_130_2);
+        }
 
         // Third buy: should revert - budget exhausted
-        vm.expectRevert("Daily budget exceeded");
-        buybackEngine.executeOffer(2);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_130_3 = keccak256(abi.encode("m10-test-salt", uint256(3)));
+            bytes32 _m10_commit_130_3 = keccak256(abi.encode(2, type(uint256).max, _m10_salt_130_3));
+            buybackEngine.commitBuyback(_m10_commit_130_3);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert("Daily budget exceeded");
+            buybackEngine.revealAndExecute(2, type(uint256).max, _m10_salt_130_3);
+        }
 
         console.log("Budget exhausted test passed: 2 buys succeeded, 3rd reverted");
     }
@@ -721,8 +769,16 @@ contract AdaptiveAndMarketScenariosTest is Test {
         marketplace.setListing(0, user, epochId, 1, 700_000, true); // $0.70 > $0.50 max
 
         // Should revert: price exceeds max
-        vm.expectRevert("Price exceeds max");
-        buybackEngine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_130_4 = keccak256(abi.encode("m10-test-salt", uint256(4)));
+            bytes32 _m10_commit_130_4 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_130_4));
+            buybackEngine.commitBuyback(_m10_commit_130_4);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert("Price exceeds max");
+            buybackEngine.revealAndExecute(0, type(uint256).max, _m10_salt_130_4);
+        }
 
         // Verify listing still active (buy was not executed)
         (,,,, bool active) = marketplace.getListing(0);

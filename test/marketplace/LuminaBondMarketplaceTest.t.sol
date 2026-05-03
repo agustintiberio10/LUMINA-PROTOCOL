@@ -54,6 +54,11 @@ contract LuminaBondMarketplaceTest is Test {
         bond = new MockClaimBondV5();
         usdc = new MockUSDCMP();
         mp = ProxyDeployer.deployLuminaBondMarketplace(address(bond), address(usdc), twapBurner, admin);
+        // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+        // test - it predates the M-3 spam floor and uses arbitrary price/amount
+        // ratios that aren't relevant to the M-3 behavior under test.
+        vm.prank(admin);
+        mp.setMinPricePerUnit(1);
 
         // Setup: mint bonds to seller, set maturity in future
         bond.mint(seller, EPOCH, 1000);

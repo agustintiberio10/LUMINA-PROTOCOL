@@ -7,6 +7,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IGlobalPauseRegistry} from "../governance/GlobalPauseRegistry.sol";
 
 /// @title CoverRouterV2
 /// @notice Single entry point for users (humans + AI agents) to buy policies.
@@ -77,6 +78,12 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     ///         so the flag persists across txs.
     bool public autoPausedOnce;
 
+    /// @notice [Fix M-7] Registry consulted on every gated entry point. When
+    ///         `address(0)` (default for fresh deploys before wiring), the
+    ///         global-pause check is skipped — this preserves existing local
+    ///         `paused` semantics. Set via `setGlobalPauseRegistry`.
+    IGlobalPauseRegistry public globalPauseRegistry;
+
     // ═══════ EVENTS ═══════
     event PolicyPurchased(
         bytes32 indexed productId,
@@ -103,9 +110,14 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     event AutoPauseActivated(uint256 priceWei);
     /// @notice [Fix audit #28 INFO-7] Emitted when circuit-breaker auto-pause is deactivated.
     event AutoPauseDeactivated(uint256 priceWei);
+    /// @notice [Fix M-7] Emitted when the global pause registry is wired or rewired.
+    event GlobalPauseRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 
     // ═══════ ERRORS ═══════
     error ContractPaused();
+    /// @notice [Fix M-7] Thrown by `whenNotPaused` when the global pause
+    ///         registry reports `globalPaused == true`.
+    error GloballyPaused();
     error ProductNotConfigured(bytes32 productId);
     error ProductInactive(bytes32 productId);
     error InvalidCoverage(uint256 amount);
@@ -118,6 +130,12 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     modifier whenNotPaused() {
         if (paused) revert ContractPaused();
+        // [Fix M-7] Defense-in-depth: also reject when the protocol-wide
+        // pause registry reports paused. The two checks coexist — local
+        // `paused` is the legacy circuit breaker, global is the new
+        // multisig kill switch.
+        IGlobalPauseRegistry reg = globalPauseRegistry;
+        if (address(reg) != address(0) && reg.isGloballyPaused()) revert GloballyPaused();
         _;
     }
 
@@ -266,6 +284,15 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit Paused(_paused);
     }
 
+    /// @notice [Fix M-7] Wire (or re-wire) the global pause registry.
+    ///         Passing `address(0)` opts the contract OUT of the global
+    ///         pause check (only the legacy local `paused` flag remains).
+    function setGlobalPauseRegistry(address _registry) external onlyOwner {
+        address old = address(globalPauseRegistry);
+        globalPauseRegistry = IGlobalPauseRegistry(_registry);
+        emit GlobalPauseRegistryUpdated(old, _registry);
+    }
+
     function setPolicyManager(address _pm) external onlyOwner {
         require(_pm != address(0), "Zero");
         address old = address(policyManager);
@@ -360,5 +387,7 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     // Storage gap for future upgrades
     // [Fix audit #28 INFO-7] Reduced from 50 to 49 to make room for `autoPausedOnce`.
-    uint256[49] private __gap;
+    // [Fix M-7] Reduced from 49 → 48 because `globalPauseRegistry` consumes
+    // one slot. UUPS-safe append — existing fields were not reordered.
+    uint256[48] private __gap;
 }

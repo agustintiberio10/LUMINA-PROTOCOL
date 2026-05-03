@@ -290,7 +290,7 @@ contract FixDeployScriptsTest is Test {
 
         vm.startPrank(seller);
         cb.setApprovalForAll(address(mp), true);
-        uint256 listingId = mp.list(202904, 100, 50e6);
+        uint256 listingId = mp.list(202904, 100, 100e6);
         vm.stopPrank();
 
         (,,,, bool active) = mp.getListing(listingId);
@@ -308,11 +308,11 @@ contract FixDeployScriptsTest is Test {
 
         vm.startPrank(seller);
         cb.setApprovalForAll(address(mp), true);
-        uint256 listingId = mp.list(202904, 100, 50e6);
+        uint256 listingId = mp.list(202904, 100, 100e6);
         vm.stopPrank();
 
-        // Buyer pays 50e6 + 1.5% buyer fee.
-        usdc.mint(buyer, 100e6);
+        // Buyer pays 100e6 + 1.5% buyer fee (post-M-3 floor: pricePerUnit = 1 USDC).
+        usdc.mint(buyer, 200e6);
         vm.startPrank(buyer);
         usdc.approve(address(mp), type(uint256).max);
         mp.executeBuy(listingId);
@@ -354,7 +354,7 @@ contract FixDeployScriptsTest is Test {
         vm.startPrank(seller);
         cb.setApprovalForAll(address(mp), true);
         vm.expectRevert(); // ClaimBond rejects non-whitelisted marketplace operator
-        mp.list(202904, 100, 50e6);
+        mp.list(202904, 100, 100e6);
         vm.stopPrank();
     }
 

@@ -91,6 +91,12 @@ contract MockCapacityOracle {
     function getLuminaPrice() external view returns (uint256) {
         return price;
     }
+    /// @dev [Fix M-6 mock] Returns the same value as `getLuminaPrice()` so
+    ///      tests that don't drive the TWAP path explicitly remain unaffected.
+    function getTWAP(uint32 /*secondsAgo*/) external view returns (uint256) {
+        return this.getLuminaPrice();
+    }
+
 }
 
 /// @notice Mock marketplace for BuybackEngine tests
@@ -332,6 +338,12 @@ contract EmergencyResponseTest is Test {
             address(usdc),
             address(this) // multisig = this test contract
         );
+        // [M-10 grant] grant BUYBACK_OPERATOR_ROLE to address(this) so test calls reach the gated path.
+        {
+            bytes32 _m10_role_engine = engine.BUYBACK_OPERATOR_ROLE();
+            vm.prank(address(this));
+            engine.grantRole(_m10_role_engine, address(this));
+        }
 
         // Authorize BuybackEngine on BondVault (requires policyManager = address(this))
         bondVault.setAuthorizedCaller(address(engine), true);
@@ -369,7 +381,14 @@ contract EmergencyResponseTest is Test {
         // Engine inherits ERC1155Holder so it can receive. It already holds bonds.
 
         // Execute offer
-        engine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_107_0 = keccak256(abi.encode("m10-test-salt", uint256(0)));
+            bytes32 _m10_commit_107_0 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_107_0));
+            engine.commitBuyback(_m10_commit_107_0);
+            vm.roll(block.number + engine.MIN_REVEAL_DELAY_BLOCKS());
+            engine.revealAndExecute(0, type(uint256).max, _m10_salt_107_0);
+        }
 
         // Since solvency < 150%, the LUMINA reserves burn should be SKIPPED
         uint256 vaultLuminaAfter = token.balanceOf(bondVaultAddr);

@@ -89,10 +89,17 @@ contract TimingAttacks is Test {
             admin
         );
 
-        // Try to executeOffer without configuring daily buyback
-        // validUntil defaults to 0, so block.timestamp > 0 => "Daily offer expired"
+        // [Fix M-10] Route through commit-reveal. The "Daily offer expired"
+        // assertion still holds because validUntil defaults to 0; the reveal
+        // hits the dailyConfig check after the commit + min-delay setup.
+        bytes32 salt0 = keccak256(abi.encode("m10-test-salt-0", uint256(0)));
+        bytes32 commit0 = keccak256(abi.encode(uint256(0), type(uint256).max, salt0));
+        vm.prank(admin); // admin has BUYBACK_OPERATOR_ROLE
+        engine.commitBuyback(commit0);
+        vm.roll(block.number + engine.MIN_REVEAL_DELAY_BLOCKS());
         vm.expectRevert("Daily offer expired");
-        engine.executeOffer(0);
+        vm.prank(admin);
+        engine.revealAndExecute(0, type(uint256).max, salt0);
     }
 
     // ================================================================
@@ -172,11 +179,19 @@ contract TimingAttacks is Test {
         claimBond.setMaturityDate(202801, block.timestamp + 365 days);
         claimBond.mint(address(engine), 202801, 10);
 
-        // Warp 25 hours (past validUntil)
-        vm.warp(block.timestamp + 25 hours);
+        // [Fix M-10] Route through commit-reveal. Operator commits inside
+        // the still-valid window, then warp past validUntil + min-delay.
+        bytes32 salt1 = keccak256(abi.encode("m10-test-salt-1", uint256(1)));
+        bytes32 commit1 = keccak256(abi.encode(uint256(0), type(uint256).max, salt1));
+        vm.prank(admin);
+        engine.commitBuyback(commit1);
 
-        // Try to execute -- should fail due to expiry
+        // Warp 25 hours (past validUntil) and advance reveal delay.
+        vm.warp(block.timestamp + 25 hours);
+        vm.roll(block.number + engine.MIN_REVEAL_DELAY_BLOCKS());
+
         vm.expectRevert("Daily offer expired");
-        engine.executeOffer(0);
+        vm.prank(admin);
+        engine.revealAndExecute(0, type(uint256).max, salt1);
     }
 }

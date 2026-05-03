@@ -55,6 +55,12 @@ contract MockOracle {
     function getLuminaPrice() external pure returns (uint256) {
         return 1e16; // 0.01 USD/LUMINA
     }
+    /// @dev [Fix M-6 mock] Returns the same value as `getLuminaPrice()` so
+    ///      tests that don't drive the TWAP path explicitly remain unaffected.
+    function getTWAP(uint32 /*secondsAgo*/) external view returns (uint256) {
+        return this.getLuminaPrice();
+    }
+
 }
 
 contract MockDex is IDexRouter {

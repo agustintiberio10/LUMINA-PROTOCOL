@@ -7,6 +7,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {MonthCalculator} from "../libraries/MonthCalculator.sol";
 
 /// @title MaintenanceReserve
 /// @notice Holds USDC for protocol maintenance expenses.
@@ -96,8 +97,14 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
         emit MonthlyCapUpdated(oldCap, _cap);
     }
 
+    /// @dev [Fix M-9] Routed through `MonthCalculator` for protocol-wide
+    ///      formula consistency. Anchor = `0` (Unix epoch) preserves the
+    ///      pre-fix semantic: this contract has no `deploymentTimestamp`
+    ///      slot and tracks "absolute month-since-epoch" — which is fine
+    ///      because the cap-tracking only cares about *transitions* (when
+    ///      `month != currentMonth`), not the absolute value.
     function _enforceMonthlyCap() internal view returns (uint256) {
-        return block.timestamp / 30 days;
+        return MonthCalculator.currentMonthSinceDeploy(0);
     }
 
     function _enforceMonthlycap(uint256 amount) internal {

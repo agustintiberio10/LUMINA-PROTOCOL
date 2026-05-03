@@ -55,6 +55,12 @@ contract MockPriceOracle {
     function getLuminaPrice() external view returns (uint256) {
         return price;
     }
+    /// @dev [Fix M-6 mock] Returns the same value as `getLuminaPrice()` so
+    ///      tests that don't drive the TWAP path explicitly remain unaffected.
+    function getTWAP(uint32 /*secondsAgo*/) external view returns (uint256) {
+        return this.getLuminaPrice();
+    }
+
 
     function getLatestPrice(bytes32) external view returns (int256) {
         return int256(price);
@@ -376,6 +382,11 @@ contract AttackVectors is Test, ERC1155Holder {
         // Deploy marketplace
         marketplace =
             ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), deployer);
+            // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+            // test - it predates the M-3 spam floor and uses arbitrary price/amount
+            // ratios that aren't relevant to the M-3 behavior under test.
+            vm.prank(deployer);
+            marketplace.setMinPricePerUnit(1);
 
         // Deploy BuybackEngine
         buybackEngine = ProxyDeployer.deployBuybackEngine(
@@ -387,6 +398,12 @@ contract AttackVectors is Test, ERC1155Holder {
             address(usdc),
             deployer // multisig owner
         );
+        // [M-10 grant] grant BUYBACK_OPERATOR_ROLE to address(this) so test calls reach the gated path.
+        {
+            bytes32 _m10_role_buybackEngine = buybackEngine.BUYBACK_OPERATOR_ROLE();
+            vm.prank(deployer);
+            buybackEngine.grantRole(_m10_role_buybackEngine, address(this));
+        }
 
         // Authorize BuybackEngine on BondVault
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
@@ -561,6 +578,11 @@ contract AttackVectors is Test, ERC1155Holder {
         LuminaBondMarketplace testMarket = ProxyDeployer.deployLuminaBondMarketplace(
             address(testBond), address(testUsdc), address(twapBurner), deployer
         );
+        // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+        // test - it predates the M-3 spam floor and uses arbitrary price/amount
+        // ratios that aren't relevant to the M-3 behavior under test.
+        vm.prank(deployer);
+        testMarket.setMinPricePerUnit(1);
 
         // Create a mock BondVault for minting
         // ClaimBond.mint is onlyBondVault. We set this contract as BondVault.
@@ -587,6 +609,11 @@ contract AttackVectors is Test, ERC1155Holder {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+            // test - it predates the M-3 spam floor and uses arbitrary price/amount
+            // ratios that aren't relevant to the M-3 behavior under test.
+            vm.prank(deployer);
+            testMarket.setMinPricePerUnit(1);
         testBond.setBondVault(address(this));
 
         uint256 futureEpoch = 202812;
@@ -604,6 +631,11 @@ contract AttackVectors is Test, ERC1155Holder {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+            // test - it predates the M-3 spam floor and uses arbitrary price/amount
+            // ratios that aren't relevant to the M-3 behavior under test.
+            vm.prank(deployer);
+            testMarket.setMinPricePerUnit(1);
         testBond.setBondVault(address(this));
 
         uint256 futureEpoch = 202812;
@@ -628,6 +660,11 @@ contract AttackVectors is Test, ERC1155Holder {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+            // test - it predates the M-3 spam floor and uses arbitrary price/amount
+            // ratios that aren't relevant to the M-3 behavior under test.
+            vm.prank(deployer);
+            testMarket.setMinPricePerUnit(1);
         testBond.setBondVault(address(this));
         // [FIX-#18] Whitelist testMarket on this local ClaimBond instance.
         testBond.setAuthorizedOperator(address(testMarket), true);
@@ -654,6 +691,11 @@ contract AttackVectors is Test, ERC1155Holder {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+            // test - it predates the M-3 spam floor and uses arbitrary price/amount
+            // ratios that aren't relevant to the M-3 behavior under test.
+            vm.prank(deployer);
+            testMarket.setMinPricePerUnit(1);
         testBond.setBondVault(address(this));
         // [FIX-#18] Whitelist testMarket on this local ClaimBond instance.
         testBond.setAuthorizedOperator(address(testMarket), true);
@@ -914,8 +956,16 @@ contract AttackVectors is Test, ERC1155Holder {
         // default values (all zeros, active=false), it will fail at "Listing not active".
         // This proves the engine reaches the marketplace check and doesn't skip budget enforcement.
 
-        vm.expectRevert("Listing not active");
-        buybackEngine.executeOffer(9999);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_0_0 = keccak256(abi.encode("m10-test-salt", uint256(0)));
+            bytes32 _m10_commit_0_0 = keccak256(abi.encode(9999, type(uint256).max, _m10_salt_0_0));
+            buybackEngine.commitBuyback(_m10_commit_0_0);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert("Listing not active");
+            buybackEngine.revealAndExecute(9999, type(uint256).max, _m10_salt_0_0);
+        }
 
         // Verify the config was set correctly
         (uint256 budget,,,) = buybackEngine.dailyConfig();
@@ -1093,6 +1143,11 @@ contract AttackVectors is Test, ERC1155Holder {
         ClaimBond testBond = ProxyDeployer.deployClaimBond();
         LuminaBondMarketplace testMarket =
             ProxyDeployer.deployLuminaBondMarketplace(address(testBond), address(usdc), address(twapBurner), deployer);
+            // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+            // test - it predates the M-3 spam floor and uses arbitrary price/amount
+            // ratios that aren't relevant to the M-3 behavior under test.
+            vm.prank(deployer);
+            testMarket.setMinPricePerUnit(1);
         testBond.setBondVault(address(this));
 
         uint256 futureEpoch = 202812;
@@ -1128,8 +1183,16 @@ contract AttackVectors is Test, ERC1155Holder {
         // Warp past the config validity
         vm.warp(block.timestamp + 2 hours);
 
-        vm.expectRevert("Daily offer expired");
-        buybackEngine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_0_1 = keccak256(abi.encode("m10-test-salt", uint256(1)));
+            bytes32 _m10_commit_0_1 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_0_1));
+            buybackEngine.commitBuyback(_m10_commit_0_1);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert("Daily offer expired");
+            buybackEngine.revealAndExecute(0, type(uint256).max, _m10_salt_0_1);
+        }
     }
 
     /// @notice A.8.3 — BondVault capacity check prevents over-commitment

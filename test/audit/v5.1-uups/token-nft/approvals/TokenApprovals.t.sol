@@ -208,6 +208,11 @@ contract TokenApprovals is Test {
 
         marketplace =
             ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), multisig);
+            // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+            // test - it predates the M-3 spam floor and uses arbitrary price/amount
+            // ratios that aren't relevant to the M-3 behavior under test.
+            vm.prank(multisig);
+            marketplace.setMinPricePerUnit(1);
         buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
@@ -217,6 +222,12 @@ contract TokenApprovals is Test {
             address(usdc),
             multisig
         );
+        // [M-10 grant] grant BUYBACK_OPERATOR_ROLE to address(this) so test calls reach the gated path.
+        {
+            bytes32 _m10_role_buybackEngine = buybackEngine.BUYBACK_OPERATOR_ROLE();
+            vm.prank(multisig);
+            buybackEngine.grantRole(_m10_role_buybackEngine, address(this));
+        }
 
         twapBurner.setFeeDistributor(address(feeDistributor));
         twapBurner.setReserves(address(buybackEngine), opsWallet, address(maintenanceReserve));
@@ -290,7 +301,14 @@ contract TokenApprovals is Test {
 
         // Post-fix: executeOffer now approves priceUSDC + buyerFee, so this
         // call succeeds. Allowance is reset to 0 post-call.
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_59_0 = keccak256(abi.encode("m10-test-salt", uint256(0)));
+            bytes32 _m10_commit_59_0 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_59_0));
+            buybackEngine.commitBuyback(_m10_commit_59_0);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_59_0);
+        }
         assertEq(usdc.allowance(address(buybackEngine), address(marketplace)), 0, "approval must reset to 0");
     }
 

@@ -109,6 +109,11 @@ contract FixM03BuybackApproval is Test {
         marketplace = ProxyDeployer.deployLuminaBondMarketplace(
             address(claimBond), address(usdc), makeAddr("twapBurner"), multisig
         );
+        // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+        // test - it predates the M-3 spam floor and uses arbitrary price/amount
+        // ratios that aren't relevant to the M-3 behavior under test.
+        vm.prank(multisig);
+        marketplace.setMinPricePerUnit(1);
         buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),
@@ -118,6 +123,12 @@ contract FixM03BuybackApproval is Test {
             address(usdc),
             multisig
         );
+        // [M-10 grant] grant BUYBACK_OPERATOR_ROLE to address(this) so test calls reach the gated path.
+        {
+            bytes32 _m10_role_buybackEngine = buybackEngine.BUYBACK_OPERATOR_ROLE();
+            vm.prank(multisig);
+            buybackEngine.grantRole(_m10_role_buybackEngine, address(this));
+        }
 
         // deployer (address(this)) acts as PolicyManager so we can drive
         // BondVault.issueBond to simulate policy triggers.
@@ -178,7 +189,14 @@ contract FixM03BuybackApproval is Test {
         uint256 listingId = _list(50, 20e6);
 
         // Previously reverted with insufficient allowance. Now succeeds.
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_0 = keccak256(abi.encode("m10-test-salt", uint256(0)));
+            bytes32 _m10_commit_58_0 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_58_0));
+            buybackEngine.commitBuyback(_m10_commit_58_0);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_58_0);
+        }
     }
 
     function test_FixM03_ExecuteOffer_UsdcOutflow_IsPricePlusFee() public {
@@ -188,7 +206,14 @@ contract FixM03BuybackApproval is Test {
         uint256 listingId = _list(50, price);
 
         uint256 before_ = usdc.balanceOf(address(buybackEngine));
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_1 = keccak256(abi.encode("m10-test-salt", uint256(1)));
+            bytes32 _m10_commit_58_1 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_58_1));
+            buybackEngine.commitBuyback(_m10_commit_58_1);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_58_1);
+        }
         uint256 after_ = usdc.balanceOf(address(buybackEngine));
 
         uint256 expectedFee = (price * BUYER_FEE_BPS) / BPS_DEN;
@@ -202,7 +227,14 @@ contract FixM03BuybackApproval is Test {
         uint256 listingId = _list(50, 20e6);
 
         uint256 supplyBefore = claimBond.totalSupply(epoch);
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_2 = keccak256(abi.encode("m10-test-salt", uint256(2)));
+            bytes32 _m10_commit_58_2 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_58_2));
+            buybackEngine.commitBuyback(_m10_commit_58_2);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_58_2);
+        }
         uint256 supplyAfter = claimBond.totalSupply(epoch);
 
         // Bonds are burned by BuybackEngine via _executeDoubleBurn.
@@ -220,7 +252,14 @@ contract FixM03BuybackApproval is Test {
         uint256 fee = (price * BUYER_FEE_BPS) / BPS_DEN;
 
         uint256 listingId = _list(200, price);
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_3 = keccak256(abi.encode("m10-test-salt", uint256(3)));
+            bytes32 _m10_commit_58_3 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_58_3));
+            buybackEngine.commitBuyback(_m10_commit_58_3);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_58_3);
+        }
 
         // dailyConfig.spentToday is not public struct-field access; use the
         // auto-generated getter.
@@ -235,7 +274,14 @@ contract FixM03BuybackApproval is Test {
         _activateBuyback(price + fee, 95);
         _fundBuyback(price + fee);
         uint256 listingId = _list(200, price);
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_4 = keccak256(abi.encode("m10-test-salt", uint256(4)));
+            bytes32 _m10_commit_58_4 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_58_4));
+            buybackEngine.commitBuyback(_m10_commit_58_4);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_58_4);
+        }
     }
 
     function test_FixM03_DailyBudget_JustOverWithFee_Reverts() public {
@@ -244,8 +290,16 @@ contract FixM03BuybackApproval is Test {
         _activateBuyback(price, 95);
         _fundBuyback(price + 5e6);
         uint256 listingId = _list(200, price);
-        vm.expectRevert(bytes("Daily budget exceeded"));
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_5 = keccak256(abi.encode("m10-test-salt", uint256(5)));
+            bytes32 _m10_commit_58_5 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_58_5));
+            buybackEngine.commitBuyback(_m10_commit_58_5);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert(bytes("Daily budget exceeded"));
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_58_5);
+        }
     }
 
     function test_FixM03_MultipleOffers_ConsumeBudgetWithFees() public {
@@ -257,20 +311,42 @@ contract FixM03BuybackApproval is Test {
 
         // Offer 1: $200 price → 200 + 3 = $203 spent.
         uint256 id1 = _list(2000, 200e6);
-        buybackEngine.executeOffer(id1);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_6 = keccak256(abi.encode("m10-test-salt", uint256(6)));
+            bytes32 _m10_commit_58_6 = keccak256(abi.encode(id1, type(uint256).max, _m10_salt_58_6));
+            buybackEngine.commitBuyback(_m10_commit_58_6);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(id1, type(uint256).max, _m10_salt_58_6);
+        }
         (,,, uint256 spent1) = buybackEngine.dailyConfig();
         assertEq(spent1, 203_000_000);
 
         // Offer 2: $300 price → 300 + 4.50 = $304.50. Total spent = $507.50.
         uint256 id2 = _list(2000, 300e6);
-        buybackEngine.executeOffer(id2);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_7 = keccak256(abi.encode("m10-test-salt", uint256(7)));
+            bytes32 _m10_commit_58_7 = keccak256(abi.encode(id2, type(uint256).max, _m10_salt_58_7));
+            buybackEngine.commitBuyback(_m10_commit_58_7);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(id2, type(uint256).max, _m10_salt_58_7);
+        }
         (,,, uint256 spent2) = buybackEngine.dailyConfig();
         assertEq(spent2, 203_000_000 + 304_500_000);
 
         // Offer 3: $500 price → 500 + 7.50 = $507.50. Total = $1015 > $1000.
         uint256 id3 = _list(2000, 500e6);
-        vm.expectRevert(bytes("Daily budget exceeded"));
-        buybackEngine.executeOffer(id3);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_8 = keccak256(abi.encode("m10-test-salt", uint256(8)));
+            bytes32 _m10_commit_58_8 = keccak256(abi.encode(id3, type(uint256).max, _m10_salt_58_8));
+            buybackEngine.commitBuyback(_m10_commit_58_8);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert(bytes("Daily budget exceeded"));
+            buybackEngine.revealAndExecute(id3, type(uint256).max, _m10_salt_58_8);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -281,7 +357,14 @@ contract FixM03BuybackApproval is Test {
         _activateBuyback(100e6, 95);
         _fundBuyback(100e6);
         uint256 listingId = _list(50, 20e6);
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_9 = keccak256(abi.encode("m10-test-salt", uint256(9)));
+            bytes32 _m10_commit_58_9 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_58_9));
+            buybackEngine.commitBuyback(_m10_commit_58_9);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_58_9);
+        }
         assertEq(usdc.allowance(address(buybackEngine), address(marketplace)), 0, "approval must reset to 0");
     }
 
@@ -290,8 +373,16 @@ contract FixM03BuybackApproval is Test {
         _fundBuyback(10e6); // way below 20e6 + fee
         uint256 listingId = _list(50, 20e6);
 
-        vm.expectRevert();
-        buybackEngine.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_10 = keccak256(abi.encode("m10-test-salt", uint256(10)));
+            bytes32 _m10_commit_58_10 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_58_10));
+            buybackEngine.commitBuyback(_m10_commit_58_10);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert();
+            buybackEngine.revealAndExecute(listingId, type(uint256).max, _m10_salt_58_10);
+        }
 
         // No dangling approval — the revert is atomic.
         assertEq(usdc.allowance(address(buybackEngine), address(marketplace)), 0);
@@ -312,7 +403,14 @@ contract FixM03BuybackApproval is Test {
         uint256 fee = (price * BUYER_FEE_BPS) / BPS_DEN;
         // 200 bonds so maxAllowedPriceUSDC = $190 — above the $100 price.
         uint256 id = _list(200, price);
-        buybackEngine.executeOffer(id);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_58_11 = keccak256(abi.encode("m10-test-salt", uint256(11)));
+            bytes32 _m10_commit_58_11 = keccak256(abi.encode(id, type(uint256).max, _m10_salt_58_11));
+            buybackEngine.commitBuyback(_m10_commit_58_11);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(id, type(uint256).max, _m10_salt_58_11);
+        }
 
         (,,, uint256 spentToday) = buybackEngine.dailyConfig();
         assertEq(spentToday, price + fee);

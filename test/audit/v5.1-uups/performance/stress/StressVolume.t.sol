@@ -218,6 +218,11 @@ contract StressVolume is Test {
 
         marketplace =
             ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), address(twapBurner), multisig);
+            // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+            // test - it predates the M-3 spam floor and uses arbitrary price/amount
+            // ratios that aren't relevant to the M-3 behavior under test.
+            vm.prank(multisig);
+            marketplace.setMinPricePerUnit(1);
         buybackEngine = ProxyDeployer.deployBuybackEngine(
             address(claimBond),
             address(bondVault),

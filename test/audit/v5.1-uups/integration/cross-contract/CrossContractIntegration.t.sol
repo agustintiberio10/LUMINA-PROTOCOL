@@ -74,6 +74,12 @@ contract MockPriceOracleCC {
         require(!revertOnGet, "oracle unavailable");
         return price;
     }
+    /// @dev [Fix M-6 mock] Returns the same value as `getLuminaPrice()` so
+    ///      tests that don't drive the TWAP path explicitly remain unaffected.
+    function getTWAP(uint32 /*secondsAgo*/) external view returns (uint256) {
+        return this.getLuminaPrice();
+    }
+
 }
 
 contract MockDexCC is IDexRouter {
@@ -224,6 +230,11 @@ contract CrossContractIntegrationTest is Test {
 
         // Marketplace + BuybackEngine.
         s.mp = ProxyDeployer.deployLuminaBondMarketplace(address(s.cb), address(s.usdc), address(s.burner), admin);
+        // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+        // cross-contract integration suite - prices used here predate the M-3
+        // 1-USDC/unit floor and are set for fee-math assertions, not floor checks.
+        vm.prank(admin);
+        s.mp.setMinPricePerUnit(1);
         s.cb.setAuthorizedOperator(address(s.mp), true);
         s.burner.setAuthorizedSender(address(s.mp), true);
 
@@ -233,6 +244,12 @@ contract CrossContractIntegrationTest is Test {
         s.buyback = ProxyDeployer.deployBuybackEngine(
             address(s.cb), address(s.vault), address(s.sol), address(s.oracle), address(s.mp), address(s.usdc), admin
         );
+        // [M-10 grant] grant BUYBACK_OPERATOR_ROLE to address(this) so test calls reach the gated path.
+        {
+            bytes32 _m10_role_s_buyback = s.buyback.BUYBACK_OPERATOR_ROLE();
+            vm.prank(admin);
+            s.buyback.grantRole(_m10_role_s_buyback, address(this));
+        }
         s.vault.setAuthorizedCaller(address(s.buyback), true);
 
         s.mr = ProxyDeployer.deployMaintenanceReserve(address(s.usdc), admin);
@@ -662,7 +679,14 @@ contract CrossContractIntegrationTest is Test {
         uint256 vaultLumiBefore = s.token.balanceOf(address(s.vault));
 
         // Execute offer.
-        s.buyback.executeOffer(listingId);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_30_0 = keccak256(abi.encode("m10-test-salt", uint256(0)));
+            bytes32 _m10_commit_30_0 = keccak256(abi.encode(listingId, type(uint256).max, _m10_salt_30_0));
+            s.buyback.commitBuyback(_m10_commit_30_0);
+            vm.roll(block.number + s.buyback.MIN_REVEAL_DELAY_BLOCKS());
+            s.buyback.revealAndExecute(listingId, type(uint256).max, _m10_salt_30_0);
+        }
 
         // Bonds gone from marketplace (bought then burned).
         assertEq(s.cb.balanceOf(address(s.buyback), epoch), 0);
@@ -677,8 +701,16 @@ contract CrossContractIntegrationTest is Test {
         address attacker = makeAddr("attacker");
 
         vm.prank(attacker);
-        vm.expectRevert();
-        s.buyback.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_30_1 = keccak256(abi.encode("m10-test-salt", uint256(1)));
+            bytes32 _m10_commit_30_1 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_30_1));
+            s.buyback.commitBuyback(_m10_commit_30_1);
+            vm.roll(block.number + s.buyback.MIN_REVEAL_DELAY_BLOCKS());
+            // [M-10 expectRevert moved]
+            vm.expectRevert();
+            s.buyback.revealAndExecute(0, type(uint256).max, _m10_salt_30_1);
+        }
     }
 
     // ═════════════════════ G. Error propagation ═════════════════════

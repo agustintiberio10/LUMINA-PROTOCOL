@@ -6,6 +6,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {MonthCalculator} from "../libraries/MonthCalculator.sol";
 
 /// @dev [V5.1] UUPS upgradeable proxy pattern.
 ///      Tier-1 redesign: the original three sub-bucket model
@@ -186,8 +187,11 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
         return allocationHistory.length;
     }
 
+    /// @dev [Fix M-9] Routed through `MonthCalculator` for protocol-wide
+    ///      formula consistency. Anchor = `deploymentTimestamp` (preserves
+    ///      pre-fix semantics: month 0 spans the first 30 days post-deploy).
     function getCurrentMonth() public view returns (uint256) {
-        return (block.timestamp - deploymentTimestamp) / 30 days;
+        return MonthCalculator.currentMonthSinceDeploy(deploymentTimestamp);
     }
 
     function getMonthlyCapRemaining() external view returns (uint256) {

@@ -626,7 +626,7 @@ contract DeployScriptsTest is Test {
         vm.startPrank(seller);
         d.cb.setApprovalForAll(address(d.mp), true);
         vm.expectRevert(); // ClaimBond rejects non-whitelisted operator
-        d.mp.list(202904, 100, 50e6);
+        d.mp.list(202904, 100, 100e6);
         vm.stopPrank();
     }
 
@@ -643,7 +643,7 @@ contract DeployScriptsTest is Test {
 
         vm.startPrank(seller);
         d.cb.setApprovalForAll(address(d.mp), true);
-        uint256 listingId = d.mp.list(202904, 100, 50e6);
+        uint256 listingId = d.mp.list(202904, 100, 100e6);
         vm.stopPrank();
 
         (,,,, bool active) = d.mp.getListing(listingId);

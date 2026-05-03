@@ -232,6 +232,12 @@ contract BoundaryConditions is Test {
             address(usdc),
             owner
         );
+        // [M-10 grant] grant BUYBACK_OPERATOR_ROLE to address(this) so test calls reach the gated path.
+        {
+            bytes32 _m10_role_buybackEngine = buybackEngine.BUYBACK_OPERATOR_ROLE();
+            vm.prank(owner);
+            buybackEngine.grantRole(_m10_role_buybackEngine, address(this));
+        }
 
         // Authorize BuybackEngine on BondVault
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
@@ -548,7 +554,14 @@ contract BoundaryConditions is Test {
 
         // Execute — solvency >= 15000 so double burn should activate
         vm.prank(owner);
-        buybackEngine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_2_0 = keccak256(abi.encode("m10-test-salt", uint256(0)));
+            bytes32 _m10_commit_2_0 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_2_0));
+            buybackEngine.commitBuyback(_m10_commit_2_0);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(0, type(uint256).max, _m10_salt_2_0);
+        }
         // If we got here without revert, the offer executed (double burn path or circuit breaker)
     }
 
@@ -557,7 +570,14 @@ contract BoundaryConditions is Test {
         _setupBuybackScenario(14999);
 
         vm.prank(owner);
-        buybackEngine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_2_1 = keccak256(abi.encode("m10-test-salt", uint256(1)));
+            bytes32 _m10_commit_2_1 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_2_1));
+            buybackEngine.commitBuyback(_m10_commit_2_1);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(0, type(uint256).max, _m10_salt_2_1);
+        }
         // CircuitBreakerTriggered event should have fired (skip burn path)
     }
 
@@ -566,7 +586,14 @@ contract BoundaryConditions is Test {
         _setupBuybackScenario(15001);
 
         vm.prank(owner);
-        buybackEngine.executeOffer(0);
+        // [Fix M-10 patch] executeOffer was removed; route through commit-reveal.
+        {
+            bytes32 _m10_salt_2_2 = keccak256(abi.encode("m10-test-salt", uint256(2)));
+            bytes32 _m10_commit_2_2 = keccak256(abi.encode(0, type(uint256).max, _m10_salt_2_2));
+            buybackEngine.commitBuyback(_m10_commit_2_2);
+            vm.roll(block.number + buybackEngine.MIN_REVEAL_DELAY_BLOCKS());
+            buybackEngine.revealAndExecute(0, type(uint256).max, _m10_salt_2_2);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

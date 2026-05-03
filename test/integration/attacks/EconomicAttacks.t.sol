@@ -254,6 +254,11 @@ contract EconomicAttacks is Test {
 
         LuminaBondMarketplace mp =
             ProxyDeployer.deployLuminaBondMarketplace(address(claimBond), address(usdc), twapBurner, admin);
+        // [Fix M-3 regression] Lower the per-unit price floor for this legacy
+        // wash-trading test - the test predates the M-3 spam floor and uses
+        // a 0.8 USDC/unit price irrelevant to the attack scenario being asserted.
+        vm.prank(admin);
+        mp.setMinPricePerUnit(1);
         // [FIX-#18] Whitelist marketplace so ClaimBond allows its transfers.
         claimBond.setAuthorizedOperator(address(mp), true);
 
