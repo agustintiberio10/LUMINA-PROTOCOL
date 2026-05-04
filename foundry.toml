@@ -47,3 +47,31 @@ depth = 100
 line_length = 120
 tab_width = 4
 bracket_spacing = false
+
+# Audit-e2e profile: via_ir=false dodges the Windows cold-compile hang.
+# Default profile (deploys) keeps via_ir=true.
+[profile.test]
+src = "src"
+out = "out-test"
+libs = ["lib"]
+solc_version = "0.8.20"
+optimizer = true
+optimizer_runs = 200
+evm_version = "paris"
+via_ir = false
+verbosity = 2
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "@chainlink/contracts/=lib/chainlink/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+
+[profile.test.fuzz]
+runs = 256
+seed = '0x123'
+
+[profile.test.invariant]
+runs = 256
+depth = 50
+fail_on_revert = false
