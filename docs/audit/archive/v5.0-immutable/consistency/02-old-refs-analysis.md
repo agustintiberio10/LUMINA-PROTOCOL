@@ -31,11 +31,11 @@ uint256 public constant BOND_RESERVE = 82_000_000 * 1e18;
 
 **Impact:** Low (view-only). No security risk. Causes incorrect off-chain capacity estimates.
 
-### :white_check_mark: OK — `docs/SECURITY-AUDIT-V4.md` (lines 231, 308, 311, 406)
+### :white_check_mark: OK — `docs/SECURITY-AUDIT-V5.md` (lines 231, 308, 311, 406)
 
 Multiple references to "82M LUMINA" in the V4 security audit document. These are correct for the V4 version they describe. The document title explicitly marks it as V4.
 
-### :white_check_mark: OK — `docs/SKILL-V4.1.md` (lines 32, 63, 71, 238)
+### :white_check_mark: OK — `docs/SKILL.md` (lines 32, 63, 71, 238)
 
 References to "82,000,000" and "82M" in V4.1 documentation. Correct for the version described.
 
@@ -164,8 +164,8 @@ All shield products use `BaseShield` as base class with Binary Settlement patter
 | 7 | `test/fuzz/BondVaultFuzz.t.sol:47` | deal() uses 82M | :warning: STALE COMMENT | Low |
 | 8 | `test/fuzz/BondVaultFuzzV2.t.sol:48` | deal() uses 82M | :warning: STALE COMMENT | Low |
 | 9 | `test/audit/CertiKSimulation.t.sol` | Multiple 82M comments | :warning: STALE COMMENT | Low |
-| 10 | `docs/SECURITY-AUDIT-V4.md` | Multiple 82M references | :white_check_mark: OK | N/A |
-| 11 | `docs/SKILL-V4.1.md` | Multiple 82M references | :white_check_mark: OK | N/A |
+| 10 | `docs/SECURITY-AUDIT-V5.md` | Multiple 82M references | :white_check_mark: OK | N/A |
+| 11 | `docs/SKILL.md` | Multiple 82M references | :white_check_mark: OK | N/A |
 | 12 | `docs/audit/phase7/PHASE7-AUDIT-REPORT.md:132` | Tracks 82M issue | :white_check_mark: OK | N/A |
 | 13 | PolicyManager/CoverRouter no "V2" | Variable naming convention | :white_check_mark: OK | N/A |
 | 14 | BSS struct naming | V5.0 convention | :white_check_mark: OK | N/A |

@@ -17,7 +17,7 @@
   - [ ] BTC/USD
   - [ ] ETH/USD
   - [ ] USDT/USD
-- [ ] Aave V3 pool address on Base confirmed
+- [ ] Aave V3 pool address on Base confirmed (READ-ONLY oracle for RateShockShield + FounderVesting Condition C; not used for yield)
 
 ---
 

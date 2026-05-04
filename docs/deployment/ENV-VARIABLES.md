@@ -84,7 +84,9 @@ CHAINLINK_USDT_USD=0x...
 # ======================================================================
 
 # Aave V3 lending pool on Base.
-# Used by FounderVesting to generate yield on locked LUMINA collateral.
+# Used as a READ-ONLY oracle source: RateShockShield reads borrow rate as
+# trigger condition; FounderVesting reads borrow rate as Condition C of the
+# AltSeason 2-of-3 unlock. Lumina does NOT deposit funds into Aave.
 # REQUIRED
 AAVE_V3_POOL=0x...
 

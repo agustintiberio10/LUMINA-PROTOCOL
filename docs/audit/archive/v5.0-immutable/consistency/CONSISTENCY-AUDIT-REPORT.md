@@ -82,7 +82,7 @@ These should be updated alongside the CapacityOracle fix for consistency.
 - [ ] Update `test/fuzz/BondVaultFuzz.t.sol:47` — change deal() from 82M to 70M
 - [ ] Update `test/fuzz/BondVaultFuzzV2.t.sol:48` — change deal() from 82M to 70M
 - [ ] Update `test/audit/CertiKSimulation.t.sol` — fix 82M comments (lines 448, 670, 676)
-- [ ] Review all V4 historical docs for accuracy disclaimers (SECURITY-AUDIT-V4.md, SKILL-V4.1.md are correct as V4 records)
+- [ ] Review all V4 historical docs for accuracy disclaimers (SECURITY-AUDIT-V5.md, SKILL.md are correct as V4 records)
 
 ---
 

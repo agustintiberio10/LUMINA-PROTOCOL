@@ -1,3 +1,9 @@
+# 📜 Deprecated — historical reference only
+
+> ⚠️ **This document describes contracts from V1/V2/V4 that are NO LONGER DEPLOYED in V5.1.** Kept for historical reference and to prevent re-deployment of stale addresses. For current V5.1 architecture, see [`SECURITY.md`](../SECURITY.md), [`docs/ROADMAP-V5.md`](./ROADMAP-V5.md), and [`docs/architecture/AAVE-INTEGRATION.md`](./architecture/AAVE-INTEGRATION.md).
+
+---
+
 # V1 Deprecated Contracts — Base Mainnet
 
 These contracts are deployed on Base mainnet (Chain ID 8453) from the V1 vault-based insurance model. They are **deprecated** and will be paused after V5.0 launch. No users, no active policies.
