@@ -19,7 +19,7 @@ Parametric insurance protocol on Base L2 for AI agents and humans.
 ## Token Distribution (100M LUMINA)
 - 70% BondVault (immutable)
 - 14% CEX/DEX Liquidity Reserve (multisig 2-of-3)
-- 8% Founder (AltSeasonVesting)
+- 8% Founder (FounderVesting / AltSeason 2-of-3 mechanism)
 - 5% LBP (Fjord Foundry)
 - 3% Treasury
 
