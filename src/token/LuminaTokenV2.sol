@@ -11,7 +11,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 
 /// @title LuminaTokenV2
 /// @notice $LUMINA token — 100M fixed supply, deflationary by design.
-/// @dev Distribution V5.0: 70% BondVault | 14% CEX Reserve | 8% Founder | 5% LBP | 3% Treasury
+/// @dev Distribution V5.1: 70% BondVault | 14% CEX Reserve | 8% Founder | 5% LBP | 3% Treasury
 ///      No mint function. Supply only decreases via burn.
 ///      BURNER_ROLE allows the TWAPBurner contract to burn tokens.
 ///
