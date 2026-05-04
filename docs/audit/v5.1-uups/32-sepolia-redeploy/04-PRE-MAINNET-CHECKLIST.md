@@ -11,7 +11,7 @@ This is NOT executed during audit #32. It's the canonical checklist that must pa
 - [ ] Audit #1-40 of the V5.1 series complete + merged
 - [ ] All blocking findings resolved (CRITICAL, HIGH, MEDIUM)
 - [ ] LOW / INFO findings resolved or documented as accepted-risk
-- [ ] At least 1 external professional audit complete (Trail of Bits / Zellic / CertiK / OpenZeppelin)
+- [ ] ~~At least 1 external professional audit complete~~ — _founder decided NOT to pursue Tier-1 external audit for V5.1 testnet (May 2026); revisit pre-mainnet. Bug bounty + multisig at T+30d post-deploy instead._
 - [ ] Audit report PUBLIC at deploy time (no embargo)
 
 ### Fixes applied

@@ -14,7 +14,7 @@ Complete checklist from current state (Phase 0) to mainnet launch (Phase 10) and
 |---|---|---|---|
 | BondVault | 70,000,000 | 70% | Immutable |
 | CEX/DEX Liquidity Reserve | 14,000,000 | 14% | Multisig 2-of-3 |
-| Founder (AltSeasonVesting) | 8,000,000 | 8% | Conditional 2-of-3 × 7d × 3 tranches |
+| Founder (FounderVesting / AltSeason mechanism) | 8,000,000 | 8% | Conditional 2-of-3 × 7d × 3 tranches |
 | LBP (Fjord Foundry) | 5,000,000 | 5% | Released at LBP close |
 | Treasury | 3,000,000 | 3% | 180d lock + 250K/month |
 
@@ -338,11 +338,11 @@ For each of: Flash BTC 1h/4h/24h/48h, Flash ETH 1h/24h/48h, Micro Depeg USDT, Ra
 - [ ] Roles and permissions
 - [ ] Emitted events
 
-### 7.4 — Tier 1 External (optional)
-- [ ] CertiK quote
-- [ ] OpenZeppelin quote
-- [ ] Trail of Bits quote
-- [ ] Decision based on budget
+### 7.4 — Tier 1 External (optional) — _Discarded for V5.1 testnet (founder decision May 2026)_
+- [ ] ~~CertiK quote~~ — discarded; bug bounty + multisig at T+30d post-deploy instead
+- [ ] ~~OpenZeppelin quote~~ — discarded
+- [ ] ~~Trail of Bits quote~~ — discarded
+- [x] Decision: skip Tier 1 for V5.1 testnet; revisit pre-mainnet
 
 ### 7.5 — Bug Bounty
 - [ ] Setup on Immunefi or Hats
