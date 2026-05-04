@@ -20,4 +20,4 @@ They are preserved here for:
 - BondVault (immutable, no owner, no withdraw)
 
 ## V2 Source of Truth
-See `docs/SKILL-V4.1.md` in the repo root.
+See `docs/SKILL.md` in the repo root.

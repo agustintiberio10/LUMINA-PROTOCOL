@@ -1,5 +1,10 @@
 # Changelog
 
+## About this changelog
+
+Entries are listed newest first. Older entries reference previous architecture versions (V1/V2/V4) for historical accuracy. **Current architecture is V5.1** — see [`SECURITY.md`](./SECURITY.md) and [`docs/architecture/AAVE-INTEGRATION.md`](./docs/architecture/AAVE-INTEGRATION.md) for the in-force model.
+
+
 ## [2.0.0] - April 2026 — ClaimBond Pivot
 ### Breaking Changes
 - Complete model change from vault-based insurance to ClaimBond speculation

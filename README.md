@@ -45,9 +45,9 @@ forge test
 ```
 
 ## Documentation
-- [SKILL V4.1](docs/SKILL-V4.1.md) — Protocol specification
+- [SKILL V4.1](docs/SKILL.md) — Protocol specification
 - [Risk Disclosures](docs/RISK-DISCLOSURES.md)
-- [Security Audit V4](docs/SECURITY-AUDIT-V4.md)
+- [Security Audit V4](docs/SECURITY-AUDIT-V5.md)
 - [V1 Deprecated Contracts](docs/V1-DEPRECATED-CONTRACTS.md)
 
 ## Legacy V1

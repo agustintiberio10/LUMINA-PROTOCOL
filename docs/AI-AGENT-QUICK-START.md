@@ -4,9 +4,9 @@
 
 ## Download the SKILL file instead:
 
-- **Web:** [https://www.lumina-org.com/SKILL-V4.1.md](https://www.lumina-org.com/SKILL-V4.1.md)
+- **Web:** [https://www.lumina-org.com/SKILL.md](https://www.lumina-org.com/SKILL.md)
 - **Download:** [https://www.lumina-org.com/LUMINA-SKILL.txt](https://www.lumina-org.com/LUMINA-SKILL.txt)
-- **GitHub:** [docs/SKILL-V4.1.md](https://github.com/org-lumina/LUMINA-PROTOCOL/blob/main/docs/SKILL-V4.1.md)
+- **GitHub:** [docs/SKILL.md](https://github.com/org-lumina/LUMINA-PROTOCOL/blob/main/docs/SKILL.md)
 
 ## For AI agents (ChatGPT, Claude, ElizaOS, LangChain, custom):
 

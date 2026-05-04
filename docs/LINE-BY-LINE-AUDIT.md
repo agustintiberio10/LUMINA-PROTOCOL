@@ -61,7 +61,7 @@
 ### LBL-M3 — LuminaTokenV2 DEFAULT_ADMIN_ROLE to deployer EOA
 - **File:** `src/v2/token/LuminaTokenV2.sol:40` (post-duplicate-check edit, line shifted to ~47)
 - **Finding:** `_grantRole(DEFAULT_ADMIN_ROLE, msg.sender)` grants admin to whoever deploys. Deployment script must transfer to a Timelock + Gnosis Safe combo immediately after TWAPBurner deployment (which needs BURNER_ROLE).
-- **Mitigation:** Already documented as L-10 in SECURITY-AUDIT-V4.md. Deploy script (`script/V2-DEPLOY-ORDER.md`) covers this.
+- **Mitigation:** Already documented as L-10 in SECURITY-AUDIT-V5.md. Deploy script (`script/V2-DEPLOY-ORDER.md`) covers this.
 
 ### LBL-M4 — FounderVesting silent oracle catches
 - **File:** `src/v2/token/FounderVesting.sol:190-204`
