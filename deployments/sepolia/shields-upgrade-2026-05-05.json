@@ -1,0 +1,75 @@
+{
+  "version": "shields-uups-upgrade-and-rebind",
+  "network": "base_sepolia",
+  "chainId": 84532,
+  "executedAt": "2026-05-05",
+  "deployer": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+  "newOracle": "0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194",
+  "totalGasUsed": 16401321,
+  "totalCostEth": "0.0000984079",
+  "shields": {
+    "FlashBTCShield1h": {
+      "proxy": "0x77c2A7cA53ED5cbDe66cE220647d2c213133f2a9",
+      "newImpl": "0x0b717ec05ad2225cdaee94d099695fcfe9a336c7",
+      "implDeployTx": "0x1f35f1b2b74397131e9362cf46f7627786dc8af2d0652c4744db4b650dd02cf6",
+      "upgradeTx": "0x6735b767b07b8b247a552e7a74b9722a833b2ffc651b6276e41b00108530a080",
+      "setOracleTx": "0x0d13b41c5f9f4187157e68e9a1dba1dcf8c78f138ef43dae1d8ede3d9ca25636"
+    },
+    "FlashBTCShield4h": {
+      "proxy": "0xb5b21f7c02C15B5D73e63538BC917825Ebcb8122",
+      "newImpl": "0x39372d18fe41b6627356fbb8f8a84749ccd07e1e",
+      "implDeployTx": "0x6f2d2809b1494859c01bb748f1f42e2d64ce4e17a8a24cc8203b0b9cf1cf8962",
+      "upgradeTx": "0xf670e4df2101a6bf938ab999b844e8ebc0479be6f3366d481263915ddee0df0b",
+      "setOracleTx": "0x6ae32e1c13705c62e4f3c2d7b938147c6af883487d6d895aee7c57f91e883141"
+    },
+    "FlashBTCShield24h": {
+      "proxy": "0xAc53Bf7Bb85Fcfb6d3c831F3AD9f6f79ebeeF99f",
+      "newImpl": "0xd88eafa4c0aedd976104f10fffdcd918d9183d3c",
+      "implDeployTx": "0x79fc2e471283f9051dfbdf23c8245eb88af9fe7399d522054582c1a0d6e4e19f",
+      "upgradeTx": "0xcddadb2403af47e660043d968768f43a1fa51834a08230e195a1fd68577f76fe",
+      "setOracleTx": "0x673413e04ce9a0ff4bf24696a3f22ce1f3ec6ef5b79826415ee8310c46ca6657"
+    },
+    "FlashBTCShield48h": {
+      "proxy": "0xf2D3Fe86Ad8BB96600bB5fdF21159bb6255e95f2",
+      "newImpl": "0x3848b557473cd3e77cbd04dcb869ace7be2d1292",
+      "implDeployTx": "0x684ad817546d99dcb2f0a3f896780e57abdc339e5c74334c1d3443cceff20140",
+      "upgradeTx": "0x74e95714bff83ec0937687f5b296cf7ee1f55c78f881b5b03aa98922320d428e",
+      "setOracleTx": "0x05bb86094de8c00ea77a57d4a5635bdd268734ffde15f2496457dfb1dd792256"
+    },
+    "FlashETHShield1h": {
+      "proxy": "0xa63237a0fd57443D73F9ED36CBE15E2792D4a170",
+      "newImpl": "0x2dc9ae8e159bfd5adc0ad83c9c74f4bb07742921",
+      "implDeployTx": "0x419fc071b0abbe30d86e93576abe06c36e7758f5ee5ab3790698e060ebffce9c",
+      "upgradeTx": "0x5a1928c44cef2ff0414cf6c5cea5ae78db985a97f161da5e5c88cd2ad133f1f9",
+      "setOracleTx": "0x0aa544e61ef42184840533f7d92cd89b1fad670a728d1336d6257331a5660818"
+    },
+    "FlashETHShield24h": {
+      "proxy": "0x6D6E250bc936D92F64d70262d14D6b020107Ee26",
+      "newImpl": "0x0907fe171f2710932b439c8fe1120164063021d6",
+      "implDeployTx": "0x4425f48e07043f1c18d81fd37418674ceff539d0691ad183f28b834dda82277a",
+      "upgradeTx": "0x3be1b22681693550dca7594416e0d57b86a9e74cca363ae598edbaa2672a664b",
+      "setOracleTx": "0xb23f970acc73ad7a51425372e509036081ea3fa4a019e9a96575e1e4c64764b2"
+    },
+    "FlashETHShield48h": {
+      "proxy": "0xcCbE9CCCD887D67f4bfD833c2431DD2B4e1f864D",
+      "newImpl": "0xaa99929627e134b63671e344aa03892a5bb1560c",
+      "implDeployTx": "0xa64b1242b00da3a1a22a7be6121f782a2fb8251c9ffb21c30719615ee667457a",
+      "upgradeTx": "0x9b2a4db2d0d0c1618b7301e628a1a4787c6784e1d06bfd3e71e4c00e0804277d",
+      "setOracleTx": "0xe5d34e97b490811821f8df1d9e11a47254b47e896961239010f2cfea23709f65"
+    },
+    "MicroDepegShield": {
+      "proxy": "0x06DF0608c7256c8Df0723538574Babad1a7fd53d",
+      "newImpl": "0x830145cd0661f3b78ef979d9afa9925c0ec2d7f0",
+      "implDeployTx": "0x4fe8d848e96bc17edc3322a22ad7ab07583e3282a5f7631ef4e2cba965d4c32d",
+      "upgradeTx": "0x0b78e52b31f5a738cdcec5166f053552b32a94f975eebf68a097f0a084a39e21",
+      "setOracleTx": "0x18935df2ed6919e9897c285514e278fe8321b594366f820b9c901fc06a5a315d"
+    },
+    "RateShockShield": {
+      "proxy": "0x7287E55380ee877279ef2e390e2528F772e7Da2f",
+      "newImpl": "0x196295d897ef677c478d9ba91ec625f1a4dbe778",
+      "implDeployTx": "0xeec773d75f762960c185c3f8b85eefd8a4679ec2d4f8e60c6da1872aee5fd449",
+      "upgradeTx": "0xa9ff4b86f9a8ff65843613f342cb20389c2b772124b05d19749a9afc0eb9b661",
+      "setOracleTx": "0x83db3f6a535d1b393d4baeda42c7fef61418fb3eac4f8e26099eb1174241141e"
+    }
+  }
+}
