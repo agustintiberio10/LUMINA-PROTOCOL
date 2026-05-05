@@ -1,0 +1,25 @@
+{
+  "version": "oracle-v2",
+  "network": "base_sepolia",
+  "chainId": 84532,
+  "deployedAt": "2026-05-05",
+  "deployer": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+  "contracts": {
+    "LuminaOracleV2": "0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194"
+  },
+  "constructor": {
+    "owner": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+    "oracleKey": "0x0622340c847bBd8028700b3345021DbD1849a885",
+    "sequencerUptimeFeed": "0x0000000000000000000000000000000000000000"
+  },
+  "deployTx": "0x2fa917bba6af92fdc3701d5ebdd05e184d2f259c3e894112fe97e11852818012",
+  "deployBlock": 41030673,
+  "gasUsed": 1761242,
+  "domainSeparator": "0x53393cb0ddc22bb6e31bd1a9b2781e93215e351e9fbae27f14071e5b01fb5145",
+  "domain": {
+    "name": "LuminaOracle",
+    "version": "2",
+    "chainId": 84532,
+    "verifyingContract": "0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194"
+  }
+}
