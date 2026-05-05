@@ -1,4 +1,5 @@
 {
+  "_DEPRECATED": "V5.0 deploy from 2026-04-20 — DO NOT USE. Replaced by V5.1 deployment recorded in deployments/sepolia/V5.1-2026-04-27.json. The addresses below remain on-chain but are no longer bound to the live frontend, API, or shield set. Kept only so old block explorers / archived references resolve.",
   "network": "base-sepolia",
   "chainId": 84532,
   "deployedAt": "2026-04-20",
