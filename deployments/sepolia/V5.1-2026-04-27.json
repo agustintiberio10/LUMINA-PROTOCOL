@@ -14,10 +14,12 @@
                                    "twapBurner":  "0x357BAF511383be70d1F3A5de7D3b07561Eec7d99",
                                    "buybackEngine":  "0x5a74f8A6A11679b12aDAE479C686880CCf8720b3",
                                    "claimBond":  "0x5304f6732a51995651f1B666525CFeC5Af74A541",
-                                   "treasuryVesting":  "0xC647E8D8daFeC1Ac1B8e039Cf78F27A023393354"
+                                   "treasuryVesting":  "0xC647E8D8daFeC1Ac1B8e039Cf78F27A023393354",
+                                   "oracleV2":  "0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194"
                                },
                       "mocks":  {
-                                    "shieldOracle":  "0xaB7F63d1F10168880F36Ec8b7D2d74f30ccC800c",
+                                    "_shieldOracle_DEPRECATED":  "0xaB7F63d1F10168880F36Ec8b7D2d74f30ccC800c",
+                                    "_shieldOracle_DEPRECATED_NOTE":  "Replaced by core.oracleV2 (LuminaOracleV2) on 2026-05-05. Kept here for archaeology. Do not bind any new shield to this address.",
                                     "usdc":  "0x63D340AE7229BB464bC801f225651341ebcD3693",
                                     "btcOracle":  "0x2aDC8718F0b7Efb18a07aBc7595F1364730bb99E",
                                     "aavePool":  "0xcc0606b64275c08539770864081D209A8C9b178a",

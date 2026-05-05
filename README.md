@@ -29,7 +29,7 @@ src/
 ├── core/           CoverRouterV2, PolicyManagerV2, TWAPBurner
 ├── token/          LuminaTokenV2, FounderVesting, TreasuryVesting
 ├── bonds/          BondVault, ClaimBond
-├── oracles/        CapacityOracle
+├── oracles/        LuminaOracleV2 (EIP-712 shield oracle), CapacityOracle, SolvencyOracle
 ├── products/       BaseShield + 9 shields (FlashBTC ×4 [1h/4h/24h/48h] + FlashETH ×3 [1h/24h/48h] + MicroDepeg + RateShock)
 ├── interfaces/     IShield, IOracle, IOracleV2
 ├── treasury/       (CEXLiquidityReserve — planned)

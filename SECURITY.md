@@ -29,6 +29,7 @@ V5.1 is currently deployed on **Base Sepolia testnet** (chainId 84532). Mainnet 
 | `BuybackEngine` (`src/marketplace/BuybackEngine.sol`) | Marketplace fee burn path | `0x5a74f8A6A11679b12aDAE479C686880CCf8720b3` |
 | `ShieldKeeper` (`src/automation/ShieldKeeper.sol`) | Permissionless trigger submission helper | `0xB5dE54F34deC8309bD8C1B8c1eF854C88D386Bca` |
 | `TWAPBurner` (`src/core/TWAPBurner.sol`) | Routes 100% of premiums + marketplace fees → buy LUMINA → burn to 0xdead | `0x357BAF511383be70d1F3A5de7D3b07561Eec7d99` |
+| `LuminaOracleV2` (`src/oracles/LuminaOracleV2.sol`) | EIP-712 shield price oracle. Verifies signed PriceProofs from the off-chain signer; the 9 shields call it inside `_doVerifyAndCalculate`. Replaces the launch-day `MockShieldOracle`. See [`docs/architecture/ORACLE-V2.md`](./docs/architecture/ORACLE-V2.md). | `0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194` |
 | `FounderVesting` (`src/token/FounderVesting.sol`) | 8M LUMINA founder lock with 2-of-3 AltSeason conditions or 4-year fallback | (deploy-time) |
 
 ### 9 shields (parametric products)
