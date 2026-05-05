@@ -1,9 +1,9 @@
-# LUMINA Protocol V5.0
+# LUMINA Protocol V5.1
 
 Parametric insurance protocol on Base L2 for AI agents and humans.
 
 ## Status
-- **V5.0**: In active development (this branch)
+- **V5.1**: Live on Base Sepolia testnet (this branch); mainnet launch pending
 - **V1**: Deprecated, archived in branch `legacy/v1-archive`
 
 ## Architecture
@@ -30,7 +30,7 @@ src/
 ├── token/          LuminaTokenV2, FounderVesting, TreasuryVesting
 ├── bonds/          BondVault, ClaimBond
 ├── oracles/        CapacityOracle
-├── products/       BaseShield + 5 shields (1h/4h BTC, 1h ETH, MicroDepeg, RateShock)
+├── products/       BaseShield + 9 shields (FlashBTC ×4 [1h/4h/24h/48h] + FlashETH ×3 [1h/24h/48h] + MicroDepeg + RateShock)
 ├── interfaces/     IShield, IOracle, IOracleV2
 ├── treasury/       (CEXLiquidityReserve — planned)
 └── governance/     (planned)
@@ -45,13 +45,14 @@ forge test
 ```
 
 ## Documentation
-- [SKILL V4.1](docs/SKILL.md) — Protocol specification
+- [SKILL](docs/SKILL.md) — Protocol specification
 - [Risk Disclosures](docs/RISK-DISCLOSURES.md)
-- [Security Audit V4](docs/SECURITY-AUDIT-V5.md)
+- [Security Audit V5](docs/SECURITY-AUDIT-V5.md)
 - [V1 Deprecated Contracts](docs/V1-DEPRECATED-CONTRACTS.md)
 
 ## Legacy V1
-The previous version is preserved in branch `legacy/v1-archive` for historical reference. V1 contracts on Base mainnet are deprecated and will be paused after V5.0 launch.
+The previous version is preserved in branch `legacy/v1-archive` for historical reference. V1 contracts on Base mainnet are deprecated and will be paused after the V5.1 mainnet launch.
 
 ## Chain
-Base L2 (Chain ID: 8453)
+- **Current** (testnet): Base Sepolia, Chain ID `84532` — V5.1 deployed and live
+- **Planned** (mainnet): Base, Chain ID `8453` — pending launch
