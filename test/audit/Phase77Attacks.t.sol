@@ -171,7 +171,7 @@ contract ReentrantDexRouter77 is IDexRouter {
     bool public attacked;
 
     constructor(address _target, address _lumina) {
-        target = TWAPBurner(_target);
+        target = TWAPBurner(payable(_target));
         lumina = MockLUMINA77(_lumina);
     }
 

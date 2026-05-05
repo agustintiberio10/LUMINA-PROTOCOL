@@ -335,7 +335,7 @@ contract DeployLuminaV5Sepolia is Script {
             address(twapBurnerImpl),
             abi.encodeWithSelector(TWAPBurner.initialize.selector, address(usdc), address(lumina), address(dexRouter))
         );
-        TWAPBurner twapBurner = TWAPBurner(address(twapBurnerProxy));
+        TWAPBurner twapBurner = TWAPBurner(payable(address(twapBurnerProxy)));
         console.log("TWAPBurner (proxy):", address(twapBurner));
 
         // ──────────────────────────────────────────────────

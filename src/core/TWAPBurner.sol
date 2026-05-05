@@ -121,11 +121,24 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
 
     // ═══════ RECEIVE FUNDS ═══════
 
-    function receivePremium(uint256 amount) external {
+    function receivePremium(uint256 amount) external nonReentrant {
         require(amount > 0, "Zero amount");
         usdc.safeTransferFrom(msg.sender, address(this), amount);
         totalUSDCReceived += amount;
         emit PremiumReceived(msg.sender, amount);
+
+        // [V2] Auto-burn: increment counters and trigger when thresholds reached.
+        // The `maxPurchasesBeforeBurn != 0` guard avoids triggering before initializeV2 runs.
+        purchaseCounter += 1;
+        accumulatedUSDCSinceBurn += amount;
+
+        if (
+            maxPurchasesBeforeBurn != 0
+                && (purchaseCounter >= maxPurchasesBeforeBurn
+                    || accumulatedUSDCSinceBurn >= maxAccumulatedUSDCBeforeBurn)
+        ) {
+            _autoBurn(tx.origin);
+        }
     }
 
     function receiveMarketplaceFee(uint256 amount) external {
@@ -401,6 +414,117 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    // Storage gap for future upgrades
-    uint256[50] private __gap;
+    // ═══════════════════════════════════════════════════════════
+    //  V2 — AUTO-BURN ON PURCHASE
+    // ═══════════════════════════════════════════════════════════
+
+    /// @notice Trigger an auto-burn after this many premium receipts. 0 = disabled.
+    uint256 public maxPurchasesBeforeBurn;
+    /// @notice Trigger an auto-burn when this much USDC accumulates since the last burn (6-decimals).
+    uint256 public maxAccumulatedUSDCBeforeBurn;
+    /// @notice Number of premium receipts since the last successful auto-burn attempt.
+    uint256 public purchaseCounter;
+    /// @notice USDC accumulated since the last auto-burn attempt (6-decimals).
+    uint256 public accumulatedUSDCSinceBurn;
+
+    /// @notice When true, refund part of gas to the buyer that triggered the burn.
+    bool public gasRefundEnabled;
+    /// @notice Maximum ETH refunded per auto-burn (in wei).
+    uint256 public gasRefundCap;
+    /// @notice Configured refund source (sentinel only — actual refunds drain `address(this).balance`).
+    address public gasRefundTreasury;
+
+    event AutoBurnTriggered(uint256 amount, address indexed router, address indexed gasRecipient);
+    event AutoBurnFailed(uint256 amount, bytes reason);
+    event GasRefunded(address indexed recipient, uint256 amount);
+    event AutoBurnConfigUpdated(uint256 maxPurchases, uint256 maxAccumulatedUSDC);
+    event GasRefundConfigUpdated(bool enabled, uint256 cap, address indexed treasury);
+
+    /// @notice One-shot initializer for the V2 upgrade. `reinitializer(2)` ensures it runs exactly once.
+    function initializeV2(
+        uint256 _maxPurchases,
+        uint256 _maxAccumulatedUSDC,
+        bool _gasRefundEnabled,
+        uint256 _gasRefundCap,
+        address _gasRefundTreasury
+    ) external reinitializer(2) onlyOwner {
+        maxPurchasesBeforeBurn = _maxPurchases;
+        maxAccumulatedUSDCBeforeBurn = _maxAccumulatedUSDC;
+        gasRefundEnabled = _gasRefundEnabled;
+        gasRefundCap = _gasRefundCap;
+        gasRefundTreasury = _gasRefundTreasury;
+
+        emit AutoBurnConfigUpdated(_maxPurchases, _maxAccumulatedUSDC);
+        emit GasRefundConfigUpdated(_gasRefundEnabled, _gasRefundCap, _gasRefundTreasury);
+    }
+
+    function setAutoBurnConfig(uint256 _maxPurchases, uint256 _maxAccumulatedUSDC) external onlyOwner {
+        maxPurchasesBeforeBurn = _maxPurchases;
+        maxAccumulatedUSDCBeforeBurn = _maxAccumulatedUSDC;
+        emit AutoBurnConfigUpdated(_maxPurchases, _maxAccumulatedUSDC);
+    }
+
+    function setGasRefundConfig(bool _enabled, uint256 _cap, address _treasury) external onlyOwner {
+        gasRefundEnabled = _enabled;
+        gasRefundCap = _cap;
+        gasRefundTreasury = _treasury;
+        emit GasRefundConfigUpdated(_enabled, _cap, _treasury);
+    }
+
+    /// @notice Accept ETH for gas-refund pre-funding.
+    receive() external payable {}
+
+    /// @dev Internal: invoked from `receivePremium` when a threshold is reached.
+    ///      Resets counters before attempting the burn (CEI). The burn runs in a
+    ///      try/catch self-call so a swap failure cannot revert the parent purchase.
+    ///      `tx.origin` is used as the refund recipient: the worst case is that a
+    ///      contract-wrapped buyer's EOA receives up to `gasRefundCap` wei — bounded
+    ///      and benign, not an attack vector.
+    function _autoBurn(address gasRefundRecipient) internal {
+        uint256 gasStart = gasleft();
+
+        uint256 usdcBalance = usdc.balanceOf(address(this));
+        if (usdcBalance < minBurnAmount) {
+            // Skip silently; counters retained so the next premium retries immediately.
+            return;
+        }
+
+        uint256 amount = usdcBalance > maxBurnAmount ? maxBurnAmount : usdcBalance;
+        lastBurnTimestamp = block.timestamp;
+        purchaseCounter = 0;
+        accumulatedUSDCSinceBurn = 0;
+
+        emit AutoBurnTriggered(amount, msg.sender, gasRefundRecipient);
+
+        try this._executeBurnExternal(amount) {
+        // success
+        }
+        catch (bytes memory reason) {
+            emit AutoBurnFailed(amount, reason);
+            return;
+        }
+
+        if (gasRefundEnabled && gasRefundTreasury != address(0)) {
+            uint256 gasUsed = gasStart - gasleft();
+            uint256 refundAmount = gasUsed * tx.gasprice;
+            if (refundAmount > gasRefundCap) refundAmount = gasRefundCap;
+
+            if (refundAmount > 0 && address(this).balance >= refundAmount) {
+                (bool ok,) = gasRefundRecipient.call{value: refundAmount}("");
+                if (ok) emit GasRefunded(gasRefundRecipient, refundAmount);
+            }
+        }
+    }
+
+    /// @dev External self-call entrypoint for the auto-burn try/catch wrapper.
+    ///      Restricted to self-calls only; no `nonReentrant` because the parent
+    ///      `receivePremium` already holds the guard.
+    function _executeBurnExternal(uint256 amount) external {
+        require(msg.sender == address(this), "Only self");
+        if (adaptiveModeEnabled) _executeAdaptive(amount);
+        else _executeLegacyBurn(amount);
+    }
+
+    // Storage gap for future upgrades (was 50; reduced by 7 V2 vars).
+    uint256[43] private __gap;
 }

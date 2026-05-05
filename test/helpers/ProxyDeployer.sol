@@ -93,7 +93,7 @@ library ProxyDeployer {
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(impl), abi.encodeWithSelector(TWAPBurner.initialize.selector, _usdc, _lumina, _initialDexRouter)
         );
-        return TWAPBurner(address(proxy));
+        return TWAPBurner(payable(address(proxy)));
     }
 
     function deployBuybackEngine(
