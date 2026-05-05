@@ -193,10 +193,14 @@ contract SepoliaRedeploySimulationTest is Test {
             )
         );
         burner = TWAPBurner(
-            address(
-                new ERC1967Proxy(
-                    address(new TWAPBurner()),
-                    abi.encodeWithSelector(TWAPBurner.initialize.selector, address(usdc), address(lumina), address(dex))
+            payable(
+                address(
+                    new ERC1967Proxy(
+                        address(new TWAPBurner()),
+                        abi.encodeWithSelector(
+                            TWAPBurner.initialize.selector, address(usdc), address(lumina), address(dex)
+                        )
+                    )
                 )
             )
         );

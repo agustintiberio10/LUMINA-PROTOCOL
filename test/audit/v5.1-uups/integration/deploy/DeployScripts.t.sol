@@ -394,7 +394,7 @@ contract DeployScriptsTest is Test {
         TWAPBurner impl = new TWAPBurner();
         ERC1967Proxy p =
             new ERC1967Proxy(address(impl), abi.encodeWithSelector(TWAPBurner.initialize.selector, u, l, r));
-        return TWAPBurner(address(p));
+        return TWAPBurner(payable(address(p)));
     }
 
     function _deployPM(address bv) internal returns (PolicyManagerV2) {

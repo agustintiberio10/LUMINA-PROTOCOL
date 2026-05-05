@@ -260,7 +260,7 @@ contract DeployLuminaV5Complete is Script {
             address(twapBurnerImpl),
             abi.encodeWithSelector(TWAPBurner.initialize.selector, cfg.usdc, res.luminaToken, cfg.swapRouter)
         );
-        TWAPBurner twapBurner = TWAPBurner(address(twapBurnerProxy));
+        TWAPBurner twapBurner = TWAPBurner(payable(address(twapBurnerProxy)));
         res.twapBurner = address(twapBurner);
         console.log("12. TWAPBurner (proxy):", res.twapBurner);
 
