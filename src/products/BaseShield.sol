@@ -382,6 +382,15 @@ abstract contract BaseShield is Initializable, UUPSUpgradeable, OwnableUpgradeab
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
+    event OracleRotated(address indexed oldOracle, address indexed newOracle);
+
+    function setOracle(address newOracle) external onlyOwner {
+        if (newOracle == address(0)) revert ZeroAddress("oracle");
+        address old = oracle;
+        oracle = newOracle;
+        emit OracleRotated(old, newOracle);
+    }
+
     // Storage gap for future upgrades
     uint256[50] private __gap;
 }
