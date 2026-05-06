@@ -40,6 +40,7 @@ contract LuminaBondMarketplaceTest is Test {
 
     // Mirror events for vm.expectEmit
     event TwapBurnerUpdated(address indexed newTwapBurner);
+    event MinPricePerUnitUpdated(uint256 oldValue, uint256 newValue);
     LuminaBondMarketplace mp;
     MockClaimBondV5 bond;
     MockUSDCMP usdc;
@@ -262,5 +263,56 @@ contract LuminaBondMarketplaceTest is Test {
         vm.prank(admin);
         vm.expectRevert(bytes("Zero"));
         mp.setTwapBurner(address(0));
+    }
+
+    // ═══════ M-3 anti-spam minimum price floor ═══════
+
+    function test_minPricePerUnit_initialValue_is_1e6() public view {
+        assertEq(mp.minPricePerUnit(), 1_000_000, "initial floor must be $1 USDC (1e6)");
+    }
+
+    function test_setMinPricePerUnit_onlyOwner_reverts_for_non_owner() public {
+        vm.prank(makeAddr("randomUser"));
+        vm.expectRevert(); // AccessControl reverts when caller lacks FEE_MANAGER_ROLE
+        mp.setMinPricePerUnit(2_000_000);
+    }
+
+    function test_setMinPricePerUnit_emits_event_with_old_and_new() public {
+        uint256 oldFloor = mp.minPricePerUnit();
+        uint256 newFloor = 5_000_000;
+
+        vm.expectEmit(false, false, false, true);
+        emit MinPricePerUnitUpdated(oldFloor, newFloor);
+
+        vm.prank(admin);
+        mp.setMinPricePerUnit(newFloor);
+
+        assertEq(mp.minPricePerUnit(), newFloor, "floor must be updated");
+    }
+
+    function test_list_reverts_below_minimum_floor() public {
+        // Default floor is 1e6 ($1 USDC). Listing total at 1e6 - 1 must revert.
+        vm.startPrank(seller);
+        bond.setApprovalForAll(address(mp), true);
+        vm.expectRevert(bytes("below minimum"));
+        mp.list(EPOCH, 500, 1_000_000 - 1);
+        vm.stopPrank();
+    }
+
+    function test_list_succeeds_at_or_above_minimum_floor() public {
+        // Exact boundary: priceUSDC == minPricePerUnit must succeed.
+        vm.startPrank(seller);
+        bond.setApprovalForAll(address(mp), true);
+        uint256 idAt = mp.list(EPOCH, 100, 1_000_000); // exactly at floor
+        uint256 idAbove = mp.list(EPOCH, 100, 50_000_000); // well above floor
+        vm.stopPrank();
+
+        (,,, uint256 pAt, bool activeAt) = mp.getListing(idAt);
+        (,,, uint256 pAbove, bool activeAbove) = mp.getListing(idAbove);
+
+        assertTrue(activeAt);
+        assertEq(pAt, 1_000_000);
+        assertTrue(activeAbove);
+        assertEq(pAbove, 50_000_000);
     }
 }
