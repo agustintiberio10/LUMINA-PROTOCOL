@@ -4,24 +4,23 @@ pragma solidity ^0.8.20;
 import {IShield} from "../interfaces/IShield.sol";
 import {BaseShield} from "./BaseShield.sol";
 
-/**
- * @title RateShockShield
- * @author Lumina Protocol
- * @notice Parametric insurance: pays 80% if Aave V3 USDC variable borrow rate exceeds 10% APY
- *         during the 7 day window.
- *
- * PRODUCT: RATESHOCK-001
- * RISK TYPE: RATE
- * TRIGGER: Aave V3 `getReserveData(USDC).currentVariableBorrowRate` > 10% APY (RAY, 27 decimals).
- *          Verified ON-CHAIN — no oracle proof required. Aave rates are first-class on-chain data.
- * PAYOUT: Binary — 80% of coverage (20% deductible).
- * DURATION: Fixed 7 days. No waiting period.
- * ASSET: USDC (for reference only; does not read Chainlink).
- *
- * @dev [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
- *      BaseShield.onlyRouter restricts createPolicy() to the router address.
- *      In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
- */
+/// @title RateShockShield
+/// @author Lumina Protocol
+/// @notice Insures against USDC borrow rate shocks on Aave V3.
+/// @dev Covered asset: USDC. Premium is always paid in USDC.
+///      Trigger condition: Aave V3 USDC borrow rate spikes beyond a configurable threshold
+///      (current threshold: `getReserveData(USDC).currentVariableBorrowRate` > 10% APY,
+///      RAY 27 decimals). Verified ON-CHAIN — no oracle proof required. Aave rates are
+///      first-class on-chain data.
+///      Duration: 7 days (fixed; no waiting period).
+///      Payout: Binary — 80% of coverage (20% deductible).
+///
+/// PRODUCT: RATESHOCK-001
+/// RISK TYPE: RATE
+///
+/// [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
+///       BaseShield.onlyRouter restricts createPolicy() to the router address.
+///       In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
 
 interface IAaveV3Pool {
     struct ReserveData {

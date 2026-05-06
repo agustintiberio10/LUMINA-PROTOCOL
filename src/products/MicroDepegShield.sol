@@ -5,23 +5,22 @@ import {IShield} from "../interfaces/IShield.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {BaseShield} from "./BaseShield.sol";
 
-/**
- * @title MicroDepegShield
- * @author Lumina Protocol
- * @notice Parametric insurance: pays 80% if USDT trades below $0.995 during the 7 day window.
- *
- * PRODUCT: MICRODEPEG-001
- * RISK TYPE: STABLE
- * TRIGGER: USDT absolute price < $0.995 (Chainlink 8 decimals: 99_500_000).
- *          Does NOT depend on strike price at issuance — absolute threshold.
- * PAYOUT: Binary — 80% of coverage (20% deductible).
- * DURATION: Fixed 7 days. No waiting period.
- * ASSET: USDT only.
- *
- * @dev [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
- *      BaseShield.onlyRouter restricts createPolicy() to the router address.
- *      In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
- */
+/// @title MicroDepegShield
+/// @author Lumina Protocol
+/// @notice Insures against USDT depegging from $1.00 beyond a configurable threshold.
+/// @dev Covered asset: USDT. Premium is always paid in USDC.
+///      Trigger condition: USDT price deviates from $1.00 beyond a configurable threshold
+///      (current absolute threshold: USDT < $0.995, Chainlink 8 decimals: 99_500_000).
+///      Does NOT depend on strike price at issuance — absolute threshold.
+///      Duration: 7 days (fixed; no waiting period).
+///      Payout: Binary — 80% of coverage (20% deductible).
+///
+/// PRODUCT: MICRODEPEG-001
+/// RISK TYPE: STABLE
+///
+/// [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
+///       BaseShield.onlyRouter restricts createPolicy() to the router address.
+///       In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
 contract MicroDepegShield is BaseShield {
     bytes32 public constant PRODUCT_ID = keccak256("MICRODEPEG-001");
     bytes32 public constant RISK_TYPE = keccak256("STABLE");

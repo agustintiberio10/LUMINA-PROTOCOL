@@ -5,22 +5,21 @@ import {IShield} from "../interfaces/IShield.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {BaseShield} from "./BaseShield.sol";
 
-/**
- * @title FlashBTCShield4h
- * @author Lumina Protocol
- * @notice Parametric insurance: pays 80% if BTC drops >8% within 4 hours.
- *
- * PRODUCT: FLASHBTC4H-001
- * RISK TYPE: VOLATILE
- * TRIGGER: Price drops >8% from the exact price at policy issuance block.
- * PAYOUT: Binary — 80% of coverage (20% deductible).
- * DURATION: Fixed 4h. No waiting period.
- * ASSET: BTC only.
- *
- * @dev [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
- *      BaseShield.onlyRouter restricts createPolicy() to the router address.
- *      In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
- */
+/// @title FlashBTCShield4h
+/// @author Lumina Protocol
+/// @notice Insurance against a crash/spike of BTC spot price within 4 hours on BTC.
+/// @dev Covered asset: BTC. Premium is always paid in USDC.
+///      Trigger condition: Crash/spike of BTC spot price within 4 hours (price drops >8%
+///      from the exact price at policy issuance block).
+///      Duration: 4 hours (fixed; no waiting period).
+///      Payout: Binary — 80% of coverage (20% deductible).
+///
+/// PRODUCT: FLASHBTC4H-001
+/// RISK TYPE: VOLATILE
+///
+/// [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
+///       BaseShield.onlyRouter restricts createPolicy() to the router address.
+///       In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
 contract FlashBTCShield4h is BaseShield {
     bytes32 public constant PRODUCT_ID = keccak256("FLASHBTC4H-001");
     bytes32 public constant RISK_TYPE = keccak256("VOLATILE");

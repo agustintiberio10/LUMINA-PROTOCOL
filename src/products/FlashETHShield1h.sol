@@ -5,22 +5,21 @@ import {IShield} from "../interfaces/IShield.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {BaseShield} from "./BaseShield.sol";
 
-/**
- * @title FlashETHShield1h
- * @author Lumina Protocol
- * @notice Parametric insurance: pays 80% if ETH drops >7% within 1 hour.
- *
- * PRODUCT: FLASHETH1H-001
- * RISK TYPE: VOLATILE
- * TRIGGER: Price drops >7% from the exact price at policy issuance block.
- * PAYOUT: Binary — 80% of coverage (20% deductible).
- * DURATION: Fixed 1h. No waiting period.
- * ASSET: ETH only.
- *
- * @dev [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
- *      BaseShield.onlyRouter restricts createPolicy() to the router address.
- *      In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
- */
+/// @title FlashETHShield1h
+/// @author Lumina Protocol
+/// @notice Insurance against a crash/spike of ETH spot price within 1 hour on ETH.
+/// @dev Covered asset: ETH. Premium is always paid in USDC.
+///      Trigger condition: Crash/spike of ETH spot price within 1 hour (price drops >7%
+///      from the exact price at policy issuance block).
+///      Duration: 1 hour (fixed; no waiting period).
+///      Payout: Binary — 80% of coverage (20% deductible).
+///
+/// PRODUCT: FLASHETH1H-001
+/// RISK TYPE: VOLATILE
+///
+/// [H-1] IMPORTANT: Deploy with router_ = PolicyManagerV2 address (NOT CoverRouterV2).
+///       BaseShield.onlyRouter restricts createPolicy() to the router address.
+///       In V2, PolicyManagerV2 is the caller of createPolicy(), not CoverRouterV2.
 contract FlashETHShield1h is BaseShield {
     bytes32 public constant PRODUCT_ID = keccak256("FLASHETH1H-001");
     bytes32 public constant RISK_TYPE = keccak256("VOLATILE");
