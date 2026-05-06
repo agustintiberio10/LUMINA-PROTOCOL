@@ -44,7 +44,7 @@ interface IShield {
         uint256 coverageAmount;
         uint256 premiumAmount;
         uint32 durationSeconds;
-        bytes32 asset; // BSS, IL: "ETH", "BTC"
+        bytes32 asset; // The covered asset symbol (BTC, ETH, USDT, USDC). NOT the premium token; premium is always USDC.
         bytes32 stablecoin; // Depeg: "USDC", "USDT", "DAI"
         address protocol; // Exploit: Aave, Compound address
         bytes extraData; // Future-proof
