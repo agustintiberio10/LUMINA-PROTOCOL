@@ -20,6 +20,12 @@ interface IMarketClaimBond {
 /// @title LuminaBondMarketplace
 /// @notice Native marketplace for ClaimBonds ERC-1155 with 3% fees (1.5% buyer + 1.5% seller).
 /// @dev [V5.1] UUPS upgradeable proxy pattern.
+/// @dev [M-3] Anti-spam floor: list() rejects listings whose total `priceUSDC` is
+///      below `minPricePerUnit` (default 1e6 = $1 USDC, 6 decimals). The state var name
+///      is preserved from the deployed runtime; the on-chain semantic is a TOTAL price
+///      floor per listing (not per-unit), which matches the deployed implementation
+///      (proxy 0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E on Base Sepolia where
+///      minPricePerUnit() returns 1000000).
 contract LuminaBondMarketplace is
     Initializable,
     UUPSUpgradeable,
@@ -51,6 +57,11 @@ contract LuminaBondMarketplace is
     mapping(uint256 => Listing) public listings;
     uint256 public nextListingId;
 
+    /// @notice Anti-spam floor: minimum pricePerUnit allowed in list(). Set to 1e6 (=$1 USDC 6-dec).
+    /// @dev    Storage slot appended below all pre-existing state and BEFORE __gap to preserve
+    ///         the UUPS layout used by the deployed proxy. __gap was reduced from 50 -> 49.
+    uint256 public minPricePerUnit;
+
     event Listed(
         uint256 indexed listingId, address indexed seller, uint256 indexed epochId, uint256 amount, uint256 priceUSDC
     );
@@ -66,6 +77,8 @@ contract LuminaBondMarketplace is
     event TwapBurnerUpdated(address indexed newTwapBurner);
     /// @notice [LOW-2 fix] Emitted on successful non-core token rescue (ERC-20 or ERC-1155).
     event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+    /// @notice [M-3] Emitted when the anti-spam minimum price floor is updated.
+    event MinPricePerUnitUpdated(uint256 oldValue, uint256 newValue);
 
     // ═══════ ERRORS (rescue) ═══════
     error CoreTokenProtected(address token);
@@ -92,6 +105,9 @@ contract LuminaBondMarketplace is
         usdc = IERC20(_usdc);
         twapBurner = _twapBurner;
 
+        // [M-3] Anti-spam floor: $1 USDC (6 decimals). Matches deployed runtime value.
+        minPricePerUnit = 1_000_000;
+
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(FEE_MANAGER_ROLE, _admin);
     }
@@ -103,6 +119,10 @@ contract LuminaBondMarketplace is
     {
         require(amount > 0, "Amount zero");
         require(priceUSDC > 0, "Price zero");
+        // [M-3] Anti-spam floor. Matches deployed runtime (proxy 0xfaC5...Be6E on Base Sepolia)
+        // where minPricePerUnit() = 1e6 ($1 USDC). Semantic: total `priceUSDC` for the
+        // listing must be >= the configured floor. priceUSDC is the TOTAL price (not per-unit).
+        require(priceUSDC >= minPricePerUnit, "below minimum");
         require(claimBond.balanceOf(msg.sender, epochId) >= amount, "Insufficient balance");
 
         uint256 maturity = claimBond.maturityDate(epochId);
@@ -155,6 +175,14 @@ contract LuminaBondMarketplace is
         require(_new != address(0), "Zero");
         twapBurner = _new;
         emit TwapBurnerUpdated(_new);
+    }
+
+    /// @notice [M-3] Update the anti-spam minimum price floor for new listings.
+    /// @dev    Uses FEE_MANAGER_ROLE to match the access pattern of `setTwapBurner`.
+    function setMinPricePerUnit(uint256 newFloor) external onlyRole(FEE_MANAGER_ROLE) {
+        uint256 old = minPricePerUnit;
+        minPricePerUnit = newFloor;
+        emit MinPricePerUnitUpdated(old, newFloor);
     }
 
     function getListing(uint256 listingId)
@@ -227,6 +255,7 @@ contract LuminaBondMarketplace is
         return token == address(usdc) || token == address(claimBond);
     }
 
-    // Storage gap for future upgrades
-    uint256[50] private __gap;
+    // Storage gap for future upgrades. [M-3] Reduced from 50 -> 49 because
+    // `minPricePerUnit` was appended above; total reserved layout footprint is unchanged.
+    uint256[49] private __gap;
 }

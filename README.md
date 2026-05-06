@@ -56,3 +56,6 @@ The previous version is preserved in branch `legacy/v1-archive` for historical r
 ## Chain
 - **Current** (testnet): Base Sepolia, Chain ID `84532` — V5.1 deployed and live
 - **Planned** (mainnet): Base, Chain ID `8453` — pending launch
+
+### Marketplace contract sync (M-3)
+The deployed `LuminaBondMarketplace` (0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E on Base Sepolia) was UUPS-upgraded with the M-3 anti-spam floor; this branch syncs the source so future redeploys preserve that behavior. Do NOT redeploy from this branch unless the founder explicitly opens an upgrade PR.
