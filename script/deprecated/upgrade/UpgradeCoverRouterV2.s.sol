@@ -1,8 +1,18 @@
+// ==============================================================
+// [DEPRECATED — 2026-05-07]
+// This script targets V1 / intermediate contract addresses (pre-V5.1
+// redeploy). Do NOT execute against the current Sepolia deployment;
+// running it would broadcast transactions to contracts that no longer
+// exist or are no longer in the canonical registry. Kept here for
+// historical reference only.
+//
+// Live addresses: GET https://lumina-api-production-ac85.up.railway.app/health
+// ==============================================================
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
+import {CoverRouterV2} from "../../../src/core/CoverRouterV2.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @notice Direct UUPS upgrade of CoverRouterV2 — NO TimelockController.

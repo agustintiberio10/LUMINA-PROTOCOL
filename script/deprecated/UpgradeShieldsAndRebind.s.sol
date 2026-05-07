@@ -1,17 +1,27 @@
+// ==============================================================
+// [DEPRECATED — 2026-05-07]
+// This script targets V1 / intermediate contract addresses (pre-V5.1
+// redeploy). Do NOT execute against the current Sepolia deployment;
+// running it would broadcast transactions to contracts that no longer
+// exist or are no longer in the canonical registry. Kept here for
+// historical reference only.
+//
+// Live addresses: GET https://lumina-api-production-ac85.up.railway.app/health
+// ==============================================================
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 
-import {FlashBTCShield1h}  from "../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h}  from "../src/products/FlashBTCShield4h.sol";
-import {FlashBTCShield24h} from "../src/products/FlashBTCShield24h.sol";
-import {FlashBTCShield48h} from "../src/products/FlashBTCShield48h.sol";
-import {FlashETHShield1h}  from "../src/products/FlashETHShield1h.sol";
-import {FlashETHShield24h} from "../src/products/FlashETHShield24h.sol";
-import {FlashETHShield48h} from "../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield}  from "../src/products/MicroDepegShield.sol";
-import {RateShockShield}   from "../src/products/RateShockShield.sol";
+import {FlashBTCShield1h}  from "../../src/products/FlashBTCShield1h.sol";
+import {FlashBTCShield4h}  from "../../src/products/FlashBTCShield4h.sol";
+import {FlashBTCShield24h} from "../../src/products/FlashBTCShield24h.sol";
+import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
+import {FlashETHShield1h}  from "../../src/products/FlashETHShield1h.sol";
+import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
+import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
+import {MicroDepegShield}  from "../../src/products/MicroDepegShield.sol";
+import {RateShockShield}   from "../../src/products/RateShockShield.sol";
 
 interface IShieldUpgrade {
     function upgradeToAndCall(address newImpl, bytes calldata data) external payable;
