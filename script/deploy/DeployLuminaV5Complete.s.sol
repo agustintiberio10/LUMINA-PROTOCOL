@@ -16,12 +16,20 @@ import {BondVault} from "../../src/bonds/BondVault.sol";
 // ═══════ Oracles ═══════
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
+import {LuminaOracleV2} from "../../src/oracles/LuminaOracleV2.sol";
 
 // ═══════ Core ═══════
 import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
 import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
 import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
 import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
+
+// ═══════ Automation ═══════
+import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
+
+// ═══════ DEX Adapters ═══════
+import {AerodromeAdapter} from "../../src/dex/AerodromeAdapter.sol";
+import {UniswapV3Adapter} from "../../src/dex/UniswapV3Adapter.sol";
 
 // ═══════ Treasury ═══════
 import "../../src/treasury/CEXLiquidityReserve.sol";
@@ -43,7 +51,10 @@ import "../../src/products/MicroDepegShield.sol";
 import "../../src/products/RateShockShield.sol";
 
 /// @title DeployLuminaV5Complete
-/// @notice Full deployment script for LUMINA Protocol V5.0.
+/// @notice Full deployment script for LUMINA Protocol V5.0 — 28 contracts.
+///         (Sprint B 2026-05-07: + LuminaOracleV2, ShieldKeeper, AerodromeAdapter,
+///         UniswapV3Adapter. Shields now bind to LuminaOracleV2 directly,
+///         replacing the prior `chainlinkOracle` config that was the wrong type.)
 /// @dev Load configuration from environment variables. Run with:
 ///      forge script script/deploy/DeployLuminaV5Complete.s.sol --rpc-url $RPC --broadcast
 contract DeployLuminaV5Complete is Script {
@@ -51,13 +62,19 @@ contract DeployLuminaV5Complete is Script {
 
     struct DeploymentConfig {
         address usdc;
-        address swapRouter;
+        address swapRouter; // raw DEX router (used as TWAPBurner initial router; replaced by adapters in wiring)
         address multisig;
         address lbpDeposit;
         address opsWallet;
         address founderRecipient;
-        address chainlinkOracle;
         address aavePool;
+        // ─── Sprint B additions ───
+        address oracleKey; // EOA signer key for LuminaOracleV2 EIP-712 proofs
+        address sequencerUptimeFeed; // Chainlink L2 sequencer feed; address(0) on Sepolia
+        address aerodromeRouter;
+        address aerodromeFactory;
+        address uniswapV3Router;
+        address uniswapV3Quoter;
     }
 
     struct DeploymentResult {
@@ -85,6 +102,11 @@ contract DeployLuminaV5Complete is Script {
         address flashETHShield48h;
         address microDepegShield;
         address rateShockShield;
+        // ─── Sprint B additions ───
+        address luminaOracleV2;
+        address shieldKeeper;
+        address aerodromeAdapter;
+        address uniswapV3Adapter;
     }
 
     function run() external {
@@ -96,8 +118,14 @@ contract DeployLuminaV5Complete is Script {
             lbpDeposit: vm.envAddress("LBP_DEPOSIT"),
             opsWallet: vm.envAddress("OPS_WALLET"),
             founderRecipient: vm.envAddress("FOUNDER_RECIPIENT"),
-            chainlinkOracle: vm.envAddress("CHAINLINK_ORACLE"),
-            aavePool: vm.envAddress("AAVE_POOL")
+            aavePool: vm.envAddress("AAVE_POOL"),
+            // ─── Sprint B additions ───
+            oracleKey: vm.envAddress("ORACLE_KEY"),
+            sequencerUptimeFeed: vm.envAddress("SEQUENCER_UPTIME_FEED"),
+            aerodromeRouter: vm.envAddress("AERODROME_ROUTER"),
+            aerodromeFactory: vm.envAddress("AERODROME_FACTORY"),
+            uniswapV3Router: vm.envAddress("UNISWAP_V3_ROUTER"),
+            uniswapV3Quoter: vm.envAddress("UNISWAP_V3_QUOTER")
         });
 
         DeploymentResult memory res;
@@ -105,6 +133,30 @@ contract DeployLuminaV5Complete is Script {
         vm.startBroadcast();
 
         address deployer = msg.sender;
+
+        // ═══════════════════════════════════════════════════════
+        // STEP 0a: LuminaOracleV2 (no Lumina deps; needs oracleKey + L2 sequencer feed)
+        // ═══════════════════════════════════════════════════════
+        LuminaOracleV2 luminaOracleV2 =
+            new LuminaOracleV2(deployer, cfg.oracleKey, cfg.sequencerUptimeFeed);
+        res.luminaOracleV2 = address(luminaOracleV2);
+        console.log("0a. LuminaOracleV2:", res.luminaOracleV2);
+
+        // ═══════════════════════════════════════════════════════
+        // STEP 0b: AerodromeAdapter (no Lumina deps; needs Aerodrome router+factory)
+        // ═══════════════════════════════════════════════════════
+        AerodromeAdapter aerodromeAdapter =
+            new AerodromeAdapter(cfg.aerodromeRouter, cfg.aerodromeFactory, false);
+        res.aerodromeAdapter = address(aerodromeAdapter);
+        console.log("0b. AerodromeAdapter:", res.aerodromeAdapter);
+
+        // ═══════════════════════════════════════════════════════
+        // STEP 0c: UniswapV3Adapter (no Lumina deps; pool fee 0.3%)
+        // ═══════════════════════════════════════════════════════
+        UniswapV3Adapter uniswapV3Adapter =
+            new UniswapV3Adapter(cfg.uniswapV3Router, cfg.uniswapV3Quoter, 3000);
+        res.uniswapV3Adapter = address(uniswapV3Adapter);
+        console.log("0c. UniswapV3Adapter:", res.uniswapV3Adapter);
 
         // ═══════════════════════════════════════════════════════
         // STEP 1: MaintenanceReserve (needs USDC only)
@@ -138,6 +190,8 @@ contract DeployLuminaV5Complete is Script {
         //              FounderVesting(+1),
         //              TreasuryVestingImpl(+1), TreasuryVestingProxy(+1),
         //              LuminaImpl(+1), LuminaProxy(+1) = +11 total, proxy at +10
+        // [Sprint B] STEP 0a/0b/0c added BEFORE this line. They consume nonces but
+        // are read AFTER `vm.getNonce`, so the +10 offset is unchanged.
         // ═══════════════════════════════════════════════════════
         uint64 currentNonce = vm.getNonce(deployer);
         address precomputedLumina = vm.computeCreateAddress(deployer, currentNonce + 10);
@@ -282,6 +336,19 @@ contract DeployLuminaV5Complete is Script {
         console.log("14. BondVault.setPolicyManager done");
 
         // ═══════════════════════════════════════════════════════
+        // STEP 14b: ShieldKeeper via UUPS proxy (Chainlink Automation interface).
+        // Reads from PolicyManagerV2 to enumerate active policies for keeper-driven settlement.
+        // ═══════════════════════════════════════════════════════
+        ShieldKeeper shieldKeeperImpl = new ShieldKeeper();
+        ERC1967Proxy shieldKeeperProxy = new ERC1967Proxy(
+            address(shieldKeeperImpl),
+            abi.encodeWithSelector(ShieldKeeper.initialize.selector, res.policyManager)
+        );
+        ShieldKeeper shieldKeeper = ShieldKeeper(address(shieldKeeperProxy));
+        res.shieldKeeper = address(shieldKeeper);
+        console.log("14b. ShieldKeeper (proxy):", res.shieldKeeper);
+
+        // ═══════════════════════════════════════════════════════
         // STEP 15: CoverRouterV2 via UUPS proxy
         // ═══════════════════════════════════════════════════════
         CoverRouterV2 crImpl = new CoverRouterV2();
@@ -335,61 +402,62 @@ contract DeployLuminaV5Complete is Script {
         console.log("18. BuybackEngine (proxy):", res.buybackEngine);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 19: Deploy 9 Shields
+        // STEP 19: Deploy 9 Shields — bound to LuminaOracleV2 (Sprint B fix:
+        //         was `cfg.chainlinkOracle`, which was the wrong interface).
         // ═══════════════════════════════════════════════════════
         FlashBTCShield1h flashBtc1hImpl = new FlashBTCShield1h();
         ERC1967Proxy flashBtc1hProxy = new ERC1967Proxy(
             address(flashBtc1hImpl),
-            abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+            abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.flashBTCShield1h = address(flashBtc1hProxy);
 
         FlashBTCShield4h flashBtc4hImpl = new FlashBTCShield4h();
         ERC1967Proxy flashBtc4hProxy = new ERC1967Proxy(
             address(flashBtc4hImpl),
-            abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+            abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.flashBTCShield4h = address(flashBtc4hProxy);
 
         FlashBTCShield24h flashBtc24hImpl = new FlashBTCShield24h();
         ERC1967Proxy flashBtc24hProxy = new ERC1967Proxy(
             address(flashBtc24hImpl),
-            abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+            abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.flashBTCShield24h = address(flashBtc24hProxy);
 
         FlashBTCShield48h flashBtc48hImpl = new FlashBTCShield48h();
         ERC1967Proxy flashBtc48hProxy = new ERC1967Proxy(
             address(flashBtc48hImpl),
-            abi.encodeWithSelector(FlashBTCShield48h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+            abi.encodeWithSelector(FlashBTCShield48h.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.flashBTCShield48h = address(flashBtc48hProxy);
 
         FlashETHShield1h flashEth1hImpl = new FlashETHShield1h();
         ERC1967Proxy flashEth1hProxy = new ERC1967Proxy(
             address(flashEth1hImpl),
-            abi.encodeWithSelector(FlashETHShield1h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+            abi.encodeWithSelector(FlashETHShield1h.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.flashETHShield1h = address(flashEth1hProxy);
 
         FlashETHShield24h flashEth24hImpl = new FlashETHShield24h();
         ERC1967Proxy flashEth24hProxy = new ERC1967Proxy(
             address(flashEth24hImpl),
-            abi.encodeWithSelector(FlashETHShield24h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+            abi.encodeWithSelector(FlashETHShield24h.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.flashETHShield24h = address(flashEth24hProxy);
 
         FlashETHShield48h flashEth48hImpl = new FlashETHShield48h();
         ERC1967Proxy flashEth48hProxy = new ERC1967Proxy(
             address(flashEth48hImpl),
-            abi.encodeWithSelector(FlashETHShield48h.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+            abi.encodeWithSelector(FlashETHShield48h.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.flashETHShield48h = address(flashEth48hProxy);
 
         MicroDepegShield microDepegImpl = new MicroDepegShield();
         ERC1967Proxy microDepegProxy = new ERC1967Proxy(
             address(microDepegImpl),
-            abi.encodeWithSelector(MicroDepegShield.initialize.selector, res.policyManager, cfg.chainlinkOracle)
+            abi.encodeWithSelector(MicroDepegShield.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.microDepegShield = address(microDepegProxy);
 
@@ -397,7 +465,7 @@ contract DeployLuminaV5Complete is Script {
         ERC1967Proxy rateShockProxy = new ERC1967Proxy(
             address(rateShockImpl),
             abi.encodeWithSelector(
-                RateShockShield.initialize.selector, res.policyManager, cfg.chainlinkOracle, cfg.aavePool, cfg.usdc
+                RateShockShield.initialize.selector, res.policyManager, res.luminaOracleV2, cfg.aavePool, cfg.usdc
             )
         );
         res.rateShockShield = address(rateShockProxy);
@@ -418,7 +486,14 @@ contract DeployLuminaV5Complete is Script {
         twapBurner.setCapacityOracle(res.capacityOracle);
         twapBurner.setAdaptiveMode(true);
         twapBurner.setAuthorizedSender(res.coverRouter, true);
-        console.log("  TWAPBurner configured");
+
+        // [Sprint B] Replace the raw initial swapRouter with the two adapter
+        // wrappers. TWAPBurner picks the best quote across configured routers.
+        address[] memory dexRouters = new address[](2);
+        dexRouters[0] = res.aerodromeAdapter;
+        dexRouters[1] = res.uniswapV3Adapter;
+        twapBurner.setDexRouters(dexRouters);
+        console.log("  TWAPBurner configured (dex routers: aerodrome+uniswap)");
 
         // Authorize BuybackEngine in BondVault (deployer has AUTHORIZED_CALLER_ADMIN_ROLE)
         bondVault.setAuthorizedCaller(res.buybackEngine, true);
@@ -466,6 +541,12 @@ contract DeployLuminaV5Complete is Script {
         treasuryVesting.transferOwnership(cfg.multisig);
         claimBond.transferOwnership(cfg.multisig);
 
+        // [Sprint B] Transfer ownership of the 4 new contracts to multisig.
+        luminaOracleV2.transferOwnership(cfg.multisig);
+        aerodromeAdapter.transferOwnership(cfg.multisig);
+        uniswapV3Adapter.transferOwnership(cfg.multisig);
+        shieldKeeper.transferOwnership(cfg.multisig);
+
         // Transfer BondVault admin roles to multisig
         bondVault.grantRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), cfg.multisig);
         bondVault.grantRole(bondVault.DEFAULT_ADMIN_ROLE(), cfg.multisig);
@@ -480,24 +561,28 @@ contract DeployLuminaV5Complete is Script {
         vm.stopBroadcast();
 
         // ═══════════════════════════════════════════════════════
-        // FINAL LOG: All deployed addresses
+        // FINAL LOG: All deployed addresses (28 total)
         // ═══════════════════════════════════════════════════════
-        console.log("===== LUMINA V5.0 DEPLOYMENT COMPLETE =====");
+        console.log("===== LUMINA V5.0 DEPLOYMENT COMPLETE (28 contracts) =====");
         console.log("LuminaTokenV2:          ", res.luminaToken);
         console.log("BondVault:              ", res.bondVault);
         console.log("ClaimBond:              ", res.claimBond);
         console.log("CapacityOracle:         ", res.capacityOracle);
         console.log("SolvencyOracle:         ", res.solvencyOracle);
+        console.log("LuminaOracleV2:         ", res.luminaOracleV2);
         console.log("AdaptiveFeeDistributor: ", res.adaptiveFeeDistributor);
         console.log("TWAPBurner:             ", res.twapBurner);
         console.log("PolicyManagerV2:        ", res.policyManager);
         console.log("CoverRouterV2:          ", res.coverRouter);
+        console.log("ShieldKeeper:           ", res.shieldKeeper);
         console.log("CEXLiquidityReserve:    ", res.cexLiquidityReserve);
         console.log("MaintenanceReserve:     ", res.maintenanceReserve);
         console.log("FounderVesting:         ", res.founderVesting);
         console.log("TreasuryVesting:        ", res.treasuryVesting);
         console.log("LuminaBondMarketplace:  ", res.marketplace);
         console.log("BuybackEngine:          ", res.buybackEngine);
+        console.log("AerodromeAdapter:       ", res.aerodromeAdapter);
+        console.log("UniswapV3Adapter:       ", res.uniswapV3Adapter);
         console.log("FlashBTCShield1h:       ", res.flashBTCShield1h);
         console.log("FlashBTCShield4h:       ", res.flashBTCShield4h);
         console.log("FlashBTCShield24h:      ", res.flashBTCShield24h);
