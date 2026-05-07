@@ -64,9 +64,15 @@ contract CapacityOracleForkTest is Test {
         CapacityOracle oracle = ProxyDeployer.deployCapacityOracle(address(0), mockLumina, USDC_BASE, 0.036e18);
 
         uint256 policies = oracle.maxPoliciesPerDay();
-        // At $0.036: ~404 policies/day
-        assertGt(policies, 350, "Should be > 350 at $0.036");
-        assertLt(policies, 450, "Should be < 450 at $0.036");
+        // At $0.036, with the V5.1 constants the formula yields exactly 345:
+        //   reserveValueUSD  = (70_000_000e18 * 0.036e18) / 1e18 = 2.52e24
+        //   maxCommitUSD     = reserveValueUSD * 5000 / 10000     = 1.26e24  (50% safety)
+        //   dailyCommitUSD   = AVG_PAYOUT_USD * 100 / 10000       = 5         ($500 * 1%)
+        //   policies         = 1.26e24 / (730 * 5) / 1e18         = 345
+        // The previous "> 350" bound + "~404" comment predated the Phase D
+        // SAFETY_FACTOR_BPS recalibration. Asserting a tight band around 345.
+        assertGt(policies, 340, "Should be > 340 at $0.036");
+        assertLt(policies, 360, "Should be < 360 at $0.036");
     }
 
     /// @notice Placeholder: full pool creation + TWAP test requires Uniswap V3

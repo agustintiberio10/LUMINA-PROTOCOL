@@ -86,6 +86,20 @@ contract EconomicAttacks is Test {
     address policyManager = makeAddr("policyManager");
     address admin = makeAddr("admin");
 
+    /// @dev When the suite is invoked with `--fork-url`, deterministic
+    ///      `makeAddr` outputs may collide with EOAs that, on Base mainnet,
+    ///      have been delegated via EIP-7702 to a contract (the bytecode
+    ///      starts with `0xef0100`). Minting ERC-1155 to such an address
+    ///      then triggers the receiver hook and reverts with
+    ///      `ERC1155InvalidReceiver`. None of these tests need fork state,
+    ///      so we explicitly clear bytecode at the test EOAs to keep them
+    ///      EOAs regardless of fork mode.
+    function setUp() public {
+        vm.etch(attacker, "");
+        vm.etch(policyManager, "");
+        vm.etch(admin, "");
+    }
+
     // ================================================================
     // Test 1: Issue bonds until capacity check fails at exact boundary
     // ================================================================
