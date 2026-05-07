@@ -1,6 +1,25 @@
-# LUMINA PROTOCOL — SKILL V4.1 (SINGLE SOURCE OF TRUTH)
+# LUMINA PROTOCOL — SKILL V4.2 (SINGLE SOURCE OF TRUTH)
 ## Parametric risk speculation for humans and AI agents
-### Base L2 (Chain 8453) | Token: $LUMINA | Last update: April 2026
+### Base Sepolia testnet (Chain 84532) | Token: $LUMINA | Last update: 2026-05-06
+
+---
+
+## Lifecycle Overview (the 6 steps)
+
+1. **Buy policy** — pay USDC premium → receive active policy.
+2. **Event triggers** — parametric, on-chain, automatic. No manual claims.
+3. **ClaimBond minted** — ERC-1155, $1 face value/unit, units = USDC coverage, maturity = 730 days.
+4. **Decision**: hold to maturity (option A) or sell early (option B).
+   - **Option A**: At day 730, call `redeemBond()` → receive `$LUMINA` (= units × $1 ÷ LUMINA_price_at_redeem).
+   - **Option B**: List on `LuminaBondMarketplace` for USDC. Fees 1.5% maker + 1.5% taker.
+5. **If sold**: new holder has same choice.
+6. **Maturity (day 730)**: contract burns the bond and mints `$LUMINA` to the holder.
+
+**Premium = USDC. Marketplace trade = USDC. Bond redeem at maturity = $LUMINA.**
+
+Worked example: $3 USDC premium for $800 coverage → trigger fires → 800-unit bond minted → wait 730d → at $0.50 LUMINA → receive 1,600 LUMINA (= $800 / $0.50).
+
+See [docs.lumina-org.com/concepts/lifecycle](https://docs.lumina-org.com/concepts/lifecycle) for the full diagram.
 
 ---
 
@@ -25,7 +44,7 @@ It's not just insurance. It's parametric speculation with built-in deflation.
 
 Total supply:     100,000,000 (fixed, no mint function)
 Burn:             ERC20Burnable + BURNER_ROLE
-Chain:            Base L2 (8453)
+Chain:            Base Sepolia testnet (84532)
 DEX:              Uniswap V3 (LUMINA/USDC)
 
 DISTRIBUTION:
@@ -95,15 +114,15 @@ Verifiable on BaseScan. The code is the law.
   Payout is FIXED IN USD. Settled in $LUMINA at market price at redemption.
 
 ### Product table:
-  FLASH-BTC-1H    BTC drops 5%                     1 hour    0.20%   333x
-  FLASH-BTC-4H    BTC drops 8%                     4 hours   0.35%   190x
-  FLASH-BTC-24H   BTC drops 10%                    24 hours  1.50%    44x
-  FLASH-BTC-48H   BTC drops 15%                    48 hours  0.80%    83x
-  FLASH-ETH-1H    ETH drops 7%                     1 hour    0.25%   266x
-  FLASH-ETH-24H   ETH drops 12%                    24 hours  2.00%    33x
-  FLASH-ETH-48H   ETH drops 18%                    48 hours  0.90%    74x
-  MICRO-DEPEG     USDT trades below $0.995         7 days    3.50%    19x
-  RATE-SHOCK      Aave USDC borrow rate above 10%  7 days    4.00%    17x
+  FLASHBTC1H-001   BTC drops 5%                     1 hour    0.20%   333x
+  FLASHBTC4H-001   BTC drops 8%                     4 hours   0.35%   190x
+  FLASHBTC24-001   BTC drops 10%                    24 hours  1.50%    44x
+  FLASHBTC48-001   BTC drops 15%                    48 hours  0.80%    83x
+  FLASHETH1H-001   ETH drops 7%                     1 hour    0.25%   266x
+  FLASHETH24-001   ETH drops 12%                    24 hours  2.00%    33x
+  FLASHETH48-001   ETH drops 18%                    48 hours  0.90%    74x
+  MICRODEPEG-001   USDT trades below $0.995         7 days    3.50%    19x
+  RATESHOCK-001    Aave USDC borrow rate above 10%  7 days    4.00%    17x
 
 ### Example at $1,000 coverage:
   Flash BTC 1h:  Premium $2.40 → Bond of $800 (333x)
@@ -148,7 +167,7 @@ REDEMPTION (at maturity, 24 months later):
 ## 7. COMPLETE FLOW
 
 1. USER BUYS POLICY
-   Humans: web app. AI Agents: POST /api/v2/purchase
+   Humans: web app. AI Agents: POST /api/v1/purchase
    Pays premium in USDC.
 
 2. PREMIUM BURNS $LUMINA IMMEDIATELY
@@ -264,23 +283,23 @@ Circulating: ~5M LUMINA (5%). Price: ~$0.036. FDV: ~$3.6M.
 
 ## 13. API — ENDPOINTS
 
-POST /api/v2/purchase          Buy policy (USDC)
-GET  /api/v2/products          Product list with pricing
-GET  /api/v2/capacity          Current protocol capacity
-GET  /api/v2/stats             Total burned, rate, supply, price
+POST /api/v1/purchase          Buy policy (USDC)
+GET  /api/v1/products          Product list with pricing
+GET  /api/v1/capacity          Current protocol capacity
+GET  /api/v1/stats             Total burned, rate, supply, price
 
-GET  /api/v2/bonds/:address    Bonds by address (ERC-1155 balances by epoch)
-GET  /api/v2/bonds/epoch/:id   Epoch detail (supply, maturity, holders)
-POST /api/v2/bonds/redeem      Redeem mature bonds
+GET  /api/v1/bonds/:address    Bonds by address (ERC-1155 balances by epoch)
+GET  /api/v1/bonds/epoch/:id   Epoch detail (supply, maturity, holders)
+POST /api/v1/bonds/redeem      Redeem mature bonds
 
-GET  /api/v2/marketplace/listings      Bonds for sale
-POST /api/v2/marketplace/list          List bonds for sale (seller pays 1.5% on sale)
-POST /api/v2/marketplace/buy           Buy listed bonds (buyer pays 1.5% fee)
-POST /api/v2/marketplace/cancel        Cancel listing
-GET  /api/v2/marketplace/stats         Volume, avg discount, fees burned
+GET  /api/v1/marketplace/listings      Bonds for sale
+POST /api/v1/marketplace/list          List bonds for sale (seller pays 1.5% on sale)
+POST /api/v1/marketplace/buy           Buy listed bonds (buyer pays 1.5% fee)
+POST /api/v1/marketplace/cancel        Cancel listing
+GET  /api/v1/marketplace/stats         Volume, avg discount, fees burned
 
-POST /api/v2/keys/create       Create API key (requires wallet signature)
-GET  /api/v2/keys/list         List API keys for wallet
+POST /api/v1/keys/create       Create API key (requires wallet signature)
+GET  /api/v1/keys/list         List API keys for wallet
 
 ---
 
