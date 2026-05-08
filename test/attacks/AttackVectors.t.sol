@@ -104,8 +104,7 @@ contract MockTWAPBurner {
 
 contract MockDexRouter {
     // placeholder
-
-    }
+}
 
 /// @notice Minimal concrete shield for testing. Implements all abstract methods.
 contract TestShield is BaseShield {

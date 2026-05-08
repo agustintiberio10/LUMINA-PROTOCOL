@@ -15,14 +15,14 @@ interface ICoverRouterV2 {
 ///         Fixes the agent-ux-stress-test blocker #1 (every POST /api/v1/policies
 ///         returned 503 relayer_unauthorized).
 contract AuthorizeRelayer is Script {
-    address constant ROUTER  = 0xebC3A783477FbD2720C024e16A8d63B8Db983D84;
+    address constant ROUTER = 0xebC3A783477FbD2720C024e16A8d63B8Db983D84;
     address constant RELAYER = 0x168dC7105e907294f9d066cee24f30caa5A17E4a;
 
     function run() external {
         require(block.chainid == 84532, "wrong chain (Base Sepolia only)");
 
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
-        address sender      = vm.addr(deployerKey);
+        address sender = vm.addr(deployerKey);
         address routerOwner = ICoverRouterV2(ROUTER).owner();
         require(sender == routerOwner, "PRIVATE_KEY is not router owner");
 

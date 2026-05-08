@@ -25,12 +25,16 @@ contract ShieldOraclesFork is Test {
     }
 
     function setUp() public {
-        try vm.createFork(vm.envString("BASE_RPC_URL")) returns (uint256 forkId) {
-            baseFork = forkId;
-            vm.selectFork(baseFork);
-        } catch {
-            // No BASE_RPC_URL set — tests will be skipped via onlyFork modifier
+        // Skip the suite gracefully when BASE_RPC_URL is not set (e.g., CI without
+        // the secret). Using vm.envOr avoids the cheatcode revert that vm.envString
+        // emits on missing vars, which try/catch in Solidity cannot recover from.
+        string memory rpcUrl = vm.envOr("BASE_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            vm.skip(true);
+            return;
         }
+        baseFork = vm.createFork(rpcUrl);
+        vm.selectFork(baseFork);
     }
 
     // ═══════ BTC/USD FEED ═══════

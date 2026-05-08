@@ -190,18 +190,16 @@ contract CrossContractIntegrationTest is Test {
         s.usdc = new MockUSDC6();
         s.oracle = new MockPriceOracleCC(0.036e18);
 
-        // Predict BondVault proxy address so token distribution lands correctly.
-        uint64 nonce = vm.getNonce(address(this));
-        // Sequence from now:
-        //  (1) token impl, (2) token proxy,
-        //  (3) dex stub, (4) TWAP impl, (5) TWAP proxy,
-        //  (6) cb impl, (7) cb proxy,
-        //  (8) pm impl, (9) pm proxy,
-        //  (10) vault impl, (11) vault proxy
-        address predictedVault = vm.computeCreateAddress(address(this), nonce + 10);
-
+        // Placeholder pattern: deploy LuminaTokenV2 with `address(this)` as a
+        // temporary bondVault recipient, then deploy the real BondVault and
+        // transfer the 70M tranche to it. This avoids the nonce-prediction
+        // chicken-and-egg that broke `forge test --gas-report` (the gas-report
+        // mode injects an extra nonce-consuming instrumentation, so any test
+        // hard-coding `vm.computeCreateAddress(address(this), nonce + N)`
+        // misaligns by one). See lines 596+ of this same file for the unit
+        // tests that already follow this same pattern.
         s.token = ProxyDeployer.deployLuminaTokenV2(
-            predictedVault, makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
+            address(this), makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("treasury")
         );
 
         s.dex = new MockDexCC(address(s.token));
@@ -211,11 +209,22 @@ contract CrossContractIntegrationTest is Test {
         s.token.grantRole(s.token.BURNER_ROLE(), address(s.burner));
 
         s.cb = ProxyDeployer.deployClaimBond();
-        s.pm = ProxyDeployer.deployPolicyManagerV2(predictedVault);
-        s.vault = ProxyDeployer.deployBondVault(address(s.token), address(s.cb), address(s.oracle), address(s.pm));
-        require(address(s.vault) == predictedVault, "address mismatch");
+
+        // Deploy BondVault with `policyManager = address(0)` (mainnet deploy
+        // script uses the same placeholder pattern, then `setPolicyManager`).
+        s.vault = ProxyDeployer.deployBondVault(address(s.token), address(s.cb), address(s.oracle), address(0));
+
+        // Move the 70M tranche from the placeholder (this contract) to the
+        // real BondVault. After this transfer the on-chain balances match
+        // what the deploy script produces in production.
+        s.token.transfer(address(s.vault), 70_000_000e18);
 
         s.cb.setBondVault(address(s.vault));
+
+        // Now PolicyManagerV2 can be initialized with the real BondVault, and
+        // we wire it back into BondVault via `setPolicyManager`.
+        s.pm = ProxyDeployer.deployPolicyManagerV2(address(s.vault));
+        s.vault.setPolicyManager(address(s.pm));
 
         s.router = ProxyDeployer.deployCoverRouterV2(address(s.usdc), address(s.pm), address(s.burner));
         s.router.setCapacityOracle(address(s.oracle));
