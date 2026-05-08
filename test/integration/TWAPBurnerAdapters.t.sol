@@ -113,8 +113,16 @@ contract TWAPBurnerAdaptersTest is Test {
     address poolSeeder = makeAddr("poolSeeder");
 
     function setUp() public {
+        // Skip gracefully when BASE_MAINNET_RPC is not set (e.g., CI without the
+        // secret). vm.envString reverts on missing env vars; vm.envOr returns the
+        // fallback so we can call vm.skip(true) cleanly without aborting the run.
+        string memory rpcUrl = vm.envOr("BASE_MAINNET_RPC", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            vm.skip(true);
+            return;
+        }
         // ─── 1. Fork Base mainnet ───
-        vm.createSelectFork(vm.envString("BASE_MAINNET_RPC"));
+        vm.createSelectFork(rpcUrl);
 
         // ─── 2. Deploy LUMINA UUPS proxy ───
         vm.startPrank(admin);
