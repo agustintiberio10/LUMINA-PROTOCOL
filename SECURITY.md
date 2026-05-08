@@ -20,31 +20,31 @@ V5.1 is currently deployed on **Base Sepolia testnet** (chainId 84532). Mainnet 
 
 | Contract | Role | Sepolia address |
 |---|---|---|
-| `LuminaTokenV2` (`src/token/LuminaTokenV2.sol`) | ERC-20, 100M fixed supply, deflationary via TWAPBurner | `0x17db45491561F7538e4E14449DCC34799758465D` |
-| `ClaimBond` (`src/bonds/ClaimBond.sol`) | ERC-1155, 1 token = $1, 730-day maturity, epoch-fungible | `0x5304f6732a51995651f1B666525CFeC5Af74A541` |
-| `BondVault` (`src/bonds/BondVault.sol`) | **Single** USD-collateral vault. Issues + redeems bonds. (V4 had 4 vaults; V5.1 collapsed to 1.) | `0x1747CDA7F84BEc4f2002ff0dcdb3c51c1C02cf6A` |
-| `PolicyManagerV2` (`src/core/PolicyManagerV2.sol`) | Issues policies, settles triggers, marks expirations | `0x04f94Bc24aAA87aDFA643EE1e55a35C683f30804` |
-| `CoverRouterV2` (`src/core/CoverRouterV2.sol`) | User-facing: `purchasePolicy` (human direct) + `purchasePolicyFor` (relayer) + `quotePremium` | `0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316` |
-| `LuminaBondMarketplace` (`src/marketplace/LuminaBondMarketplace.sol`) | Secondary market for ClaimBonds. 3% fee (1.5% each side) → 100% burn. | `0x863A7fB4A676106db4b03449b01AC5615c6C9D51` |
-| `BuybackEngine` (`src/marketplace/BuybackEngine.sol`) | Marketplace fee burn path | `0x5a74f8A6A11679b12aDAE479C686880CCf8720b3` |
-| `ShieldKeeper` (`src/automation/ShieldKeeper.sol`) | Permissionless trigger submission helper | `0xB5dE54F34deC8309bD8C1B8c1eF854C88D386Bca` |
-| `TWAPBurner` (`src/core/TWAPBurner.sol`) | Routes 100% of premiums + marketplace fees → buy LUMINA → burn to 0xdead | `0x357BAF511383be70d1F3A5de7D3b07561Eec7d99` |
-| `LuminaOracleV2` (`src/oracles/LuminaOracleV2.sol`) | EIP-712 shield price oracle. Verifies signed PriceProofs from the off-chain signer; the 9 shields call it inside `_doVerifyAndCalculate`. Replaces the launch-day `MockShieldOracle`. See [`docs/architecture/ORACLE-V2.md`](./docs/architecture/ORACLE-V2.md). | `0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194` |
-| `FounderVesting` (`src/token/FounderVesting.sol`) | 8M LUMINA founder lock with 2-of-3 AltSeason conditions or 4-year fallback | (deploy-time) |
+| `LuminaTokenV2` (`src/token/LuminaTokenV2.sol`) | ERC-20, 100M fixed supply, deflationary via TWAPBurner | `0x7D3E392Bdb3258cF92C257C90391957d7b0Aff02` |
+| `ClaimBond` (`src/bonds/ClaimBond.sol`) | ERC-1155, 1 token = $1, 730-day maturity, epoch-fungible | `0xde85056F155d3F18e559Fa63d5861ab3D1318cF0` |
+| `BondVault` (`src/bonds/BondVault.sol`) | **Single** USD-collateral vault. Issues + redeems bonds. (V4 had 4 vaults; V5.1 collapsed to 1.) | `0x9EfdD63B13543B30B49b2b423903233220B3726c` |
+| `PolicyManagerV2` (`src/core/PolicyManagerV2.sol`) | Issues policies, settles triggers, marks expirations | `0xD97bFC2959f0673851348b60DF2Eb3376eF612BE` |
+| `CoverRouterV2` (`src/core/CoverRouterV2.sol`) | User-facing: `purchasePolicy` (human direct) + `purchasePolicyFor` (relayer) + `quotePremium` | `0xFA6d57CA87a26F08d68f2123e86990E2fD70B7AE` |
+| `LuminaBondMarketplace` (`src/marketplace/LuminaBondMarketplace.sol`) | Secondary market for ClaimBonds. 3% fee (1.5% each side) → 100% burn. | `0xFa4Af36A4af7e6691bD1906D83a15792257d80de` |
+| `BuybackEngine` (`src/marketplace/BuybackEngine.sol`) | Marketplace fee burn path | `0xC824309B1c02A2E57044b15527a53BBb8c3aAD5a` |
+| `ShieldKeeper` (`src/automation/ShieldKeeper.sol`) | Permissionless trigger submission helper | `0x474C9F3819328d919f827deA3f738F71302DdbcF` |
+| `TWAPBurner` (`src/core/TWAPBurner.sol`) | Routes 100% of premiums + marketplace fees → buy LUMINA → burn to 0xdead | `0xc838BEDE6BE624f6b7b69be71b7587ce51186D75` |
+| `LuminaOracleV2` (`src/oracles/LuminaOracleV2.sol`) | EIP-712 shield price oracle. Verifies signed PriceProofs from the off-chain signer; the 9 shields call it inside `_doVerifyAndCalculate`. Replaces the launch-day `MockShieldOracle`. See [`docs/architecture/ORACLE-V2.md`](./docs/architecture/ORACLE-V2.md). | `0x61918822856ADFB5C4C98f4605bF9c0367ad2E0d` |
+| `FounderVesting` (`src/token/FounderVesting.sol`) | 8M LUMINA founder lock with 2-of-3 AltSeason conditions or 4-year fallback | `0xa3e7685E21A141930F63432E927D679fD3FDE876` |
 
 ### 9 shields (parametric products)
 
 | Shield | Trigger | Sepolia address |
 |---|---|---|
-| `FlashBTCShield1h` | BTC −5% / 1h | `0x77c2A7cA53ED5cbDe66cE220647d2c213133f2a9` |
-| `FlashBTCShield4h` | BTC −8% / 4h | `0xb5b21f7c02C15B5D73e63538BC917825Ebcb8122` |
-| `FlashBTCShield24h` | BTC −10% / 24h | `0xAc53Bf7Bb85Fcfb6d3c831F3AD9f6f79ebeeF99f` |
-| `FlashBTCShield48h` | BTC −15% / 48h | `0xf2D3Fe86Ad8BB96600bB5fdF21159bb6255e95f2` |
-| `FlashETHShield1h` | ETH −7% / 1h | `0xa63237a0fd57443D73F9ED36CBE15E2792D4a170` |
-| `FlashETHShield24h` | ETH −12% / 24h | `0x6D6E250bc936D92F64d70262d14D6b020107Ee26` |
-| `FlashETHShield48h` | ETH −18% / 48h | `0xcCbE9CCCD887D67f4bfD833c2431DD2B4e1f864D` |
-| `MicroDepegShield` | USDT < $0.995 / 7d | `0x06DF0608c7256c8Df0723538574Babad1a7fd53d` |
-| `RateShockShield` | Aave V3 USDC variable borrow rate > 10% APY | `0x7287E55380ee877279ef2e390e2528F772e7Da2f` |
+| `FlashBTCShield1h` | BTC −5% / 1h | `0xfE0A40B31C4a8D20239345B1133d8A4495A1C788` |
+| `FlashBTCShield4h` | BTC −8% / 4h | `0x1Ab1be79659098fEbA0CC8D196F2BBaD87572DA1` |
+| `FlashBTCShield24h` | BTC −10% / 24h | `0x8b3Aa2dbfb6FF39C560A92dB51FD023Ca92E4f8a` |
+| `FlashBTCShield48h` | BTC −15% / 48h | `0x75ee42090C40D3a2fdd84937Eeba53fdE7c1bD18` |
+| `FlashETHShield1h` | ETH −7% / 1h | `0xdd4Dad66D0ADCf7C413ce39b2DfDBBDB11e11dC7` |
+| `FlashETHShield24h` | ETH −12% / 24h | `0x6D232eAE5221B0C445Af30d16976d2A55C8f5A03` |
+| `FlashETHShield48h` | ETH −18% / 48h | `0xBDd8937f740B12A8b1bf9f758cb264f138E2aB26` |
+| `MicroDepegShield` | USDT < $0.995 / 7d | `0x62a2452A2B52C8D3AaC0CEeEb5107159A604adc4` |
+| `RateShockShield` | Aave V3 USDC variable borrow rate > 10% APY | `0x0BEf02A107f374139F466828a0a8A4B9faA501Ff` |
 
 All shields inherit from `BaseShield` (`src/products/BaseShield.sol`). Default minimum cover: $100 USDC.
 
