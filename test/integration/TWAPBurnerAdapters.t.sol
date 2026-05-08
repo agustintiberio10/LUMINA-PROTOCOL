@@ -128,12 +128,7 @@ contract TWAPBurnerAdaptersTest is Test {
         vm.startPrank(admin);
         LuminaTokenV2 luminaImpl = new LuminaTokenV2();
         bytes memory initData = abi.encodeWithSelector(
-            LuminaTokenV2.initialize.selector,
-            bondVault,
-            cexReserve,
-            founderVesting,
-            lbpDeposit,
-            treasuryVesting
+            LuminaTokenV2.initialize.selector, bondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting
         );
         ERC1967Proxy luminaProxy = new ERC1967Proxy(address(luminaImpl), initData);
         lumina = LuminaTokenV2(address(luminaProxy));
@@ -156,9 +151,8 @@ contract TWAPBurnerAdaptersTest is Test {
         // ─── 6. Deploy TWAPBurner UUPS proxy with Aerodrome as initial router ───
         vm.startPrank(admin);
         TWAPBurner burnerImpl = new TWAPBurner();
-        bytes memory burnerInit = abi.encodeWithSelector(
-            TWAPBurner.initialize.selector, USDC, address(lumina), address(aeroAdapter)
-        );
+        bytes memory burnerInit =
+            abi.encodeWithSelector(TWAPBurner.initialize.selector, USDC, address(lumina), address(aeroAdapter));
         ERC1967Proxy burnerProxy = new ERC1967Proxy(address(burnerImpl), burnerInit);
         burner = TWAPBurner(payable(address(burnerProxy)));
         // Adaptive mode stays off → uses _executeLegacyBurn (simpler test surface)
@@ -183,17 +177,18 @@ contract TWAPBurnerAdaptersTest is Test {
         vm.startPrank(poolSeeder);
         IERC20(address(lumina)).approve(AERO_ROUTER, LUMINA_AMOUNT);
         IERC20(USDC).approve(AERO_ROUTER, USDC_AMOUNT);
-        IAerodromeRouterExt(AERO_ROUTER).addLiquidity(
-            address(lumina),
-            USDC,
-            false, // stable
-            LUMINA_AMOUNT,
-            USDC_AMOUNT,
-            0, // amountAMin (test, not prod)
-            0, // amountBMin
-            poolSeeder,
-            block.timestamp + 600
-        );
+        IAerodromeRouterExt(AERO_ROUTER)
+            .addLiquidity(
+                address(lumina),
+                USDC,
+                false, // stable
+                LUMINA_AMOUNT,
+                USDC_AMOUNT,
+                0, // amountAMin (test, not prod)
+                0, // amountBMin
+                poolSeeder,
+                block.timestamp + 600
+            );
         vm.stopPrank();
     }
 
@@ -425,9 +420,7 @@ contract TWAPBurnerAdaptersTest is Test {
         TWAPBurner ghostImplBurner = new TWAPBurner();
         ERC1967Proxy ghostBurnerProxy = new ERC1967Proxy(
             address(ghostImplBurner),
-            abi.encodeWithSelector(
-                TWAPBurner.initialize.selector, USDC, address(ghostProxy), address(aeroAdapter)
-            )
+            abi.encodeWithSelector(TWAPBurner.initialize.selector, USDC, address(ghostProxy), address(aeroAdapter))
         );
         TWAPBurner ghostBurner = TWAPBurner(payable(address(ghostBurnerProxy)));
         vm.stopPrank();
@@ -458,9 +451,7 @@ contract TWAPBurnerAdaptersTest is Test {
         TWAPBurner ghostImplBurner = new TWAPBurner();
         ERC1967Proxy ghostBurnerProxy = new ERC1967Proxy(
             address(ghostImplBurner),
-            abi.encodeWithSelector(
-                TWAPBurner.initialize.selector, USDC, address(ghostProxy), address(uniAdapter)
-            )
+            abi.encodeWithSelector(TWAPBurner.initialize.selector, USDC, address(ghostProxy), address(uniAdapter))
         );
         TWAPBurner ghostBurner = TWAPBurner(payable(address(ghostBurnerProxy)));
         vm.stopPrank();

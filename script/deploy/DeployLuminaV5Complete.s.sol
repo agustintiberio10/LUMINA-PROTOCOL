@@ -137,24 +137,21 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // STEP 0a: LuminaOracleV2 (no Lumina deps; needs oracleKey + L2 sequencer feed)
         // ═══════════════════════════════════════════════════════
-        LuminaOracleV2 luminaOracleV2 =
-            new LuminaOracleV2(deployer, cfg.oracleKey, cfg.sequencerUptimeFeed);
+        LuminaOracleV2 luminaOracleV2 = new LuminaOracleV2(deployer, cfg.oracleKey, cfg.sequencerUptimeFeed);
         res.luminaOracleV2 = address(luminaOracleV2);
         console.log("0a. LuminaOracleV2:", res.luminaOracleV2);
 
         // ═══════════════════════════════════════════════════════
         // STEP 0b: AerodromeAdapter (no Lumina deps; needs Aerodrome router+factory)
         // ═══════════════════════════════════════════════════════
-        AerodromeAdapter aerodromeAdapter =
-            new AerodromeAdapter(cfg.aerodromeRouter, cfg.aerodromeFactory, false);
+        AerodromeAdapter aerodromeAdapter = new AerodromeAdapter(cfg.aerodromeRouter, cfg.aerodromeFactory, false);
         res.aerodromeAdapter = address(aerodromeAdapter);
         console.log("0b. AerodromeAdapter:", res.aerodromeAdapter);
 
         // ═══════════════════════════════════════════════════════
         // STEP 0c: UniswapV3Adapter (no Lumina deps; pool fee 0.3%)
         // ═══════════════════════════════════════════════════════
-        UniswapV3Adapter uniswapV3Adapter =
-            new UniswapV3Adapter(cfg.uniswapV3Router, cfg.uniswapV3Quoter, 3000);
+        UniswapV3Adapter uniswapV3Adapter = new UniswapV3Adapter(cfg.uniswapV3Router, cfg.uniswapV3Quoter, 3000);
         res.uniswapV3Adapter = address(uniswapV3Adapter);
         console.log("0c. UniswapV3Adapter:", res.uniswapV3Adapter);
 
@@ -341,8 +338,7 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         ShieldKeeper shieldKeeperImpl = new ShieldKeeper();
         ERC1967Proxy shieldKeeperProxy = new ERC1967Proxy(
-            address(shieldKeeperImpl),
-            abi.encodeWithSelector(ShieldKeeper.initialize.selector, res.policyManager)
+            address(shieldKeeperImpl), abi.encodeWithSelector(ShieldKeeper.initialize.selector, res.policyManager)
         );
         ShieldKeeper shieldKeeper = ShieldKeeper(address(shieldKeeperProxy));
         res.shieldKeeper = address(shieldKeeper);
