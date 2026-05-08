@@ -62,7 +62,6 @@ contract DeployLuminaV5Complete is Script {
 
     struct DeploymentConfig {
         address usdc;
-        address swapRouter; // raw DEX router (used as TWAPBurner initial router; replaced by adapters in wiring)
         address multisig;
         address lbpDeposit;
         address opsWallet;
@@ -113,7 +112,6 @@ contract DeployLuminaV5Complete is Script {
         // ───── Load config from env ─────
         DeploymentConfig memory cfg = DeploymentConfig({
             usdc: vm.envAddress("USDC_ADDRESS"),
-            swapRouter: vm.envAddress("SWAP_ROUTER"),
             multisig: vm.envAddress("MULTISIG"),
             lbpDeposit: vm.envAddress("LBP_DEPOSIT"),
             opsWallet: vm.envAddress("OPS_WALLET"),
@@ -142,11 +140,19 @@ contract DeployLuminaV5Complete is Script {
         console.log("0a. LuminaOracleV2:", res.luminaOracleV2);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 0b: AerodromeAdapter (no Lumina deps; needs Aerodrome router+factory)
+        // STEP 0b: AerodromeAdapter (testnet-only path: skip when AERODROME_ROUTER==0).
+        //          Aerodrome doesn't have a Sepolia deployment; on testnet we
+        //          run with UniswapV3Adapter only.
         // ═══════════════════════════════════════════════════════
-        AerodromeAdapter aerodromeAdapter = new AerodromeAdapter(cfg.aerodromeRouter, cfg.aerodromeFactory, false);
-        res.aerodromeAdapter = address(aerodromeAdapter);
-        console.log("0b. AerodromeAdapter:", res.aerodromeAdapter);
+        AerodromeAdapter aerodromeAdapter;
+        if (cfg.aerodromeRouter != address(0)) {
+            aerodromeAdapter = new AerodromeAdapter(cfg.aerodromeRouter, cfg.aerodromeFactory, false);
+            res.aerodromeAdapter = address(aerodromeAdapter);
+            console.log("0b. AerodromeAdapter:", res.aerodromeAdapter);
+        } else {
+            res.aerodromeAdapter = address(0);
+            console.log("0b. [SKIP] AerodromeAdapter (testnet path: Aerodrome not on Sepolia)");
+        }
 
         // ═══════════════════════════════════════════════════════
         // STEP 0c: UniswapV3Adapter (no Lumina deps; pool fee 0.3%)
@@ -309,7 +315,7 @@ contract DeployLuminaV5Complete is Script {
         TWAPBurner twapBurnerImpl = new TWAPBurner();
         ERC1967Proxy twapBurnerProxy = new ERC1967Proxy(
             address(twapBurnerImpl),
-            abi.encodeWithSelector(TWAPBurner.initialize.selector, cfg.usdc, res.luminaToken, cfg.swapRouter)
+            abi.encodeWithSelector(TWAPBurner.initialize.selector, cfg.usdc, res.luminaToken, res.uniswapV3Adapter)
         );
         TWAPBurner twapBurner = TWAPBurner(payable(address(twapBurnerProxy)));
         res.twapBurner = address(twapBurner);
@@ -483,13 +489,19 @@ contract DeployLuminaV5Complete is Script {
         twapBurner.setAdaptiveMode(true);
         twapBurner.setAuthorizedSender(res.coverRouter, true);
 
-        // [Sprint B] Replace the raw initial swapRouter with the two adapter
-        // wrappers. TWAPBurner picks the best quote across configured routers.
-        address[] memory dexRouters = new address[](2);
-        dexRouters[0] = res.aerodromeAdapter;
-        dexRouters[1] = res.uniswapV3Adapter;
+        // [Sprint B+C] Configure TWAPBurner DEX routers. Mainnet: aerodrome+uniswap.
+        // Testnet (Sepolia): uniswap-only (Aerodrome doesn't deploy to Sepolia).
+        address[] memory dexRouters;
+        if (res.aerodromeAdapter != address(0)) {
+            dexRouters = new address[](2);
+            dexRouters[0] = res.aerodromeAdapter;
+            dexRouters[1] = res.uniswapV3Adapter;
+        } else {
+            dexRouters = new address[](1);
+            dexRouters[0] = res.uniswapV3Adapter;
+        }
         twapBurner.setDexRouters(dexRouters);
-        console.log("  TWAPBurner configured (dex routers: aerodrome+uniswap)");
+        console.log("  TWAPBurner configured (dex routers count):", dexRouters.length);
 
         // Authorize BuybackEngine in BondVault (deployer has AUTHORIZED_CALLER_ADMIN_ROLE)
         bondVault.setAuthorizedCaller(res.buybackEngine, true);
@@ -537,9 +549,10 @@ contract DeployLuminaV5Complete is Script {
         treasuryVesting.transferOwnership(cfg.multisig);
         claimBond.transferOwnership(cfg.multisig);
 
-        // [Sprint B] Transfer ownership of the 4 new contracts to multisig.
+        // [Sprint B+C] Transfer ownership of new contracts to multisig.
+        // AerodromeAdapter: skip if not deployed (testnet path).
         luminaOracleV2.transferOwnership(cfg.multisig);
-        aerodromeAdapter.transferOwnership(cfg.multisig);
+        if (res.aerodromeAdapter != address(0)) aerodromeAdapter.transferOwnership(cfg.multisig);
         uniswapV3Adapter.transferOwnership(cfg.multisig);
         shieldKeeper.transferOwnership(cfg.multisig);
 
@@ -577,7 +590,11 @@ contract DeployLuminaV5Complete is Script {
         console.log("TreasuryVesting:        ", res.treasuryVesting);
         console.log("LuminaBondMarketplace:  ", res.marketplace);
         console.log("BuybackEngine:          ", res.buybackEngine);
-        console.log("AerodromeAdapter:       ", res.aerodromeAdapter);
+        if (res.aerodromeAdapter != address(0)) {
+            console.log("AerodromeAdapter:       ", res.aerodromeAdapter);
+        } else {
+            console.log("AerodromeAdapter:        SKIPPED (testnet)");
+        }
         console.log("UniswapV3Adapter:       ", res.uniswapV3Adapter);
         console.log("FlashBTCShield1h:       ", res.flashBTCShield1h);
         console.log("FlashBTCShield4h:       ", res.flashBTCShield4h);
