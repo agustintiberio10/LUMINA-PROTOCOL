@@ -15,8 +15,16 @@ remappings = [
 ]
 
 [rpc_endpoints]
+# [Sprint F] Multi-RPC redundant config for Base Sepolia.
+# Use `--rpc-url <alias>` with one of the aliases below.
+# Default `base_sepolia` resolves to Alchemy (primary). Use `_quicknode` or
+# `_public` if Alchemy is rate-limited or down. ops should rotate primary
+# in CI/scripts when one provider degrades; the others stay warm.
+base_sepolia = "${BASE_SEPOLIA_RPC}"
+base_sepolia_alchemy = "${BASE_SEPOLIA_RPC}"
+base_sepolia_quicknode = "${BASE_SEPOLIA_QUICKNODE_RPC}"
+base_sepolia_public = "https://sepolia.base.org"
 base = "${BASE_RPC_URL}"
-base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 # [Audit #38] Public Base Mainnet endpoint for fork tests. Tests in
 # test/audit/v5.1-uups/integration/mainnet-fork/ select this fork to
 # exercise the deploy against real USDC, Chainlink oracles, Aave V3,

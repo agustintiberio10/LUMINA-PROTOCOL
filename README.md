@@ -44,6 +44,27 @@ forge build
 forge test
 ```
 
+## RPC Configuration (Sprint F — multi-provider redundancy)
+
+`foundry.toml` exposes 4 aliases for Base Sepolia. Use any with `forge script` / `cast` via `--rpc-url <alias>`:
+
+| Alias | Source | Notes |
+|---|---|---|
+| `base_sepolia` | `BASE_SEPOLIA_RPC` env (Alchemy) | **Default**. Highest rate limits. |
+| `base_sepolia_alchemy` | same as above | explicit name |
+| `base_sepolia_quicknode` | `BASE_SEPOLIA_QUICKNODE_RPC` env | Fallback if Alchemy degraded |
+| `base_sepolia_public` | `https://sepolia.base.org` (no key) | Last-resort failover |
+
+Setup once at User scope (PowerShell):
+```powershell
+[Environment]::SetEnvironmentVariable("BASE_SEPOLIA_RPC", "https://base-sepolia.g.alchemy.com/v2/<KEY>", "User")
+[Environment]::SetEnvironmentVariable("BASE_SEPOLIA_QUICKNODE_RPC", "https://<endpoint>.base-sepolia.quiknode.pro/<KEY>/", "User")
+```
+
+In CI / deploy scripts, always pass the alias rather than the raw URL — that lets ops swap provider without code changes.
+
+**Off-chain redundancy** (FallbackProvider in `lumina-api`, wagmi `fallback` in landing) is configured in those repos; the protocol-side change here is just the alias surface.
+
 ## Documentation
 - [SKILL](docs/SKILL.md) — Protocol specification
 - [Risk Disclosures](docs/RISK-DISCLOSURES.md)
