@@ -40,8 +40,7 @@ contract MockAggregatorV3Test is Test {
     }
 
     function test_latestRoundData_returnsCurrentPrice() public view {
-        (uint80 rid, int256 ans, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
-            feed.latestRoundData();
+        (uint80 rid, int256 ans, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = feed.latestRoundData();
         assertEq(rid, 1, "initial roundId");
         assertEq(ans, INITIAL_PRICE);
         assertEq(startedAt, updatedAt, "startedAt == updatedAt");

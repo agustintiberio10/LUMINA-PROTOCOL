@@ -118,12 +118,7 @@ contract MockAggregatorV3 is IAggregatorV3 {
 
     // ─────────────────── IAggregatorV3 surface ───────────────────
 
-    function latestRoundData()
-        external
-        view
-        override
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+    function latestRoundData() external view override returns (uint80, int256, uint256, uint256, uint80) {
         if (shouldRevert) revert RevertSimulated();
         // Chainlink convention: startedAt == updatedAt == round timestamp.
         return (roundId, answer, updatedAt, updatedAt, roundId);
