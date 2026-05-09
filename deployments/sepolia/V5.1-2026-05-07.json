@@ -53,16 +53,21 @@
   "external": {
     "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     "uniswapV3Router": "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
-    "uniswapV3Quoter": "0xC5290058841028F1614F3A6F0F5816cAd0df5E27",
-    "aavePoolMock": "0xcc0606b64275c08539770864081D209A8C9b178a"
+    "uniswapV3Quoter": "0xC5290058841028F1614F3A6F0F5816cAd0df5E27"
   },
   "mocks": {
-    "_comment": "Sprint G (2026-05-09): 5 MockAggregatorV3 feeds para testnet. Mainnet usa Chainlink real (BTC/ETH); USDC/USDT/DAI no tienen feeds Chainlink en Base mainnet. Wired into LuminaOracleV2 via registerFeed.",
+    "_comment": "Sprint G (2026-05-09): 5 MockAggregatorV3 feeds. Sprint H (2026-05-09): MockAavePool added + RateShockShield UUPS upgraded with setAavePool to wire it. Mainnet usa Chainlink real (BTC/ETH) y Aave V3 real; USDC/USDT/DAI no tienen feeds Chainlink en Base mainnet.",
     "btcUsdFeed": "0xf1B873d3705fAA2E0139c845BA8128AF712584EE",
     "ethUsdFeed": "0x35276eE9Fb65fC54F4090d8273aE23D1B228c8C7",
     "usdcUsdFeed": "0x89CC2C183a8cC69910Fb215b45474929b9608A35",
     "usdtUsdFeed": "0xFE2Fd417E18AFCE896d647fAd81BCC0F1280bFC5",
-    "daiUsdFeed": "0xcE718f9eA7285dDe456A1BA7caA9b2BDF2d9B619"
+    "daiUsdFeed": "0xcE718f9eA7285dDe456A1BA7caA9b2BDF2d9B619",
+    "aavePool": "0x7a25110aCa80E25EAf25Fc9Cbe8aD2e3Bb69Ea41"
+  },
+  "aavePoolLegacy": {
+    "_comment": "Stub mínimo sin setters (pre-Sprint H). FounderVesting tiene aavePool immutable apuntando a esta address — no se puede rotar sin redeployar FounderVesting. RateShockShield.aavePool fue rotada en Sprint H Phase 4.5 al nuevo MockAavePool (ver mocks.aavePool).",
+    "address": "0xcc0606b64275c08539770864081D209A8C9b178a",
+    "consumers": ["FounderVesting (immutable, frozen)"]
   },
   "verification": {
     "basescanVerified": true,

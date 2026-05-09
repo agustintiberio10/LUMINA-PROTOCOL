@@ -71,6 +71,11 @@ contract RateShockShield is BaseShield {
     error InvalidAsset(bytes32 asset);
     error RateBelowTrigger(uint256 currentRate);
 
+    /// @notice Emitted by `setAavePool` when the Aave V3 pool reference is rotated.
+    /// @param oldPool  Previous pool address.
+    /// @param newPool  New pool address (always non-zero).
+    event AavePoolUpdated(address indexed oldPool, address indexed newPool);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -172,6 +177,18 @@ contract RateShockShield is BaseShield {
     /// @notice Current Aave V3 USDC variable borrow rate (RAY, 27 decimals). Informational.
     function currentBorrowRate() external view returns (uint256) {
         return uint256(aavePool.getReserveData(usdc).currentVariableBorrowRate);
+    }
+
+    /// @notice Rotate the Aave V3 pool reference. Owner-only.
+    /// @dev    Sprint H: lets ops swap a `MockAavePool` (Sepolia) for the real Aave V3 pool
+    ///         without redeploying the shield. Storage layout unchanged — only adds a method,
+    ///         so a UUPS upgrade preserves all existing data (`_rateData`, `_policies`, etc.).
+    /// @param  newPool  Replacement pool. Must be non-zero.
+    function setAavePool(address newPool) external onlyOwner {
+        require(newPool != address(0), "Zero aavePool");
+        address oldPool = address(aavePool);
+        aavePool = IAaveV3Pool(newPool);
+        emit AavePoolUpdated(oldPool, newPool);
     }
 
     uint256[50] private __gap_shield;
