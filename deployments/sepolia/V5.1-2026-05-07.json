@@ -56,6 +56,14 @@
     "uniswapV3Quoter": "0xC5290058841028F1614F3A6F0F5816cAd0df5E27",
     "aavePoolMock": "0xcc0606b64275c08539770864081D209A8C9b178a"
   },
+  "mocks": {
+    "_comment": "Sprint G (2026-05-09): 5 MockAggregatorV3 feeds para testnet. Mainnet usa Chainlink real (BTC/ETH); USDC/USDT/DAI no tienen feeds Chainlink en Base mainnet. Wired into LuminaOracleV2 via registerFeed.",
+    "btcUsdFeed": "0xf1B873d3705fAA2E0139c845BA8128AF712584EE",
+    "ethUsdFeed": "0x35276eE9Fb65fC54F4090d8273aE23D1B228c8C7",
+    "usdcUsdFeed": "0x89CC2C183a8cC69910Fb215b45474929b9608A35",
+    "usdtUsdFeed": "0xFE2Fd417E18AFCE896d647fAd81BCC0F1280bFC5",
+    "daiUsdFeed": "0xcE718f9eA7285dDe456A1BA7caA9b2BDF2d9B619"
+  },
   "verification": {
     "basescanVerified": true,
     "verifiedCount": 27,
