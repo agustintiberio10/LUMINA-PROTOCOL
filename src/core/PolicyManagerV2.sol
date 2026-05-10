@@ -191,15 +191,15 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         policyId = IShieldV2(shield)
             .createPolicy(
                 IShieldV2.CreatePolicyParams({
-                buyer: buyer,
-                coverageAmount: coverageAmount,
-                premiumAmount: premiumAmount,
-                durationSeconds: durationSeconds,
-                asset: asset,
-                stablecoin: "USDC",
-                protocol: address(0),
-                extraData: ""
-            })
+                    buyer: buyer,
+                    coverageAmount: coverageAmount,
+                    premiumAmount: premiumAmount,
+                    durationSeconds: durationSeconds,
+                    asset: asset,
+                    stablecoin: "USDC",
+                    protocol: address(0),
+                    extraData: ""
+                })
             );
 
         // Record locally (must happen after external call to obtain policyId)
@@ -383,6 +383,39 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    // Storage gap for future upgrades
+    // ═══════════════════════════════════════════════════════════
+    // [RECOVERY ONLY — Sprint U] Admin path to issue bond directly.
+    //
+    // This entry point bypasses the normal policy → trigger → settle flow,
+    // letting the owner mint a ClaimBond directly to any receiver. Used
+    // exclusively to drain the upgrade-locked BondVault SET B (Sepolia,
+    // 0x9EfdD63B...3726c) via the Sprint U recovery procedure.
+    //
+    // The corresponding ClaimBond.forceMature() lives in Sprint U's
+    // temporary ClaimBond upgrade. BOTH functions are REVERTED in Sprint U
+    // Phase 6 — proxies roll back to their pre-recovery impls. The code
+    // here is part of a temporary impl that is never merged to main.
+    //
+    // The function signature returns nothing: BondVault.issueBond does not
+    // return the epochId. Callers (tests + Sprint U Phase 5 script) extract
+    // the epochId from BondVault's `BondIssued(to, epochId, usdAmount)`
+    // event in the tx receipt.
+    // ═══════════════════════════════════════════════════════════
+    event AdminBondIssued(address indexed to, uint256 usdPayout);
+
+    /// @notice [RECOVERY ONLY — Sprint U] Owner-only direct bond issuance.
+    /// @param to        Receiver of the ClaimBond ERC-1155 units.
+    /// @param usdPayout USD face value of the bond (integer dollars,
+    ///                  matches `BondVault.issueBond`'s 1-token-per-dollar
+    ///                  convention).
+    function adminIssueBond(address to, uint256 usdPayout) external onlyOwner {
+        require(to != address(0), "Zero receiver");
+        require(usdPayout > 0, "Zero payout");
+        bondVault.issueBond(to, usdPayout);
+        emit AdminBondIssued(to, usdPayout);
+    }
+
+    // Storage gap for future upgrades. Reduced by 0 entries because the
+    // added function uses no storage (only an event + delegated call).
     uint256[50] private __gap;
 }

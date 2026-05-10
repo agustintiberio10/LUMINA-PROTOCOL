@@ -214,7 +214,37 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
+    // ═══════════════════════════════════════════════════════════
+    // [RECOVERY ONLY — Sprint U] Admin force-mature path.
+    //
+    // Used to bypass the monthly maturity bucket when redeeming bonds
+    // issued through the Sprint U temporary `adminIssueBond` path on
+    // PolicyManagerV2. Lets the owner mark an epoch as matured immediately
+    // so `redeemBond` can run within the recovery session (vs. waiting
+    // for the actual month boundary).
+    //
+    // This function is REVERTED in Sprint U Phase 6 — ClaimBond proxy is
+    // rolled back to its pre-recovery impl. The code here lives in a
+    // temporary impl that is never merged to main.
+    // ═══════════════════════════════════════════════════════════
+    event EpochForceMatured(uint256 indexed epochId, uint256 newMaturityTimestamp);
+
+    /// @notice [RECOVERY ONLY — Sprint U] Owner-only override that sets the
+    ///         epoch's `maturityDate` to `block.timestamp - 1`, immediately
+    ///         flipping `isMatured(epochId)` to true.
+    /// @dev    Reverts if the epoch was never minted (no `maturityDate` set),
+    ///         to keep callers honest about which epochs exist.
+    /// @param  epochId Epoch to force-mature.
+    function forceMature(uint256 epochId) external onlyOwner {
+        require(maturityDate[epochId] != 0, "Epoch not registered");
+        uint256 newMaturity = block.timestamp - 1;
+        maturityDate[epochId] = newMaturity;
+        emit EpochForceMatured(epochId, newMaturity);
+    }
+
     // Storage gap for future upgrades — reduced from 50 to 48 by FIX-#18
-    // (added _baseURI + authorizedOperators above).
+    // (added _baseURI + authorizedOperators above). Sprint U's `forceMature`
+    // uses no new storage (writes to the existing `maturityDate` mapping),
+    // so the gap stays at [48].
     uint256[48] private __gap;
 }
