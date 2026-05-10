@@ -191,15 +191,15 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         policyId = IShieldV2(shield)
             .createPolicy(
                 IShieldV2.CreatePolicyParams({
-                    buyer: buyer,
-                    coverageAmount: coverageAmount,
-                    premiumAmount: premiumAmount,
-                    durationSeconds: durationSeconds,
-                    asset: asset,
-                    stablecoin: "USDC",
-                    protocol: address(0),
-                    extraData: ""
-                })
+                buyer: buyer,
+                coverageAmount: coverageAmount,
+                premiumAmount: premiumAmount,
+                durationSeconds: durationSeconds,
+                asset: asset,
+                stablecoin: "USDC",
+                protocol: address(0),
+                extraData: ""
+            })
             );
 
         // Record locally (must happen after external call to obtain policyId)
