@@ -556,16 +556,44 @@ contract DeployLuminaV5Complete is Script {
         uniswapV3Adapter.transferOwnership(cfg.multisig);
         shieldKeeper.transferOwnership(cfg.multisig);
 
-        // Transfer BondVault admin roles to multisig
-        bondVault.grantRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), cfg.multisig);
-        bondVault.grantRole(bondVault.DEFAULT_ADMIN_ROLE(), cfg.multisig);
-        bondVault.revokeRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), msg.sender);
-        bondVault.revokeRole(bondVault.DEFAULT_ADMIN_ROLE(), msg.sender);
+        // [Sprint T, ADR-012] DEPLOYER MAINTAINS ADMIN ROLE — multisig
+        //   transfer is now a SEPARATE flow (mainnet only). The previous
+        //   in-script revoke caused BondVault SET B (Sepolia,
+        //   0x9EfdD63B...3726c) to lock at 0 admin holders ~3min after deploy
+        //   when `cfg.multisig` was misconfigured to the deployer address —
+        //   `revokeRole(role, msg.sender)` then dropped the only holder.
+        //
+        //   The lines below were previously:
+        //     bondVault.grantRole(AUTHORIZED_CALLER_ADMIN_ROLE, cfg.multisig);
+        //     bondVault.grantRole(DEFAULT_ADMIN_ROLE,           cfg.multisig);
+        //     bondVault.revokeRole(AUTHORIZED_CALLER_ADMIN_ROLE, msg.sender);
+        //     bondVault.revokeRole(DEFAULT_ADMIN_ROLE,           msg.sender);
+        //     luminaToken.grantRole(DEFAULT_ADMIN_ROLE, cfg.multisig);
+        //     luminaToken.revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        //
+        //   For mainnet, run a SEPARATE post-deploy script that:
+        //     1. Verifies cfg.multisig responds (multisig sends a noop tx).
+        //     2. grantRole(...) to multisig.
+        //     3. ONLY THEN revokeRole(...) from deployer.
+        //     4. Verifies multisig has the role post-revoke.
+        console.log("  DEPLOYER MAINTAINS ADMIN ROLE on BondVault + LuminaTokenV2");
+        console.log("  (transfer to multisig is a separate mainnet flow -- see ADR-012)");
 
-        // Transfer LuminaTokenV2 admin to multisig
-        luminaToken.grantRole(luminaToken.DEFAULT_ADMIN_ROLE(), cfg.multisig);
-        luminaToken.revokeRole(luminaToken.DEFAULT_ADMIN_ROLE(), msg.sender);
-        console.log("  Ownership transferred to multisig:", cfg.multisig);
+        // [Sprint T, ADR-012] Post-deploy invariant: deployer must end up with
+        //   both BondVault admin roles + LuminaToken admin role. Catches any
+        //   regression that re-introduces the self-revoke.
+        require(
+            bondVault.hasRole(bondVault.DEFAULT_ADMIN_ROLE(), msg.sender),
+            "Deployer must keep BondVault DEFAULT_ADMIN_ROLE"
+        );
+        require(
+            bondVault.hasRole(bondVault.AUTHORIZED_CALLER_ADMIN_ROLE(), msg.sender),
+            "Deployer must keep BondVault AUTHORIZED_CALLER_ADMIN_ROLE"
+        );
+        require(
+            luminaToken.hasRole(luminaToken.DEFAULT_ADMIN_ROLE(), msg.sender),
+            "Deployer must keep LuminaToken DEFAULT_ADMIN_ROLE"
+        );
 
         vm.stopBroadcast();
 
