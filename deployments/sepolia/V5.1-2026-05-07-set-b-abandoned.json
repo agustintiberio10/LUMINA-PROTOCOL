@@ -1,4 +1,7 @@
 {
+  "_status": "ABANDONED -- see V5.1-2026-05-11-set-c-live.json",
+  "_supersededBy": "0x49c21d5C7b399f9BfB36801F5c680904E6c69949",
+  "_reason": "BondVault SET B upgrade-locked (DEFAULT_ADMIN_ROLE 0 holders post-deploy). See ADR-012 + ADR-013.",
   "network": "base-sepolia",
   "chainId": 84532,
   "deployedAt": "2026-05-07T20:30:00Z",
@@ -7,7 +10,7 @@
   "commitDescription": "Sprint B merge commit (PR #109): fix(deploy): completar V5Complete con 4 contratos faltantes + cleanup",
   "contractCount": 27,
   "skippedContracts": [
-    "AerodromeAdapter (testnet-only path: Aerodrome no existe en Sepolia. Mainnet deployment incluirá los 28 completos)"
+    "AerodromeAdapter (testnet-only path: Aerodrome no existe en Sepolia. Mainnet deployment incluir\u00c3\u00a1 los 28 completos)"
   ],
   "core": {
     "luminaTokenV2": "0x7D3E392Bdb3258cF92C257C90391957d7b0Aff02",
@@ -65,9 +68,11 @@
     "aavePool": "0x7a25110aCa80E25EAf25Fc9Cbe8aD2e3Bb69Ea41"
   },
   "aavePoolLegacy": {
-    "_comment": "Stub mínimo sin setters (pre-Sprint H). FounderVesting tiene aavePool immutable apuntando a esta address — no se puede rotar sin redeployar FounderVesting. RateShockShield.aavePool fue rotada en Sprint H Phase 4.5 al nuevo MockAavePool (ver mocks.aavePool).",
+    "_comment": "Stub m\u00c3\u00adnimo sin setters (pre-Sprint H). FounderVesting tiene aavePool immutable apuntando a esta address \u00e2\u20ac\u201d no se puede rotar sin redeployar FounderVesting. RateShockShield.aavePool fue rotada en Sprint H Phase 4.5 al nuevo MockAavePool (ver mocks.aavePool).",
     "address": "0xcc0606b64275c08539770864081D209A8C9b178a",
-    "consumers": ["FounderVesting (immutable, frozen)"]
+    "consumers": [
+      "FounderVesting (immutable, frozen)"
+    ]
   },
   "verification": {
     "basescanVerified": true,

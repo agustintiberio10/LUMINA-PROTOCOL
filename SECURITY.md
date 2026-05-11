@@ -22,7 +22,7 @@ V5.1 is currently deployed on **Base Sepolia testnet** (chainId 84532). Mainnet 
 |---|---|---|
 | `LuminaTokenV2` (`src/token/LuminaTokenV2.sol`) | ERC-20, 100M fixed supply, deflationary via TWAPBurner | `0x7D3E392Bdb3258cF92C257C90391957d7b0Aff02` |
 | `ClaimBond` (`src/bonds/ClaimBond.sol`) | ERC-1155, 1 token = $1, 730-day maturity, epoch-fungible | `0xde85056F155d3F18e559Fa63d5861ab3D1318cF0` |
-| `BondVault` (`src/bonds/BondVault.sol`) | **Single** USD-collateral vault. Issues + redeems bonds. (V4 had 4 vaults; V5.1 collapsed to 1.) | `0x9EfdD63B13543B30B49b2b423903233220B3726c` |
+| `BondVault` (`src/bonds/BondVault.sol`) | **Single** USD-collateral vault. Issues + redeems bonds. (V4 had 4 vaults; V5.1 collapsed to 1.) | `0x49c21d5C7b399f9BfB36801F5c680904E6c69949` |
 | `PolicyManagerV2` (`src/core/PolicyManagerV2.sol`) | Issues policies, settles triggers, marks expirations | `0xD97bFC2959f0673851348b60DF2Eb3376eF612BE` |
 | `CoverRouterV2` (`src/core/CoverRouterV2.sol`) | User-facing: `purchasePolicy` (human direct) + `purchasePolicyFor` (relayer) + `quotePremium` | `0xFA6d57CA87a26F08d68f2123e86990E2fD70B7AE` |
 | `LuminaBondMarketplace` (`src/marketplace/LuminaBondMarketplace.sol`) | Secondary market for ClaimBonds. 3% fee (1.5% each side) → 100% burn. | `0xFa4Af36A4af7e6691bD1906D83a15792257d80de` |
