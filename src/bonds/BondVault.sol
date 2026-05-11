@@ -59,6 +59,13 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     uint256 public constant MIN_BOND_MATURITY_SECONDS = 1 minutes;
     uint256 public constant MAX_BOND_MATURITY_SECONDS = 10 * 365 days; // 10 years
 
+    /// @notice [Sprint W] Version constant to validate upgrade mechanism end-to-end.
+    /// @dev Cosmetic-only change to a fresh impl deployed for upgrade testing.
+    ///      Reachable only when the proxy points to a SET-C-derived impl that
+    ///      includes this constant. After the upgrade test rolls back, the
+    ///      proxy returns to the canonical SET C impl and `VERSION()` reverts.
+    string public constant VERSION = "5.1.1-upgrade-validated";
+
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
     uint256 public totalReservedUSD; // capacity reserved by active policies awaiting trigger (18-dec USD-wei)
