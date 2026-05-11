@@ -51,8 +51,13 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50% — max commitment
-    uint256 public constant BOND_MATURITY_SECONDS = 730 days; // 24 months
     uint256 public constant MIN_REDEEM_PRICE = 0.001e18; // absolute floor for redemption
+
+    /// @notice Bounds for `bondMaturitySeconds` setter (Sprint T, ADR-009).
+    /// @dev MIN allows Sepolia E2E testing (≥60s); MAX caps at 10 years to
+    ///      prevent admin error from creating effectively-immortal bonds.
+    uint256 public constant MIN_BOND_MATURITY_SECONDS = 1 minutes;
+    uint256 public constant MAX_BOND_MATURITY_SECONDS = 10 * 365 days; // 10 years
 
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
@@ -60,6 +65,13 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     // [V5.0] Authorized callers for BuybackEngine integration
     mapping(address => bool) public authorizedCallers;
+
+    /// @notice Bond maturity in seconds. Default 730 days (mainnet); settable
+    ///         by admin within `[MIN_BOND_MATURITY_SECONDS, MAX_BOND_MATURITY_SECONDS]`.
+    /// @dev    Sprint T (ADR-009) — converts the previous `constant 730 days` to
+    ///         storage so Sepolia can run E2E redemption flows in seconds rather
+    ///         than waiting 730 days. Mainnet keeps the 730d default.
+    uint256 public bondMaturitySeconds;
 
     // ═══════ EVENTS ═══════
     event BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount);
@@ -75,6 +87,8 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     event ReservationCommitted(uint256 amount, uint256 newTotalReserved);
     /// @notice [LOW-2 fix] Emitted on successful non-core token rescue (ERC-20 or ERC-1155).
     event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+    /// @notice [Sprint T, ADR-009] Emitted when admin updates the bond maturity duration.
+    event BondMaturityUpdated(uint256 oldValue, uint256 newValue);
 
     // ═══════ ERRORS (rescue) ═══════
     error CoreTokenProtected(address token);
@@ -109,6 +123,10 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         lumina = IERC20(_lumina);
         claimBond = IClaimBond(_claimBond);
         priceOracle = IPriceOracle(_priceOracle);
+
+        // [Sprint T, ADR-009] Default mainnet maturity. Admin may override via
+        // setBondMaturitySeconds() — Sepolia uses 60s for E2E redemption tests.
+        bondMaturitySeconds = 730 days;
 
         // Grant deployer admin roles for initial wiring
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -180,7 +198,7 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         // [V3/SR2] Compare in matching 18-dec USD-wei units.
         require(totalCommittedUSD + (usdPayout * 1e18) <= maxCommitUSD, "Exceeds capacity");
 
-        uint256 maturityTimestamp = block.timestamp + BOND_MATURITY_SECONDS;
+        uint256 maturityTimestamp = block.timestamp + bondMaturitySeconds;
         uint256 epochId = _timestampToEpoch(maturityTimestamp);
 
         // [V3/SR2] Normalize to 18-decimal USD (dollar-wei) to match maxCommitUSD units.
@@ -319,6 +337,24 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
+    // ═══════ BOND MATURITY (Sprint T, ADR-009) ═══════
+
+    /// @notice Update the bond maturity duration. Bounded between 1 minute and
+    ///         10 years; restricted to `DEFAULT_ADMIN_ROLE` (consistent with
+    ///         `_authorizeUpgrade`'s gating).
+    /// @dev    Sepolia uses ~60s for E2E redemption testing. Mainnet keeps the
+    ///         730-day default set in `initialize()`. The change takes effect
+    ///         on the NEXT `issueBond` call — already-issued bonds keep their
+    ///         original `maturityTimestamp` (encoded into the epoch ID at mint).
+    /// @param  newMaturitySeconds New maturity in seconds.
+    function setBondMaturitySeconds(uint256 newMaturitySeconds) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newMaturitySeconds >= MIN_BOND_MATURITY_SECONDS, "Below min maturity");
+        require(newMaturitySeconds <= MAX_BOND_MATURITY_SECONDS, "Above max maturity");
+        uint256 old = bondMaturitySeconds;
+        bondMaturitySeconds = newMaturitySeconds;
+        emit BondMaturityUpdated(old, newMaturitySeconds);
+    }
+
     // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
 
     /// @notice Recover ERC-20 tokens accidentally sent to this contract.
@@ -357,6 +393,8 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return token == address(lumina) || token == address(claimBond);
     }
 
-    // Storage gap for future upgrades
-    uint256[50] private __gap;
+    // [Sprint T, ADR-009] Storage gap reduced from 50 → 49 to compensate for
+    // the new `bondMaturitySeconds` storage variable. Total storage footprint
+    // (existing state vars + new var + gap) preserved.
+    uint256[49] private __gap;
 }

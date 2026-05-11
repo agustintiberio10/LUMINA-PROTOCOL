@@ -686,7 +686,7 @@ contract DeployScriptsTest is Test {
     function test_Deploy_InitialParams_BondVault_Constants() public {
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.vault.SAFETY_FACTOR_BPS(), 5000);
-        assertEq(d.vault.BOND_MATURITY_SECONDS(), 730 days);
+        assertEq(d.vault.bondMaturitySeconds(), 730 days);
         assertEq(d.vault.MIN_REDEEM_PRICE(), 0.001e18);
     }
 

@@ -236,7 +236,7 @@ contract BondStateMachineTest is Test {
         vault.issueBond(user, usdPayout);
 
         // Calculate epoch from maturity timestamp
-        uint256 maturityTs = block.timestamp + vault.BOND_MATURITY_SECONDS();
+        uint256 maturityTs = block.timestamp + vault.bondMaturitySeconds();
         uint256 BASE_TS = 1767225600;
         uint256 monthsFromBase = (maturityTs - BASE_TS) / 2629746;
         uint256 year = 2026 + monthsFromBase / 12;
@@ -271,7 +271,7 @@ contract BondStateMachineTest is Test {
     function test_BondState_Cannot_RedeemBeforeMaturity() public {
         vault.issueBond(user, 500);
 
-        uint256 maturityTs = block.timestamp + vault.BOND_MATURITY_SECONDS();
+        uint256 maturityTs = block.timestamp + vault.bondMaturitySeconds();
         uint256 BASE_TS = 1767225600;
         uint256 monthsFromBase = (maturityTs - BASE_TS) / 2629746;
         uint256 year = 2026 + monthsFromBase / 12;
@@ -289,7 +289,7 @@ contract BondStateMachineTest is Test {
     function test_BondState_Cannot_DoubleRedeem() public {
         vault.issueBond(user, 100);
 
-        uint256 maturityTs = block.timestamp + vault.BOND_MATURITY_SECONDS();
+        uint256 maturityTs = block.timestamp + vault.bondMaturitySeconds();
         uint256 BASE_TS = 1767225600;
         uint256 monthsFromBase = (maturityTs - BASE_TS) / 2629746;
         uint256 year = 2026 + monthsFromBase / 12;

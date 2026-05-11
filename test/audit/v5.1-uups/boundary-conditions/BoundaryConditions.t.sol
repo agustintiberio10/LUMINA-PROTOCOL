@@ -625,7 +625,7 @@ contract BoundaryConditions is Test {
 
     function test_Boundary_BondVault_MaturityPeriod_730Days() public {
         (BondVault v,,,) = _bvFull();
-        assertEq(v.BOND_MATURITY_SECONDS(), 730 days);
+        assertEq(v.bondMaturitySeconds(), 730 days);
     }
 
     // ─────────────────────────────────────────────────────────────

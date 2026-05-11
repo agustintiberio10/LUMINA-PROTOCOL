@@ -98,6 +98,8 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event ProductDeactivated(bytes32 indexed productId);
     /// @notice [Fix audit #27 INFO-5] Emitted when router address is updated.
     event RouterUpdated(address indexed oldRouter, address indexed newRouter);
+    /// @notice [Sprint V-A] Emitted when bondVault address is updated.
+    event BondVaultUpdated(address indexed oldVault, address indexed newVault);
     event PolicyCreated(
         bytes32 indexed productId,
         uint256 indexed policyId,
@@ -142,6 +144,17 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address old = router;
         router = _router;
         emit RouterUpdated(old, _router);
+    }
+
+    /// @notice [Sprint V-A, ADR-013] Re-wire BondVault address post-deploy.
+    /// @dev Permanent setter so the proxy can migrate to a new vault without
+    ///      an impl upgrade. Restricted to owner; mainnet owner is a
+    ///      Gnosis Safe (TimelockController in prod). Zero address rejected.
+    function setBondVault(address _bondVault) external onlyOwner {
+        require(_bondVault != address(0), "Zero bondVault");
+        address old = address(bondVault);
+        bondVault = IBondVault(_bondVault);
+        emit BondVaultUpdated(old, _bondVault);
     }
 
     function registerProduct(bytes32 _productId, address _shield) external onlyOwner {

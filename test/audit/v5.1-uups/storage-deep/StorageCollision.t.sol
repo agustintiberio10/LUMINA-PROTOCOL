@@ -896,8 +896,12 @@ contract StorageCollision is Test {
         vm.warp(1767225600 + 30 days);
         vault.issueBond(makeAddr("u"), 100);
 
-        // Used slots are 0..7 for own state. The __gap runs at slots 8..57.
-        for (uint256 i = 8; i < 58; i++) {
+        // [Sprint T, ADR-009] Used slots are 0..8 for own state — slot 8 is
+        // bondMaturitySeconds (default 730 days = 63072000 seconds, set in
+        // initialize). The __gap was reduced from [50] to [49] and now runs
+        // at slots 9..57. Slot 8 is verified separately via bondMaturitySeconds().
+        assertEq(vault.bondMaturitySeconds(), 730 days, "slot 8 = bondMaturitySeconds default");
+        for (uint256 i = 9; i < 58; i++) {
             bytes32 v = vm.load(address(vault), bytes32(i));
             assertEq(uint256(v), 0, "gap slot must be zero");
         }

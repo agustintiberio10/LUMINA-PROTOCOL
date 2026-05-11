@@ -110,7 +110,7 @@ contract MathEdgeCasesUUPS is Test {
     function test_Math_UUPS_InitializedConstantsCorrect() public {
         (BondVault v,,,) = _bvFull();
         assertEq(v.SAFETY_FACTOR_BPS(), 5000, "BondVault SAFETY_FACTOR_BPS");
-        assertEq(v.BOND_MATURITY_SECONDS(), 730 days, "BondVault BOND_MATURITY_SECONDS");
+        assertEq(v.bondMaturitySeconds(), 730 days, "BondVault bondMaturitySeconds");
         assertEq(v.MIN_REDEEM_PRICE(), 0.001e18, "BondVault MIN_REDEEM_PRICE");
 
         CapacityOracle co = ProxyDeployer.deployCapacityOracle(address(0), makeAddr("l"), makeAddr("u"), 0.036e18);
