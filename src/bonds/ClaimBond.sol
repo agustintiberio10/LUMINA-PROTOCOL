@@ -34,6 +34,8 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
     event BondsMinted(uint256 indexed epochId, address indexed to, uint256 usdAmount);
     event BondsBurned(uint256 indexed epochId, address indexed from, uint256 usdAmount);
     event BondVaultSet(address vault);
+    /// @notice [Sprint V-A] Emitted when bondVault is re-wired via updateBondVault.
+    event BondVaultUpdated(address indexed oldVault, address indexed newVault);
     event BondsBurnedByHolder(address indexed holder, uint256 indexed epochId, uint256 amount);
     event BaseURIUpdated(string oldBaseURI, string newBaseURI);
     event OperatorAuthorized(address indexed operator, bool authorized);
@@ -74,6 +76,18 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
         bondVault = _bondVault;
         _bondVaultSet = true;
         emit BondVaultSet(_bondVault);
+    }
+
+    /// @notice [Sprint V-A, ADR-013] Re-wire BondVault address post-initial-set.
+    /// @dev Bypasses the one-shot guard so the proxy can migrate to a new vault
+    ///      (e.g. SET C replaces SET B). Still onlyOwner — frontrun attack
+    ///      vector remains closed because the contract is already initialized
+    ///      and owner is the canonical deployer / Gnosis Safe in prod.
+    function updateBondVault(address _bondVault) external onlyOwner {
+        require(_bondVault != address(0), "Zero address");
+        address old = bondVault;
+        bondVault = _bondVault;
+        emit BondVaultUpdated(old, _bondVault);
     }
 
     /// @notice Mint bond tokens to user when a policy triggers.

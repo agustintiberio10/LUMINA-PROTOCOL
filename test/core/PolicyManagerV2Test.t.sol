@@ -45,6 +45,9 @@ contract PolicyManagerV2Test is Test {
     MockBondVault vault;
     address router;
 
+    // [Sprint V-A] Mirror event declaration so vm.expectEmit can match by topic.
+    event BondVaultUpdated(address indexed oldVault, address indexed newVault);
+
     function setUp() public {
         vault = new MockBondVault();
 
@@ -137,5 +140,47 @@ contract PolicyManagerV2Test is Test {
     function test_cannot_initialize_twice() public {
         vm.expectRevert();
         pm.initialize(address(vault));
+    }
+
+    // ═══════ setBondVault tests [Sprint V-A, ADR-013] ═══════
+
+    function test_SetBondVault_Success_UpdatesAddress() public {
+        MockBondVault newVault = new MockBondVault();
+        pm.setBondVault(address(newVault));
+        assertEq(address(pm.bondVault()), address(newVault), "bondVault should point to new address");
+    }
+
+    function test_SetBondVault_EmitsEvent() public {
+        MockBondVault newVault = new MockBondVault();
+        vm.expectEmit(true, true, false, false);
+        emit BondVaultUpdated(address(vault), address(newVault));
+        pm.setBondVault(address(newVault));
+    }
+
+    function test_SetBondVault_RevertIf_ZeroAddress() public {
+        vm.expectRevert(bytes("Zero bondVault"));
+        pm.setBondVault(address(0));
+    }
+
+    function test_SetBondVault_RevertIf_NotOwner() public {
+        MockBondVault newVault = new MockBondVault();
+        vm.prank(makeAddr("random"));
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, makeAddr("random"))
+        );
+        pm.setBondVault(address(newVault));
+    }
+
+    function test_SetBondVault_AffectsCapacityReads() public {
+        // pre: vault has default cap 1_000_000
+        uint256 capBefore = pm.bondVault().availableCapacityUSD();
+        assertEq(capBefore, 1_000_000, "initial vault cap mismatch");
+
+        MockBondVault newVault = new MockBondVault();
+        newVault.setCap(42_000); // different cap to prove read goes through new vault
+        pm.setBondVault(address(newVault));
+
+        uint256 capAfter = pm.bondVault().availableCapacityUSD();
+        assertEq(capAfter, 42_000, "post-setBondVault read should go through new vault");
     }
 }

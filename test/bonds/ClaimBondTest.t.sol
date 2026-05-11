@@ -130,4 +130,43 @@ contract ClaimBondTest is Test {
         vm.expectRevert();
         impl.initialize();
     }
+
+    // ═══════ updateBondVault tests [Sprint V-A, ADR-013] ═══════
+
+    /// @notice Mirror event for vm.expectEmit topic matching.
+    event BondVaultUpdated(address indexed oldVault, address indexed newVault);
+
+    function test_UpdateBondVault_Success_AfterInitialSet() public {
+        address newVault = makeAddr("new-vault");
+        bond.updateBondVault(newVault);
+        assertEq(bond.bondVault(), newVault, "bondVault should reflect updated address");
+    }
+
+    function test_UpdateBondVault_EmitsEvent() public {
+        address newVault = makeAddr("new-vault-event");
+        vm.expectEmit(true, true, false, false);
+        emit BondVaultUpdated(vault, newVault);
+        bond.updateBondVault(newVault);
+    }
+
+    function test_UpdateBondVault_RevertIf_ZeroAddress() public {
+        vm.expectRevert(bytes("Zero address"));
+        bond.updateBondVault(address(0));
+    }
+
+    function test_UpdateBondVault_RevertIf_NotOwner() public {
+        address newVault = makeAddr("new-vault-unauth");
+        vm.prank(makeAddr("random"));
+        vm.expectRevert();
+        bond.updateBondVault(newVault);
+    }
+
+    function test_UpdateBondVault_CanBeCalledMultipleTimes() public {
+        address v1 = makeAddr("v1");
+        address v2 = makeAddr("v2");
+        bond.updateBondVault(v1);
+        assertEq(bond.bondVault(), v1);
+        bond.updateBondVault(v2);
+        assertEq(bond.bondVault(), v2, "updateBondVault should not be one-shot");
+    }
 }
