@@ -1,0 +1,93 @@
+{
+  "_status": "LIVE -- canonical deployment",
+  "_deployedAt": "2026-05-11",
+  "_supersedes": "V5.1-2026-05-07-set-b-abandoned.json",
+  "_notes": "Sprint V-A redeploy. Only BondVault changed (SET B -> SET C). PolicyManagerV2 + ClaimBond proxies same as SET B but upgraded to new impls with permanent setBondVault / updateBondVault setters. See ADR-013.",
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "deployedAt": "2026-05-07T20:30:00Z",
+  "deployer": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+  "commitHash": "29b3a6b44cb7ab071e2a11ec50f56a7ba67395cc",
+  "commitDescription": "Sprint B merge commit (PR #109): fix(deploy): completar V5Complete con 4 contratos faltantes + cleanup",
+  "contractCount": 27,
+  "skippedContracts": [
+    "AerodromeAdapter (testnet-only path: Aerodrome no existe en Sepolia. Mainnet deployment incluir\u00c3\u00a1 los 28 completos)"
+  ],
+  "core": {
+    "luminaTokenV2": "0x7D3E392Bdb3258cF92C257C90391957d7b0Aff02",
+    "claimBond": "0xde85056F155d3F18e559Fa63d5861ab3D1318cF0",
+    "bondVault": "0x49c21d5C7b399f9BfB36801F5c680904E6c69949",
+    "policyManagerV2": "0xD97bFC2959f0673851348b60DF2Eb3376eF612BE",
+    "coverRouterV2": "0xFA6d57CA87a26F08d68f2123e86990E2fD70B7AE",
+    "twapBurner": "0xc838BEDE6BE624f6b7b69be71b7587ce51186D75",
+    "adaptiveFeeDistributor": "0xC193eEc407Dc960B5Ca1546eE7127fF57340bfAb",
+    "buybackEngine": "0xC824309B1c02A2E57044b15527a53BBb8c3aAD5a",
+    "luminaBondMarketplace": "0xFa4Af36A4af7e6691bD1906D83a15792257d80de"
+  },
+  "oracles": {
+    "capacityOracle": "0x5bF3689a3b9b757821215eE315E94d6845d19b98",
+    "solvencyOracle": "0x3fff1f9732cBd2e0ef7b5Ef9A976ac7CE4560feD",
+    "luminaOracleV2": "0x61918822856ADFB5C4C98f4605bF9c0367ad2E0d"
+  },
+  "treasury": {
+    "cexLiquidityReserve": "0xFA693e74080fEd22bBA7C29CfA7895d61410a7cE",
+    "maintenanceReserve": "0x06d24BD27DC69D8c1fa0721975E57158955a9169"
+  },
+  "automation": {
+    "shieldKeeper": "0x474C9F3819328d919f827deA3f738F71302DdbcF"
+  },
+  "vesting": {
+    "founderVesting": "0xa3e7685E21A141930F63432E927D679fD3FDE876",
+    "treasuryVesting": "0x15F9DDc39635a1fe1de1443F6c7217f310492b52"
+  },
+  "dex": {
+    "uniswapV3Adapter": "0x026d14A2801DFDF25991B9Bcb7002FCC45415F6f"
+  },
+  "shields": {
+    "flashBTC1h": "0xfE0A40B31C4a8D20239345B1133d8A4495A1C788",
+    "flashBTC4h": "0x1Ab1be79659098fEbA0CC8D196F2BBaD87572DA1",
+    "flashBTC24h": "0x8b3Aa2dbfb6FF39C560A92dB51FD023Ca92E4f8a",
+    "flashBTC48h": "0x75ee42090C40D3a2fdd84937Eeba53fdE7c1bD18",
+    "flashETH1h": "0xdd4Dad66D0ADCf7C413ce39b2DfDBBDB11e11dC7",
+    "flashETH24h": "0x6D232eAE5221B0C445Af30d16976d2A55C8f5A03",
+    "flashETH48h": "0xBDd8937f740B12A8b1bf9f758cb264f138E2aB26",
+    "microDepeg": "0x62a2452A2B52C8D3AaC0CEeEb5107159A604adc4",
+    "rateShock": "0x0BEf02A107f374139F466828a0a8A4B9faA501Ff"
+  },
+  "external": {
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "uniswapV3Router": "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
+    "uniswapV3Quoter": "0xC5290058841028F1614F3A6F0F5816cAd0df5E27"
+  },
+  "mocks": {
+    "_comment": "Sprint G (2026-05-09): 5 MockAggregatorV3 feeds. Sprint H (2026-05-09): MockAavePool added + RateShockShield UUPS upgraded with setAavePool to wire it. Mainnet usa Chainlink real (BTC/ETH) y Aave V3 real; USDC/USDT/DAI no tienen feeds Chainlink en Base mainnet.",
+    "btcUsdFeed": "0xf1B873d3705fAA2E0139c845BA8128AF712584EE",
+    "ethUsdFeed": "0x35276eE9Fb65fC54F4090d8273aE23D1B228c8C7",
+    "usdcUsdFeed": "0x89CC2C183a8cC69910Fb215b45474929b9608A35",
+    "usdtUsdFeed": "0xFE2Fd417E18AFCE896d647fAd81BCC0F1280bFC5",
+    "daiUsdFeed": "0xcE718f9eA7285dDe456A1BA7caA9b2BDF2d9B619",
+    "aavePool": "0x7a25110aCa80E25EAf25Fc9Cbe8aD2e3Bb69Ea41"
+  },
+  "aavePoolLegacy": {
+    "_comment": "Stub m\u00c3\u00adnimo sin setters (pre-Sprint H). FounderVesting tiene aavePool immutable apuntando a esta address \u00e2\u20ac\u201d no se puede rotar sin redeployar FounderVesting. RateShockShield.aavePool fue rotada en Sprint H Phase 4.5 al nuevo MockAavePool (ver mocks.aavePool).",
+    "address": "0xcc0606b64275c08539770864081D209A8C9b178a",
+    "consumers": [
+      "FounderVesting (immutable, frozen)"
+    ]
+  },
+  "verification": {
+    "basescanVerified": true,
+    "verifiedCount": 27,
+    "verifiedIncludingImplementations": 51,
+    "verificationLog": "All (51) contracts were verified! See deploy log /tmp/log-phase3-deploy-v2.log"
+  },
+  "deployTxBatchPath": "broadcast/DeployLuminaV5Complete.s.sol/84532/run-latest.json",
+  "deployerBalanceBefore": "0.059651672503247978 ETH",
+  "deployerBalanceAfter": "0.059324366311107439 ETH",
+  "totalEthSpent": "0.000327306192140539 ETH",
+  "_implementations": {
+    "bondVault": "0x19be28F5C0D43FFc083E57ec24d24237De36f6e5",
+    "policyManagerV2": "0x27d7dd8638BA16048eaEc38a13AEAAe19997FF59",
+    "claimBond": "0x9E1d4694761C4F6836eb8052B65c3E8278Bef62c"
+  }
+}
