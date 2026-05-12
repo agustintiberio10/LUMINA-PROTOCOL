@@ -1,0 +1,90 @@
+name: Mythril
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  mythril:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Mythril
+        run: |
+          set -euo pipefail
+          pip install --upgrade pip
+          pip install mythril
+          myth version
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+
+      - name: Build (forge)
+        run: forge build --skip test --skip script
+
+      - name: Mythril analyze (protocol core contracts only)
+        # Scope: 18 protocol core contracts. Shields auxiliares (FlashBTC*,
+        # FlashETH*, MicroDepeg, RateShock, BaseShield) and mocks/interfaces
+        # are out of scope this sprint per founder spec.
+        run: |
+          set +e
+          mkdir -p mythril-reports
+          # Files to analyze (relative to repo root)
+          FILES=(
+            src/token/LuminaTokenV2.sol
+            src/bonds/ClaimBond.sol
+            src/bonds/BondVault.sol
+            src/core/PolicyManagerV2.sol
+            src/core/CoverRouterV2.sol
+            src/core/TWAPBurner.sol
+            src/core/AdaptiveFeeDistributor.sol
+            src/marketplace/BuybackEngine.sol
+            src/marketplace/LuminaBondMarketplace.sol
+            src/oracles/CapacityOracle.sol
+            src/oracles/SolvencyOracle.sol
+            src/treasury/CEXLiquidityReserve.sol
+            src/treasury/MaintenanceReserve.sol
+            src/automation/ShieldKeeper.sol
+            src/token/TreasuryVesting.sol
+            src/token/FounderVesting.sol
+            src/dex/AerodromeAdapter.sol
+            src/dex/UniswapV3Adapter.sol
+          )
+          OVERALL=0
+          for f in "${FILES[@]}"; do
+            name=$(basename "$f" .sol)
+            echo "::group::Mythril $name"
+            myth analyze "$f" \
+              --solv 0.8.20 \
+              --execution-timeout 90 \
+              --max-depth 10 \
+              --solc-json mythril.solc.json 2>/dev/null \
+              > "mythril-reports/$name.txt" 2>&1 || OVERALL=$?
+            tail -20 "mythril-reports/$name.txt"
+            echo "::endgroup::"
+          done
+          # Always succeed for observatory; gating is opt-in per founder spec
+          exit 0
+
+      - name: Upload Mythril reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mythril-reports
+          path: mythril-reports/
+          if-no-files-found: warn
+          retention-days: 30
