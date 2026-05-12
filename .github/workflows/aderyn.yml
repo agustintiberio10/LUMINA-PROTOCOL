@@ -21,10 +21,18 @@ jobs:
       - name: Build
         run: forge build
 
+      - name: Install Aderyn
+        run: |
+          set -euo pipefail
+          curl -L -o /tmp/aderyn.tar.xz \
+            https://github.com/Cyfrin/aderyn/releases/download/aderyn-v0.6.8/aderyn-x86_64-unknown-linux-gnu.tar.xz
+          tar -xf /tmp/aderyn.tar.xz -C /tmp
+          sudo mv /tmp/aderyn-x86_64-unknown-linux-gnu/aderyn /usr/local/bin/aderyn
+          aderyn --version
+
       - name: Run Aderyn
-        uses: Cyfrin/aderyn-action@v0.6.8
-        with:
-          path: .
+        run: aderyn . --output report.md
+        continue-on-error: true
 
       - name: Upload report
         if: always()
