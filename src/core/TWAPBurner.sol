@@ -8,20 +8,13 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDexRouter} from "../interfaces/IDexRouter.sol";
+import {IBurnable} from "../interfaces/IBurnable.sol";
+import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 
 /// @title TWAPBurner
 /// @notice Receives USDC from premiums and marketplace fees.
 ///         Executes distributed buy & burn of $LUMINA via multi-DEX routing.
 /// @dev [V5.1] UUPS upgradeable proxy pattern.
-
-interface IBurnable {
-    function burn(uint256 amount) external;
-}
-
-/// @dev [H-2] IPriceOracle used by CapacityOracle — enables slippage protection in executeBurn.
-interface IPriceOracle {
-    function getLuminaPrice() external view returns (uint256);
-}
 
 /// @dev [V5.0] Interface for AdaptiveFeeDistributor — provides dynamic distribution ratios (4-bucket).
 interface IAdaptiveFeeDistributor {
