@@ -1,0 +1,65 @@
+name: Gas Snapshot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+
+      - name: Forge snapshot (baseline, no optimization)
+        # [Sprint Y] continue-on-error because some legacy tests have known
+        # gas-report bugs (see ci.yml note re: nonce drift in computeCreateAddress).
+        # Snapshot still produces the per-function gas table for the artifact.
+        run: |
+          set -o pipefail
+          forge snapshot 2>&1 | tee snapshot-stdout.txt
+        continue-on-error: true
+
+      - name: Compute top-10 most expensive functions
+        if: always()
+        run: |
+          set -o pipefail
+          if [ -f .gas-snapshot ]; then
+            echo "## Top 10 most expensive (Sprint Y baseline)" > gas-top10.md
+            echo "" >> gas-top10.md
+            echo "| Rank | Function | Gas |" >> gas-top10.md
+            echo "|---|---|---|" >> gas-top10.md
+            # Lines look like: TestName:test_X() (gas: 123456)
+            grep -oE "[A-Za-z_]+::[A-Za-z_0-9]+\(\) \(gas: [0-9]+\)" .gas-snapshot 2>/dev/null \
+              | awk -F'gas: ' '{print $2" "$0}' \
+              | sort -rn \
+              | head -10 \
+              | awk '{print "| "NR" | "$2" | "$1" |"}' \
+              | sed 's/ ()//g; s/(gas: [0-9]*) ()//g' \
+              >> gas-top10.md || true
+            cat gas-top10.md
+          else
+            echo "No .gas-snapshot generated" > gas-top10.md
+            cat gas-top10.md
+          fi
+
+      - name: Upload gas snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-snapshot
+          path: |
+            .gas-snapshot
+            snapshot-stdout.txt
+            gas-top10.md
+          if-no-files-found: warn
+          retention-days: 30
