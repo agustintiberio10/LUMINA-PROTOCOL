@@ -28,21 +28,16 @@ jobs:
           pip install mythril
           myth version
 
-      - name: Install solc 0.8.20 via apt + seed solcx cache
+      - name: Install solc 0.8.20 via apt (avoid DNS to solc-bin.ethereum.org)
         # [Sprint Y.2] solcx tries to fetch from solc-bin.ethereum.org which is
-        # DNS-blocked in the GH Actions sandbox. We install solc via apt, then
-        # seed the solcx cache (~/.solcx/solc-v0.8.20) so `myth analyze --solv 0.8.20`
-        # picks up the local binary without any network call.
+        # DNS-blocked in the GH Actions sandbox. We install solc directly from
+        # the ethereum PPA and pass --solc to myth analyze below.
         run: |
           set -euo pipefail
           sudo add-apt-repository -y ppa:ethereum/ethereum
           sudo apt-get update -y
           sudo apt-get install -y solc
           solc --version
-          mkdir -p "$HOME/.solcx"
-          cp "$(which solc)" "$HOME/.solcx/solc-v0.8.20"
-          chmod +x "$HOME/.solcx/solc-v0.8.20"
-          ls -la "$HOME/.solcx/"
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -84,10 +79,9 @@ jobs:
           for f in "${FILES[@]}"; do
             name=$(basename "$f" .sol)
             echo "::group::Mythril $name"
-            # [Sprint Y.2] --solv 0.8.20 will find the seeded ~/.solcx/solc-v0.8.20
-            # binary without trying to download from solc-bin.ethereum.org.
+            # [Sprint Y.2] --solc points to apt-installed solc, bypassing solcx download.
             myth analyze "$f" \
-              --solv 0.8.20 \
+              --solc /usr/bin/solc \
               --execution-timeout 90 \
               --max-depth 10 \
               --solc-json mythril.solc.json \
