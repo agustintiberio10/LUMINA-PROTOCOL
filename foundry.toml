@@ -40,7 +40,7 @@ seed = '0x123'
 
 [invariant]
 runs = 1000
-depth = 50
+depth = 500
 fail_on_revert = false
 call_override = false
 
