@@ -141,4 +141,32 @@ contract BuybackEngineTest is Test {
         vm.expectRevert();
         engine.setDailyBuyback(1000e6, 60, 24);
     }
+
+    // ═══════ Sprint X.1 — listing-existence path tests ═══════
+
+    /// @notice executeOffer reverts when called with a non-existent listingId.
+    ///         MockMarketplace.getListing for an un-set id returns default
+    ///         struct (active=false). The `require(active, "Listing not active")`
+    ///         is the canonical existence check, so `seller` validation is
+    ///         intentionally omitted.
+    function test_ExecuteOffer_RevertIf_NonexistentListing() public {
+        vm.prank(multisig);
+        engine.setDailyBuyback(10000e6, 60, 24);
+
+        // listingId 999 was never set on the mock → returns all zeros + active=false.
+        vm.expectRevert(bytes("Listing not active"));
+        engine.executeOffer(999);
+    }
+
+    /// @notice executeOffer reverts when listing exists but active=false.
+    function test_ExecuteOffer_RevertIf_ListingInactive() public {
+        vm.prank(multisig);
+        engine.setDailyBuyback(10000e6, 60, 24);
+
+        // Set listing with active=false explicitly.
+        marketplace.setListing(7, makeAddr("seller"), 202804, 100, 50e6, false);
+
+        vm.expectRevert(bytes("Listing not active"));
+        engine.executeOffer(7);
+    }
 }

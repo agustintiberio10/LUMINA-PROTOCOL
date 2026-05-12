@@ -143,6 +143,11 @@ contract BuybackEngine is
     function executeOffer(uint256 listingId) external nonReentrant {
         require(block.timestamp <= dailyConfig.validUntil, "Daily offer expired");
 
+        // [Sprint X.1] `seller` is intentionally unused: non-existent listings
+        // return the default Listing struct where `active=false`, so the
+        // require below is the canonical existence check. `seller` validation
+        // would be redundant.
+        // slither-disable-next-line unused-return
         (, uint256 epochId, uint256 amount, uint256 priceUSDC, bool active) = marketplace.getListing(listingId);
         require(active, "Listing not active");
         require(amount > 0, "Amount zero");
