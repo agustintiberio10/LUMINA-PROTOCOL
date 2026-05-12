@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
-import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
+import {CapacityOracle} from "../../../src/oracles/CapacityOracle.sol";
+import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
 /// @notice Mock Uniswap V3 pool with configurable tick + revert mode.
 /// Used by CapacityOracleTickMathCoverage to drive every branch of

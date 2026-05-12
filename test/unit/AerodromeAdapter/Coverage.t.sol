@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {AerodromeAdapter, IAerodromeRouter} from "../../src/dex/AerodromeAdapter.sol";
+import {AerodromeAdapter, IAerodromeRouter} from "../../../src/dex/AerodromeAdapter.sol";
 
 /// @notice Test ERC20 with mintable supply for transfer-from path coverage.
 contract AeroTestERC20 is ERC20 {
