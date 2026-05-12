@@ -363,8 +363,13 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
         if (maxStaleness == 0) revert ZeroValue("maxStaleness");
 
         IAggregatorV3 aggregator = IAggregatorV3(feed);
-        (, int256 testPrice,,,) = aggregator.latestRoundData();
+        (uint80 testRoundId, int256 testPrice,, uint256 testUpdatedAt, uint80 testAnsweredInRound) =
+            aggregator.latestRoundData();
         if (testPrice <= 0) revert InvalidPriceAsset(asset, testPrice);
+        if (testAnsweredInRound < testRoundId) revert IncompleteRound(asset, testRoundId, testAnsweredInRound);
+        if (testUpdatedAt > block.timestamp || block.timestamp - testUpdatedAt > maxStaleness) {
+            revert StalePriceAsset(asset, testUpdatedAt, maxStaleness);
+        }
 
         _feeds[asset] = FeedConfig({feed: aggregator, maxStaleness: maxStaleness, active: true});
         _assetIds.push(asset);
@@ -377,8 +382,13 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
         if (maxStaleness == 0) revert ZeroValue("maxStaleness");
 
         IAggregatorV3 aggregator = IAggregatorV3(feed);
-        (, int256 testPrice,,,) = aggregator.latestRoundData();
+        (uint80 testRoundId, int256 testPrice,, uint256 testUpdatedAt, uint80 testAnsweredInRound) =
+            aggregator.latestRoundData();
         if (testPrice <= 0) revert InvalidPriceAsset(asset, testPrice);
+        if (testAnsweredInRound < testRoundId) revert IncompleteRound(asset, testRoundId, testAnsweredInRound);
+        if (testUpdatedAt > block.timestamp || block.timestamp - testUpdatedAt > maxStaleness) {
+            revert StalePriceAsset(asset, testUpdatedAt, maxStaleness);
+        }
 
         _feeds[asset].feed = aggregator;
         _feeds[asset].maxStaleness = maxStaleness;
