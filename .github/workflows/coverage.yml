@@ -20,13 +20,15 @@ jobs:
         with:
           version: v1.7.1
 
-      - name: Forge coverage (summary + lcov)
-        # [Sprint Y] continue-on-error because individual contracts may stack-too-deep
-        # under coverage instrumentation (via_ir + IR-Yul rewrite cost). The artifact
-        # still uploads partial summaries useful for the audit evidence pack.
+      - name: Forge coverage (summary + lcov, --ir-minimum)
+        # [Sprint Y] --ir-minimum enables via_ir with minimum optimization to
+        # avoid "stack too deep" errors that surface when forge coverage disables
+        # the standard optimizer settings (DeployLuminaV5Complete.s.sol L210).
+        # continue-on-error: true so the artifact still uploads even if a single
+        # contract trips coverage instrumentation bugs.
         run: |
           set -o pipefail
-          forge coverage --report summary --report lcov 2>&1 | tee coverage-summary.txt
+          forge coverage --ir-minimum --report summary --report lcov 2>&1 | tee coverage-summary.txt
         continue-on-error: true
 
       - name: Upload coverage reports
