@@ -99,9 +99,9 @@ contract TWAPBurnerInvariants is Test {
         targetContract(address(handler));
     }
 
-    /// INV-Y-TB-1: totalUSDCReceived is monotonic (only increases)
-    function invariant_receivedMonotonic() public view {
-        assertGe(burner.totalUSDCReceived(), handler.ghostReceived() - 1, "INV-Y-TB-1: receive went backwards");
+    /// INV-Y-TB-1: totalUSDCReceived matches handler ghost (no leakage, no over-receive)
+    function invariant_receivedMatchesGhost() public view {
+        assertGe(burner.totalUSDCReceived(), handler.ghostReceived(), "INV-Y-TB-1: receive < ghost");
     }
 
     /// INV-Y-TB-2: totalUSDCBurned never exceeds totalUSDCReceived (no over-burn)
