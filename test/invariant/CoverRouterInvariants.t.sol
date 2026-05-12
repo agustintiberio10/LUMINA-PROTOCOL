@@ -10,8 +10,14 @@ import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract CRMockUSDC is ERC20 {
     constructor() ERC20("USDC", "USDC") {}
-    function decimals() public pure override returns (uint8) { return 6; }
-    function mint(address to, uint256 amt) external { _mint(to, amt); }
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    function mint(address to, uint256 amt) external {
+        _mint(to, amt);
+    }
 }
 
 contract CRMockPolicyManager {
@@ -19,25 +25,44 @@ contract CRMockPolicyManager {
     uint256 public totalRecorded;
 
     function recordPolicy(
-        bytes32 /*productId*/,
-        address /*buyer*/,
-        uint256 /*coverage*/,
-        uint256 /*premium*/,
-        uint32 /*duration*/,
+        bytes32,
+        /*productId*/
+        address,
+        /*buyer*/
+        uint256,
+        /*coverage*/
+        uint256,
+        /*premium*/
+        uint32,
+        /*duration*/
         bytes32 /*asset*/
-    ) external returns (uint256) {
+    )
+        external
+        returns (uint256)
+    {
         nextId++;
         totalRecorded++;
         return nextId;
     }
 
-    function triggerPayout(bytes32 /*productId*/, uint256 /*policyId*/, bytes calldata /*proof*/) external {}
+    function triggerPayout(
+        bytes32,
+        /*productId*/
+        uint256,
+        /*policyId*/
+        bytes calldata /*proof*/
+    )
+        external {}
 }
 
 contract CRMockBurner {
     uint256 public totalReceived;
     address public usdc;
-    constructor(address _usdc) { usdc = _usdc; }
+
+    constructor(address _usdc) {
+        usdc = _usdc;
+    }
+
     function receivePremium(uint256 amount) external {
         // Pull funds to mimic real burner accounting.
         ERC20(usdc).transferFrom(msg.sender, address(this), amount);
@@ -93,7 +118,7 @@ contract CoverRouterInvariants is Test {
         router.configureProduct(
             keccak256("CR_MOCK_PROD"),
             8000, // payoutRatio 80%
-            20,   // triggerProb 0.20%
+            20, // triggerProb 0.20%
             15000, // margin 1.50x
             uint32(7 days),
             true
@@ -107,11 +132,7 @@ contract CoverRouterInvariants is Test {
     /// CoverRouter records each successful purchase via policyManager.recordPolicy,
     /// so handler.ghostPurchased() == pm.totalRecorded().
     function invariant_handlerMatchesPM() public view {
-        assertEq(
-            handler.ghostPurchased(),
-            pm.totalRecorded(),
-            "INV-Y-CR-1: router purchases != PolicyManager recorded"
-        );
+        assertEq(handler.ghostPurchased(), pm.totalRecorded(), "INV-Y-CR-1: router purchases != PolicyManager recorded");
     }
 
     /// INV-Y-CR-2: All USDC entering router transits to burner (no residue).

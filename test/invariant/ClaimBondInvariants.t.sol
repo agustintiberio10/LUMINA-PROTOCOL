@@ -47,8 +47,13 @@ contract CBHandler is Test {
         } catch {}
     }
 
-    function usersLength() external view returns (uint256) { return users.length; }
-    function user(uint256 i) external view returns (address) { return users[i]; }
+    function usersLength() external view returns (uint256) {
+        return users.length;
+    }
+
+    function user(uint256 i) external view returns (address) {
+        return users[i];
+    }
 }
 
 contract ClaimBondInvariants is Test {

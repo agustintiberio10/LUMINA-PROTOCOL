@@ -11,14 +11,26 @@ import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract TWBMockUSDC is ERC20 {
     constructor() ERC20("USDC", "USDC") {}
-    function decimals() public pure override returns (uint8) { return 6; }
-    function mint(address to, uint256 amt) external { _mint(to, amt); }
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    function mint(address to, uint256 amt) external {
+        _mint(to, amt);
+    }
 }
 
 contract TWBMockLumina is ERC20 {
     constructor() ERC20("LUM", "LUM") {}
-    function mint(address to, uint256 amt) external { _mint(to, amt); }
-    function burn(uint256 amt) external { _burn(msg.sender, amt); }
+
+    function mint(address to, uint256 amt) external {
+        _mint(to, amt);
+    }
+
+    function burn(uint256 amt) external {
+        _burn(msg.sender, amt);
+    }
 }
 
 contract TWBMockDex {
@@ -35,7 +47,14 @@ contract TWBMockDex {
         return (amountIn * rate) / 1e6;
     }
 
-    function swap(address /*tokenIn*/, address /*tokenOut*/, uint256 amountIn, uint256 minOut)
+    function swap(
+        address,
+        /*tokenIn*/
+        address,
+        /*tokenOut*/
+        uint256 amountIn,
+        uint256 minOut
+    )
         external
         returns (uint256 out)
     {

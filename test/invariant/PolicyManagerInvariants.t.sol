@@ -14,7 +14,9 @@ contract PMMockBondVault {
     uint256 public issuedCount;
     uint256 public issuedUSD;
 
-    function availableCapacityUSD() external view returns (uint256) { return availCap; }
+    function availableCapacityUSD() external view returns (uint256) {
+        return availCap;
+    }
 
     function reserveCapacity(uint256 amount) external {
         // 18-dec USD-wei → integer dollars
@@ -38,7 +40,13 @@ contract PMMockBondVault {
         committed += amountUSD;
     }
 
-    function issueBond(address /*to*/, uint256 usdPayout) external {
+    function issueBond(
+        address,
+        /*to*/
+        uint256 usdPayout
+    )
+        external
+    {
         issuedCount++;
         issuedUSD += usdPayout;
     }
@@ -49,18 +57,28 @@ contract PMMockShield is IShieldV2 {
     bytes32 public _pid;
     uint256 public nextId = 1;
 
-    constructor(bytes32 pid_) { _pid = pid_; }
+    constructor(bytes32 pid_) {
+        _pid = pid_;
+    }
 
-    function productId() external view returns (bytes32) { return _pid; }
+    function productId() external view returns (bytes32) {
+        return _pid;
+    }
 
-    function createPolicy(IShieldV2.CreatePolicyParams calldata /*params*/)
+    function createPolicy(
+        IShieldV2.CreatePolicyParams calldata /*params*/
+    )
         external
         returns (uint256)
     {
         return nextId++;
     }
 
-    function verifyAndCalculate(uint256 /*policyId*/, bytes calldata /*oracleProof*/)
+    function verifyAndCalculate(
+        uint256,
+        /*policyId*/
+        bytes calldata /*oracleProof*/
+    )
         external
         pure
         returns (IShieldV2.PayoutResult memory r)
@@ -68,11 +86,7 @@ contract PMMockShield is IShieldV2 {
         r = IShieldV2.PayoutResult({triggered: true, payoutAmount: 0, recipient: address(0), reason: bytes32("MOCK")});
     }
 
-    function getPolicyInfo(uint256)
-        external
-        pure
-        returns (address, uint256, uint256, uint256, uint256, uint8)
-    {
+    function getPolicyInfo(uint256) external pure returns (address, uint256, uint256, uint256, uint256, uint8) {
         return (address(0), 0, 0, 0, 0, 0);
     }
 }
