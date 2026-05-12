@@ -28,17 +28,6 @@ jobs:
           pip install mythril
           myth version
 
-      - name: Install solc 0.8.20 via apt (avoid DNS to solc-bin.ethereum.org)
-        # [Sprint Y.2] solcx tries to fetch from solc-bin.ethereum.org which is
-        # DNS-blocked in the GH Actions sandbox. We install solc directly from
-        # the ethereum PPA and pass --solc to myth analyze below.
-        run: |
-          set -euo pipefail
-          sudo add-apt-repository -y ppa:ethereum/ethereum
-          sudo apt-get update -y
-          sudo apt-get install -y solc
-          solc --version
-
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -79,12 +68,11 @@ jobs:
           for f in "${FILES[@]}"; do
             name=$(basename "$f" .sol)
             echo "::group::Mythril $name"
-            # [Sprint Y.2] --solc points to apt-installed solc, bypassing solcx download.
             myth analyze "$f" \
-              --solc /usr/bin/solc \
+              --solv 0.8.20 \
               --execution-timeout 90 \
               --max-depth 10 \
-              --solc-json mythril.solc.json \
+              --solc-json mythril.solc.json 2>/dev/null \
               > "mythril-reports/$name.txt" 2>&1 || OVERALL=$?
             tail -20 "mythril-reports/$name.txt"
             echo "::endgroup::"
