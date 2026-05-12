@@ -110,6 +110,11 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             priceRaw = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96) * 1e18) >> 192;
             priceRaw = priceRaw * 1e12;
         } else {
+            // [Sprint Y] Uniswap V3 price-from-sqrt standard pattern. The
+            // shift `(1 << 192)` is the Q192 numerator; dividing by sqrt²
+            // before final 1e12 multiply is intentional and matches the
+            // audited Uniswap reference math.
+            // slither-disable-next-line divide-before-multiply
             priceRaw = (1 << 192) * 1e18 / (uint256(sqrtPriceX96) * uint256(sqrtPriceX96));
             priceRaw = priceRaw * 1e12;
         }
@@ -138,6 +143,8 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                 priceRaw = (uint256(sqrtPriceX96) * uint256(sqrtPriceX96) * 1e18) >> 192;
                 priceRaw = priceRaw * 1e12;
             } else {
+                // [Sprint Y] See ADR-017 — Uniswap V3 reciprocal price standard pattern.
+                // slither-disable-next-line divide-before-multiply
                 priceRaw = (1 << 192) * 1e18 / (uint256(sqrtPriceX96) * uint256(sqrtPriceX96));
                 priceRaw = priceRaw * 1e12;
             }
@@ -189,6 +196,15 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit PoolUpdated(old, _pool);
     }
 
+    /// @notice Convert a tick to sqrtPriceX96 (Q64.96).
+    /// @dev Inline of Uniswap V3 TickMath.getSqrtRatioAtTick. The
+    ///      multiply-shift sequence is the canonical Uniswap pattern and order
+    ///      matters for tick precision: rearranging operations changes the
+    ///      result. Slither flags the multiply-then-shift mixed with the final
+    ///      divide as `divide-before-multiply` but this is the audited Uniswap
+    ///      reference algorithm — see uniswap-v3-core
+    ///      contracts/libraries/TickMath.sol. See ADR-017 (Sprint Y).
+    // slither-disable-next-line divide-before-multiply
     function _getSqrtPriceFromTick(int24 tick) internal pure returns (uint256) {
         uint256 absTick = tick >= 0 ? uint256(int256(tick)) : uint256(-int256(tick));
 
