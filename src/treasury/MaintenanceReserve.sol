@@ -48,6 +48,10 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
     event TokenRecovered(address indexed token, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
+    /// @custom:coverage-exclude L52, L56-L58 OZ pattern (ADR-017 Sprint Y):
+    ///         `_disableInitializers()` + `__XInit()` lines run via the impl-ctor
+    ///         and proxy delegatecall; forge-coverage `--ir-minimum` quirk.
+    ///         Exercised by `deployMaintenanceReserve` in tests.
     constructor() {
         _disableInitializers();
     }

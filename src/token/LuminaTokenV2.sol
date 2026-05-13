@@ -32,6 +32,11 @@ contract LuminaTokenV2 is
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
+    /// @custom:coverage-exclude L36, L47-L49 OZ pattern (ADR-017 Sprint Y):
+    ///         `_disableInitializers()` runs in impl-constructor + `__XInit()` calls
+    ///         run via the proxy delegatecall. Neither is credited by forge-coverage
+    ///         instrumentation under `--ir-minimum`. Lines are functionally exercised
+    ///         every time `ProxyDeployer.deployLuminaTokenV2` runs in tests.
     constructor() {
         _disableInitializers();
     }
