@@ -173,6 +173,14 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ═══════ CORE: recordPolicy (called by CoverRouter) ═══════
 
     /// @notice Record a new policy. Called by CoverRouterV2 after receiving premium.
+    /// @notice Uses integer-dollar capacity model for gas efficiency.
+    /// @dev Precision tradeoff intentional: capacity is rounded to whole USD units.
+    ///      `coverageAmount` is 6-dec USDC; `payoutAmount = coverage * 80%`; the
+    ///      `payoutUSD = payoutAmount / 1e6` truncation drops sub-dollar
+    ///      fractions. Reservation is then re-scaled to 18-dec USD-wei
+    ///      (`payoutUSD * 1e18`) so BondVault keeps unit consistency. The
+    ///      truncation is bounded above by $1 per policy and is acceptable for
+    ///      capacity bookkeeping — see ADR-017 (Sprint Y) for rationale.
     /// @return policyId The ID of the newly created policy within the shield
     function recordPolicy(
         bytes32 productId,
@@ -239,6 +247,13 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ═══════ CORE: triggerPayout (called by CoverRouter) ═══════
 
     /// @notice Process a trigger. Verifies with shield, issues bond via BondVault.
+    /// @notice Uses integer-dollar capacity model for gas efficiency.
+    /// @dev Precision tradeoff intentional: bond face value is rounded to
+    ///      whole USD units via `payoutUSD = payoutAmount / 1e6`. Sub-dollar
+    ///      fractions are truncated. The previously stored reservation is in
+    ///      18-dec USD-wei and is committed verbatim to BondVault so the
+    ///      capacity bookkeeping stays consistent across the lifecycle. See
+    ///      ADR-017 (Sprint Y).
     function triggerPayout(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external onlyRouter {
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");
@@ -275,6 +290,11 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ═══════ CORE: settlePolicy (new trigger flow) ═══════
 
     /// @notice Settle a policy after safety window. Called by shield or keeper.
+    /// @notice Uses integer-dollar capacity model for gas efficiency.
+    /// @dev See `triggerPayout` and ADR-017 (Sprint Y) for the truncation
+    ///      tradeoff. On settle-with-trigger, the same `/1e6` truncation
+    ///      applies; on settle-without-trigger the reservation is released
+    ///      in full at the stored 18-dec USD-wei precision.
     function settlePolicy(bytes32 productId, uint256 policyId, bool triggered) external {
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");

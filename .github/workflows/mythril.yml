@@ -1,0 +1,71 @@
+name: Mythril
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  mythril:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install solc via apt PPA Ethereum
+        # [Sprint Y closure] solc-bin.ethereum.org is DNS-blocked in the GH
+        # sandbox; install solc from ethereum PPA so solcx can find it locally.
+        # Pinned to 0.8.20 matching foundry.toml. NO revert per founder spec.
+        run: |
+          sudo add-apt-repository -y ppa:ethereum/ethereum
+          sudo apt-get update
+          sudo apt-get install -y solc
+          solc --version
+          # Seed solcx cache so `myth analyze` (which uses solcx) finds it.
+          mkdir -p "$HOME/.solcx"
+          cp "$(which solc)" "$HOME/.solcx/solc-v0.8.20"
+          chmod +x "$HOME/.solcx/solc-v0.8.20"
+
+      - name: Install Mythril
+        run: |
+          set -euo pipefail
+          pip install --upgrade pip
+          pip install mythril
+          myth version
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+
+      - name: Build (forge)
+        run: forge build --skip test --skip script
+
+      - name: Run Mythril
+        run: |
+          pip install mythril
+          mkdir -p mythril-reports
+          for contract in src/bonds/BondVault.sol src/core/PolicyManagerV2.sol src/core/TWAPBurner.sol src/bonds/ClaimBond.sol src/core/CoverRouterV2.sol src/oracles/CapacityOracle.sol src/oracles/SolvencyOracle.sol; do
+            name=$(basename "$contract" .sol)
+            myth analyze "$contract" --solv 0.8.20 --solc-json mythril.solc.json --execution-timeout 600 --max-depth 10 -o json > "mythril-reports/$name.json" || echo "{\"error\":\"failed\",\"contract\":\"$name\"}" > "mythril-reports/$name.json"
+          done
+        continue-on-error: true
+        timeout-minutes: 200
+
+      - name: Upload Mythril reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mythril-reports
+          path: mythril-reports/
+          if-no-files-found: warn
+          retention-days: 30

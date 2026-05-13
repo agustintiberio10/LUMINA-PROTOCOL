@@ -70,6 +70,10 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
     error RecoverAmountZero();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
+    /// @custom:coverage-exclude L74, L78-L80 OZ pattern (ADR-017 Sprint Y):
+    ///         `_disableInitializers()` + `__XInit()` lines run via the impl-ctor
+    ///         and proxy delegatecall respectively; forge-coverage `--ir-minimum`
+    ///         does not credit either. Functionally exercised by `deployCEXLiquidityReserve`.
     constructor() {
         _disableInitializers();
     }

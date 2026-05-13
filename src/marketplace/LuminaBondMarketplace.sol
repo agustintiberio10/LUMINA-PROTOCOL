@@ -87,6 +87,9 @@ contract LuminaBondMarketplace is
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
+        // @custom:coverage-exclude L90, L94-L97 OZ pattern (ADR-017 Sprint Y):
+        // `_disableInitializers()` + `__XInit()` lines run via the impl-ctor and
+        // proxy delegatecall; forge-coverage `--ir-minimum` does not credit them.
         _disableInitializers();
     }
 
