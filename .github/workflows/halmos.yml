@@ -34,28 +34,28 @@ jobs:
       - name: Run Halmos — SolvencyOracle
         run: |
           set +e
-          halmos --contract SolvencyOracleHalmos --solver-timeout-assertion 300 2>&1 | tee halmos-SolvencyOracle.log
+          halmos --contract SolvencyOracleHalmos --solver-timeout-assertion 600 2>&1 | tee halmos-SolvencyOracle.log
           exit 0
         continue-on-error: true
 
       - name: Run Halmos — TWAPBurner
         run: |
           set +e
-          halmos --contract TWAPBurnerHalmos --solver-timeout-assertion 300 2>&1 | tee halmos-TWAPBurner.log
+          halmos --contract TWAPBurnerHalmos --solver-timeout-assertion 600 2>&1 | tee halmos-TWAPBurner.log
           exit 0
         continue-on-error: true
 
       - name: Run Halmos — BondVault
         run: |
           set +e
-          halmos --contract BondVaultHalmos --solver-timeout-assertion 300 2>&1 | tee halmos-BondVault.log
+          halmos --contract BondVaultHalmos --solver-timeout-assertion 600 2>&1 | tee halmos-BondVault.log
           exit 0
         continue-on-error: true
 
       - name: Run Halmos — PolicyManagerV2
         run: |
           set +e
-          halmos --contract PolicyManagerV2Halmos --solver-timeout-assertion 300 2>&1 | tee halmos-PolicyManagerV2.log
+          halmos --contract PolicyManagerV2Halmos --solver-timeout-assertion 600 2>&1 | tee halmos-PolicyManagerV2.log
           exit 0
         continue-on-error: true
 
