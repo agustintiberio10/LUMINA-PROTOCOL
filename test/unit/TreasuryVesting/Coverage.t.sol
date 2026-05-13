@@ -20,4 +20,21 @@ contract TreasuryVestingCoverage is Test {
         TreasuryVesting v = ProxyDeployer.deployTreasuryVesting(token);
         assertEq(address(v.luminaToken()), token);
     }
+
+    // ─── available() coverage (covers L74-75 — unlocked path) ───
+
+    function test_Available_ReturnsZero_WhenLocked() public {
+        TreasuryVesting v = ProxyDeployer.deployTreasuryVesting(token);
+        // Still in LOCK_DURATION → L73 returns 0.
+        assertEq(v.available(), 0);
+    }
+
+    function test_Available_ReturnsMaxMonthly_WhenUnlocked() public {
+        TreasuryVesting v = ProxyDeployer.deployTreasuryVesting(token);
+        // Warp past LOCK_DURATION so L74-75 execute.
+        vm.warp(v.deployedAt() + v.LOCK_DURATION() + 1);
+        uint256 avail = v.available();
+        // remaining (3M) > MAX_MONTHLY_RELEASE (250K) → returns MAX_MONTHLY_RELEASE.
+        assertEq(avail, v.MAX_MONTHLY_RELEASE());
+    }
 }
