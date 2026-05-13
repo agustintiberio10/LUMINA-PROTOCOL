@@ -246,4 +246,32 @@ contract CapacityOracleTickMathCoverage is Test {
         vm.expectRevert(bytes("Zero price"));
         oracle.setEmergencyPrice(0);
     }
+
+    // ─────────────── initialize-with-pool branch (covers L76 _setPool inside init) ───────────────
+
+    function test_Initialize_WithNonZeroPool_CallsSetPool() public {
+        CapTickMock prePool = new CapTickMock(lumina, usdc);
+        // Use deployCapacityOracle helper but pass a pre-deployed pool to exercise
+        // the `if (_pool != address(0)) _setPool(_pool);` branch inside initialize.
+        oracle = ProxyDeployer.deployCapacityOracle(address(prePool), lumina, usdc, EMERGENCY);
+        assertEq(oracle.pool(), address(prePool));
+        assertTrue(oracle.isToken0Lumina(), "Expected isToken0Lumina=true after init-with-pool");
+    }
+
+    // ─────────────── init zero-address reverts ───────────────
+
+    function test_Initialize_RevertIf_ZeroLumina() public {
+        vm.expectRevert(bytes("Zero lumina"));
+        ProxyDeployer.deployCapacityOracle(address(0), address(0), usdc, EMERGENCY);
+    }
+
+    function test_Initialize_RevertIf_ZeroUsdc() public {
+        vm.expectRevert(bytes("Zero usdc"));
+        ProxyDeployer.deployCapacityOracle(address(0), lumina, address(0), EMERGENCY);
+    }
+
+    function test_Initialize_RevertIf_ZeroEmergencyPrice() public {
+        vm.expectRevert(bytes("Zero emergency price"));
+        ProxyDeployer.deployCapacityOracle(address(0), lumina, usdc, 0);
+    }
 }
