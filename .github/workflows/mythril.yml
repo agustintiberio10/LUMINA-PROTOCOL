@@ -56,10 +56,10 @@ jobs:
           mkdir -p mythril-reports
           for contract in src/bonds/BondVault.sol src/core/PolicyManagerV2.sol src/core/TWAPBurner.sol src/bonds/ClaimBond.sol src/core/CoverRouterV2.sol src/oracles/CapacityOracle.sol src/oracles/SolvencyOracle.sol; do
             name=$(basename "$contract" .sol)
-            myth analyze "$contract" --solv 0.8.20 --solc-json mythril.solc.json --execution-timeout 90 --max-depth 10 -o json > "mythril-reports/$name.json" || echo "{\"error\":\"failed\",\"contract\":\"$name\"}" > "mythril-reports/$name.json"
+            myth analyze "$contract" --solv 0.8.20 --solc-json mythril.solc.json --execution-timeout 300 --max-depth 10 -o json > "mythril-reports/$name.json" || echo "{\"error\":\"failed\",\"contract\":\"$name\"}" > "mythril-reports/$name.json"
           done
         continue-on-error: true
-        timeout-minutes: 90
+        timeout-minutes: 200
 
       - name: Upload Mythril reports
         if: always()
