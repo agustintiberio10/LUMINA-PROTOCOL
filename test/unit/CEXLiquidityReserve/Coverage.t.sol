@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {CEXLiquidityReserve} from "../../../src/treasury/CEXLiquidityReserve.sol";
 import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
@@ -10,13 +11,17 @@ contract CEXLiquidityReserveCoverage is Test {
     address multisig = makeAddr("multisig");
 
     function test_Initialize_RevertIf_ZeroLumina() public {
+        CEXLiquidityReserve impl = new CEXLiquidityReserve();
+        bytes memory initData = abi.encodeWithSelector(CEXLiquidityReserve.initialize.selector, address(0), multisig);
         vm.expectRevert(bytes("Lumina zero address"));
-        ProxyDeployer.deployCEXLiquidityReserve(address(0), multisig);
+        new ERC1967Proxy(address(impl), initData);
     }
 
     function test_Initialize_RevertIf_ZeroMultisig() public {
+        CEXLiquidityReserve impl = new CEXLiquidityReserve();
+        bytes memory initData = abi.encodeWithSelector(CEXLiquidityReserve.initialize.selector, lumina, address(0));
         vm.expectRevert(bytes("Multisig zero address"));
-        ProxyDeployer.deployCEXLiquidityReserve(lumina, address(0));
+        new ERC1967Proxy(address(impl), initData);
     }
 
     function test_Initialize_HappyPath_StoresMultisigRoles() public {
