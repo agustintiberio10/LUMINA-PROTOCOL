@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ChainGuard} from "../utils/ChainGuard.sol";
 
 /// @title PolicyManagerV2
 /// @notice Simplified brain of Lumina V2 — no vaults, no waterfall.
@@ -190,6 +191,7 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint32 durationSeconds,
         bytes32 asset
     ) external onlyRouter returns (uint256 policyId) {
+        ChainGuard.requireValidChain();
         if (productShield[productId] == address(0)) revert ProductNotFound(productId);
         if (!productActive[productId]) revert ProductNotActive(productId);
 
@@ -212,15 +214,15 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         policyId = IShieldV2(shield)
             .createPolicy(
                 IShieldV2.CreatePolicyParams({
-                buyer: buyer,
-                coverageAmount: coverageAmount,
-                premiumAmount: premiumAmount,
-                durationSeconds: durationSeconds,
-                asset: asset,
-                stablecoin: "USDC",
-                protocol: address(0),
-                extraData: ""
-            })
+                    buyer: buyer,
+                    coverageAmount: coverageAmount,
+                    premiumAmount: premiumAmount,
+                    durationSeconds: durationSeconds,
+                    asset: asset,
+                    stablecoin: "USDC",
+                    protocol: address(0),
+                    extraData: ""
+                })
             );
 
         // Record locally (must happen after external call to obtain policyId)
@@ -255,6 +257,7 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     ///      capacity bookkeeping stays consistent across the lifecycle. See
     ///      ADR-017 (Sprint Y).
     function triggerPayout(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external onlyRouter {
+        ChainGuard.requireValidChain();
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");
         require(!pr.triggered, "Already triggered");
@@ -296,6 +299,7 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     ///      applies; on settle-without-trigger the reservation is released
     ///      in full at the stored 18-dec USD-wei precision.
     function settlePolicy(bytes32 productId, uint256 policyId, bool triggered) external {
+        ChainGuard.requireValidChain();
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");
         require(!pr.triggered, "Already triggered");

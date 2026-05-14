@@ -10,6 +10,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IDexRouter} from "../interfaces/IDexRouter.sol";
 import {IBurnable} from "../interfaces/IBurnable.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
+import {ChainGuard} from "../utils/ChainGuard.sol";
 
 /// @title TWAPBurner
 /// @notice Receives USDC from premiums and marketplace fees.
@@ -144,6 +145,7 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     // ═══════ EXECUTE BURN ═══════
 
     function executeBurn() external nonReentrant {
+        ChainGuard.requireValidChain();
         require(block.timestamp >= lastBurnTimestamp + burnCooldown, "Cooldown active");
 
         uint256 usdcBalance = usdc.balanceOf(address(this));
