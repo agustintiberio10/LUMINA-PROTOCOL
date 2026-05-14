@@ -43,6 +43,14 @@ contract UniswapV3Adapter is IDexRouter, Ownable {
     IQuoterV2 public immutable quoter;
     uint24 public poolFee;
 
+    /// @notice [Sprint AA] Emitted when swap completes successfully.
+    event SwapExecuted(
+        address indexed caller, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
+    );
+
+    /// @notice [Sprint AA] Emitted when owner updates the pool fee tier.
+    event PoolFeeUpdated(uint24 oldFee, uint24 newFee);
+
     constructor(address _router, address _quoter, uint24 _poolFee) Ownable(msg.sender) {
         require(_router != address(0), "Zero router");
         require(_quoter != address(0), "Zero quoter");
@@ -71,6 +79,8 @@ contract UniswapV3Adapter is IDexRouter, Ownable {
                 sqrtPriceLimitX96: 0
             })
         );
+
+        emit SwapExecuted(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
     }
 
     /// @inheritdoc IDexRouter
@@ -93,6 +103,8 @@ contract UniswapV3Adapter is IDexRouter, Ownable {
     }
 
     function setPoolFee(uint24 _fee) external onlyOwner {
+        uint24 old = poolFee;
         poolFee = _fee;
+        emit PoolFeeUpdated(old, _fee);
     }
 }
