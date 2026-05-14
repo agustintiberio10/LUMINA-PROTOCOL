@@ -31,6 +31,9 @@ contract LuminaTokenV2 is
     uint256 public constant MAX_SUPPLY = 100_000_000 * 1e18;
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
+    /// @notice [Sprint AA] Emitted when BURNER_ROLE consumes tokens from an account.
+    event BurnedFromHolder(address indexed burner, address indexed account, uint256 amount);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     /// @custom:coverage-exclude L36, L47-L49 OZ pattern (ADR-017 Sprint Y):
     ///         `_disableInitializers()` runs in impl-constructor + `__XInit()` calls
@@ -94,6 +97,7 @@ contract LuminaTokenV2 is
     /// @param amount The amount to burn
     function burnFrom(address account, uint256 amount) public override onlyRole(BURNER_ROLE) {
         _burn(account, amount);
+        emit BurnedFromHolder(msg.sender, account, amount);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}

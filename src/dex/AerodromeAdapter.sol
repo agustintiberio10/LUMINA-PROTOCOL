@@ -34,6 +34,17 @@ contract AerodromeAdapter is IDexRouter, Ownable {
     address public factory;
     bool public stable;
 
+    /// @notice [Sprint AA] Emitted when swap completes successfully.
+    event SwapExecuted(
+        address indexed caller, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
+    );
+
+    /// @notice [Sprint AA] Emitted when owner updates the pool factory.
+    event FactoryUpdated(address indexed oldFactory, address indexed newFactory);
+
+    /// @notice [Sprint AA] Emitted when owner toggles stable/volatile pool mode.
+    event StableUpdated(bool oldStable, bool newStable);
+
     constructor(address _router, address _factory, bool _stable) Ownable(msg.sender) {
         require(_router != address(0), "Zero router");
         require(_factory != address(0), "Zero factory");
@@ -59,6 +70,8 @@ contract AerodromeAdapter is IDexRouter, Ownable {
 
         // Last element in amounts is the output
         amountOut = amounts[amounts.length - 1];
+
+        emit SwapExecuted(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
     }
 
     /// @inheritdoc IDexRouter
@@ -79,10 +92,14 @@ contract AerodromeAdapter is IDexRouter, Ownable {
 
     function setFactory(address _factory) external onlyOwner {
         require(_factory != address(0), "Zero factory");
+        address old = factory;
         factory = _factory;
+        emit FactoryUpdated(old, _factory);
     }
 
     function setStable(bool _stable) external onlyOwner {
+        bool old = stable;
         stable = _stable;
+        emit StableUpdated(old, _stable);
     }
 }
