@@ -126,6 +126,7 @@ contract TWAPBurnerMinOutGuard is Test {
     TWAPBurner burner;
 
     function setUp() public {
+        vm.chainId(8453);
         lumina = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("bv"), makeAddr("cex"), makeAddr("f"), makeAddr("lbp"), makeAddr("tv")
         );

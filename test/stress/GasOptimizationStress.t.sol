@@ -66,6 +66,7 @@ contract GasOptimizationStress is Test {
     uint256 constant EPOCH_ID = 202804;
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(BASE_TS + 60 days);
 
         lumina = new GasMockERC20();

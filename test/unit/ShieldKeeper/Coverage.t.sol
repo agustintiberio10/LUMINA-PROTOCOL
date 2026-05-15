@@ -31,6 +31,7 @@ contract ShieldKeeperCoverage is Test {
     SKEmptyPolicyManager pm;
 
     function setUp() public {
+        vm.chainId(8453);
         pm = new SKEmptyPolicyManager();
         keeper = ProxyDeployer.deployShieldKeeper(address(pm));
     }

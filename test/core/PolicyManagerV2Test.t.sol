@@ -49,6 +49,7 @@ contract PolicyManagerV2Test is Test {
     event BondVaultUpdated(address indexed oldVault, address indexed newVault);
 
     function setUp() public {
+        vm.chainId(8453);
         vault = new MockBondVault();
 
         PolicyManagerV2 impl = new PolicyManagerV2();

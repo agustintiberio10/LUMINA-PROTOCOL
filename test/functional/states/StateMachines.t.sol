@@ -108,6 +108,7 @@ contract PolicyStateMachineTest is Test {
     address buyer = makeAddr("buyer");
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp past ClaimBond base timestamp
         vm.warp(1767225600 + 30 days);
 
@@ -211,6 +212,7 @@ contract BondStateMachineTest is Test {
     address user = makeAddr("user");
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(1767225600 + 30 days);
 
         priceOracle = new MockPriceOracleSM();
@@ -324,6 +326,7 @@ contract OracleStateMachineTest is Test {
     address admin = makeAddr("admin");
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(1767225600 + 30 days);
 
         token = ProxyDeployer.deployLuminaTokenV2(

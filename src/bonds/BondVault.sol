@@ -8,6 +8,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ChainGuard} from "../utils/ChainGuard.sol";
 import {IBurnable} from "../interfaces/IBurnable.sol";
 import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 
@@ -178,6 +179,7 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @param to User whose bet triggered
     /// @param usdPayout Payout in USD (e.g., 800 = $800). 1 bond token = $1.
     function issueBond(address to, uint256 usdPayout) external nonReentrant {
+        ChainGuard.requireValidChain();
         require(msg.sender == policyManager, "Only PolicyManager");
         require(to != address(0), "Zero address");
         require(usdPayout > 0, "Zero payout");
@@ -206,6 +208,7 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @param epochId Maturity epoch
     /// @param usdAmount USD amount to redeem (partial allowed)
     function redeemBond(uint256 epochId, uint256 usdAmount) external nonReentrant {
+        ChainGuard.requireValidChain();
         require(usdAmount > 0, "Zero amount");
         require(claimBond.isMatured(epochId), "Not matured");
         require(claimBond.balanceOf(msg.sender, epochId) >= usdAmount, "Insufficient bonds");

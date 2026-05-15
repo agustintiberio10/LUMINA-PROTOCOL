@@ -81,6 +81,7 @@ contract BondSecondaryBuyerAudit is Test {
     uint256 epochId;
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
 
         // Warp past base timestamp

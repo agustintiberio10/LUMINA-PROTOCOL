@@ -17,6 +17,7 @@ contract LuminaTokenV2Events is Test {
     address treasuryVesting = makeAddr("treasuryVesting");
 
     function setUp() public {
+        vm.chainId(8453);
         token = ProxyDeployer.deployLuminaTokenV2(bondVault, cexReserve, founderVesting, lbpDeposit, treasuryVesting);
         token.grantRole(token.BURNER_ROLE(), burner);
     }

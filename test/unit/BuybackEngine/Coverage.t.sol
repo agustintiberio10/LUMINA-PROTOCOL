@@ -19,6 +19,7 @@ contract BuybackEngineCoverage is Test {
     address admin = makeAddr("admin");
 
     function setUp() public {
+        vm.chainId(8453);
         engine = ProxyDeployer.deployBuybackEngine(
             claimBond, bondVault, solvencyOracle, capacityOracle, marketplace, usdc, admin
         );

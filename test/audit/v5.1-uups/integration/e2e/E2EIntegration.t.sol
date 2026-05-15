@@ -138,6 +138,7 @@ contract E2EIntegrationTest is Test {
     address humanSeller = makeAddr("humanSeller");
 
     function setUp() public {
+        vm.chainId(8453);
         // The protocol's epoch math is rooted at 2026-01-01. Foundry's default
         // block.timestamp is 1, which trips the BASE_TS guard inside the bond
         // helpers. Warp into a sensible production-like timestamp before any

@@ -128,6 +128,7 @@ contract AdversarialRelayerTest is Test {
     address buyer = makeAddr("buyer");
 
     function setUp() public {
+        vm.chainId(8453);
         usdc = new MockUSDC();
         oracle = new MockOracle();
 

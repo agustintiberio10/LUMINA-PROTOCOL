@@ -293,6 +293,7 @@ contract AdaptiveAndMarketScenariosTest is Test {
     uint256 public constant START_TIME = 1767225600 + 60 days; // ~March 2026
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(START_TIME);
 
         // Deploy mocks

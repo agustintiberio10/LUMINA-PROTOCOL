@@ -40,6 +40,7 @@ contract SolvencyOracleTest is Test {
     address admin = makeAddr("admin");
 
     function setUp() public {
+        vm.chainId(8453);
         lumina = new MockLuminaERC20();
         bondVault = new MockBVForSolvency(address(lumina));
         capOracle = new MockCapacityOracleV5();

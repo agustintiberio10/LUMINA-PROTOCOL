@@ -276,6 +276,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ A. Full lifecycle ═════════════════════
 
     function test_CrossContract_FullLifecycle_AgentPolicy_TriggerRedeem() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
 
         // 1. Agent has USDC and approves router (simulated via direct mint).
@@ -316,6 +317,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_RelayerPurchase_WorksLikeDirect() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
 
         // [Fix RELAYER-PAYMENT] Premium is pulled from the agent (buyer), not
@@ -342,6 +344,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_PolicyExpiration_ReservationReleased() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -360,6 +363,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_MultiplePolicies_Sequential() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 10_000e6);
         vm.prank(agent);
@@ -376,6 +380,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_PartialRedemption_StateConsistent() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -403,6 +408,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ B. Marketplace flow ═════════════════════
 
     function test_CrossContract_Marketplace_ListBuy_FeesDistributed() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
 
         // Set up: agent has a bond to list.
@@ -442,6 +448,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Marketplace_Cancel_SellerReclaims() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -466,6 +473,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ C. TWAPBurner distribution ═════════════════════
 
     function test_CrossContract_TWAPBurner_ReceivesPremium_StateMatches() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -484,6 +492,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_TWAPBurner_AdaptiveMode_EnabledAndDistributes() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.burner.setAdaptiveMode(true);
         assertTrue(s.burner.adaptiveModeEnabled());
@@ -503,6 +512,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_TWAPBurner_Burn_ReducesLuminaSupply() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(address(s.burner), 10_000e6);
         uint256 supplyBefore = s.token.totalSupply();
@@ -516,6 +526,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ D. State consistency invariants ═════════════════════
 
     function test_CrossContract_Invariant_PolicyCount_Matches() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 10_000e6);
         vm.prank(agent);
@@ -533,6 +544,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Invariant_ReservedUSD_SumOfPolicyReserved() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 10_000e6);
         vm.prank(agent);
@@ -551,6 +563,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Invariant_CommittedAfterSettlement_MatchesBondSupply() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 10_000e6);
         vm.prank(agent);
@@ -576,6 +589,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Invariant_LuminaConserved_OnRedemption() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -602,6 +616,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ E. Initialization dependency order ═════════════════════
 
     function test_CrossContract_InitOrder_TwoStepBondVault_DeployerIsSetter() public {
+        vm.chainId(8453);
         // BondVault supports address(0) at initialize, then setPolicyManager from deployer.
         MockUSDC6 u = new MockUSDC6();
         MockPriceOracleCC o = new MockPriceOracleCC(0.036e18);
@@ -625,6 +640,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_InitOrder_CircularDep_ResolvedBy2Step() public {
+        vm.chainId(8453);
         // Verifies the 2-step pattern handles the circular BondVault<->PolicyManager dep.
         MockUSDC6 u = new MockUSDC6();
         MockPriceOracleCC o = new MockPriceOracleCC(0.036e18);
@@ -645,6 +661,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ F. Buyback full cycle ═════════════════════
 
     function test_CrossContract_Buyback_FullFlow_DoubleBurn() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
 
         // Set up a bond listing.
@@ -682,6 +699,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Buyback_NonOperator_Reverts() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         address attacker = makeAddr("attacker");
 
@@ -693,6 +711,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ G. Error propagation ═════════════════════
 
     function test_CrossContract_OracleRevert_Propagates() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -706,6 +725,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_InsufficientUSDC_Propagates() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         // Agent has no USDC.
         vm.prank(agent);
@@ -717,6 +737,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_InvalidProduct_Propagates() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -730,6 +751,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ H. Event correlation ═════════════════════
 
     function test_CrossContract_Events_FullPurchase_AllContractsEmit() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -758,6 +780,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Events_Settlement_Emits_BondIssued() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -784,6 +807,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ I. Decimals / interface consistency ═════════════════════
 
     function test_CrossContract_Decimals_USDC6_LUMINA18_Consistent() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         assertEq(s.usdc.decimals(), 6);
         assertEq(s.token.decimals(), 18);
@@ -796,6 +820,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_BondFaceValue_IntegerDollars_Matches18DecUsdWei() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -815,6 +840,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ J. Trust assumption validation ═════════════════════
 
     function test_CrossContract_Trust_OnlyPolicyManager_CanReserveCapacity() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         vm.prank(makeAddr("imposter"));
         vm.expectRevert(bytes("Only PolicyManager"));
@@ -822,6 +848,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Trust_OnlyAuthorizedCaller_CanBurnFromReserves() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         vm.prank(makeAddr("imposter"));
         vm.expectRevert(bytes("BondVault: caller not authorized"));
@@ -829,6 +856,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Trust_OnlyRouter_CanRecordPolicy() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         vm.prank(makeAddr("imposter"));
         vm.expectRevert();
@@ -836,6 +864,7 @@ contract CrossContractIntegrationTest is Test {
     }
 
     function test_CrossContract_Trust_OnlyShield_CanSettlePolicy() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);
@@ -851,6 +880,7 @@ contract CrossContractIntegrationTest is Test {
     // ═════════════════════ K. Gas bound check ═════════════════════
 
     function test_CrossContract_Gas_FullPurchase_Under_1M() public {
+        vm.chainId(8453);
         Stack memory s = _deployFullStack();
         s.usdc.mint(agent, 1000e6);
         vm.prank(agent);

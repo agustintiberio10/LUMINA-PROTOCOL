@@ -99,6 +99,7 @@ contract DeploymentFlowTest is Test {
     address treasuryVesting = makeAddr("treasuryVesting");
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
 
         // Warp to Jan 2 2026

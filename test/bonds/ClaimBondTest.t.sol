@@ -10,6 +10,7 @@ contract ClaimBondTest is Test {
     address vault;
 
     function setUp() public {
+        vm.chainId(8453);
         vault = address(this);
 
         ClaimBond impl = new ClaimBond();

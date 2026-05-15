@@ -8,6 +8,7 @@ contract FlashBTCShield48hTest is Test {
     FlashBTCShield48h shield;
 
     function setUp() public {
+        vm.chainId(8453);
         shield = ProxyDeployer.deployFlashBTCShield48h(makeAddr("r"), makeAddr("o"));
     }
 

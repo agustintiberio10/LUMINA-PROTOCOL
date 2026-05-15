@@ -108,6 +108,7 @@ contract TWAPBurnerInvariants is Test {
     TWBHandler public handler;
 
     function setUp() public {
+        vm.chainId(8453);
         usdc = new TWBMockUSDC();
         lumina = new TWBMockLumina();
         dex = new TWBMockDex(address(usdc), address(lumina));

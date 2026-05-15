@@ -77,6 +77,7 @@ contract RaceConditions is Test {
     // 1. Capacity reservation — PR #37 fix
     // ─────────────────────────────────────────────────────────────
     function test_Race_Reservation_SameBlock_DoesNotDoubleCount() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         v.reserveCapacity(500e18);
         v.reserveCapacity(500e18);
@@ -85,6 +86,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_Reservation_ExceedsCap_Reverts() public {
+        vm.chainId(8453);
         // availableCapacityUSD() subtracts both committed + reserved.
         // A reservation that would blow past 50% of reserve should leave 0 avail.
         (BondVault v,,,) = _bvFull();
@@ -94,6 +96,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_Reservation_CommitThenIssueBond_IndependentCounters() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         v.reserveCapacity(1_000e18);
         assertEq(v.totalReservedUSD(), 1_000e18);
@@ -109,6 +112,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_Reservation_ReleaseThenReRelease_Reverts() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         v.reserveCapacity(500e18);
         v.releaseReservation(500e18);
@@ -119,6 +123,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_Reservation_InterleavedReserveRelease_ConsistentTotal() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         // Reserve 1000, release 300, reserve 200, release 400 → 500 remaining.
         v.reserveCapacity(1000e18);
@@ -129,6 +134,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_Reservation_MultipleIssuers_AccountingSane() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         // Simulate 5 "concurrent" issuers each taking 100 USD capacity.
         for (uint256 i = 0; i < 5; i++) {
@@ -147,6 +153,7 @@ contract RaceConditions is Test {
     // 2. BondVault burn cap — sequential burns honour updated balance
     // ─────────────────────────────────────────────────────────────
     function test_Race_BurnCap_SequentialBurnsHonorUpdatedBalance() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         token.grantRole(token.BURNER_ROLE(), address(v));
         v.setAuthorizedCaller(address(this), true);
@@ -164,6 +171,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_BurnCap_ConsecutiveMaxBurns_NeverExceeds5Percent() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         token.grantRole(token.BURNER_ROLE(), address(v));
         v.setAuthorizedCaller(address(this), true);
@@ -184,6 +192,7 @@ contract RaceConditions is Test {
     // 3. TWAPBurner cooldown invariant
     // ─────────────────────────────────────────────────────────────
     function test_Race_TWAPBurner_CooldownConstantPersistsAcrossCalls() public {
+        vm.chainId(8453);
         TWAPBurner b = ProxyDeployer.deployTWAPBurner(makeAddr("u"), makeAddr("l"), makeAddr("d"));
         // Default cooldown set in initialize = 900s.
         assertEq(b.burnCooldown(), 900);
@@ -197,6 +206,7 @@ contract RaceConditions is Test {
     // 4. BuybackEngine daily budget — same-day exhaustion
     // ─────────────────────────────────────────────────────────────
     function test_Race_Buyback_DailyConfig_SecondSetOverwrites() public {
+        vm.chainId(8453);
         BuybackEngine be = ProxyDeployer.deployBuybackEngine(
             makeAddr("cb"), makeAddr("bv"), makeAddr("so"), makeAddr("co"), makeAddr("mk"), makeAddr("u"), address(this)
         );
@@ -216,6 +226,7 @@ contract RaceConditions is Test {
     // 5. PolicyManager deactivate/register concurrency
     // ─────────────────────────────────────────────────────────────
     function test_Race_PolicyManager_DeactivateBetweenRegistrations() public {
+        vm.chainId(8453);
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(makeAddr("vault"));
         bytes32 pid = keccak256("P");
         pm.registerProduct(pid, makeAddr("shield"));
@@ -232,6 +243,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_PolicyManager_SimultaneousRegistrations_AllProductIdsUnique() public {
+        vm.chainId(8453);
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(makeAddr("vault"));
         // Same-block register 10 products.
         for (uint256 i = 0; i < 10; i++) {
@@ -246,6 +258,7 @@ contract RaceConditions is Test {
     // 6. CoverRouter pause — blocks subsequent ops
     // ─────────────────────────────────────────────────────────────
     function test_Race_CoverRouter_PauseBetweenOps() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         bytes32 pid = keccak256("P");
         r.configureProduct(pid, 8000, 200, 2000, 3600, true);
@@ -260,6 +273,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_CoverRouter_DeactivateProduct_PreservesPriorConfig() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         bytes32 pid = keccak256("P");
         r.configureProduct(pid, 8000, 200, 2000, 3600, true);
@@ -275,6 +289,7 @@ contract RaceConditions is Test {
     // 7. Multi-holder redeem — same epoch
     // ─────────────────────────────────────────────────────────────
     function test_Race_Redeem_MultipleHolders_SameEpoch() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token, ClaimBond cb,) = _bvFull();
         token.grantRole(token.BURNER_ROLE(), address(v));
 
@@ -312,6 +327,7 @@ contract RaceConditions is Test {
     // 8. Shield — concurrent createPolicy calls
     // ─────────────────────────────────────────────────────────────
     function test_Race_Shield_ConcurrentCreatePolicy_AllDistinctIds() public {
+        vm.chainId(8453);
         MockShieldOracleRace oracle = new MockShieldOracleRace(60_000e8);
         FlashBTCShield1h s = ProxyDeployer.deployFlashBTCShield1h(address(this), address(oracle));
         uint256[] memory ids = new uint256[](5);
@@ -336,6 +352,7 @@ contract RaceConditions is Test {
     // 9. CEX allocator racing (admin-level test)
     // ─────────────────────────────────────────────────────────────
     function test_Race_CEX_AdminGrantAllocatorBetweenOps() public {
+        vm.chainId(8453);
         CEXLiquidityReserve c = ProxyDeployer.deployCEXLiquidityReserve(makeAddr("l"), address(this));
         bytes32 role = c.ALLOCATOR_ROLE();
         c.grantRole(role, makeAddr("opA"));
@@ -352,6 +369,7 @@ contract RaceConditions is Test {
     // 10. MaintenanceReserve spend vs cap racing
     // ─────────────────────────────────────────────────────────────
     function test_Race_MaintenanceReserve_CapAndSpendRole_Independent() public {
+        vm.chainId(8453);
         MaintenanceReserve m = ProxyDeployer.deployMaintenanceReserve(makeAddr("u"), address(this));
         m.setMonthlyCap(10_000e6);
         // Admin can tighten cap without affecting SPENDER_ROLE grants.
@@ -365,6 +383,7 @@ contract RaceConditions is Test {
     // 11. UUPS upgrade + operation — state preserved
     // ─────────────────────────────────────────────────────────────
     function test_Race_Upgrade_StatePreservedAndOperationsContinue() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         v.issueBond(makeAddr("pre"), 123);
         uint256 committedPre = v.totalCommittedUSD();
@@ -376,6 +395,7 @@ contract RaceConditions is Test {
     }
 
     function test_Race_Upgrade_NoReentry_OnMaliciousAttacker() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         address attackerImpl = address(new BondVault());
         vm.prank(makeAddr("atk"));
@@ -387,6 +407,7 @@ contract RaceConditions is Test {
     // 12. Marketplace list/cancel/buy state racing
     // ─────────────────────────────────────────────────────────────
     function test_Race_Marketplace_SetBurnerBetweenOps() public {
+        vm.chainId(8453);
         LuminaBondMarketplace m =
             ProxyDeployer.deployLuminaBondMarketplace(makeAddr("cb"), makeAddr("u"), makeAddr("b"), address(this));
         m.setTwapBurner(makeAddr("newBurner1"));
@@ -399,6 +420,7 @@ contract RaceConditions is Test {
     // 13. Cross-contract reservation reconciliation after upgrade
     // ─────────────────────────────────────────────────────────────
     function test_Race_Reservation_Preserved_Across_Upgrade() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         v.reserveCapacity(1_000e18);
         assertEq(v.totalReservedUSD(), 1_000e18);
@@ -414,6 +436,7 @@ contract RaceConditions is Test {
     // 14. Token role grants race
     // ─────────────────────────────────────────────────────────────
     function test_Race_Token_RoleGrantsInSameBlock_AllApply() public {
+        vm.chainId(8453);
         LuminaTokenV2 t = _token();
         bytes32 burner = t.BURNER_ROLE();
         t.grantRole(burner, makeAddr("a"));
@@ -428,6 +451,7 @@ contract RaceConditions is Test {
     // 15. Shield oracle swap mid-operation
     // ─────────────────────────────────────────────────────────────
     function test_Race_Shield_OracleAddressImmutableFromState() public {
+        vm.chainId(8453);
         MockShieldOracleRace oracle = new MockShieldOracleRace(60_000e8);
         FlashBTCShield1h s = ProxyDeployer.deployFlashBTCShield1h(address(this), address(oracle));
         // There is no setOracle; oracle can only change via upgrade.
@@ -450,6 +474,7 @@ contract RaceConditions is Test {
     // 16. ClaimBond mint/burn race
     // ─────────────────────────────────────────────────────────────
     function test_Race_ClaimBond_MintBurnSameBlock_BalanceCorrect() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         cb.setBondVault(address(this));
         cb.mint(makeAddr("h"), 202804, 1000);
@@ -462,6 +487,7 @@ contract RaceConditions is Test {
     // 17. BondVault issueBond accounting monotonicity
     // ─────────────────────────────────────────────────────────────
     function test_Race_BondVault_100IssueBonds_NoInconsistency() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         uint256 expected;
         for (uint256 i = 1; i <= 100; i++) {
@@ -475,6 +501,7 @@ contract RaceConditions is Test {
     // 18. Reservation vs release inverse operation
     // ─────────────────────────────────────────────────────────────
     function test_Race_Reservation_SimultaneousReserveAndRelease() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         v.reserveCapacity(500e18);
         v.reserveCapacity(500e18);

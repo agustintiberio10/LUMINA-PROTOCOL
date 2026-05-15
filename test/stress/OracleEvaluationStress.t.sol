@@ -58,6 +58,7 @@ contract OracleEvaluationStress is Test {
     OracleMockCapacityOracle capOracle;
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(BASE_TS + 60 days);
 
         lumina = new OracleMockERC20();

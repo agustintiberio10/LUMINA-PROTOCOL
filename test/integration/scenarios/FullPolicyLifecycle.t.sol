@@ -192,6 +192,7 @@ contract FullPolicyLifecycleTest is Test {
 
     // ═══════ SETUP ═══════
     function setUp() public {
+        vm.chainId(8453);
         // Warp to Jan 2 2026 to satisfy BondVault epoch math (BASE_TS = Jan 1 2026)
         vm.warp(1767312000);
 

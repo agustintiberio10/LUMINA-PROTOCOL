@@ -23,6 +23,7 @@ contract CEXAllocationFlowTest is Test {
     address recipient = makeAddr("recipient");
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to a sane base time
         vm.warp(1767225600 + 30 days);
 

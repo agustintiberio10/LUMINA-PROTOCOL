@@ -203,6 +203,7 @@ contract RaceConditionsTest is Test {
     uint256 constant BASE_TS = 1767225600; // Jan 1 2026 UTC
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(BASE_TS + 60 days);
 
         // 1. Deploy mocks

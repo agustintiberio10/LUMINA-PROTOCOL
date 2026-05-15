@@ -123,6 +123,7 @@ contract BuybackFlowTest is Test {
     address multisig = makeAddr("multisig");
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to a sane base time (Jan 1 2026 + 30 days)
         vm.warp(1767225600 + 30 days);
 

@@ -177,6 +177,7 @@ contract DeployV5Test is Test {
     uint256 constant BASE_TS = 1767225600; // Jan 1 2026 UTC
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to a known time (60 days after epoch base)
         vm.warp(BASE_TS + 60 days);
 

@@ -108,6 +108,7 @@ contract CoverRouterInvariants is Test {
     CRHandler public handler;
 
     function setUp() public {
+        vm.chainId(8453);
         usdc = new CRMockUSDC();
         pm = new CRMockPolicyManager();
         burner = new CRMockBurner(address(usdc));

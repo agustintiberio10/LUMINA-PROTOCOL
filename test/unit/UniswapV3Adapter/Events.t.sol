@@ -48,6 +48,7 @@ contract UniswapV3AdapterEvents is Test {
     address user = makeAddr("user");
 
     function setUp() public {
+        vm.chainId(8453);
         router = new UAMockSwap();
         quoter = new UAMockQuoter();
         tokenIn = new UAERC20("IN", "IN");

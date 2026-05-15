@@ -53,6 +53,7 @@ contract ShieldSanityBounds is Test {
     MockOracleSB oracle;
 
     function setUp() public {
+        vm.chainId(8453);
         oracle = new MockOracleSB(address(this));
         oracle.setPrice("BTC", 60_000e8);
         oracle.setPrice("ETH", 3_000e8);

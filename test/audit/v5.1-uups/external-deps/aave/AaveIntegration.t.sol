@@ -79,6 +79,7 @@ contract AaveIntegration is Test {
     MockOracleAave oracle;
 
     function setUp() public {
+        vm.chainId(8453);
         pool = new MockAavePool();
         oracle = new MockOracleAave();
         oracle.setPrice(bytes32("ETH"), 3_000e8);

@@ -313,6 +313,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_ActivePolicies_SurviveUpgrade() public {
+        vm.chainId(8453);
         (,, BondVault vault, PolicyManagerV2 pm,,, MockUSDC usdc,) = _deployFullStack();
 
         // Register a mock shield; place PM's router = this so we can call recordPolicy directly.
@@ -350,6 +351,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_ActivePolicies_CapacityReservationSurvives() public {
+        vm.chainId(8453);
         (,, BondVault vault, PolicyManagerV2 pm,,,,) = _deployFullStack();
 
         MockSettleableShield shield = new MockSettleableShield(keccak256("PID"), address(pm));
@@ -382,6 +384,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_ActiveBonds_SurviveUpgrade() public {
+        vm.chainId(8453);
         (, ClaimBond cb, BondVault vault, PolicyManagerV2 pm,,,, MockPriceOracleMigration oracle) = _deployFullStack();
 
         // Give PM direct test-driven calls.
@@ -421,6 +424,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_ActiveBonds_ReinitSetsMigrationFlag() public {
+        vm.chainId(8453);
         (, ClaimBond cb, BondVault vault, PolicyManagerV2 pm,,,,) = _deployFullStack();
         vm.prank(address(pm));
         vault.issueBond(makeAddr("u"), 42);
@@ -444,6 +448,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_ActiveListings_SurviveUpgrade() public {
+        vm.chainId(8453);
         (, ClaimBond cb, BondVault vault, PolicyManagerV2 pm, CoverRouterV2 router, TWAPBurner burner, MockUSDC usdc,) =
             _deployFullStack();
         router; // unused
@@ -492,6 +497,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_ActiveListings_ReinitAddsMigrationCheckpoint() public {
+        vm.chainId(8453);
         (, ClaimBond cb,,,, TWAPBurner burner, MockUSDC usdc,) = _deployFullStack();
 
         LuminaBondMarketplace mp =
@@ -511,6 +517,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_StorageLayout_BondVaultSlotsUnchanged() public {
+        vm.chainId(8453);
         (, ClaimBond cb, BondVault vault, PolicyManagerV2 pm,,,, MockPriceOracleMigration oracle) = _deployFullStack();
 
         // Create varied state.
@@ -542,6 +549,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_StorageLayout_ClaimBondMappingsUnchanged() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         cb.setBondVault(address(this));
 
@@ -578,6 +586,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_NewVariable_ReinitializerSetsValue() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         bytes memory data = abi.encodeWithSelector(CoverRouterV2Plus.reinitializeV2.selector, uint256(250));
         r.upgradeToAndCall(address(new CoverRouterV2Plus()), data);
@@ -589,6 +598,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_NewVariable_DefaultZeroWithoutReinit() public {
+        vm.chainId(8453);
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(makeAddr("v"));
         // Upgrade without init data.
         pm.upgradeToAndCall(address(new PolicyManagerV2Plus()), "");
@@ -601,6 +611,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_Reinitializer_CannotBeCalledTwice() public {
+        vm.chainId(8453);
         BondVault v = ProxyDeployer.deployBondVault(
             address(new MockUSDC()),
             address(ProxyDeployer.deployClaimBond()),
@@ -617,6 +628,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_Reinitializer_LowerVersion_Reverts() public {
+        vm.chainId(8453);
         // An explicit reinit after ClaimBond init (v1) with version 1 must revert.
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         // OZ: `reinitializer(1)` after `initializer` (also v1) reverts.
@@ -629,6 +641,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_InterfaceChange_NewFunctionCallable() public {
+        vm.chainId(8453);
         // V1 has no `setAllowlisted`. Upgrade adds the function.
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
 
@@ -646,6 +659,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_InterfaceChange_OldFunctionSelectorPreserved() public {
+        vm.chainId(8453);
         // All V1 functions must remain callable with identical ABI after upgrade.
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(makeAddr("v"));
         pm.setRouter(address(this));
@@ -666,6 +680,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_MultiContract_CoordinatedUpgrade() public {
+        vm.chainId(8453);
         (,, BondVault vault, PolicyManagerV2 pm, CoverRouterV2 router,,,) = _deployFullStack();
 
         MockSettleableShield shield = new MockSettleableShield(keccak256("PID"), address(pm));
@@ -695,6 +710,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_Partial_UpgradeOk() public {
+        vm.chainId(8453);
         (,, BondVault vault, PolicyManagerV2 pm,,,,) = _deployFullStack();
 
         MockSettleableShield shield = new MockSettleableShield(keccak256("PID"), address(pm));
@@ -712,6 +728,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_Partial_VaultOnly_InteropWorks() public {
+        vm.chainId(8453);
         (,, BondVault vault, PolicyManagerV2 pm,,,,) = _deployFullStack();
         MockSettleableShield shield = new MockSettleableShield(keccak256("PID"), address(pm));
         pm.setRouter(address(this));
@@ -732,6 +749,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_FreshDeploy_InitializesCorrectly() public {
+        vm.chainId(8453);
         // Deploy a brand-new BondVault with no migration data.
         MockUSDC u = new MockUSDC();
         ClaimBond cb = ProxyDeployer.deployClaimBond();
@@ -748,6 +766,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_FreshDeploy_InitializerCannotBeReRun() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         // Second initialize must revert.
         vm.expectRevert();
@@ -759,6 +778,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_DowngradeV2ToV1_StatePreserved() public {
+        vm.chainId(8453);
         ShieldKeeper k = ProxyDeployer.deployShieldKeeper(makeAddr("pm"));
         k.pause();
 
@@ -792,6 +812,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_Rollback_AfterBugInV2() public {
+        vm.chainId(8453);
         // V2 has a "bug" — we demonstrate the admin can rewind.
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(makeAddr("v"));
         pm.setRouter(address(this));
@@ -816,6 +837,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_FounderVesting_Immutable_CannotUpgrade() public {
+        vm.chainId(8453);
         MockUSDC usdc = new MockUSDC();
         LuminaTokenV2 token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("bv"), makeAddr("cex"), makeAddr("founder"), makeAddr("lbp"), makeAddr("tv")
@@ -840,6 +862,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_FounderVesting_NewDeploy_IfNeeded() public {
+        vm.chainId(8453);
         // Simulate migration: deploy a second FounderVesting with new parameters.
         MockUSDC usdc = new MockUSDC();
         LuminaTokenV2 token = ProxyDeployer.deployLuminaTokenV2(
@@ -873,6 +896,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_UpgradeDuringSafetyWindow_SettlementOK() public {
+        vm.chainId(8453);
         (,, BondVault vault, PolicyManagerV2 pm,,,,) = _deployFullStack();
 
         MockSettleableShield shield = new MockSettleableShield(keccak256("PID"), address(pm));
@@ -904,6 +928,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_UpgradeMidRedemption_StatePreserved() public {
+        vm.chainId(8453);
         (, ClaimBond cb, BondVault vault, PolicyManagerV2 pm,,,, MockPriceOracleMigration oracle) = _deployFullStack();
 
         // Issue a $300 bond to alice (in 3 chunks of 100 to vary minting).
@@ -943,6 +968,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_GapSlots_UsedCorrectly() public {
+        vm.chainId(8453);
         // Pre-upgrade state.
         BondVault vault = ProxyDeployer.deployBondVault(
             address(new MockUSDC()),
@@ -971,6 +997,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_GapSlots_MultipleVariablesNoCollision() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         r.configureProduct(keccak256("PID"), 8000, 200, 2000, 3600, true);
         r.setRelayer(makeAddr("rel"), true);
@@ -995,6 +1022,7 @@ contract MigrationPath is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Migration_UUPS_UpgradeEvent_Emitted() public {
+        vm.chainId(8453);
         // BondVault emits Upgraded(indexed address) on upgradeToAndCall.
         BondVault v = ProxyDeployer.deployBondVault(
             address(new MockUSDC()),
@@ -1009,6 +1037,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_UpgradeEvent_PolicyManager_Emitted() public {
+        vm.chainId(8453);
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(makeAddr("v"));
         address newImpl = address(new PolicyManagerV2());
         vm.expectEmit(true, false, false, false);
@@ -1017,6 +1046,7 @@ contract MigrationPath is Test {
     }
 
     function test_Migration_UUPS_UpgradeEvent_Marketplace_Emitted() public {
+        vm.chainId(8453);
         LuminaBondMarketplace mp =
             ProxyDeployer.deployLuminaBondMarketplace(makeAddr("cb"), makeAddr("u"), makeAddr("b"), address(this));
         address newImpl = address(new LuminaBondMarketplace());

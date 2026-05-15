@@ -88,6 +88,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_LuminaToken_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         LuminaTokenV2 t = _deployToken();
         t.grantRole(t.BURNER_ROLE(), address(this));
         address lbp = makeAddr("lbp");
@@ -107,6 +108,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_LuminaToken_SlotLayout() public {
+        vm.chainId(8453);
         // LuminaTokenV2 has ZERO own state variables (totalBurned is derived). All parent
         // contracts use ERC-7201 namespaced storage, so sequential slots 0..49 should all
         // be zero immediately after init and stay zero forever; only the __gap region.
@@ -118,6 +120,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_LuminaToken_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         LuminaTokenV2 t = _deployToken();
         t.grantRole(t.BURNER_ROLE(), address(this));
         vm.prank(makeAddr("lbp"));
@@ -138,6 +141,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_LuminaToken_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         LuminaTokenV2 t = _deployToken();
         assertTrue(t.hasRole(t.DEFAULT_ADMIN_ROLE(), address(this)));
         t.upgradeToAndCall(address(new LuminaTokenV2()), "");
@@ -163,6 +167,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_BondVault_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         (BondVault vault, LuminaTokenV2 token, ClaimBond cb) = _deployBondVaultFull();
         vault.setAuthorizedCaller(makeAddr("buyback"), true);
         vm.warp(1767225600 + 30 days);
@@ -179,6 +184,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_BondVault_SlotLayout() public {
+        vm.chainId(8453);
         (BondVault vault, LuminaTokenV2 token,) = _deployBondVaultFull();
         // Slot 0 = lumina (first state var in BondVault).
         address slot0Addr = address(uint160(uint256(vm.load(address(vault), bytes32(uint256(0))))));
@@ -186,6 +192,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_BondVault_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         (BondVault vault,,) = _deployBondVaultFull();
         vm.warp(1767225600 + 30 days);
         vault.issueBond(makeAddr("u1"), 100);
@@ -207,6 +214,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_BondVault_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         (BondVault vault,,) = _deployBondVaultFull();
         assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), address(this)));
         vault.upgradeToAndCall(address(new BondVault()), "");
@@ -222,6 +230,7 @@ contract StorageCollision is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Storage_ClaimBond_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         cb.setBondVault(address(this));
         cb.mint(makeAddr("alice"), 202804, 100);
@@ -238,6 +247,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_ClaimBond_SlotLayout() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         cb.setBondVault(address(this));
         // Slot 0 = bondVault + _bondVaultSet packed.
@@ -250,6 +260,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_ClaimBond_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         cb.setBondVault(address(this));
         cb.mint(makeAddr("a"), 202804, 10);
@@ -269,6 +280,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_ClaimBond_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         assertEq(cb.owner(), address(this));
         cb.upgradeToAndCall(address(new ClaimBond()), "");
@@ -289,6 +301,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_PolicyManagerV2_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         PolicyManagerV2 pm = _deployPM();
         bytes32 pid = keccak256("TEST-PID");
         pm.registerProduct(pid, makeAddr("shield"));
@@ -317,6 +330,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_PolicyManagerV2_SlotLayout() public {
+        vm.chainId(8453);
         PolicyManagerV2 pm = _deployPM();
         address slot0 = address(uint160(uint256(vm.load(address(pm), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("vault"), "slot0 = bondVault");
@@ -325,6 +339,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_PolicyManagerV2_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         PolicyManagerV2 pm = _deployPM();
         pm.registerProduct(keccak256("A"), makeAddr("sA"));
         pm.upgradeToAndCall(address(new PolicyManagerV2()), "");
@@ -339,6 +354,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_PolicyManagerV2_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         PolicyManagerV2 pm = _deployPM();
         assertEq(pm.owner(), address(this));
         pm.upgradeToAndCall(address(new PolicyManagerV2()), "");
@@ -357,6 +373,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CoverRouterV2_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _deployRouter();
         bytes32 pid = keccak256("PROD-A");
         r.configureProduct(pid, 8000, 200, 2000, 3600, true);
@@ -376,6 +393,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CoverRouterV2_SlotLayout() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _deployRouter();
         address slot0 = address(uint160(uint256(vm.load(address(r), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("usdc"), "slot0 = usdc");
@@ -384,6 +402,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CoverRouterV2_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _deployRouter();
         r.configureProduct(keccak256("A"), 8000, 100, 1000, 3600, true);
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
@@ -399,6 +418,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CoverRouterV2_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _deployRouter();
         assertEq(r.owner(), address(this));
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
@@ -416,6 +436,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_TWAPBurner_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         TWAPBurner b = _deployBurner();
         b.setMinBurnAmount(1000e6);
         b.setMaxBurnAmount(100_000e6);
@@ -441,6 +462,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_TWAPBurner_SlotLayout() public {
+        vm.chainId(8453);
         TWAPBurner b = _deployBurner();
         address slot0 = address(uint160(uint256(vm.load(address(b), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("usdc"), "slot0 = usdc");
@@ -449,6 +471,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_TWAPBurner_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         TWAPBurner b = _deployBurner();
         b.setMinBurnAmount(1e6);
         b.upgradeToAndCall(address(new TWAPBurner()), "");
@@ -460,6 +483,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_TWAPBurner_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         TWAPBurner b = _deployBurner();
         assertEq(b.owner(), address(this));
         b.upgradeToAndCall(address(new TWAPBurner()), "");
@@ -473,18 +497,21 @@ contract StorageCollision is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Storage_AdaptiveFeeDistributor_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         AdaptiveFeeDistributor d = ProxyDeployer.deployAdaptiveFeeDistributor(makeAddr("solvOracle"));
         d.upgradeToAndCall(address(new AdaptiveFeeDistributor()), "");
         assertEq(address(d.solvencyOracle()), makeAddr("solvOracle"));
     }
 
     function test_Storage_AdaptiveFeeDistributor_SlotLayout() public {
+        vm.chainId(8453);
         AdaptiveFeeDistributor d = ProxyDeployer.deployAdaptiveFeeDistributor(makeAddr("solvOracle"));
         address slot0 = address(uint160(uint256(vm.load(address(d), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("solvOracle"), "slot0 = solvencyOracle");
     }
 
     function test_Storage_AdaptiveFeeDistributor_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         AdaptiveFeeDistributor d = ProxyDeployer.deployAdaptiveFeeDistributor(makeAddr("o"));
         d.upgradeToAndCall(address(new AdaptiveFeeDistributor()), "");
         d.upgradeToAndCall(address(new AdaptiveFeeDistributor()), "");
@@ -493,6 +520,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_AdaptiveFeeDistributor_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         AdaptiveFeeDistributor d = ProxyDeployer.deployAdaptiveFeeDistributor(makeAddr("o"));
         assertEq(d.owner(), address(this));
         d.upgradeToAndCall(address(new AdaptiveFeeDistributor()), "");
@@ -519,6 +547,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_BuybackEngine_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         BuybackEngine e = _deployBuyback();
         e.setDailyBuyback(10_000e6, 80, 4);
 
@@ -533,12 +562,14 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_BuybackEngine_SlotLayout() public {
+        vm.chainId(8453);
         BuybackEngine e = _deployBuyback();
         address slot0 = address(uint160(uint256(vm.load(address(e), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("cb"), "slot0 = claimBond");
     }
 
     function test_Storage_BuybackEngine_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         BuybackEngine e = _deployBuyback();
         e.setDailyBuyback(1_000e6, 70, 2);
         e.upgradeToAndCall(address(new BuybackEngine()), "");
@@ -551,6 +582,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_BuybackEngine_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         BuybackEngine e = _deployBuyback();
         assertTrue(e.hasRole(e.DEFAULT_ADMIN_ROLE(), address(this)));
         e.upgradeToAndCall(address(new BuybackEngine()), "");
@@ -573,6 +605,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_LuminaBondMarketplace_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         LuminaBondMarketplace m = _deployMP();
         m.setTwapBurner(makeAddr("newBurner"));
 
@@ -584,12 +617,14 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_LuminaBondMarketplace_SlotLayout() public {
+        vm.chainId(8453);
         LuminaBondMarketplace m = _deployMP();
         address slot0 = address(uint160(uint256(vm.load(address(m), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("cb"), "slot0 = claimBond");
     }
 
     function test_Storage_LuminaBondMarketplace_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         LuminaBondMarketplace m = _deployMP();
         m.setTwapBurner(makeAddr("b1"));
         m.upgradeToAndCall(address(new LuminaBondMarketplace()), "");
@@ -601,6 +636,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_LuminaBondMarketplace_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         LuminaBondMarketplace m = _deployMP();
         assertTrue(m.hasRole(m.DEFAULT_ADMIN_ROLE(), address(this)));
         m.upgradeToAndCall(address(new LuminaBondMarketplace()), "");
@@ -615,6 +651,7 @@ contract StorageCollision is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Storage_ShieldKeeper_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         ShieldKeeper k = ProxyDeployer.deployShieldKeeper(makeAddr("pm"));
         k.pause();
 
@@ -625,6 +662,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_ShieldKeeper_SlotLayout() public {
+        vm.chainId(8453);
         ShieldKeeper k = ProxyDeployer.deployShieldKeeper(makeAddr("pm"));
         k.pause();
         bytes32 slot0 = vm.load(address(k), bytes32(uint256(0)));
@@ -635,6 +673,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_ShieldKeeper_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         ShieldKeeper k = ProxyDeployer.deployShieldKeeper(makeAddr("pm"));
         k.pause();
         k.upgradeToAndCall(address(new ShieldKeeper()), "");
@@ -646,6 +685,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_ShieldKeeper_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         ShieldKeeper k = ProxyDeployer.deployShieldKeeper(makeAddr("pm"));
         assertEq(k.owner(), address(this));
         k.upgradeToAndCall(address(new ShieldKeeper()), "");
@@ -666,6 +706,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CapacityOracle_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         CapacityOracle o = _deployCapacityOracle();
         // Window constraints: 5min..2hr (300..7200).
         o.setTwapWindow(600);
@@ -680,6 +721,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CapacityOracle_SlotLayout() public {
+        vm.chainId(8453);
         CapacityOracle o = _deployCapacityOracle();
         // Slot 0 = pool (address(0) since we skipped _setPool in init)
         address slot0 = address(uint160(uint256(vm.load(address(o), bytes32(uint256(0))))));
@@ -694,6 +736,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CapacityOracle_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         CapacityOracle o = _deployCapacityOracle();
         o.setEmergencyPrice(0.01e18);
         o.upgradeToAndCall(address(new CapacityOracle()), "");
@@ -705,6 +748,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CapacityOracle_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         CapacityOracle o = _deployCapacityOracle();
         assertEq(o.owner(), address(this));
         o.upgradeToAndCall(address(new CapacityOracle()), "");
@@ -724,6 +768,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_SolvencyOracle_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         SolvencyOracle so = _deploySolvencyOracle();
         address bvBefore = address(so.bondVault());
         so.setEmergencyPause(true);
@@ -736,6 +781,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_SolvencyOracle_SlotLayout() public {
+        vm.chainId(8453);
         SolvencyOracle so = _deploySolvencyOracle();
         address bvBefore = address(so.bondVault());
         address slot0 = address(uint160(uint256(vm.load(address(so), bytes32(uint256(0))))));
@@ -743,6 +789,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_SolvencyOracle_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         SolvencyOracle so = _deploySolvencyOracle();
         so.setEmergencyPause(true);
         so.upgradeToAndCall(address(new SolvencyOracle()), "");
@@ -754,6 +801,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_SolvencyOracle_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         SolvencyOracle so = _deploySolvencyOracle();
         assertTrue(so.hasRole(so.DEFAULT_ADMIN_ROLE(), address(this)));
         so.upgradeToAndCall(address(new SolvencyOracle()), "");
@@ -768,6 +816,7 @@ contract StorageCollision is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Storage_CEXLiquidityReserve_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         CEXLiquidityReserve c = ProxyDeployer.deployCEXLiquidityReserve(makeAddr("lumina"), address(this));
         uint256 depBefore = c.deploymentTimestamp();
 
@@ -779,12 +828,14 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CEXLiquidityReserve_SlotLayout() public {
+        vm.chainId(8453);
         CEXLiquidityReserve c = ProxyDeployer.deployCEXLiquidityReserve(makeAddr("lumina"), address(this));
         address slot0 = address(uint160(uint256(vm.load(address(c), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("lumina"), "slot0 = lumina");
     }
 
     function test_Storage_CEXLiquidityReserve_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         CEXLiquidityReserve c = ProxyDeployer.deployCEXLiquidityReserve(makeAddr("lumina"), address(this));
         c.upgradeToAndCall(address(new CEXLiquidityReserve()), "");
         c.upgradeToAndCall(address(new CEXLiquidityReserve()), "");
@@ -793,6 +844,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_CEXLiquidityReserve_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         CEXLiquidityReserve c = ProxyDeployer.deployCEXLiquidityReserve(makeAddr("lumina"), address(this));
         assertTrue(c.hasRole(c.DEFAULT_ADMIN_ROLE(), address(this)));
         c.upgradeToAndCall(address(new CEXLiquidityReserve()), "");
@@ -807,6 +859,7 @@ contract StorageCollision is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Storage_MaintenanceReserve_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         MaintenanceReserve mr = ProxyDeployer.deployMaintenanceReserve(makeAddr("usdc"), address(this));
         mr.setMonthlyCap(50_000e6);
 
@@ -817,12 +870,14 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_MaintenanceReserve_SlotLayout() public {
+        vm.chainId(8453);
         MaintenanceReserve mr = ProxyDeployer.deployMaintenanceReserve(makeAddr("usdc"), address(this));
         address slot0 = address(uint160(uint256(vm.load(address(mr), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("usdc"), "slot0 = usdc");
     }
 
     function test_Storage_MaintenanceReserve_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         MaintenanceReserve mr = ProxyDeployer.deployMaintenanceReserve(makeAddr("usdc"), address(this));
         mr.setMonthlyCap(1);
         mr.upgradeToAndCall(address(new MaintenanceReserve()), "");
@@ -834,6 +889,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_MaintenanceReserve_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         MaintenanceReserve mr = ProxyDeployer.deployMaintenanceReserve(makeAddr("usdc"), address(this));
         assertTrue(mr.hasRole(mr.DEFAULT_ADMIN_ROLE(), address(this)));
         mr.upgradeToAndCall(address(new MaintenanceReserve()), "");
@@ -847,6 +903,7 @@ contract StorageCollision is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_Storage_TreasuryVesting_PreservedAfterBasicUpgrade() public {
+        vm.chainId(8453);
         TreasuryVesting tv = ProxyDeployer.deployTreasuryVesting(makeAddr("lumina"));
         uint256 deployedAtBefore = tv.deployedAt();
 
@@ -859,12 +916,14 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_TreasuryVesting_SlotLayout() public {
+        vm.chainId(8453);
         TreasuryVesting tv = ProxyDeployer.deployTreasuryVesting(makeAddr("lumina"));
         address slot0 = address(uint160(uint256(vm.load(address(tv), bytes32(uint256(0))))));
         assertEq(slot0, makeAddr("lumina"), "slot0 = luminaToken");
     }
 
     function test_Storage_TreasuryVesting_MultipleUpgradesSequential() public {
+        vm.chainId(8453);
         TreasuryVesting tv = ProxyDeployer.deployTreasuryVesting(makeAddr("lumina"));
         uint256 deployedAtBefore = tv.deployedAt();
         tv.upgradeToAndCall(address(new TreasuryVesting()), "");
@@ -875,6 +934,7 @@ contract StorageCollision is Test {
     }
 
     function test_Storage_TreasuryVesting_InheritanceOrderCorrect() public {
+        vm.chainId(8453);
         TreasuryVesting tv = ProxyDeployer.deployTreasuryVesting(makeAddr("lumina"));
         assertEq(tv.owner(), address(this));
         tv.upgradeToAndCall(address(new TreasuryVesting()), "");
@@ -892,6 +952,7 @@ contract StorageCollision is Test {
     /// bleed into the gap). A non-zero value in the gap would indicate an unintended
     /// storage write or layout overlap.
     function test_Storage_BondVault_GapRegionIsZero() public {
+        vm.chainId(8453);
         (BondVault vault,,) = _deployBondVaultFull();
         vm.warp(1767225600 + 30 days);
         vault.issueBond(makeAddr("u"), 100);
@@ -910,6 +971,7 @@ contract StorageCollision is Test {
     /// @notice Same check for a trivial-layout contract (AdaptiveFeeDistributor has
     /// a single state var at slot 0, so slots 1..50 must be zero).
     function test_Storage_FeeDistributor_GapRegionIsZero() public {
+        vm.chainId(8453);
         AdaptiveFeeDistributor d = ProxyDeployer.deployAdaptiveFeeDistributor(makeAddr("o"));
         for (uint256 i = 1; i < 51; i++) {
             bytes32 v = vm.load(address(d), bytes32(i));

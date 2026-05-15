@@ -108,6 +108,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 1 — UUPS-initialized constants still correct
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_InitializedConstantsCorrect() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         assertEq(v.SAFETY_FACTOR_BPS(), 5000, "BondVault SAFETY_FACTOR_BPS");
         assertEq(v.bondMaturitySeconds(), 730 days, "BondVault bondMaturitySeconds");
@@ -146,6 +147,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 2 — Premium calculation scales safely
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_PremiumCalc_MediumCoverage_NoOverflow() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         bytes32 pid = keccak256("P");
         r.configureProduct(pid, 8000, 200, 2000, 3600, true);
@@ -156,6 +158,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_PremiumCalc_MinCoverage_Returns1() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         bytes32 pid = keccak256("Tiny");
         // Configure with very small bps so premium rounds to zero.
@@ -166,6 +169,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_PremiumCalc_BelowMinCoverage_Reverts() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         bytes32 pid = keccak256("Q");
         // quotePremium doesn't enforce min; the revert comes from buyPolicy path
@@ -181,6 +185,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 3 — Capacity underflow protection
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_BondVaultCapacity_NoUnderflow() public {
+        vm.chainId(8453);
         (BondVault v,,, MockPriceOracleMath oracle) = _bvFull();
         // Drive price very low → reserveValue × SAFETY_FACTOR_BPS = small number
         oracle.setPrice(0.001e18);
@@ -193,6 +198,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_BondVaultCapacity_ExactlyAtLimit_ReturnsZero() public {
+        vm.chainId(8453);
         (BondVault v,,, MockPriceOracleMath oracle) = _bvFull();
         // Push price up high, then huge commit that caps availability.
         oracle.setPrice(1e18);
@@ -208,6 +214,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 4 — Division by zero handling
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_Solvency_NoDivByZero_NoObligations() public {
+        vm.chainId(8453);
         MockBondVaultMath bv = new MockBondVaultMath(address(_token()));
         MockCapacityOracleMath co = new MockCapacityOracleMath(0.036e18);
         SolvencyOracle so = ProxyDeployer.deploySolvencyOracle(address(bv), address(co), address(this));
@@ -219,6 +226,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_Redeem_PriceFlooredToMinWhenOracleZero() public {
+        vm.chainId(8453);
         (BondVault v,, ClaimBond cb, MockPriceOracleMath oracle) = _bvFull();
         // When oracle returns 0, _getSafePrice falls back to MIN_REDEEM_PRICE.
         oracle.setPrice(0);
@@ -230,6 +238,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_Redeem_UsesOraclePriceWhenNonzero() public {
+        vm.chainId(8453);
         (BondVault v,,, MockPriceOracleMath oracle) = _bvFull();
         // Oracle returns a tiny non-zero price — _getSafePrice does NOT floor
         // (only the oracle-revert / zero-return path falls back to MIN).
@@ -239,6 +248,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_CapacityOracle_ZeroPrice_UsesEmergencyPrice() public {
+        vm.chainId(8453);
         CapacityOracle co = ProxyDeployer.deployCapacityOracle(address(0), makeAddr("l"), makeAddr("u"), 0.036e18);
         // pool == 0 → getLuminaPrice returns emergencyPrice.
         assertEq(co.getLuminaPrice(), 0.036e18);
@@ -278,6 +288,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 6 — Epoch boundary
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_Epoch_WithinDomain_202600_to_210012() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         vm.warp(1767225600 + 30 days); // ~Feb 2026
         v.issueBond(makeAddr("u"), 100);
@@ -286,6 +297,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_Epoch_RevertsBeforeBase() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         // warp back before Jan 1 2026.
         vm.warp(1);
@@ -297,6 +309,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 7 — Distribution sum invariant
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_Distribution_AllQuadrantsSumTo10000() public {
+        vm.chainId(8453);
         MockBondVaultMath bv = new MockBondVaultMath(address(_token()));
         SolvencyOracle so = ProxyDeployer.deploySolvencyOracle(address(bv), makeAddr("co"), address(this));
         AdaptiveFeeDistributor d = ProxyDeployer.deployAdaptiveFeeDistributor(address(so));
@@ -314,6 +327,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 8 — Burn cap boundary
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_BurnCap_Exactly5Percent_Succeeds() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         token.grantRole(token.BURNER_ROLE(), address(v));
         v.setAuthorizedCaller(address(this), true);
@@ -324,6 +338,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_BurnCap_OneWeiOver_Reverts() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         token.grantRole(token.BURNER_ROLE(), address(v));
         v.setAuthorizedCaller(address(this), true);
@@ -337,6 +352,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 9 — Rounding favours protocol
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_Premium_RoundsDown_FavoursProtocol() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         bytes32 pid = keccak256("R");
         // Fractional-leaning numbers: 7777 bps trigger, 333 margin.
@@ -348,6 +364,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_Redemption_RoundsDown() public {
+        vm.chainId(8453);
         (BondVault v,,, MockPriceOracleMath oracle) = _bvFull();
         oracle.setPrice(uint256(7e16)); // pick a price that produces a remainder
         // usdAmount = 1 → lumina = 1 × 1e36 / uint256(7e16) = 1e36 / 7e16 = ...
@@ -361,12 +378,14 @@ contract MathEdgeCasesUUPS is Test {
     // Test 10 — V5.0 fixes still apply
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_MicroDepeg_Duration_604800() public {
+        vm.chainId(8453);
         MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), makeAddr("o"));
         assertEq(s.MIN_DURATION(), 604800);
         assertEq(s.MAX_DURATION(), 604800);
     }
 
     function test_Math_UUPS_RateShock_Duration_604800() public {
+        vm.chainId(8453);
         RateShockShield s =
             ProxyDeployer.deployRateShockShield(address(this), makeAddr("o"), makeAddr("aave"), makeAddr("u"));
         assertEq(s.MIN_DURATION(), 604800);
@@ -374,6 +393,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_ShieldProductIDs_Distinct() public {
+        vm.chainId(8453);
         FlashBTCShield1h s1 = ProxyDeployer.deployFlashBTCShield1h(address(this), makeAddr("o"));
         FlashBTCShield4h s2 = ProxyDeployer.deployFlashBTCShield4h(address(this), makeAddr("o"));
         FlashBTCShield24h s3 = ProxyDeployer.deployFlashBTCShield24h(address(this), makeAddr("o"));
@@ -418,6 +438,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 11 — Reserved capacity no double-counting
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_ReservedCapacity_NoDoubleCount() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         vm.warp(1767225600 + 30 days);
 
@@ -436,6 +457,7 @@ contract MathEdgeCasesUUPS is Test {
     }
 
     function test_Math_UUPS_ReservedCapacity_ReleaseWorks() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         vm.warp(1767225600 + 30 days);
         v.reserveCapacity(500e18);
@@ -447,6 +469,7 @@ contract MathEdgeCasesUUPS is Test {
     // Test 12 — Marketplace fees
     // ─────────────────────────────────────────────────────────────
     function test_Math_UUPS_MarketplaceFees_1_5percent() public {
+        vm.chainId(8453);
         LuminaBondMarketplace mp =
             ProxyDeployer.deployLuminaBondMarketplace(makeAddr("cb"), makeAddr("u"), makeAddr("b"), address(this));
         uint256 denom = mp.BPS_DENOMINATOR();

@@ -320,6 +320,7 @@ contract CertiKSimulation is Test {
     bytes32 constant PID = keccak256("FLASHBTC1H-001");
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
         vm.warp(1767225600 + 60 days);
 

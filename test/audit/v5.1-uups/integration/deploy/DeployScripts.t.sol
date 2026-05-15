@@ -446,6 +446,7 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ A. Full deploy success ═════════════════════
 
     function test_Deploy_FullSepolia_AllContractsNonZero() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertTrue(address(d.lumina) != address(0));
         assertTrue(address(d.vault) != address(0));
@@ -467,6 +468,7 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ B. Token distribution ═════════════════════
 
     function test_Deploy_TokenDistribution_70_14_8_5_3() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
 
         // 70M to BondVault
@@ -486,6 +488,7 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ C. Nonce prediction ═════════════════════
 
     function test_Deploy_LuminaPredictedAddress_Matches() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         // Implicit assertion - _runSepoliaDeploy already requires matching prediction.
         assertTrue(address(d.lumina) != address(0));
@@ -494,47 +497,56 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ D. Wiring completeness ═════════════════════
 
     function test_Deploy_BondVault_PolicyManagerWired() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.vault.policyManager(), address(d.pm));
     }
 
     function test_Deploy_BondVault_CanOnlyBeSetOnce() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         vm.expectRevert(bytes("PolicyManager already set"));
         d.vault.setPolicyManager(makeAddr("x"));
     }
 
     function test_Deploy_ClaimBond_BondVaultWired() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.cb.bondVault(), address(d.vault));
     }
 
     function test_Deploy_PolicyManager_RouterWired() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.pm.router(), address(d.router));
     }
 
     function test_Deploy_CoverRouter_CapacityOracleWired() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(address(d.router.capacityOracle()), address(d.capOracle));
     }
 
     function test_Deploy_BondVault_BuybackAuthorized() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertTrue(d.vault.authorizedCallers(address(d.buyback)));
     }
 
     function test_Deploy_TWAPBurner_AdaptiveModeOn() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertTrue(d.burner.adaptiveModeEnabled());
     }
 
     function test_Deploy_TWAPBurner_HasBurnerRole() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertTrue(d.lumina.hasRole(d.lumina.BURNER_ROLE(), address(d.burner)));
     }
 
     function test_Deploy_TWAPBurner_ReservesWired() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.burner.buybackReserve(), address(d.buyback));
         assertEq(d.burner.opsReserve(), deployer);
@@ -544,6 +556,7 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ E. Product registration ═════════════════════
 
     function test_Deploy_AllNineProducts_RegisteredInPM() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertTrue(d.pm.productActive(keccak256("FLASHBTC1H-001")));
         assertTrue(d.pm.productActive(keccak256("FLASHBTC4H-001")));
@@ -557,6 +570,7 @@ contract DeployScriptsTest is Test {
     }
 
     function test_Deploy_AllNineProducts_ConfiguredInCoverRouter() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         CoverRouterV2.ProductConfig memory c1 = d.router.getProductConfig(keccak256("FLASHBTC1H-001"));
         assertEq(c1.payoutRatioBps, 8000);
@@ -571,6 +585,7 @@ contract DeployScriptsTest is Test {
     }
 
     function test_Deploy_ProductIDs_MatchShieldConstants() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         // Each shield has a PRODUCT_ID constant - verify the keccak matches.
         assertEq(d.btc1h.PRODUCT_ID(), keccak256("FLASHBTC1H-001"));
@@ -587,6 +602,7 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ F. Admin roles ═════════════════════
 
     function test_Deploy_Admin_Roles_OnDeployer() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertTrue(d.vault.hasRole(d.vault.DEFAULT_ADMIN_ROLE(), deployer));
         assertTrue(d.lumina.hasRole(d.lumina.DEFAULT_ADMIN_ROLE(), deployer));
@@ -604,6 +620,7 @@ contract DeployScriptsTest is Test {
     /// whitelist gate means the marketplace cannot move bonds. Post-deploy
     /// the marketplace is NON-FUNCTIONAL unless this post-deploy step is run.
     function test_Deploy_CRITICAL_Marketplace_MissingAuthorizedOperator() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         // After the Sepolia script finishes, marketplace is NOT a ClaimBond authorized operator.
         assertFalse(
@@ -613,6 +630,7 @@ contract DeployScriptsTest is Test {
     }
 
     function test_Deploy_CRITICAL_MarketplaceList_Fails_WithoutAuthorizedOperator() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
 
         // Manually mint a bond to a seller (simulating a post-trigger state).
@@ -631,6 +649,7 @@ contract DeployScriptsTest is Test {
     }
 
     function test_Deploy_Workaround_AfterPostDeployCall_MarketplaceWorks() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
 
         // Apply the missing call manually (simulates the fix).
@@ -653,6 +672,7 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ H. First operation post-deploy ═════════════════════
 
     function test_Deploy_FirstPolicyPurchase_Works() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
 
         address buyer = makeAddr("buyer");
@@ -669,6 +689,7 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ I. Initial parameters ═════════════════════
 
     function test_Deploy_InitialParams_TWAPBurner() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.burner.maxSlippageBps(), 500); // 5%
         assertEq(d.burner.burnCooldown(), 900); // 15 min
@@ -678,12 +699,14 @@ contract DeployScriptsTest is Test {
     }
 
     function test_Deploy_InitialParams_CoverRouter_Constants() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.router.MIN_PRICE_FOR_NEW_POLICIES(), 5e15);
         assertEq(d.router.RESET_PRICE_FOR_NEW_POLICIES(), 8e15);
     }
 
     function test_Deploy_InitialParams_BondVault_Constants() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.vault.SAFETY_FACTOR_BPS(), 5000);
         assertEq(d.vault.bondMaturitySeconds(), 730 days);
@@ -691,6 +714,7 @@ contract DeployScriptsTest is Test {
     }
 
     function test_Deploy_InitialParams_Marketplace_FeeConstants() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertEq(d.mp.SELLER_FEE_BPS(), 150);
         assertEq(d.mp.BUYER_FEE_BPS(), 150);
@@ -699,6 +723,7 @@ contract DeployScriptsTest is Test {
     // ═════════════════════ J. Re-run safety ═════════════════════
 
     function test_Deploy_RunTwice_SecondRun_ProducesDifferentAddresses() public {
+        vm.chainId(8453);
         Deployment memory d1 = _runSepoliaDeploy();
         Deployment memory d2 = _runSepoliaDeploy();
         // Deploy scripts are NOT idempotent - each call deploys a fresh stack.
@@ -707,12 +732,14 @@ contract DeployScriptsTest is Test {
     }
 
     function test_Deploy_BondVault_SetPolicyManager_SecondCallReverts() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         vm.expectRevert(bytes("PolicyManager already set"));
         d.vault.setPolicyManager(makeAddr("x"));
     }
 
     function test_Deploy_ClaimBond_SetBondVault_SecondCallReverts() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         // Second call should revert (one-shot).
         vm.expectRevert();
@@ -730,6 +757,7 @@ contract DeployScriptsTest is Test {
     /// properly. Sepolia behavior is acceptable for testnet but differs from
     /// mainnet - documented here.
     function test_Deploy_Sepolia_FounderVesting_IsPlaceholder_NotDeployed() public {
+        vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         // Code length of the placeholder is 0 (no contract deployed).
         assertEq(d.founderVesting.code.length, 0, "Sepolia uses _labelToAddress - placeholder only");

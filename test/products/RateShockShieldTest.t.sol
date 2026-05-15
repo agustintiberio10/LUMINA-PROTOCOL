@@ -27,6 +27,7 @@ contract RateShockShieldTest is Test {
     address usdc = makeAddr("usdc");
 
     function setUp() public {
+        vm.chainId(8453);
         mockPool = new MockAaveV3Pool();
         shield = ProxyDeployer.deployRateShockShield(router, oracle, address(mockPool), usdc);
     }

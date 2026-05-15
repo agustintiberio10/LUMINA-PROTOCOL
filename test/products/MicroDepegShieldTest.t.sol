@@ -12,6 +12,7 @@ contract MicroDepegShieldTest is Test {
     address oracle = makeAddr("oracle");
 
     function setUp() public {
+        vm.chainId(8453);
         shield = ProxyDeployer.deployMicroDepegShield(router, oracle);
     }
 

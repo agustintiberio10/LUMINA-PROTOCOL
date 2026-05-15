@@ -15,6 +15,7 @@ contract MockAggregatorV3Test is Test {
     string internal constant PAIR = "BTC / USD MOCK";
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to a non-trivial timestamp so `block.timestamp - 1 days`
         // (used by `setStale(true)`) doesn't underflow.
         vm.warp(1_700_000_000);

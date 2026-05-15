@@ -95,6 +95,7 @@ contract EconomicAttacks is Test {
     ///      so we explicitly clear bytecode at the test EOAs to keep them
     ///      EOAs regardless of fork mode.
     function setUp() public {
+        vm.chainId(8453);
         vm.etch(attacker, "");
         vm.etch(policyManager, "");
         vm.etch(admin, "");

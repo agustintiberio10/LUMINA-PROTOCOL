@@ -91,6 +91,7 @@ contract MarketplaceAndRedemptionTest is Test {
     uint256 epochId;
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to base + 60 days
         vm.warp(BASE_TS + 60 days);
 

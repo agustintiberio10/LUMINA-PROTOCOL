@@ -7,6 +7,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ChainGuard} from "../utils/ChainGuard.sol";
 
 /// @title CoverRouterV2
 /// @notice Single entry point for users (humans + AI agents) to buy policies.
@@ -161,6 +162,7 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         whenNotPaused
         returns (uint256 policyId)
     {
+        ChainGuard.requireValidChain();
         if (!authorizedRelayers[msg.sender]) revert NotAuthorizedRelayer(msg.sender);
         require(buyer != address(0), "Zero buyer");
         return _purchase(productId, coverageAmount, asset, buyer, msg.sender);
@@ -170,6 +172,7 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Submit a trigger proof. Anyone can call (permissionless).
     function submitTrigger(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external nonReentrant {
+        ChainGuard.requireValidChain();
         policyManager.triggerPayout(productId, policyId, oracleProof);
         emit TriggerSubmitted(productId, policyId, msg.sender);
     }

@@ -31,6 +31,7 @@ contract BondVaultTest is Test {
     address user = makeAddr("user");
 
     function setUp() public {
+        vm.chainId(8453);
         // [SR3] Warp past ClaimBond.BASE_TIMESTAMP (Jan 1 2026 UTC = 1767225600)
         vm.warp(1767225600 + 30 days);
 

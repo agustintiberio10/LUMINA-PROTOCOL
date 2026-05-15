@@ -50,6 +50,7 @@ contract UpgradePathCrossContract is Test {
     // 1. Full-lifecycle with 9+ contracts all upgraded in sequence
     // ────────────────────────────────────────────────────────────────
     function test_UpgradeE2E_FullLifecycle_AllContractsUpgraded() public {
+        vm.chainId(8453);
         // Deploy the core set and set up basic state.
         MockOracleCC2 priceOracle = new MockOracleCC2();
         LuminaTokenV2 token = ProxyDeployer.deployLuminaTokenV2(
@@ -123,6 +124,7 @@ contract UpgradePathCrossContract is Test {
     // 2. Partial upgrade — only PolicyManager and BondVault updated
     // ────────────────────────────────────────────────────────────────
     function test_UpgradeE2E_PartialUpgrade_OnlySomeContractsUpgraded() public {
+        vm.chainId(8453);
         MockOracleCC2 oracle = new MockOracleCC2();
         LuminaTokenV2 token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("bv"), makeAddr("cex"), makeAddr("f"), makeAddr("lbp"), makeAddr("tv")
@@ -156,6 +158,7 @@ contract UpgradePathCrossContract is Test {
     // 3. PolicyManager ↔ BondVault integrity after both upgraded
     // ────────────────────────────────────────────────────────────────
     function test_UpgradeE2E_CrossContract_PolicyManagerAndBondVault() public {
+        vm.chainId(8453);
         MockOracleCC2 oracle = new MockOracleCC2();
         LuminaTokenV2 token = ProxyDeployer.deployLuminaTokenV2(
             makeAddr("bv"), makeAddr("cex"), makeAddr("f"), makeAddr("lbp"), makeAddr("tv")
@@ -184,6 +187,7 @@ contract UpgradePathCrossContract is Test {
     // 4. CoverRouter ↔ Shields: router upgrade doesn't break shield access
     // ────────────────────────────────────────────────────────────────
     function test_UpgradeE2E_CrossContract_CoverRouterAndShields() public {
+        vm.chainId(8453);
         CoverRouterV2 router = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         // A shield registered with router=address(this) (simulating PM) — the shield
         // itself is not owned by the router in this test, we just confirm each side
@@ -206,6 +210,7 @@ contract UpgradePathCrossContract is Test {
     // 5. TWAPBurner ↔ AdaptiveFeeDistributor post-upgrade
     // ────────────────────────────────────────────────────────────────
     function test_UpgradeE2E_CrossContract_TWAPBurnerAndDistributor() public {
+        vm.chainId(8453);
         MockBondVaultCC2 mockBV = new MockBondVaultCC2(makeAddr("lumina"));
         SolvencyOracle so = ProxyDeployer.deploySolvencyOracle(address(mockBV), makeAddr("co"), address(this));
         AdaptiveFeeDistributor afd = ProxyDeployer.deployAdaptiveFeeDistributor(address(so));

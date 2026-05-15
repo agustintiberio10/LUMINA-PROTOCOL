@@ -58,6 +58,7 @@ contract MainnetForkDeployTest is Test {
     DeployLuminaV5Mainnet internal mainnetScript;
 
     function setUp() public {
+        vm.chainId(8453);
         // Pin to a known-good block so the audit is reproducible. Without
         // a pinned block, transient mempool / re-org effects on the public
         // RPC sometimes cause Aave reads to fail with an EVM revert that

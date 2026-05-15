@@ -52,6 +52,7 @@ contract CapacityOracleTest is Test {
     address usdc = makeAddr("usdc");
 
     function setUp() public {
+        vm.chainId(8453);
         // Deploy without pool (emergency price only)
         oracle = ProxyDeployer.deployCapacityOracle(address(0), lumina, usdc, 0.036e18);
     }

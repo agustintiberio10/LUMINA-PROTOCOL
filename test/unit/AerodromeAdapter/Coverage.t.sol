@@ -82,6 +82,7 @@ contract AerodromeAdapterTest is Test {
     address user = makeAddr("user");
 
     function setUp() public {
+        vm.chainId(8453);
         router = new MockAerodromeRouter();
         tokenIn = new AeroTestERC20("IN", "IN");
         tokenOut = new AeroTestERC20("OUT", "OUT");

@@ -86,6 +86,7 @@ contract SequencerDowntime is Test {
     uint256 constant ANCHOR_TS = 1_700_000_000;
 
     function setUp() public {
+        vm.chainId(8453);
         oracle = new MockSequencerOracle();
         vm.warp(ANCHOR_TS);
     }

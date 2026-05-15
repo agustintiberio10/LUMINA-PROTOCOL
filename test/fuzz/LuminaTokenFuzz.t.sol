@@ -18,6 +18,7 @@ contract LuminaTokenFuzz is Test {
     address r5 = makeAddr("r5");
 
     function setUp() public {
+        vm.chainId(8453);
         token = ProxyDeployer.deployLuminaTokenV2(r1, r2, r3, r4, r5);
         // Deal tokens to holder from r1 (bondVault has 70M)
         vm.prank(r1);

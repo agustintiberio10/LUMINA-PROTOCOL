@@ -58,6 +58,7 @@ contract TWAPBurnerFuzz is Test {
     MockSwapRouter router;
 
     function setUp() public {
+        vm.chainId(8453);
         usdc = new MockERC20ForTWAP();
         lumina = new MockERC20ForTWAP();
         router = new MockSwapRouter();

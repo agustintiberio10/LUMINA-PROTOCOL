@@ -171,6 +171,7 @@ contract EmergencyResponseTest is Test {
     address bondVaultAddr; // pre-computed
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(1_770_000_000); // after Jan 1 2026 (BASE_TS = 1767225600) for valid bond epochs
 
         // Deploy USDC mock

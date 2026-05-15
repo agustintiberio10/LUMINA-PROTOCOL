@@ -38,6 +38,7 @@ contract UpgradePathE2EShields is Test {
     address constant USDC = address(0xD2);
 
     function setUp() public {
+        vm.chainId(8453);
         oracle = new MockOracleShieldE2E();
     }
 

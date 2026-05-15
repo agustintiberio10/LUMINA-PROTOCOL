@@ -215,6 +215,7 @@ contract ReentrancyAttacks is Test {
     address twapBurner = makeAddr("twapBurner"); // dummy for marketplace fees
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
         vm.warp(1767225600 + 60 days);
 
