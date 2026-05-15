@@ -60,7 +60,10 @@ contract MockLumina {
 }
 
 /// @title FounderVestingEdgeCases
-/// @notice Sprint Z.1 Phase 2 — 18 directed edge cases for FounderVesting immutable.
+/// @notice Sprint Z.1 Phase 2 — 40 directed edge cases for FounderVesting immutable.
+/// @dev Groups: T-ORC (15 oracle/Aave staleness+corruption), T-CNT (7 sustained-period counter),
+///      T-DAY (3 timestamp definition), T-RACE (2 boundary races), T-FBK (6 fallback),
+///      T-REL (4 release tranche), T-TRX (3 fallback↔oracle transition).
 contract FounderVestingEdgeCases is Test {
     FounderVesting vesting;
     MockOracle oracle;
@@ -218,12 +221,13 @@ contract FounderVestingEdgeCases is Test {
     }
 
     function test_T_REL_AllThreeTranches_TotalEquals8M() public {
-        vm.warp(vesting.deployedAt() + vesting.FALLBACK_DURATION() + 1);
+        uint256 t0 = vesting.deployedAt() + vesting.FALLBACK_DURATION() + 1;
+        vm.warp(t0);
         vesting.triggerFallback();
         vesting.releaseTranche(); // T1 at tranchesReleased=0 → releaseTime = trigger + 0 = OK
-        vm.warp(block.timestamp + 31 days);
+        vm.warp(t0 + 31 days);
         vesting.releaseTranche();
-        vm.warp(block.timestamp + 31 days);
+        vm.warp(t0 + 62 days);
         vesting.releaseTranche();
         assertEq(vesting.tranchesReleased(), 3);
         assertEq(vesting.totalReleased(), 8_000_000 * 1e18);
@@ -231,15 +235,250 @@ contract FounderVestingEdgeCases is Test {
     }
 
     function test_T_REL_FourthTranche_Reverts() public {
-        vm.warp(vesting.deployedAt() + vesting.FALLBACK_DURATION() + 1);
+        uint256 t0 = vesting.deployedAt() + vesting.FALLBACK_DURATION() + 1;
+        vm.warp(t0);
         vesting.triggerFallback();
         vesting.releaseTranche();
-        vm.warp(block.timestamp + 31 days);
+        vm.warp(t0 + 31 days);
         vesting.releaseTranche();
-        vm.warp(block.timestamp + 31 days);
+        vm.warp(t0 + 62 days);
         vesting.releaseTranche();
-        vm.warp(block.timestamp + 31 days);
+        vm.warp(t0 + 93 days);
         vm.expectRevert(bytes("All tranches released"));
         vesting.releaseTranche();
+    }
+
+    // ═══════ T-ORC: Extra oracle / Aave boundary tests ═══════
+
+    function test_T_ORC_OracleBtc_ReturnsZero_NoCondAB() public {
+        oracle.setPrices(5_000_00000000, 0);
+        (bool a, bool b,) = vesting.getConditions();
+        assertFalse(a);
+        assertFalse(b);
+    }
+
+    function test_T_ORC_OracleBtc_ReturnsNegative_NoCondAB() public {
+        oracle.setPrices(5_000_00000000, -1);
+        (bool a, bool b,) = vesting.getConditions();
+        assertFalse(a);
+        assertFalse(b);
+    }
+
+    function test_T_ORC_EthBtcRatio_ExactlyAtThreshold_NotStrict() public {
+        // ratio = 50e8 * 1e18 / 1000e8 = 50e15 == ETH_BTC_THRESHOLD; strict > requires above.
+        oracle.setPrices(50_00000000, 1_000_00000000);
+        (bool a,,) = vesting.getConditions();
+        assertFalse(a, "exact threshold must NOT satisfy strict >");
+    }
+
+    function test_T_ORC_EthBtcRatio_JustAboveThreshold_CondA() public {
+        oracle.setPrices(51_00000000, 1_000_00000000); // 51e15 > 50e15
+        (bool a,,) = vesting.getConditions();
+        assertTrue(a);
+    }
+
+    function test_T_ORC_EthUsd_ExactlyAtThreshold_NotStrict() public {
+        oracle.setPrices(int256(uint256(vesting.ETH_USD_THRESHOLD())), 50_000_00000000);
+        (, bool b,) = vesting.getConditions();
+        assertFalse(b, "exact $4000 must NOT satisfy strict >");
+    }
+
+    function test_T_ORC_EthUsd_JustAboveThreshold_CondB() public {
+        oracle.setPrices(int256(uint256(vesting.ETH_USD_THRESHOLD())) + 1, 50_000_00000000);
+        (, bool b,) = vesting.getConditions();
+        assertTrue(b);
+    }
+
+    function test_T_ORC_Aave_RateExactlyAtThreshold_NotStrict() public {
+        aave.setRate(uint128(vesting.BORROW_RATE_THRESHOLD()));
+        (,, bool c) = vesting.getConditions();
+        assertFalse(c, "exact 7% must NOT satisfy strict >");
+    }
+
+    function test_T_ORC_Aave_RateJustAboveThreshold_CondC() public {
+        aave.setRate(uint128(vesting.BORROW_RATE_THRESHOLD() + 1));
+        (,, bool c) = vesting.getConditions();
+        assertTrue(c);
+    }
+
+    // ═══════ T-CNT: Extra counter scenarios ═══════
+
+    function test_T_CNT_AlternatingPairs_AB_then_BC_CounterContinues() public {
+        // Start with A+B true (oracle prices) → counter starts.
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        vesting.checkAltSeason();
+        uint256 startTs = vesting.conditionsMetSince();
+        assertGt(startTs, 0);
+        // Switch to B+C (drop A by raising BTC, keep ETH above $4k, raise aave above 7%).
+        // Drop condA: ratio = 5000/1_000_000 = 0.005 < 0.05.
+        oracle.setPrices(5_000_00000000, 1_000_000_00000000);
+        aave.setRate(uint128(8e25));
+        // Move forward 1 day to ensure a fresh check.
+        vm.warp(block.timestamp + 1 days);
+        vesting.checkAltSeason();
+        // Counter should NOT reset (metCount stayed >= 2).
+        assertEq(vesting.conditionsMetSince(), startTs, "counter must persist across pair switch");
+    }
+
+    function test_T_CNT_ConditionsBreakFor1Block_ResetsRestarts() public {
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        uint256 firstTs = vesting.conditionsMetSince();
+        assertGt(firstTs, 0);
+        // Drop all conditions for 1 block.
+        oracle.setPrices(0, 0);
+        aave.setRate(0);
+        vm.warp(block.timestamp + 1);
+        vesting.checkAltSeason();
+        assertEq(vesting.conditionsMetSince(), 0, "must reset");
+        // Restore conditions, counter restarts at new ts.
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vm.warp(block.timestamp + 1);
+        vesting.checkAltSeason();
+        assertGt(vesting.conditionsMetSince(), firstTs, "restart with newer timestamp");
+    }
+
+    function test_T_CNT_TwoChecksSameBlock_CounterUnchanged() public {
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        uint256 startTs = vesting.conditionsMetSince();
+        // Second check in same block — counter timestamp must not change.
+        vesting.checkAltSeason();
+        assertEq(vesting.conditionsMetSince(), startTs);
+        assertFalse(vesting.altSeasonTriggered());
+    }
+
+    // ═══════ T-DAY: Timestamp definition / drift ═══════
+
+    function test_T_DAY_DefinitionExactly7Days_StrictGreaterEqual() public {
+        // SUSTAINED_DURATION == 7 days (== 7 * 86400 seconds). Contract uses >= so EXACTLY 7d ⇒ triggers.
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        uint256 start = vesting.conditionsMetSince();
+        vm.warp(start + 7 days);
+        vesting.checkAltSeason();
+        assertTrue(vesting.altSeasonTriggered(), "exactly 7 days must trigger (>=)");
+    }
+
+    function test_T_DAY_BlockTimestampJump_FarFuture_StillTriggers() public {
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        // Simulate a long L2 outage with no checks; conditions still met after months.
+        vm.warp(block.timestamp + 365 days);
+        vesting.checkAltSeason();
+        assertTrue(vesting.altSeasonTriggered());
+    }
+
+    function test_T_DAY_ConditionsMetSince_AlwaysLessThanOrEqualBlockTimestamp() public {
+        // Property: conditionsMetSince is always ≤ block.timestamp (set in past, never future).
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        assertLe(vesting.conditionsMetSince(), block.timestamp);
+        vm.warp(block.timestamp + 100);
+        assertLe(vesting.conditionsMetSince(), block.timestamp);
+    }
+
+    // ═══════ T-RACE: Boundary race conditions ═══════
+
+    function test_T_RACE_TriggerExactlyAt7DayBoundary_StateConsistent() public {
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        uint256 start = vesting.conditionsMetSince();
+        // Step to exact boundary.
+        vm.warp(start + 7 days);
+        vesting.checkAltSeason();
+        assertTrue(vesting.altSeasonTriggered());
+        assertEq(vesting.triggerTimestamp(), start + 7 days);
+    }
+
+    function test_T_RACE_DoubleCheck_AfterTrigger_SecondReverts() public {
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        vm.warp(block.timestamp + 7 days + 1);
+        vesting.checkAltSeason();
+        // Already triggered; second call must revert.
+        vm.expectRevert(bytes("Already triggered"));
+        vesting.checkAltSeason();
+    }
+
+    // ═══════ T-FBK: Extra fallback semantics ═══════
+
+    function test_T_FBK_FallbackPlus31Days_Tranche2Available() public {
+        vm.warp(vesting.deployedAt() + vesting.FALLBACK_DURATION() + 1);
+        vesting.triggerFallback();
+        vesting.releaseTranche(); // tranche 1 at t0
+        vm.warp(block.timestamp + 31 days);
+        vesting.releaseTranche(); // tranche 2
+        assertEq(vesting.tranchesReleased(), 2);
+    }
+
+    function test_T_FBK_DeployTimePlusFallbackMinus1Sec_TriggerReverts() public {
+        vm.warp(vesting.deployedAt() + vesting.FALLBACK_DURATION() - 1);
+        vm.expectRevert(bytes("Fallback not reached"));
+        vesting.triggerFallback();
+    }
+
+    function test_T_FBK_DeployTimePlus5Years_AllTranchesStillBounded() public {
+        uint256 t0 = vesting.deployedAt() + 5 * 365 days;
+        vm.warp(t0);
+        vesting.triggerFallback();
+        vesting.releaseTranche();
+        vm.warp(t0 + 31 days);
+        vesting.releaseTranche();
+        vm.warp(t0 + 62 days);
+        vesting.releaseTranche();
+        assertEq(vesting.totalReleased(), 8_000_000 * 1e18, "must not over-release after 5y");
+        vm.warp(t0 + 365 days);
+        vm.expectRevert(bytes("All tranches released"));
+        vesting.releaseTranche();
+    }
+
+    // ═══════ T-TRX: Fallback ↔ Oracle transition ═══════
+
+    function test_T_TRX_OracleTriggers_FallbackBlocked() public {
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        vm.warp(block.timestamp + 7 days + 1);
+        vesting.checkAltSeason(); // altSeasonTriggered = true
+        // Now warp past fallback window; triggerFallback must still revert (already triggered).
+        vm.warp(vesting.deployedAt() + vesting.FALLBACK_DURATION() + 1);
+        vm.expectRevert(bytes("Already triggered"));
+        vesting.triggerFallback();
+    }
+
+    function test_T_TRX_FallbackTriggers_CheckAltSeasonBlocked() public {
+        vm.warp(vesting.deployedAt() + vesting.FALLBACK_DURATION() + 1);
+        vesting.triggerFallback();
+        // checkAltSeason must now revert with already triggered.
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vm.expectRevert(bytes("Already triggered"));
+        vesting.checkAltSeason();
+    }
+
+    function test_T_TRX_AlmostFallback_OracleStartsSustain_OracleWinsIfFaster() public {
+        // 6 days before fallback. Oracle conditions met → sustained period starts.
+        vm.warp(vesting.deployedAt() + vesting.FALLBACK_DURATION() - 6 days);
+        oracle.setPrices(5_000_00000000, 50_000_00000000);
+        aave.setRate(uint128(8e25));
+        vesting.checkAltSeason();
+        // Move 6 days forward (now 0 days before fallback / right at fallback).
+        vm.warp(block.timestamp + 6 days);
+        vesting.checkAltSeason();
+        // Note: only 6 days sustained (< 7), so altSeason not triggered. Fallback IS available.
+        assertFalse(vesting.altSeasonTriggered());
+        vesting.triggerFallback();
+        assertTrue(vesting.altSeasonTriggered());
+        // Verify it was fallback path (triggerTimestamp == now).
+        assertEq(vesting.triggerTimestamp(), block.timestamp);
     }
 }
