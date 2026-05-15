@@ -1,0 +1,51 @@
+name: Echidna Long-Run
+
+on:
+  pull_request:
+    paths:
+      - "src/token/FounderVestingV2.sol"
+      - "test/echidna/**"
+      - ".github/workflows/echidna.yml"
+  push:
+    branches: [main]
+
+jobs:
+  echidna:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+
+      - name: Forge install
+        run: forge install || true
+
+      - name: Echidna — FounderVestingV2
+        uses: crytic/echidna-action@v2
+        with:
+          files: test/echidna/immutables/EchidnaFounderVestingV2.sol
+          contract: EchidnaFounderVestingV2
+          test-mode: property
+          test-limit: 100000
+          seq-len: 200
+          shrink-limit: 5000
+          config: test/echidna/config/founder-vesting-v2.yaml
+          solc-args: --via-ir --optimize --optimize-runs=200
+        continue-on-error: true
+
+      - name: Upload Echidna reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: echidna-reports
+          path: |
+            crytic-export/
+            *.log
+          if-no-files-found: warn
+          retention-days: 30
