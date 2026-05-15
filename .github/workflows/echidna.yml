@@ -31,33 +31,36 @@ jobs:
       - name: Echidna — FounderVesting
         uses: crytic/echidna-action@v2
         with:
-          files: .
+          files: test/echidna/immutables/EchidnaFounderVesting.sol
           contract: EchidnaFounderVesting
           test-mode: property
           test-limit: 100000
           seq-len: 200
           shrink-limit: 5000
           config: test/echidna/config/founder-vesting.yaml
+          solc-args: --via-ir --optimize --optimize-runs=200
         continue-on-error: true
 
       - name: Echidna — AerodromeAdapter
         uses: crytic/echidna-action@v2
         with:
-          files: .
+          files: test/echidna/immutables/EchidnaAerodromeAdapter.sol
           contract: EchidnaAerodromeAdapter
           test-mode: property
           test-limit: 50000
           seq-len: 100
+          solc-args: --via-ir --optimize --optimize-runs=200
         continue-on-error: true
 
       - name: Echidna — UniswapV3Adapter
         uses: crytic/echidna-action@v2
         with:
-          files: .
+          files: test/echidna/immutables/EchidnaUniswapV3Adapter.sol
           contract: EchidnaUniswapV3Adapter
           test-mode: property
           test-limit: 50000
           seq-len: 100
+          solc-args: --via-ir --optimize --optimize-runs=200
         continue-on-error: true
 
       - name: Upload Echidna reports
