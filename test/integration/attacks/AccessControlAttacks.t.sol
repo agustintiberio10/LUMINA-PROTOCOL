@@ -65,6 +65,7 @@ contract AccessControlAttacks is Test {
     // Test 1: Unauthorized caller tries BondVault.decreaseObligations
     // ================================================================
     function test_Attack_UnauthorizedBuybackEngineCallsBondVault() public {
+        vm.chainId(8453);
         MockCapacityOracleV5 oracle = new MockCapacityOracleV5();
         oracle.setPrice(0.036e18);
         ClaimBond claimBond = ProxyDeployer.deployClaimBond();
@@ -82,6 +83,7 @@ contract AccessControlAttacks is Test {
     // Test 2: Unauthorized caller tries BondVault.burnFromReserves
     // ================================================================
     function test_Attack_UnauthorizedBurnFromReserves() public {
+        vm.chainId(8453);
         MockCapacityOracleV5 oracle = new MockCapacityOracleV5();
         oracle.setPrice(0.036e18);
         ClaimBond claimBond = ProxyDeployer.deployClaimBond();
@@ -99,6 +101,7 @@ contract AccessControlAttacks is Test {
     //         PolicyManager.recordPolicy (only router can call)
     // ================================================================
     function test_Attack_UnregisteredShieldPolicyCreation() public {
+        vm.chainId(8453);
         MockBondVaultV5 mockVault = new MockBondVaultV5(address(0x1));
 
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(address(mockVault));
@@ -113,6 +116,7 @@ contract AccessControlAttacks is Test {
     // Test 4: Non-admin tries setEmergencyPause on SolvencyOracle
     // ================================================================
     function test_Attack_NonOwnerPausesSolvencyOracle() public {
+        vm.chainId(8453);
         MockCapacityOracleV5 oracle = new MockCapacityOracleV5();
         oracle.setPrice(0.036e18);
         MockUSDC_AC lumina = new MockUSDC_AC();
@@ -131,6 +135,7 @@ contract AccessControlAttacks is Test {
     // Test 5: Non-owner tries setFeeDistributor on TWAPBurner
     // ================================================================
     function test_Attack_NonAdminChangesTwapBurnerDistributor() public {
+        vm.chainId(8453);
         MockUSDC_AC usdc = new MockUSDC_AC();
         MockUSDC_AC lumina = new MockUSDC_AC();
         MockSwapRouter_AC router = new MockSwapRouter_AC();
@@ -147,6 +152,7 @@ contract AccessControlAttacks is Test {
     // Test 6: Non-operator tries setDailyBuyback on BuybackEngine
     // ================================================================
     function test_Attack_NonOperatorSetsDailyBuyback() public {
+        vm.chainId(8453);
         MockClaimBondV5 claimBond = new MockClaimBondV5();
         MockBondVaultV5 bondVault = new MockBondVaultV5(address(0x1));
         MockSolvencyOracle solvencyOracle = new MockSolvencyOracle();

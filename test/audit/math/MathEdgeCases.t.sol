@@ -112,6 +112,7 @@ contract MathEdgeCases is Test {
     uint256 constant LUMINA_PRICE = 0.036e18; // $0.036
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to 60 days after base timestamp
         vm.warp(BASE_TS + 60 days);
 

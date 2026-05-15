@@ -32,6 +32,7 @@ contract BondVaultFuzzV2 is Test {
     address user = makeAddr("fuzzUser");
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(1767225600 + 60 days);
 
         oracle = new FuzzMockOracleV2();

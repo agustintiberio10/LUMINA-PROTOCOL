@@ -174,6 +174,7 @@ contract BoundaryConditions is Test {
     bytes32 constant PRODUCT_ID = keccak256("FLASHBTC1H-001");
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to a safe time: Feb 1, 2026 (after Jan 1 2026 BASE_TS in BondVault)
         vm.warp(1738368000); // Feb 1 2026 00:00:00 UTC
 

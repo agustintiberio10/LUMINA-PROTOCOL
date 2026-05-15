@@ -7,11 +7,6 @@ optimizer = true
 optimizer_runs = 200
 evm_version = "paris"
 via_ir = true
-# [Sprint CC] Pin EVM chain_id to Base Sepolia for the forge test suite so the
-# ChainGuard library's whitelist (8453 + 84532) does not reject existing tests.
-# vm.chainId(...) cheatcodes in the new ChainGuard.t.sol tests override this
-# per-test to exercise the revert paths for non-whitelisted chains.
-chain_id = 84532
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",

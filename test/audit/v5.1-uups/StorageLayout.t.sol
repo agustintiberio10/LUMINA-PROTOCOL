@@ -19,6 +19,7 @@ contract MockPriceOracleStorage {
 /// @notice Verifies that upgrades preserve storage layout correctly.
 contract StorageLayout is Test {
     function test_LuminaToken_storagePreservedAfterUpgrade() public {
+        vm.chainId(8453);
         address bondVault = makeAddr("bondVault");
         address cexReserve = makeAddr("cexReserve");
         address founderVesting = makeAddr("founderVesting");
@@ -51,6 +52,7 @@ contract StorageLayout is Test {
     }
 
     function test_BondVault_storageLayoutPreserved() public {
+        vm.chainId(8453);
         MockPriceOracleStorage oracle = new MockPriceOracleStorage();
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         LuminaTokenV2 token = ProxyDeployer.deployLuminaTokenV2(
@@ -85,6 +87,7 @@ contract StorageLayout is Test {
     }
 
     function test_ClaimBond_storageLayoutPreserved() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         cb.setBondVault(address(this));
 
@@ -112,6 +115,7 @@ contract StorageLayout is Test {
     }
 
     function test_CoverRouterV2_storageLayoutPreserved() public {
+        vm.chainId(8453);
         // Deploy with mock deps
         address mockUsdc = makeAddr("usdc");
         address mockPm = makeAddr("pm");
@@ -161,6 +165,7 @@ contract StorageLayout is Test {
     }
 
     function test_StorageGap_NewVariableDoesNotCollide() public {
+        vm.chainId(8453);
         // Deploy BondVault V1 proxy and set state
         MockPriceOracleStorage oracle = new MockPriceOracleStorage();
         ClaimBond cb = ProxyDeployer.deployClaimBond();

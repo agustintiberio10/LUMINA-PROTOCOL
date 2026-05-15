@@ -84,6 +84,7 @@ contract NFTMetadataFix is Test {
     event OperatorAuthorized(address indexed operator, bool authorized);
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
 
         usdc = new MockUSDC_Fix();

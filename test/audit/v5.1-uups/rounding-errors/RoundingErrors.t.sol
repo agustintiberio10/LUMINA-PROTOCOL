@@ -90,6 +90,7 @@ contract RoundingErrors is Test {
     // 1. Premium rounding — decimal-producing inputs
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_Premium_DecimalCoverage_RoundsDown() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("P");
         // 8000 × 7777 × 333 = 20_723_764_800 bps³ → × cov / 1e12
@@ -103,6 +104,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_Premium_1e6_Coverage_NonZeroMinimum() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("P");
         // Tiny bps so premium floor = 0 — the `if premium == 0` branch forces it to 1.
@@ -112,6 +114,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_Premium_FuzzyBpsInput_IsFloorOf_ExactFormula() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("P");
         r.configureProduct(pid, 8001, 201, 1999, 3600, true);
@@ -126,6 +129,7 @@ contract RoundingErrors is Test {
     // 2. Payout rounding — floors against the holder
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_Payout_DecimalCoverage_RoundsDown_FavorsProtocol() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("PAY");
         // payoutRatio = 8001 → 80.01% of coverage.
@@ -139,6 +143,7 @@ contract RoundingErrors is Test {
     // 3. Redemption rounding — floors against the holder
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_Redemption_DecimalPrice_RoundsDown_FavorsProtocol() public {
+        vm.chainId(8453);
         (BondVault v,,, MockOracleRE oracle) = _bvFull();
         // Price that produces a remainder: 0.13 LUMINA/USD = 1.3e17.
         oracle.setPrice(13e16);
@@ -153,6 +158,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_Redemption_ExactDivision_NoDust() public {
+        vm.chainId(8453);
         (BondVault v,,, MockOracleRE oracle) = _bvFull();
         // Price = 1e18 (exactly $1) → 1 USD = 1 LUMINA, no remainder.
         oracle.setPrice(1e18);
@@ -163,6 +169,7 @@ contract RoundingErrors is Test {
     // 4. Capacity rounding — conservative floor
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_Capacity_ShowsFloorNotCeil() public {
+        vm.chainId(8453);
         (BondVault v,,, MockOracleRE oracle) = _bvFull();
         // Price that produces non-integer reserveValue.
         oracle.setPrice(1_333_333_333_333_333_333); // ~$1.333.. per LUMINA
@@ -178,6 +185,7 @@ contract RoundingErrors is Test {
     // 5. Solvency rounding — conservative floor
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_Solvency_DecimalInputs_RoundsDown() public {
+        vm.chainId(8453);
         // obligations = 3, value = 4 → exact ratio = 4/3 × 10000 = 13333.33..
         // Floor: 13333. Verify.
         LuminaTokenV2 token = _token();
@@ -195,6 +203,7 @@ contract RoundingErrors is Test {
     // 6. Distribution rounding — dust stays in contract, never lost
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_Distribution_AllQuadrants_BucketsSumExact_OnCleanAmount() public {
+        vm.chainId(8453);
         // amount = 1_000_000 USDC, each quadrant sums to exactly 10000 BPS,
         // so bucket splits should sum to exactly the amount.
         MockBondVaultRE bv = new MockBondVaultRE(address(_token()), 0);
@@ -215,6 +224,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_Distribution_OddAmount_DustStaysInProtocol() public {
+        vm.chainId(8453);
         // amount = 333 USDC. Buckets (7500, 2000, 0, 500):
         // toBurn = 333 × 7500 / 10000 = 249 (rem 75)
         // toBybk = 333 × 2000 / 10000 = 66  (rem 60)
@@ -235,6 +245,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_Distribution_1000Burns_DustBoundedSmall() public {
+        vm.chainId(8453);
         // Simulate 1000 distribute-burn cycles with amount = 333.
         // Per cycle dust ≤ 3 wei (bounded by #buckets). Over 1000 cycles,
         // accumulated dust ≤ 3000 wei = $0.003. Way below the $0.0001 audit
@@ -255,6 +266,7 @@ contract RoundingErrors is Test {
     // 7. Marketplace fees — floor direction, exact calc
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_MarketplaceFees_1USDC_FeesRoundDownToZero() public {
+        vm.chainId(8453);
         LuminaBondMarketplace mp =
             ProxyDeployer.deployLuminaBondMarketplace(makeAddr("cb"), makeAddr("u"), makeAddr("b"), address(this));
         uint256 price = 1e6; // $1 USDC
@@ -264,6 +276,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_MarketplaceFees_SubcentPrice_FeeFloorsToZero() public {
+        vm.chainId(8453);
         LuminaBondMarketplace mp =
             ProxyDeployer.deployLuminaBondMarketplace(makeAddr("cb"), makeAddr("u"), makeAddr("b"), address(this));
         // price = 6 µUSDC (tiny). 6 × 150 / 10000 = 900 / 10000 = 0.
@@ -273,6 +286,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_MarketplaceFees_DecimalPrice_RoundsDown() public {
+        vm.chainId(8453);
         LuminaBondMarketplace mp =
             ProxyDeployer.deployLuminaBondMarketplace(makeAddr("cb"), makeAddr("u"), makeAddr("b"), address(this));
         uint256 price = 333e6;
@@ -286,6 +300,7 @@ contract RoundingErrors is Test {
     // 8. Burn cap rounding — conservative (allows less)
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_BurnCap_OddBalance_RoundsDown() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         token.grantRole(token.BURNER_ROLE(), address(v));
         v.setAuthorizedCaller(address(this), true);
@@ -297,6 +312,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_BurnCap_6Over5_RevertsBecauseFloorIs5() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         token.grantRole(token.BURNER_ROLE(), address(v));
         v.setAuthorizedCaller(address(this), true);
@@ -309,6 +325,7 @@ contract RoundingErrors is Test {
     // 9. Vesting: founder tranches 8M / 3
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_FounderTranches_8MDiv3_LastAbsorbs() public {
+        vm.chainId(8453);
         // 8_000_000 / 3 = 2_666_666.666... → 2_666_666 floor per tranche
         // 3 × 2_666_666 = 7_999_998 → 2 LUMINA units remainder.
         // The project design is: each tranche releases exactly floor(TOTAL/3),
@@ -326,6 +343,7 @@ contract RoundingErrors is Test {
     // 10. Cumulative lifecycle — no significant dust over many cycles
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_Cumulative_1000_Premium_Accounting() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("ACCT");
         r.configureProduct(pid, 8000, 200, 2000, 3600, true);
@@ -344,6 +362,7 @@ contract RoundingErrors is Test {
     }
 
     function test_Rounding_Cumulative_NoDustLostInBondIssueCycle() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
 
         uint256 totalCommittedBefore = v.totalCommittedUSD();
@@ -361,6 +380,7 @@ contract RoundingErrors is Test {
     // 11. Direction documentation test — premium × coverage monotonic
     // ─────────────────────────────────────────────────────────────
     function test_Rounding_PremiumMonotonic_LargerCoverageBiggerOrEqualPremium() public {
+        vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("MONO");
         r.configureProduct(pid, 8000, 200, 2000, 3600, true);

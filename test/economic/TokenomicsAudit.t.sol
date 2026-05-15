@@ -208,6 +208,7 @@ contract TokenomicsAuditTest is Test {
     uint256 constant MAX_SUPPLY = 100_000_000e18;
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to BASE_TS + 60 days
         vm.warp(BASE_TS + 60 days);
 

@@ -169,6 +169,7 @@ contract StressVolume is Test {
     uint256 constant BASE_TS = 1_767_225_600;
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(BASE_TS + 60 days);
         deployer = address(this);
 

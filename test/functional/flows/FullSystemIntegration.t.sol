@@ -214,6 +214,7 @@ contract FullSystemIntegrationTest is Test {
     // ═══════ SETUP ═══════
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to Feb 1 2026 — safely past BASE_TS for valid bond epochs
         vm.warp(BASE_TS + 31 days);
 

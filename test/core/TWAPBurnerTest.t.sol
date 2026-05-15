@@ -62,6 +62,7 @@ contract TWAPBurnerTest is Test {
     address coverRouter = makeAddr("coverRouter");
 
     function setUp() public {
+        vm.chainId(8453);
         // [SR3] Warp past initial cooldown (default burnCooldown=900s vs ts=1)
         vm.warp(1000);
 

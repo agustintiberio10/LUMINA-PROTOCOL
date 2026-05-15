@@ -83,6 +83,7 @@ contract MainnetHealthCheckTest is Test {
     address internal MULTISIG;
 
     function setUp() public {
+        vm.chainId(8453);
         // Read addresses from env. If LUMINA_TOKEN is unset, mark the
         // suite as "not ready" and every test will skip with a console hint.
         try vm.envAddress("LUMINA_TOKEN") returns (address a) {

@@ -38,6 +38,7 @@ contract BondVaultSetC is Test {
     event BondMaturityUpdated(uint256 oldValue, uint256 newValue);
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp past ClaimBond.BASE_TIMESTAMP (Jan 1 2026 UTC).
         vm.warp(1767225600 + 30 days);
 

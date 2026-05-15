@@ -116,6 +116,7 @@ contract PolicyManagerInvariants is Test {
     PMHandler public handler;
 
     function setUp() public {
+        vm.chainId(8453);
         vault = new PMMockBondVault();
         pm = ProxyDeployer.deployPolicyManagerV2(address(vault));
 

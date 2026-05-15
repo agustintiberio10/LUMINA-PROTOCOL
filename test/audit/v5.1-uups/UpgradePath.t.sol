@@ -26,6 +26,7 @@ contract NonUUPSImpl {
 /// @notice End-to-end upgrade tests verifying state preservation.
 contract UpgradePath is Test {
     function test_PolicyManager_upgradePreservesPolicies() public {
+        vm.chainId(8453);
         address mockVault = makeAddr("vault");
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(mockVault);
         pm.setRouter(address(this));
@@ -66,6 +67,7 @@ contract UpgradePath is Test {
     }
 
     function test_UpgradeToNonUUPS_Reverts() public {
+        vm.chainId(8453);
         NonUUPSImpl dummy = new NonUUPSImpl();
 
         // ── BondVault ──
@@ -100,6 +102,7 @@ contract UpgradePath is Test {
     }
 
     function test_Upgrade_MultiHop_V1_V2_V3_StatePreserved() public {
+        vm.chainId(8453);
         MockPriceOracleUpgrade oracle = new MockPriceOracleUpgrade();
         ClaimBond cb = ProxyDeployer.deployClaimBond();
 

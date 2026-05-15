@@ -68,6 +68,7 @@ contract NFTMetadata is Test {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
 
         MockUSDC_NFT usdc = new MockUSDC_NFT();

@@ -242,6 +242,7 @@ contract AttackVectors is Test, ERC1155Holder {
     uint256 constant LUMINA_PRICE = 36e15; // $0.036
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
         vm.warp(START_TIME);
 

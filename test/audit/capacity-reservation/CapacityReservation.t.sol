@@ -67,6 +67,7 @@ contract CapacityReservationTest is Test {
     address buyer3 = makeAddr("buyer3");
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp past ClaimBond.BASE_TIMESTAMP
         vm.warp(1767225600 + 30 days);
 

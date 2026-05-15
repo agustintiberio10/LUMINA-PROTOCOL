@@ -113,6 +113,7 @@ contract TWAPBurnerAdaptersTest is Test {
     address poolSeeder = makeAddr("poolSeeder");
 
     function setUp() public {
+        vm.chainId(8453);
         // Skip gracefully when BASE_MAINNET_RPC is not set (e.g., CI without the
         // secret). vm.envString reverts on missing env vars; vm.envOr returns the
         // fallback so we can call vm.skip(true) cleanly without aborting the run.

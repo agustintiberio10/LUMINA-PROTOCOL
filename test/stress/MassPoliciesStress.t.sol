@@ -48,6 +48,7 @@ contract MassPoliciesStress is Test {
     StressMockPriceOracle oracle;
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(BASE_TS + 60 days);
 
         lumina = new StressMockERC20();

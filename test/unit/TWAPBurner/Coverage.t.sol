@@ -64,6 +64,7 @@ contract TWAPBurnerCoverage is Test {
     address user = makeAddr("user");
 
     function setUp() public {
+        vm.chainId(8453);
         usdc = new TBCovUSDC();
         lumina = new TBCovLumina();
         dex = new TBCovDex(address(usdc), address(lumina));

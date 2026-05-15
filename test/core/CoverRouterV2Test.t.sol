@@ -64,6 +64,7 @@ contract CoverRouterV2Test is Test {
     address user = makeAddr("user");
 
     function setUp() public {
+        vm.chainId(8453);
         usdc = new MockUSDC();
         pm = new MockPolicyManager();
         burner = new MockTWAPBurner(address(usdc));

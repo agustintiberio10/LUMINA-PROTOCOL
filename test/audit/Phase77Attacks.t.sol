@@ -346,6 +346,7 @@ contract Phase77Attacks is Test {
     address owner;
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(BASE_TIME);
         owner = address(this);
 

@@ -103,6 +103,7 @@ contract ReentrancyDeep is Test {
     // 1. BondVault.issueBond — receiver tries to re-enter issueBond
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_BondVault_IssueBond_ReceiverCannotReEnter() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token, ClaimBond cb,) = _bvFull();
         ReentrantReceiver atk = new ReentrantReceiver();
 
@@ -125,6 +126,7 @@ contract ReentrancyDeep is Test {
     }
 
     function test_Reentrancy_BondVault_IssueBond_CrossFunctionReEntry_Blocked() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         ReentrantReceiver atk = new ReentrantReceiver();
         // Try to re-enter redeemBond from inside issueBond callback.
@@ -139,6 +141,7 @@ contract ReentrancyDeep is Test {
     // 2. Marketplace.executeBuy — buyer's onERC1155Received tries to re-enter
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_Marketplace_ListReceiver_CannotReEnterList() public {
+        vm.chainId(8453);
         LuminaBondMarketplace m =
             ProxyDeployer.deployLuminaBondMarketplace(makeAddr("cb"), makeAddr("u"), makeAddr("b"), address(this));
         // We cannot mint real bonds into an attacker + list them without wiring
@@ -154,6 +157,7 @@ contract ReentrancyDeep is Test {
     // 3. ERC-1155 receiver read-only reentrancy — views are consistent
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_ReadOnly_BondVault_CountersConsistentInCallback() public {
+        vm.chainId(8453);
         (BondVault v,, ClaimBond cb,) = _bvFull();
         ReentrantReceiver atk = new ReentrantReceiver();
 
@@ -177,6 +181,7 @@ contract ReentrancyDeep is Test {
     // 4. ClaimBond.mint happens before external transfer — state consistent
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_ClaimBond_MintBeforeCallback_BalanceReadable() public {
+        vm.chainId(8453);
         (BondVault v,, ClaimBond cb,) = _bvFull();
         ReentrantReceiver atk = new ReentrantReceiver();
         // Read claim bond balance during callback — should be the MINTED value.
@@ -191,6 +196,7 @@ contract ReentrancyDeep is Test {
     // 5. BondVault.redeemBond — LUMINA transfer has no callback
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_BondVault_RedeemBond_NoHookAttack() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         address holder = makeAddr("holder"); // EOA — not a contract.
         v.issueBond(holder, 100);
@@ -212,6 +218,7 @@ contract ReentrancyDeep is Test {
     // 6. Token (LuminaTokenV2) is NOT ERC-777 — no hooks on transfer
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_LuminaToken_NoERC777Hooks_PlainERC20() public {
+        vm.chainId(8453);
         LuminaTokenV2 t = _token();
         // ERC-20 does not expose a tokensReceived interface. A simple transfer
         // cannot re-enter. We verify there's no TOKENS_RECIPIENT_INTERFACE_HASH
@@ -226,6 +233,7 @@ contract ReentrancyDeep is Test {
     // 7. AccessControl grantRole does NOT trigger callbacks
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_AccessControl_GrantRole_NoCallbackVector() public {
+        vm.chainId(8453);
         LuminaTokenV2 t = _token();
         // grantRole emits RoleGranted event but does not call any external
         // contract. No reentrancy vector.
@@ -238,6 +246,7 @@ contract ReentrancyDeep is Test {
     // 8. BondVault.burnFromReserves — burns via lumina.burn()
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_BondVault_BurnFromReserves_NoHookAttack() public {
+        vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
         token.grantRole(token.BURNER_ROLE(), address(v));
         v.setAuthorizedCaller(address(this), true);
@@ -254,6 +263,7 @@ contract ReentrancyDeep is Test {
     // 9. Pause enforcement blocks re-entry even on unguarded paths
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_CoverRouter_Paused_BlocksOps() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         r.setPaused(true);
         assertTrue(r.paused());
@@ -265,6 +275,7 @@ contract ReentrancyDeep is Test {
     // 10. Cross-contract reentrancy: PM re-enters BondVault
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_CrossContract_BondVault_RejectsPolicyManagerReenter() public {
+        vm.chainId(8453);
         // If PolicyManager were malicious, it could try to call BondVault
         // reservation functions recursively. BondVault.reserveCapacity /
         // commitReservation / releaseReservation all rely on msg.sender ==
@@ -280,6 +291,7 @@ contract ReentrancyDeep is Test {
     // 11. CEXLiquidityReserve.allocateTokens — nonReentrant guard present
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_CEXLiquidityReserve_NonReentrantGuardPresent() public {
+        vm.chainId(8453);
         CEXLiquidityReserve c = ProxyDeployer.deployCEXLiquidityReserve(makeAddr("l"), address(this));
         // Verifying the guard exists via admin-level sanity that the function
         // completes when called cleanly. Real reentrancy attack would require
@@ -291,6 +303,7 @@ contract ReentrancyDeep is Test {
     // 12. MaintenanceReserve.spend — USDC.transfer no hook
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_MaintenanceReserve_USDCTransferNoHook() public {
+        vm.chainId(8453);
         MaintenanceReserve m = ProxyDeployer.deployMaintenanceReserve(makeAddr("u"), address(this));
         m.setMonthlyCap(1000e6);
         // USDC transfer cannot re-enter; guard is belt-and-braces.
@@ -301,6 +314,7 @@ contract ReentrancyDeep is Test {
     // 13. BondVault.issueBond — multiple receivers all succeed, no state corruption
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_BondVault_MultipleReceivers_NoStateCorruption() public {
+        vm.chainId(8453);
         (BondVault v,, ClaimBond cb,) = _bvFull();
         ReentrantReceiver atk1 = new ReentrantReceiver();
         ReentrantReceiver atk2 = new ReentrantReceiver();
@@ -329,6 +343,7 @@ contract ReentrancyDeep is Test {
     // 14. Oracle read-only views — no reentrancy possible
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_OracleViews_AtomicReads() public {
+        vm.chainId(8453);
         // CapacityOracle.getLuminaPrice and SolvencyOracle.getSolvencyRatio
         // are pure view / try-call paths. They cannot mutate state and thus
         // are not re-entrancy sources. Regression sanity: call them.
@@ -347,6 +362,7 @@ contract ReentrancyDeep is Test {
     // documented here for completeness.
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_ClaimBond_BatchReceiver_NotUsedByProtocol() public {
+        vm.chainId(8453);
         ClaimBond cb = ProxyDeployer.deployClaimBond();
         cb.setBondVault(address(this));
         // ClaimBond exposes `mint` (single) — the batch mint function is not
@@ -360,6 +376,7 @@ contract ReentrancyDeep is Test {
     // 16. TWAPBurner.executeBurn — nonReentrant + DEX doesn't callback
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_TWAPBurner_ExecuteBurn_NonReentrantGuardPresent() public {
+        vm.chainId(8453);
         TWAPBurner b = ProxyDeployer.deployTWAPBurner(makeAddr("u"), makeAddr("l"), makeAddr("d"));
         // Guard verified by source inventory. Full execution path requires
         // USDC balance + funded DEX, out of scope for this unit test.
@@ -370,6 +387,7 @@ contract ReentrancyDeep is Test {
     // 17. CoverRouter.buyPolicy / buyPolicyFor / submitTrigger — nonReentrant
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_CoverRouter_AllEntrypointsGuarded() public {
+        vm.chainId(8453);
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         // All three primary entry points (buyPolicy, buyPolicyFor,
         // submitTrigger) have nonReentrant per source inventory.
@@ -380,6 +398,7 @@ contract ReentrancyDeep is Test {
     // 18. BuybackEngine.executeOffer — nonReentrant
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_BuybackEngine_ExecuteOffer_NonReentrantGuardPresent() public {
+        vm.chainId(8453);
         BuybackEngine be = ProxyDeployer.deployBuybackEngine(
             makeAddr("cb"), makeAddr("bv"), makeAddr("so"), makeAddr("co"), makeAddr("mk"), makeAddr("u"), address(this)
         );
@@ -390,6 +409,7 @@ contract ReentrancyDeep is Test {
     // 19. Reservation pathway has no external call — no reentrancy path
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_Reservation_NoExternalCallNoVector() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         // reserveCapacity / releaseReservation / commitReservation do NOT
         // make external calls. Impossible to re-enter.
@@ -402,6 +422,7 @@ contract ReentrancyDeep is Test {
     // 20. Role-renounce leaves system safe against re-entry
     // ─────────────────────────────────────────────────────────────
     function test_Reentrancy_RoleRenounce_StillNoReentryPath() public {
+        vm.chainId(8453);
         (BondVault v,,,) = _bvFull();
         bytes32 role = v.DEFAULT_ADMIN_ROLE();
         v.renounceRole(role, address(this));

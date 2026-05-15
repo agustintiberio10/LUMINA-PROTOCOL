@@ -231,6 +231,7 @@ contract RoundingErrors is Test {
     bytes32 constant PRODUCT_ID = keccak256("FLASHBTC1H-001");
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
         vm.warp(1767225600 + 60 days); // well past BASE_TIMESTAMP
 

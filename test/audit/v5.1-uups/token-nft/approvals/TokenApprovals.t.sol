@@ -160,6 +160,7 @@ contract TokenApprovals is Test {
     bytes32 constant ID_FLASHBTC1H = keccak256("FLASHBTC1H-001");
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
         vm.warp(1_767_225_600 + 60 days);
 

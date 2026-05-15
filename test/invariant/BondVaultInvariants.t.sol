@@ -115,6 +115,7 @@ contract BondVaultInvariants is Test {
     uint256 initialSupply;
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(1767225600 + 60 days);
 
         oracle = new InvMockOracle();

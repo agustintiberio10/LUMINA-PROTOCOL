@@ -118,6 +118,7 @@ contract RoleAuditTest is Test {
     address cexAddr = makeAddr("cexAddr");
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
 
         // Warp past base timestamp

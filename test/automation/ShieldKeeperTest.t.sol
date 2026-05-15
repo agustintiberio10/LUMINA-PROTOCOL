@@ -214,6 +214,7 @@ contract ShieldKeeperTest is Test {
     address constant USDC_MOCK = address(0xAAAA);
 
     function setUp() public {
+        vm.chainId(8453);
         bondVault = new MockBondVault_SK();
         policyManager = ProxyDeployer.deployPolicyManagerV2(address(bondVault));
 
