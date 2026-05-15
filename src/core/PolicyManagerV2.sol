@@ -211,19 +211,18 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // Create policy in the shield
         address shield = productShield[productId];
-        policyId = IShieldV2(shield)
-            .createPolicy(
-                IShieldV2.CreatePolicyParams({
-                    buyer: buyer,
-                    coverageAmount: coverageAmount,
-                    premiumAmount: premiumAmount,
-                    durationSeconds: durationSeconds,
-                    asset: asset,
-                    stablecoin: "USDC",
-                    protocol: address(0),
-                    extraData: ""
-                })
-            );
+        policyId = IShieldV2(shield).createPolicy(
+            IShieldV2.CreatePolicyParams({
+                buyer: buyer,
+                coverageAmount: coverageAmount,
+                premiumAmount: premiumAmount,
+                durationSeconds: durationSeconds,
+                asset: asset,
+                stablecoin: "USDC",
+                protocol: address(0),
+                extraData: ""
+            })
+        );
 
         // Record locally (must happen after external call to obtain policyId)
         uint256 expiresAt = block.timestamp + durationSeconds;
