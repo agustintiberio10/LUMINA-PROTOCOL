@@ -1,0 +1,4 @@
+testLimit: 100000
+seqLen: 200
+shrinkLimit: 5000
+coverage: true
