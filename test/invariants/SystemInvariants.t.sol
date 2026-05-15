@@ -40,6 +40,7 @@ contract SystemInvariants is Test {
     uint256 initialSupply;
 
     function setUp() public {
+        vm.chainId(8453);
         // Warp to valid time (Jan 1 2026 + 60 days)
         vm.warp(1767225600 + 60 days);
 

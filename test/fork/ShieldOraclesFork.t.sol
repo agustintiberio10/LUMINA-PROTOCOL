@@ -25,6 +25,7 @@ contract ShieldOraclesFork is Test {
     }
 
     function setUp() public {
+        vm.chainId(8453);
         // Skip the suite gracefully when BASE_RPC_URL is not set (e.g., CI without
         // the secret). Using vm.envOr avoids the cheatcode revert that vm.envString
         // emits on missing vars, which try/catch in Solidity cannot recover from.

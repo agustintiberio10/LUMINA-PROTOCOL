@@ -32,6 +32,7 @@ contract AdaptiveFeeDistributorFuzz is Test {
     MockSolvencyOracle oracle;
 
     function setUp() public {
+        vm.chainId(8453);
         oracle = new MockSolvencyOracle();
         distributor = ProxyDeployer.deployAdaptiveFeeDistributor(address(oracle));
     }

@@ -61,6 +61,7 @@ contract ClaimBondInvariants is Test {
     CBHandler public handler;
 
     function setUp() public {
+        vm.chainId(8453);
         bond = ProxyDeployer.deployClaimBond();
         handler = new CBHandler(bond);
         // Handler is the BondVault: only it can mint/burn.

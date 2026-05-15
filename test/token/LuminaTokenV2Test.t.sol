@@ -15,6 +15,7 @@ contract LuminaTokenV2Test is Test {
     address deployer;
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
 
         // Deploy implementation

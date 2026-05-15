@@ -68,6 +68,7 @@ contract UniswapV3AdapterCoverage is Test {
     address user = makeAddr("user");
 
     function setUp() public {
+        vm.chainId(8453);
         router = new MockSwapRouter();
         quoter = new MockQuoterV2();
         tokenIn = new UV3TestERC20("IN", "IN");

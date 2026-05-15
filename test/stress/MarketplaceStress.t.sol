@@ -50,6 +50,7 @@ contract MarketplaceStress is Test {
     address twapBurner = address(0xBBBB);
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(BASE_TS + 60 days);
 
         claimBond = ProxyDeployer.deployClaimBond();

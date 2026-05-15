@@ -52,6 +52,7 @@ contract LuminaBondMarketplaceTest is Test {
     uint256 constant EPOCH = 202804;
 
     function setUp() public {
+        vm.chainId(8453);
         bond = new MockClaimBondV5();
         usdc = new MockUSDCMP();
         mp = ProxyDeployer.deployLuminaBondMarketplace(address(bond), address(usdc), twapBurner, admin);

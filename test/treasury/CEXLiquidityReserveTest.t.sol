@@ -41,6 +41,7 @@ contract CEXLiquidityReserveTest is Test {
     address recipient = makeAddr("recipient");
 
     function setUp() public {
+        vm.chainId(8453);
         lumina = new MockLUMINA();
         reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), multisig);
         // Fund the reserve with 14M

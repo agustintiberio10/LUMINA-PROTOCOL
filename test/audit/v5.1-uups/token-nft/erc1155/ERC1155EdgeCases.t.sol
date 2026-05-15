@@ -169,6 +169,7 @@ contract ERC1155EdgeCases is Test {
     bytes4 constant IERC1155_METADATA_URI_ID = 0x0e89341c;
 
     function setUp() public {
+        vm.chainId(8453);
         deployer = address(this);
 
         usdc = new MockUSDC_Edge();

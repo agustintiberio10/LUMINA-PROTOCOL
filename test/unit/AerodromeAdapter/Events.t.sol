@@ -51,6 +51,7 @@ contract AerodromeAdapterEvents is Test {
     address factory = makeAddr("factory");
 
     function setUp() public {
+        vm.chainId(8453);
         router = new AAMockRouter();
         tokenIn = new AAERC20("IN", "IN");
         tokenOut = new AAERC20("OUT", "OUT");

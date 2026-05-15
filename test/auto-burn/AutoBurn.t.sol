@@ -96,6 +96,7 @@ contract AutoBurnTest is Test {
     event GasRefunded(address indexed recipient, uint256 amount);
 
     function setUp() public {
+        vm.chainId(8453);
         usdc = new MockUSDC();
         lumina = new MockLumina();
         dex = new MockDex(address(usdc), address(lumina));

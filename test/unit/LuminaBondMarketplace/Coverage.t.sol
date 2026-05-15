@@ -16,6 +16,7 @@ contract LuminaBondMarketplaceCoverage is Test {
     address admin = makeAddr("admin");
 
     function setUp() public {
+        vm.chainId(8453);
         mp = ProxyDeployer.deployLuminaBondMarketplace(claimBond, usdc, twapBurner, admin);
     }
 

@@ -164,6 +164,7 @@ contract ShieldScenariosTest is Test {
     uint256 constant COVERAGE = 1000e6;
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(START_TIME);
 
         // Deploy mocks

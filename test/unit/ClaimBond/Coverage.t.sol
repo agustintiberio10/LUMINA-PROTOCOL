@@ -13,6 +13,7 @@ contract ClaimBondCoverage is Test {
     uint256 constant EPOCH = 202712; // Dec 2027
 
     function setUp() public {
+        vm.chainId(8453);
         bond = ProxyDeployer.deployClaimBond();
         bond.setBondVault(vault);
     }

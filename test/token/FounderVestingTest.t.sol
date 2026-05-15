@@ -72,6 +72,7 @@ contract FounderVestingTest is Test {
     address usdc = makeAddr("usdc");
 
     function setUp() public {
+        vm.chainId(8453);
         oracle = new MockOracle();
         aavePool = new MockAavePool();
         token = ProxyDeployer.deployLuminaTokenV2(bondVault, makeAddr("cex"), address(0xdead), lbp, treasury);

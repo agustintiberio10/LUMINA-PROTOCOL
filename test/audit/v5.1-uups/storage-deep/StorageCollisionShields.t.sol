@@ -80,6 +80,7 @@ contract StorageCollisionShields is Test {
     MockAavePoolSD internal aave;
 
     function setUp() public {
+        vm.chainId(8453);
         oracle = new MockOracleShieldSD();
         aave = new MockAavePoolSD();
     }

@@ -23,6 +23,7 @@ contract RateShockShieldSetAavePoolTest is Test {
     address internal oracle = makeAddr("oracle");
 
     function setUp() public {
+        vm.chainId(8453);
         RateShockShield impl = new RateShockShield();
         bytes memory initData =
             abi.encodeWithSelector(RateShockShield.initialize.selector, router, oracle, initialPool, usdc);

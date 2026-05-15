@@ -81,6 +81,7 @@ contract MaintenanceReserveTest is Test {
     address unauthorized;
 
     function setUp() public {
+        vm.chainId(8453);
         admin = makeAddr("admin");
         recipient = makeAddr("recipient");
         unauthorized = makeAddr("unauthorized");

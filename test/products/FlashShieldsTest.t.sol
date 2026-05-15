@@ -16,6 +16,7 @@ contract FlashShieldsTest is Test {
     address oracle = makeAddr("oracle");
 
     function setUp() public {
+        vm.chainId(8453);
         btc1h = ProxyDeployer.deployFlashBTCShield1h(router, oracle);
         btc4h = ProxyDeployer.deployFlashBTCShield4h(router, oracle);
         eth1h = ProxyDeployer.deployFlashETHShield1h(router, oracle);

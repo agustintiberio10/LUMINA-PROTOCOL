@@ -44,6 +44,7 @@ contract DeployBondVaultSetC is Test {
     address cexLiquidityReserve = makeAddr("cexLiquidityReserve");
 
     function setUp() public {
+        vm.chainId(8453);
         vm.warp(1767225600 + 30 days);
 
         oracle = new MockPriceOracle_DeploySetC();

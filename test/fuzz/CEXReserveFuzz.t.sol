@@ -50,6 +50,7 @@ contract CEXReserveFuzz is Test {
     address recipient = makeAddr("recipient");
 
     function setUp() public {
+        vm.chainId(8453);
         lumina = new MockLuminaForCEX();
         vm.prank(admin);
         reserve = ProxyDeployer.deployCEXLiquidityReserve(address(lumina), admin);

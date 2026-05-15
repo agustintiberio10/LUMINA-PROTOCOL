@@ -8,6 +8,7 @@ contract FlashETHShield48hTest is Test {
     FlashETHShield48h shield;
 
     function setUp() public {
+        vm.chainId(8453);
         shield = ProxyDeployer.deployFlashETHShield48h(makeAddr("r"), makeAddr("o"));
     }
 

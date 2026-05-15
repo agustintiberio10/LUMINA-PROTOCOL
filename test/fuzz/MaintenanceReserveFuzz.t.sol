@@ -52,6 +52,7 @@ contract MaintenanceReserveFuzz is Test {
     uint256 constant FUND_AMOUNT = 10_000_000e6; // $10M USDC
 
     function setUp() public {
+        vm.chainId(8453);
         usdc = new MockUSDCForMaint();
         vm.prank(admin);
         reserve = ProxyDeployer.deployMaintenanceReserve(address(usdc), admin);
