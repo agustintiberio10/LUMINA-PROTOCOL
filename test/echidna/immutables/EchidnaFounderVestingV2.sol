@@ -2,24 +2,24 @@
 pragma solidity 0.8.20;
 
 /// @title EchidnaFounderVestingV2
-/// @notice Echidna property suite for FounderVesting (Sprint FV — PATH 2 override).
+/// @notice Echidna property suite for FounderVesting (Sprint FV -- PATH 2 override).
 /// @dev Ten invariants covering the dual-path trigger logic introduced in Sprint FV:
-///      1. total_released_bounded         — totalReleased <= TOTAL_AMOUNT.
-///      2. tranches_bounded               — tranchesReleased <= TOTAL_TRANCHES.
-///      3. ghost_matches_contract         — accumulator ghost == contract totalReleased.
-///      4. no_release_before_unlock       — !altSeasonTriggered ⇒ tranchesReleased == 0.
-///      5. trigger_timestamp_valid        — triggered ⇒ 0 < triggerTimestamp <= now.
-///      6. conditions_met_since_valid     — conditionsMetSince == 0 || <= now.
-///      7. deployed_at_immutable          — deployedAt frozen at construction.
-///      8. recipient_nonzero              — recipient is never address(0).
-///      9. override_met_since_valid       — overrideMetSince == 0 || <= now (PATH 2).
-///     10. trigger_implies_history        — triggered ⇒ PATH 1 OR PATH 2 OR PATH 3 history.
+///      1. total_released_bounded         -- totalReleased <= TOTAL_AMOUNT.
+///      2. tranches_bounded               -- tranchesReleased <= TOTAL_TRANCHES.
+///      3. ghost_matches_contract         -- accumulator ghost == contract totalReleased.
+///      4. no_release_before_unlock       -- !altSeasonTriggered => tranchesReleased == 0.
+///      5. trigger_timestamp_valid        -- triggered => 0 < triggerTimestamp <= now.
+///      6. conditions_met_since_valid     -- conditionsMetSince == 0 || <= now.
+///      7. deployed_at_immutable          -- deployedAt frozen at construction.
+///      8. recipient_nonzero              -- recipient is never address(0).
+///      9. override_met_since_valid       -- overrideMetSince == 0 || <= now (PATH 2).
+///     10. trigger_implies_history        -- triggered => PATH 1 OR PATH 2 OR PATH 3 history.
 
 import {FounderVesting} from "../../../src/token/FounderVesting.sol";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Inline mocks (kept self-contained — no forge/Test cheats imported)
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
+// Inline mocks (kept self-contained -- no forge/Test cheats imported)
+// -----------------------------------------------------------------------------
 
 contract MockOracleE {
     int256 public ethPrice = 3000_00000000; // $3,000 (8 decimals)
@@ -63,7 +63,7 @@ contract MockAavePoolE {
     function setBorrowRate(uint128 r) external { borrowRate = r; }
 }
 
-/// @dev Minimal ERC20 — only the surface FounderVesting actually touches.
+/// @dev Minimal ERC20 -- only the surface FounderVesting actually touches.
 contract MockLuminaE {
     string public name = "MockLumina";
     string public symbol = "mLUM";
@@ -102,17 +102,17 @@ contract MockLuminaE {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HEVM cheat interface — Echidna ships HEVM, which exposes `warp` at this addr.
+// -----------------------------------------------------------------------------
+// HEVM cheat interface -- Echidna ships HEVM, which exposes `warp` at this addr.
 // We use ONLY `warp` here; nothing forge-specific.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 interface IHEVM {
     function warp(uint256) external;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Echidna harness
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 contract EchidnaFounderVestingV2 {
     IHEVM constant HEVM = IHEVM(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
@@ -124,7 +124,7 @@ contract EchidnaFounderVestingV2 {
     address public constant RECIPIENT_SEED = address(0xF00DBABE);
     address public constant USDC = address(0xC0DECAFE);
 
-    // ─── Ghost state ───
+    // --- Ghost state ---
     uint256 internal _ghost_totalReleased;
     uint256 internal _ghost_deployedAt;
     address internal _ghost_recipientInit;
@@ -147,7 +147,7 @@ contract EchidnaFounderVestingV2 {
         _ghost_recipientInit = vesting.recipient();
     }
 
-    // ─── Internal: refresh ghost path-history flags from current oracle/aave reads ───
+    // --- Internal: refresh ghost path-history flags from current oracle/aave reads ---
     function _refreshPathHistory() internal {
         (bool a, bool b, bool c, bool ethOverride) = vesting.getConditions();
         uint256 metCount = (a ? 1 : 0) + (b ? 1 : 0) + (c ? 1 : 0);
@@ -158,33 +158,33 @@ contract EchidnaFounderVestingV2 {
         }
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     //  Mutators (Echidna will fuzz arguments and call these)
-    // ═════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     /// @notice Set ETH price clamped to a sane Chainlink-ish range (8 decimals).
     function e_setEthPrice(int256 raw) external {
-        // Clamp to [0, 1e15] — covers everything up to ~$10M / ETH at 8 decimals.
+        // Clamp to [0, 1e15] -- covers everything up to ~$10M / ETH at 8 decimals.
         int256 clamped = raw < 0 ? int256(0) : (raw > int256(1e15) ? int256(1e15) : raw);
         oracle.setEthPrice(clamped);
         _refreshPathHistory();
     }
 
     function e_setBtcPrice(int256 raw) external {
-        // Clamp to [1, 1e16] — keep > 0 to avoid div-by-zero noise; max ~$100M / BTC.
+        // Clamp to [1, 1e16] -- keep > 0 to avoid div-by-zero noise; max ~$100M / BTC.
         int256 clamped = raw < int256(1) ? int256(1) : (raw > int256(1e16) ? int256(1e16) : raw);
         oracle.setBtcPrice(clamped);
         _refreshPathHistory();
     }
 
     function e_setBorrowRate(uint128 raw) external {
-        // Clamp to [0, 1e27] (0–100% APY in RAY).
+        // Clamp to [0, 1e27] (0-100% APY in RAY).
         uint128 clamped = raw > uint128(1e27) ? uint128(1e27) : raw;
         aavePool.setBorrowRate(clamped);
         _refreshPathHistory();
     }
 
-    /// @notice Bounded warp via HEVM cheat — max ~365 days per call.
+    /// @notice Bounded warp via HEVM cheat -- max ~365 days per call.
     function e_warp(uint256 delta) external {
         uint256 bounded = delta % (365 days);
         HEVM.warp(block.timestamp + bounded);
@@ -217,9 +217,9 @@ contract EchidnaFounderVestingV2 {
         try vesting.updateRecipient(derived) {} catch {}
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     //  Properties (Echidna asserts these return TRUE forever)
-    // ═════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     /// @notice 1. totalReleased can never exceed the immutable 8M cap.
     function echidna_total_released_bounded() external view returns (bool) {
@@ -255,7 +255,7 @@ contract EchidnaFounderVestingV2 {
         return cms == 0 || cms <= block.timestamp;
     }
 
-    /// @notice 7. deployedAt is immutable — must equal the value captured at construction.
+    /// @notice 7. deployedAt is immutable -- must equal the value captured at construction.
     function echidna_deployed_at_immutable() external view returns (bool) {
         return vesting.deployedAt() == _ghost_deployedAt;
     }

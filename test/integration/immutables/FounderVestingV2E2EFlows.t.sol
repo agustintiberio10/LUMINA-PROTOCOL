@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {FounderVesting, ILuminaOracleReader, IAaveV3PoolReader} from "../../../src/token/FounderVesting.sol";
 
 /// @title FounderVestingV2E2EFlows
-/// @notice Sprint FV Phase E — 10 fork-Sepolia E2E tests for FounderVesting V2.
+/// @notice Sprint FV Phase E -- 10 fork-Sepolia E2E tests for FounderVesting V2.
 ///         Validates PATH 1 / PATH 2 / PATH 3 full flows + race / flicker /
 ///         oracle-revert / recipient-update / 3-method balance verification.
 ///
@@ -14,15 +14,15 @@ import {FounderVesting, ILuminaOracleReader, IAaveV3PoolReader} from "../../../s
 ///
 ///         The on-chain LUMINA token was bricked + cleared after Sprint Z.2,
 ///         so every test deploys a fresh ERC20 mock + fresh FV in setUp.
-///         The SET A oracle (0x8cAbC4…D194) is mocked at the call site via
-///         vm.mockCall — we do not depend on its live price values.
+///         The SET A oracle (0x8cAbC4...D194) is mocked at the call site via
+///         vm.mockCall -- we do not depend on its live price values.
 contract FounderVestingV2E2EFlows is Test {
-    // ═════ Hardcoded Sepolia addresses ═════
+    // ===== Hardcoded Sepolia addresses =====
     address internal constant ORACLE_SET_A = 0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194;
     address internal constant AAVE_POOL_SEPOLIA = 0xcc0606b64275c08539770864081D209A8C9b178a;
     address internal constant FOUNDER = 0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8;
 
-    // USDC mock address — only needed by the FV constructor + aave reserve key.
+    // USDC mock address -- only needed by the FV constructor + aave reserve key.
     // The Aave call itself is mocked via vm.mockCall keyed on the FV's `usdc()`
     // immutable, so we use an arbitrary non-zero address here.
     address internal constant USDC_MOCK = address(0xdeadbeef);
@@ -36,7 +36,7 @@ contract FounderVestingV2E2EFlows is Test {
     event TrancheReleased(uint256 trancheNumber, uint256 amount, address recipient);
     event FallbackTriggered(uint256 timestamp);
 
-    // ═════ Skip gracefully if BASE_SEPOLIA_RPC is not configured ═════
+    // ===== Skip gracefully if BASE_SEPOLIA_RPC is not configured =====
     modifier requiresFork() {
         try vm.envString("BASE_SEPOLIA_RPC") returns (string memory) {
             vm.createSelectFork("base_sepolia");
@@ -46,7 +46,7 @@ contract FounderVestingV2E2EFlows is Test {
         }
     }
 
-    // ═════ Helpers ═════
+    // ===== Helpers =====
     function _deployFV() internal returns (FounderVesting fv, MockERC20 lumina) {
         lumina = new MockERC20("LUMINA", "LUM");
         fv = new FounderVesting(ORACLE_SET_A, AAVE_POOL_SEPOLIA, address(lumina), USDC_MOCK, FOUNDER);
@@ -76,19 +76,19 @@ contract FounderVestingV2E2EFlows is Test {
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 1. PATH 1 full flow — real-oracle 2-of-3 sustained 1 day, 3 tranches
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 1. PATH 1 full flow -- real-oracle 2-of-3 sustained 1 day, 3 tranches
+    // ---------------------------------------------------------------------
     function test_E2E_Path1_FullFlow_RealOracle_2of3_Sustained1Day() public requiresFork {
         (FounderVesting fv, MockERC20 lumina) = _deployFV();
-        // ETH=$4,500, BTC=$90,000 → ratio = 0.05 exactly (NOT > threshold).
-        // Bump ETH so condA satisfied: 4500/90000 = 0.05 → use 4600/90000 = 0.0511
+        // ETH=$4,500, BTC=$90,000 -> ratio = 0.05 exactly (NOT > threshold).
+        // Bump ETH so condA satisfied: 4500/90000 = 0.05 -> use 4600/90000 = 0.0511
         _mockPrices(4600e8, 90_000e8);
         _mockBorrowRate(8e25); // 8% > 7% threshold (condC)
 
         uint256 t0 = block.timestamp;
 
-        // Hour 0: opens sustained period (metCount=3 ≥ 2; condA/B/C all true)
+        // Hour 0: opens sustained period (metCount=3 >= 2; condA/B/C all true)
         fv.checkAltSeason();
         assertGt(fv.conditionsMetSince(), 0, "PATH 1 not armed");
         assertFalse(fv.altSeasonTriggered(), "Should NOT trigger before 1 day");
@@ -100,17 +100,17 @@ contract FounderVestingV2E2EFlows is Test {
         fv.checkAltSeason();
         assertTrue(fv.altSeasonTriggered(), "PATH 1 should trigger after 1d sustained");
 
-        // Tranche 1 — immediately at triggerTimestamp + 0
+        // Tranche 1 -- immediately at triggerTimestamp + 0
         uint256 tts = fv.triggerTimestamp();
         fv.releaseTranche();
         assertEq(fv.tranchesReleased(), 1);
 
-        // Tranche 2 — +31d
+        // Tranche 2 -- +31d
         vm.warp(tts + 31 days);
         fv.releaseTranche();
         assertEq(fv.tranchesReleased(), 2);
 
-        // Tranche 3 — +62d
+        // Tranche 3 -- +62d
         vm.warp(tts + 62 days);
         fv.releaseTranche();
         assertEq(fv.tranchesReleased(), 3);
@@ -119,16 +119,16 @@ contract FounderVestingV2E2EFlows is Test {
         assertEq(lumina.balanceOf(address(fv)), 0, "FV must be drained");
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 2. PATH 2 full flow — ETH override $5,001 sustained 1 day
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 2. PATH 2 full flow -- ETH override $5,001 sustained 1 day
+    // ---------------------------------------------------------------------
     function test_E2E_Path2_FullFlow_ETHOverride_5001() public requiresFork {
         (FounderVesting fv, MockERC20 lumina) = _deployFV();
-        // ETH=$5,001 → above override threshold ($5,000). Force BTC very high
-        // so PATH 1 condA fails (5001/200000 ≈ 0.025 < 0.05) and condB also
-        // would be true ($5001 > $4000) but condC=false → metCount=1 → PATH 1 inactive.
+        // ETH=$5,001 -> above override threshold ($5,000). Force BTC very high
+        // so PATH 1 condA fails (5001/200000 ~ 0.025 < 0.05) and condB also
+        // would be true ($5001 > $4000) but condC=false -> metCount=1 -> PATH 1 inactive.
         _mockPrices(5001e8, 200_000e8);
-        _mockBorrowRate(5e25); // 5% < 7% → condC=false
+        _mockBorrowRate(5e25); // 5% < 7% -> condC=false
 
         uint256 t0 = block.timestamp;
 
@@ -157,9 +157,9 @@ contract FounderVestingV2E2EFlows is Test {
         assertEq(lumina.balanceOf(FOUNDER), 8_000_000e18);
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 3. PATH 3 fallback — 3 years + 1s, callable by anyone
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 3. PATH 3 fallback -- 3 years + 1s, callable by anyone
+    // ---------------------------------------------------------------------
     function test_E2E_Path3_Fallback_3Years() public requiresFork {
         (FounderVesting fv, MockERC20 lumina) = _deployFV();
         uint256 deployedAt = fv.deployedAt();
@@ -184,12 +184,12 @@ contract FounderVestingV2E2EFlows is Test {
         assertEq(lumina.balanceOf(FOUNDER), 8_000_000e18);
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 4. PATH 1 vs PATH 2 race — PATH 1 wins (evaluated first in code order)
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 4. PATH 1 vs PATH 2 race -- PATH 1 wins (evaluated first in code order)
+    // ---------------------------------------------------------------------
     function test_E2E_Path1_And_Path2_Race() public requiresFork {
         (FounderVesting fv,) = _deployFV();
-        // ETH=$5,500, BTC=$100,000 → ratio 0.055 > 0.05 (condA), ETH>$4000 (condB),
+        // ETH=$5,500, BTC=$100,000 -> ratio 0.055 > 0.05 (condA), ETH>$4000 (condB),
         // borrow 8e25 (condC). PATH 2 override also satisfied ($5500 > $5000).
         _mockPrices(5500e8, 100_000e8);
         _mockBorrowRate(8e25);
@@ -201,7 +201,7 @@ contract FounderVestingV2E2EFlows is Test {
         assertGt(fv.conditionsMetSince(), 0, "PATH 1 armed");
         assertGt(fv.overrideMetSince(), 0, "PATH 2 armed");
 
-        // Hour 25: PATH 1 evaluated first per checkAltSeason() source order →
+        // Hour 25: PATH 1 evaluated first per checkAltSeason() source order ->
         // AltSeasonTriggered fires (and `return` short-circuits PATH 2 block).
         vm.warp(t0 + 25 hours);
         vm.recordLogs();
@@ -221,23 +221,23 @@ contract FounderVestingV2E2EFlows is Test {
         assertTrue(fv.altSeasonTriggered());
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 5. No calls to checkAltSeason → never triggers despite met conditions
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 5. No calls to checkAltSeason -> never triggers despite met conditions
+    // ---------------------------------------------------------------------
     function test_E2E_NoCalls_TokensStuck() public requiresFork {
         (FounderVesting fv,) = _deployFV();
         _mockPrices(5500e8, 100_000e8);
         _mockBorrowRate(8e25);
 
-        // 30 days pass — no one calls checkAltSeason
+        // 30 days pass -- no one calls checkAltSeason
         vm.warp(block.timestamp + 30 days);
         assertFalse(fv.altSeasonTriggered(), "Trigger requires explicit call");
         assertEq(fv.conditionsMetSince(), 0, "Counter never advances without call");
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 6. PATH 1 flicker — drop condC, reset, re-arm, trigger at 40h
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 6. PATH 1 flicker -- drop condC, reset, re-arm, trigger at 40h
+    // ---------------------------------------------------------------------
     function test_E2E_Flicker_PATH1_ResetsCounter() public requiresFork {
         (FounderVesting fv,) = _deployFV();
         uint256 t0 = block.timestamp;
@@ -249,15 +249,15 @@ contract FounderVestingV2E2EFlows is Test {
         uint256 firstMetSince = fv.conditionsMetSince();
         assertEq(firstMetSince, t0, "First arm at hour 0");
 
-        // Hour 14: drop condC to 6e25 (below 7%) → metCount=2 still (condA+condB)
-        // So 2-of-3 still met → counter SHOULD NOT reset. To force a reset we
+        // Hour 14: drop condC to 6e25 (below 7%) -> metCount=2 still (condA+condB)
+        // So 2-of-3 still met -> counter SHOULD NOT reset. To force a reset we
         // need to break TWO conditions. Drop BTC to make ratio fail AND borrow.
         // Per the spec: "drop condC to 6e25, conditionsMetSince = 0".
         // For that to be the trigger reset, we must also break condA OR condB.
-        // We choose: keep prices, drop oracle so ratio undefined → condA=condB=false,
-        // then metCount=0 + condC=false → reset fires.
-        // ───── Re-read of spec: it says "Hour 14: drop condC to 6e25 ...
-        //       call checkAltSeason → SustainedPeriodReset event, conditionsMetSince=0".
+        // We choose: keep prices, drop oracle so ratio undefined -> condA=condB=false,
+        // then metCount=0 + condC=false -> reset fires.
+        // ----- Re-read of spec: it says "Hour 14: drop condC to 6e25 ...
+        //       call checkAltSeason -> SustainedPeriodReset event, conditionsMetSince=0".
         //       That assumes metCount<2 after the drop. With condA+condB still true
         //       (4600/90000=0.0511, ETH>$4000), metCount=2 even with condC=false.
         //       So we must also break condB. Set ETH=$3000 to break condB AND
@@ -283,9 +283,9 @@ contract FounderVestingV2E2EFlows is Test {
         assertTrue(fv.altSeasonTriggered(), "PATH 1 must trigger after re-arm + 24h");
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 7. PATH 2 flicker — drop ETH below override, reset, re-arm, trigger
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 7. PATH 2 flicker -- drop ETH below override, reset, re-arm, trigger
+    // ---------------------------------------------------------------------
     function test_E2E_Flicker_PATH2_ResetsOverride() public requiresFork {
         (FounderVesting fv,) = _deployFV();
         // Force PATH 1 to never arm: make borrow rate low + BTC very high so
@@ -294,7 +294,7 @@ contract FounderVestingV2E2EFlows is Test {
         uint256 t0 = block.timestamp;
 
         // Hour 0: ETH=$5100 (override met)
-        _mockPrices(5100e8, 1_000_000e8); // ratio 0.0051 → condA=false
+        _mockPrices(5100e8, 1_000_000e8); // ratio 0.0051 -> condA=false
         vm.expectEmit(true, false, false, false);
         emit OverrideConditionMet(5100e8, 0);
         fv.checkAltSeason();
@@ -322,9 +322,9 @@ contract FounderVestingV2E2EFlows is Test {
         assertTrue(fv.altSeasonTriggered());
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 8. Oracle revert — try/catch swallows it, neither counter advances
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 8. Oracle revert -- try/catch swallows it, neither counter advances
+    // ---------------------------------------------------------------------
     function test_E2E_OracleRevert_NoAdvance() public requiresFork {
         (FounderVesting fv,) = _deployFV();
         // Make oracle revert on ETH + BTC queries
@@ -357,9 +357,9 @@ contract FounderVestingV2E2EFlows is Test {
         assertFalse(fv.altSeasonTriggered());
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 9. Update recipient between tranches — tranche 2/3 go to wallet Y
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 9. Update recipient between tranches -- tranche 2/3 go to wallet Y
+    // ---------------------------------------------------------------------
     function test_E2E_UpdateRecipient_BetweenTranches() public requiresFork {
         (FounderVesting fv, MockERC20 lumina) = _deployFV();
         _mockPrices(4600e8, 90_000e8);
@@ -371,7 +371,7 @@ contract FounderVestingV2E2EFlows is Test {
         fv.checkAltSeason();
         uint256 tts = fv.triggerTimestamp();
 
-        // Tranche 1 → founder (recipient at deploy time)
+        // Tranche 1 -> founder (recipient at deploy time)
         fv.releaseTranche();
         uint256 trancheAmt = fv.TRANCHE_AMOUNT();
         assertEq(lumina.balanceOf(FOUNDER), trancheAmt, "Tranche 1 goes to founder");
@@ -380,12 +380,12 @@ contract FounderVestingV2E2EFlows is Test {
         address walletY = makeAddr("walletY");
         fv.updateRecipient(walletY);
 
-        // Tranche 2 → walletY
+        // Tranche 2 -> walletY
         vm.warp(tts + 31 days);
         fv.releaseTranche();
         assertEq(lumina.balanceOf(walletY), trancheAmt);
 
-        // Tranche 3 → walletY (gets the remainder for rounding-dust accounting)
+        // Tranche 3 -> walletY (gets the remainder for rounding-dust accounting)
         vm.warp(tts + 62 days);
         fv.releaseTranche();
 
@@ -394,9 +394,9 @@ contract FounderVestingV2E2EFlows is Test {
         assertEq(lumina.balanceOf(walletY), expectedY, "WalletY gets tranche 2+3 (incl. dust)");
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 10. Triple balance check — balanceOf, getStatus(), 3 TrancheReleased events
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
+    // 10. Triple balance check -- balanceOf, getStatus(), 3 TrancheReleased events
+    // ---------------------------------------------------------------------
     function test_E2E_BalanceCheck_3Methods() public requiresFork {
         (FounderVesting fv, MockERC20 lumina) = _deployFV();
         _mockPrices(4600e8, 90_000e8);
@@ -439,11 +439,11 @@ contract FounderVestingV2E2EFlows is Test {
     }
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// Minimal ERC20 mock — only the bits FounderVesting touches (transfer + balanceOf).
+// =========================================================================
+// Minimal ERC20 mock -- only the bits FounderVesting touches (transfer + balanceOf).
 // We avoid using LuminaTokenV2 because (a) it requires proxy init + role wiring,
 // and (b) the on-chain LUMINA proxy was bricked + blanked after Sprint Z.2.
-// ═════════════════════════════════════════════════════════════════════════
+// =========================================================================
 contract MockERC20 {
     string public name;
     string public symbol;

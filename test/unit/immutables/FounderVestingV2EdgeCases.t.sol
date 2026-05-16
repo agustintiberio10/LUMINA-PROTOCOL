@@ -4,35 +4,35 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {FounderVesting, IAaveV3PoolReader} from "../../../src/token/FounderVesting.sol";
 
-// ╔════════════════════════════════════════════════════════════════════════════╗
-// ║ Sprint FV — Phase D: 60 edge-case tests for FounderVesting V2 (PATH 2)     ║
-// ║                                                                            ║
-// ║ Groups (60 total):                                                         ║
-// ║   T-ORC   x15  Oracle staleness / revert / corruption                      ║
-// ║   T-CNT   x7   Counter / sustained-period boundary                         ║
-// ║   T-DAY   x3   Definition of "day"                                         ║
-// ║   T-RACE  x2   Race conditions                                             ║
-// ║   T-FBK   x6   Fallback (3 years = 1095d)                                  ║
-// ║   T-REL   x4   Tranche release                                             ║
-// ║   T-TRX   x3   Trigger / counter transitions                               ║
-// ║   T-OVR   x10  PATH 2 ETH > $5,000 override                                ║
-// ║   T-COBRO x9   Verification of claim (balances + events + dust)            ║
-// ║                                                                            ║
-// ║ All sustained durations updated to 1 day (86400s) per Sprint FV B.         ║
-// ║ All fallback durations updated to 1095d (3 years) per Sprint FV B.         ║
-// ║ ETH override threshold: 500_000_000_000 (= $5,000 in 8-dec Chainlink).     ║
-// ║ TRANCHE_AMOUNT = 8_000_000e18 / 3 (integer division, last tranche absorbs  ║
-// ║ remainder dust to make sum exactly 8M).                                    ║
-// ║                                                                            ║
-// ║ NOTE on warp: foundry.toml has via_ir=true; per memory                     ║
-// ║ `foundry_via_ir_warp.md`, `vm.warp(block.timestamp + delta)` caches the    ║
-// ║ initial block.timestamp under via_ir. We anchor warps to `t0` captured at  ║
-// ║ setUp() and always pass absolute timestamps.                               ║
-// ╚════════════════════════════════════════════════════════════════════════════╝
+// +============================================================================+
+// | Sprint FV -- Phase D: 60 edge-case tests for FounderVesting V2 (PATH 2)     |
+// |                                                                            |
+// | Groups (60 total):                                                         |
+// |   T-ORC   x15  Oracle staleness / revert / corruption                      |
+// |   T-CNT   x7   Counter / sustained-period boundary                         |
+// |   T-DAY   x3   Definition of "day"                                         |
+// |   T-RACE  x2   Race conditions                                             |
+// |   T-FBK   x6   Fallback (3 years = 1095d)                                  |
+// |   T-REL   x4   Tranche release                                             |
+// |   T-TRX   x3   Trigger / counter transitions                               |
+// |   T-OVR   x10  PATH 2 ETH > $5,000 override                                |
+// |   T-COBRO x9   Verification of claim (balances + events + dust)            |
+// |                                                                            |
+// | All sustained durations updated to 1 day (86400s) per Sprint FV B.         |
+// | All fallback durations updated to 1095d (3 years) per Sprint FV B.         |
+// | ETH override threshold: 500_000_000_000 (= $5,000 in 8-dec Chainlink).     |
+// | TRANCHE_AMOUNT = 8_000_000e18 / 3 (integer division, last tranche absorbs  |
+// | remainder dust to make sum exactly 8M).                                    |
+// |                                                                            |
+// | NOTE on warp: foundry.toml has via_ir=true; per memory                     |
+// | `foundry_via_ir_warp.md`, `vm.warp(block.timestamp + delta)` caches the    |
+// | initial block.timestamp under via_ir. We anchor warps to `t0` captured at  |
+// | setUp() and always pass absolute timestamps.                               |
+// +============================================================================+
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Mocks
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 /// @notice Mock oracle with per-asset revert toggles + raw price setters.
 contract MockOracleV2 {
@@ -101,15 +101,15 @@ contract MockLumina {
     }
 }
 
-/// @notice Plain contract recipient (no payable, no special interface) — used to
+/// @notice Plain contract recipient (no payable, no special interface) -- used to
 ///         confirm tokens can land in a contract address via ERC20.transfer.
 contract PlainContractRecipient {
-    // intentionally empty — receives via ERC20 balance ledger only.
+    // intentionally empty -- receives via ERC20 balance ledger only.
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Test Harness
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 contract FounderVestingV2EdgeCases is Test {
     FounderVesting fv;
@@ -133,8 +133,8 @@ contract FounderVestingV2EdgeCases is Test {
 
     // Threshold for PATH 2 override: ETH > $5,000 in 8-dec Chainlink.
     int256 constant ETH_OVERRIDE_THRESHOLD = 500_000_000_000;       // exactly $5,000.00000000
-    int256 constant ETH_OVERRIDE_PASS     = 500_000_000_001;        // $5,000.00000001 — strictly above
-    int256 constant ETH_OVERRIDE_FAIL_HI  = 500_000_000_000;        // exactly $5,000 — NOT above (strict `>`)
+    int256 constant ETH_OVERRIDE_PASS     = 500_000_000_001;        // $5,000.00000001 -- strictly above
+    int256 constant ETH_OVERRIDE_FAIL_HI  = 500_000_000_000;        // exactly $5,000 -- NOT above (strict `>`)
 
     function setUp() public {
         // Pin a non-trivial block.timestamp to avoid wrap-around with FALLBACK_D.
@@ -152,18 +152,18 @@ contract FounderVestingV2EdgeCases is Test {
         t0 = block.timestamp;
     }
 
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
     // Helpers
-    // ─────────────────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------
 
     /// @dev Set PATH 1 to be 2-of-3 (A + B): ETH=$4500, BTC=$60k (ratio=0.075 > 0.05), ethPrice > $4k.
-    ///      Aave borrow rate stays 0 → condC=false. ETH < $5k → no PATH 2 override.
+    ///      Aave borrow rate stays 0 -> condC=false. ETH < $5k -> no PATH 2 override.
     function _setPath1_2of3_NoOverride() internal {
         oracle.setPrices(4500_00000000, 60000_00000000);
         aave.setBorrowRate(0);
     }
 
-    /// @dev Set PATH 1 to be 1-of-3 only (condB true). ETH=$4500, BTC=$0 → condA,condB false (need both prices).
+    /// @dev Set PATH 1 to be 1-of-3 only (condB true). ETH=$4500, BTC=$0 -> condA,condB false (need both prices).
     function _setPath1_1of3() internal {
         // Only condC by setting Aave above threshold; oracle returns 0 for both.
         oracle.setPrices(0, 0);
@@ -192,9 +192,9 @@ contract FounderVestingV2EdgeCases is Test {
         trigTs = fv.triggerTimestamp();
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
     // T-ORC: Oracle staleness / revert / corruption (15)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
 
     function test_ORC_OracleRevertsETH_NoAdvance() public {
         // ETH feed reverts; BTC OK; Aave 0. metCount=0 because condA/condB need ethPrice>0.
@@ -209,7 +209,7 @@ contract FounderVestingV2EdgeCases is Test {
         oracle.setRevertOnBTC(true);
         oracle.setEth(4500_00000000);
         fv.checkAltSeason();
-        // condA/condB need btcPrice>0 → metCount=0.
+        // condA/condB need btcPrice>0 -> metCount=0.
         assertEq(fv.conditionsMetSince(), 0);
         assertFalse(fv.altSeasonTriggered());
     }
@@ -231,7 +231,7 @@ contract FounderVestingV2EdgeCases is Test {
 
     function test_ORC_AaveRevert_CondCFalse() public {
         aave.setRevertOnRead(true);
-        oracle.setPrices(4500_00000000, 60000_00000000); // A+B true → 2-of-3 anyway
+        oracle.setPrices(4500_00000000, 60000_00000000); // A+B true -> 2-of-3 anyway
         fv.checkAltSeason();
         assertEq(fv.conditionsMetSince(), t0, "A+B still gives 2-of-3");
         assertFalse(fv.altSeasonTriggered());
@@ -247,10 +247,10 @@ contract FounderVestingV2EdgeCases is Test {
     }
 
     function test_ORC_StalePriceFromOracle_TreatedAsLive_IfNotReverted() public {
-        // FV does not check staleness — a stale but positive price is consumed as-is.
+        // FV does not check staleness -- a stale but positive price is consumed as-is.
         // (Document: staleness defense lives in the oracle layer.)
         oracle.setPrices(4500_00000000, 60000_00000000);
-        // Advance time massively — oracle still returns the same positive prices.
+        // Advance time massively -- oracle still returns the same positive prices.
         vm.warp(t0 + 30 days);
         fv.checkAltSeason();
         assertTrue(fv.conditionsMetSince() > 0, "Stale-but-positive prices still satisfy A+B");
@@ -259,13 +259,13 @@ contract FounderVestingV2EdgeCases is Test {
     function test_ORC_OracleReverts_PartialFlow_ETHOK_BTCRevert() public {
         oracle.setEth(4500_00000000);
         oracle.setRevertOnBTC(true);
-        aave.setBorrowRate(8e25); // condC true alone — only 1-of-3
+        aave.setBorrowRate(8e25); // condC true alone -- only 1-of-3
         fv.checkAltSeason();
-        assertEq(fv.conditionsMetSince(), 0, "Only 1-of-3 (condC) → no sustained start");
+        assertEq(fv.conditionsMetSince(), 0, "Only 1-of-3 (condC) -> no sustained start");
     }
 
     function test_ORC_OverrideEvalRespects_OracleRevert_ETHZero() public {
-        // ETH reverts → ethPriceOut=0 → ethOverride=false even if threshold semantics would say "$0 < $5k".
+        // ETH reverts -> ethPriceOut=0 -> ethOverride=false even if threshold semantics would say "$0 < $5k".
         oracle.setRevertOnETH(true);
         fv.checkAltSeason();
         assertEq(fv.overrideMetSince(), 0, "Override must remain unset when ETH feed reverts");
@@ -281,27 +281,27 @@ contract FounderVestingV2EdgeCases is Test {
     }
 
     function test_ORC_ExtremeHighETH_NoBTC_OnlyOverride() public {
-        // ETH = $1M (massive), BTC=0 → condA/condB false; ethOverride true.
+        // ETH = $1M (massive), BTC=0 -> condA/condB false; ethOverride true.
         oracle.setEth(int256(100_000_000_000_000)); // $1,000,000 in 8-dec
         oracle.setBtc(0);
         fv.checkAltSeason();
-        // PATH 1: 0-of-3 → no sustained start.
+        // PATH 1: 0-of-3 -> no sustained start.
         assertEq(fv.conditionsMetSince(), 0);
-        // PATH 2: override met → overrideMetSince set.
+        // PATH 2: override met -> overrideMetSince set.
         assertEq(fv.overrideMetSince(), t0);
     }
 
     function test_ORC_ExtremeHighBTC_LowETH_NoConds() public {
         oracle.setEth(1_00000000); // $1
         oracle.setBtc(int256(10_000_000_000_000)); // $100,000
-        // ratio = 1e8 * 1e18 / 1e13 = 1e13 (way below 5e16) → condA false; condB false.
+        // ratio = 1e8 * 1e18 / 1e13 = 1e13 (way below 5e16) -> condA false; condB false.
         aave.setBorrowRate(0);
         fv.checkAltSeason();
         assertEq(fv.conditionsMetSince(), 0);
     }
 
     function test_ORC_OracleIntMax_NoOverflow_OverrideTrue() public {
-        // int256 max for ethPrice → still positive, override should trigger condition met.
+        // int256 max for ethPrice -> still positive, override should trigger condition met.
         oracle.setEth(type(int256).max);
         oracle.setBtc(0);
         fv.checkAltSeason();
@@ -309,7 +309,7 @@ contract FounderVestingV2EdgeCases is Test {
     }
 
     function test_ORC_OracleRevertsETH_AfterMet_PreservesOverride() public {
-        // Override has been met previously; now ETH feed reverts → ethOverride=false → reset overrideMetSince.
+        // Override has been met previously; now ETH feed reverts -> ethOverride=false -> reset overrideMetSince.
         oracle.setEth(ETH_OVERRIDE_PASS);
         fv.checkAltSeason();
         assertEq(fv.overrideMetSince(), t0);
@@ -317,7 +317,7 @@ contract FounderVestingV2EdgeCases is Test {
         oracle.setRevertOnETH(true);
         vm.warp(t0 + 1 hours);
         fv.checkAltSeason();
-        assertEq(fv.overrideMetSince(), 0, "Lost override → reset");
+        assertEq(fv.overrideMetSince(), 0, "Lost override -> reset");
     }
 
     function test_ORC_AaveExactlyAtThreshold_NotMet() public {
@@ -329,7 +329,7 @@ contract FounderVestingV2EdgeCases is Test {
     }
 
     function test_ORC_EthBtcRatioExactlyAtThreshold_CondAFalse() public {
-        // ratio = ETH_BTC_THRESHOLD = 50e15 exactly → strict `>` → condA false.
+        // ratio = ETH_BTC_THRESHOLD = 50e15 exactly -> strict `>` -> condA false.
         // Choose ETH=$3,000, BTC=$60,000 (ratio = 0.050 exactly in 18-dec). condB also false (ETH < $4k).
         oracle.setPrices(3000_00000000, 60000_00000000);
         aave.setBorrowRate(0);
@@ -337,9 +337,9 @@ contract FounderVestingV2EdgeCases is Test {
         assertEq(fv.conditionsMetSince(), 0, "Exactly-at-ratio-threshold is not strictly above");
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
     // T-CNT: Counter / sustained timing (7)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
 
     function test_CNT_TwoOfThree_Sustained1Day_Triggers() public {
         _setPath1_2of3_NoOverride();
@@ -362,7 +362,7 @@ contract FounderVestingV2EdgeCases is Test {
     function test_CNT_TwoOfThree_24h00s_Triggers() public {
         _setPath1_2of3_NoOverride();
         fv.checkAltSeason();
-        vm.warp(t0 + 24 hours); // exactly SUSTAINED — `>=` so triggers
+        vm.warp(t0 + 24 hours); // exactly SUSTAINED -- `>=` so triggers
         fv.checkAltSeason();
         assertTrue(fv.altSeasonTriggered());
     }
@@ -390,7 +390,7 @@ contract FounderVestingV2EdgeCases is Test {
         fv.checkAltSeason();
         assertEq(fv.conditionsMetSince(), t0);
 
-        // Flip to 1-of-3 (drop oracle prices, leave aave at 0 → 0-of-3 actually).
+        // Flip to 1-of-3 (drop oracle prices, leave aave at 0 -> 0-of-3 actually).
         oracle.setPrices(0, 0);
         vm.warp(t0 + 1 hours);
         vm.expectEmit(false, false, false, true);
@@ -402,7 +402,7 @@ contract FounderVestingV2EdgeCases is Test {
     function test_CNT_NotCalledForDays_RequiresNewSustained_OK() public {
         // Once met, the sustained-period start is preserved while conditions remain true.
         // Even if no caller hits checkAltSeason for several days, the next call sees
-        // (block.timestamp - conditionsMetSince) >= SUSTAINED → triggers immediately.
+        // (block.timestamp - conditionsMetSince) >= SUSTAINED -> triggers immediately.
         _setPath1_2of3_NoOverride();
         fv.checkAltSeason();
         // No further calls for 10 days while conditions remain met externally.
@@ -411,9 +411,9 @@ contract FounderVestingV2EdgeCases is Test {
         assertTrue(fv.altSeasonTriggered(), "Lazy-evaluation: long uninterrupted satisfaction triggers");
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
     // T-DAY: Definition of "day" (3)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
 
     function test_DAY_DurationIsExactly86400Seconds() public view {
         assertEq(fv.SUSTAINED_DURATION(), 86_400);
@@ -438,14 +438,14 @@ contract FounderVestingV2EdgeCases is Test {
         assertTrue(fv.altSeasonTriggered());
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
     // T-RACE: Race conditions (2)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
 
     function test_RACE_TwoCallersSameBlock_LastWins_DocumentedAsFirstTriggerSticks() public {
         // First call starts the sustained period. Within the SAME block (same timestamp),
-        // a second caller does not move the needle — `conditionsMetSince` is already non-zero,
-        // and `block.timestamp - conditionsMetSince == 0 < SUSTAINED` → no trigger yet.
+        // a second caller does not move the needle -- `conditionsMetSince` is already non-zero,
+        // and `block.timestamp - conditionsMetSince == 0 < SUSTAINED` -> no trigger yet.
         _setPath1_2of3_NoOverride();
         vm.prank(attacker);
         fv.checkAltSeason();
@@ -453,7 +453,7 @@ contract FounderVestingV2EdgeCases is Test {
 
         vm.prank(recipient);
         fv.checkAltSeason();
-        // No mutation — conditionsMetSince stays at t0 (idempotent within block).
+        // No mutation -- conditionsMetSince stays at t0 (idempotent within block).
         assertEq(fv.conditionsMetSince(), t0);
         assertFalse(fv.altSeasonTriggered());
     }
@@ -465,9 +465,9 @@ contract FounderVestingV2EdgeCases is Test {
         fv.checkAltSeason();
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
     // T-FBK: Fallback at 1095 days (6)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
 
     function test_FBK_AtExactly1095Days_Allowed() public {
         vm.warp(t0 + FALLBACK_D);
@@ -516,9 +516,9 @@ contract FounderVestingV2EdgeCases is Test {
         fv.triggerFallback();
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
     // T-REL: Tranche release (4)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
 
     function test_REL_FirstTranche_AtTriggerTimestamp_Releases() public {
         uint256 trigTs = _triggerPath1();
@@ -572,25 +572,25 @@ contract FounderVestingV2EdgeCases is Test {
         fv.releaseTranche();
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
     // T-TRX: Trigger transitions (3)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
 
     function test_TRX_Path1Triggers_Path2CounterPreserved() public {
         // Set both PATH 1 (2-of-3) AND PATH 2 (override) active simultaneously.
-        oracle.setEth(ETH_OVERRIDE_PASS); // ETH > $5k → also satisfies condB (> $4k)
+        oracle.setEth(ETH_OVERRIDE_PASS); // ETH > $5k -> also satisfies condB (> $4k)
         oracle.setBtc(60000_00000000);
         aave.setBorrowRate(0); // condC false
-        // condA: ratio = 500_000_000_001 * 1e18 / 6_000_000_000_000 ≈ 8.3e13 (< 5e16) → false.
+        // condA: ratio = 500_000_000_001 * 1e18 / 6_000_000_000_000 ~ 8.3e13 (< 5e16) -> false.
         // So PATH 1: condB only? need to recheck.
-        // Actually condA: ETH/BTC = 5000/60000 = 0.083 > 0.05 → condA TRUE.
-        // condB: ETH > $4k → TRUE. metCount=2.
+        // Actually condA: ETH/BTC = 5000/60000 = 0.083 > 0.05 -> condA TRUE.
+        // condB: ETH > $4k -> TRUE. metCount=2.
         fv.checkAltSeason();
         // PATH 1 starts sustained period AND PATH 2 starts overrideMetSince.
         assertEq(fv.conditionsMetSince(), t0);
         assertEq(fv.overrideMetSince(), t0);
 
-        // After 1d, PATH 1 evaluates first and triggers → return before PATH 2 block.
+        // After 1d, PATH 1 evaluates first and triggers -> return before PATH 2 block.
         vm.warp(t0 + SUSTAINED);
         fv.checkAltSeason();
         assertTrue(fv.altSeasonTriggered());
@@ -602,16 +602,16 @@ contract FounderVestingV2EdgeCases is Test {
         // PATH 1 sees 1-of-3 (condC only). PATH 2 override active.
         oracle.setEth(ETH_OVERRIDE_PASS);
         oracle.setBtc(0); // disables condA + condB
-        aave.setBorrowRate(8e25); // condC TRUE → 1-of-3, no sustained start
+        aave.setBorrowRate(8e25); // condC TRUE -> 1-of-3, no sustained start
         fv.checkAltSeason();
-        // PATH 1: 1-of-3 → conditionsMetSince stays 0. PATH 2: overrideMetSince set.
+        // PATH 1: 1-of-3 -> conditionsMetSince stays 0. PATH 2: overrideMetSince set.
         assertEq(fv.conditionsMetSince(), 0);
         assertEq(fv.overrideMetSince(), t0);
 
         vm.warp(t0 + SUSTAINED);
         fv.checkAltSeason();
         assertTrue(fv.altSeasonTriggered(), "PATH 2 triggers");
-        // PATH 1 counter remained at 0 throughout — preserved.
+        // PATH 1 counter remained at 0 throughout -- preserved.
         assertEq(fv.conditionsMetSince(), 0);
     }
 
@@ -628,12 +628,12 @@ contract FounderVestingV2EdgeCases is Test {
         assertFalse(fv.altSeasonTriggered());
     }
 
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
     // T-OVR: PATH 2 ETH override (10)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
 
     function test_Override_Exactly5000_NotMet() public {
-        // Strict `>` — exactly $5,000.000_00000000 is NOT > threshold.
+        // Strict `>` -- exactly $5,000.000_00000000 is NOT > threshold.
         oracle.setEth(ETH_OVERRIDE_FAIL_HI);
         oracle.setBtc(0);
         fv.checkAltSeason();
@@ -680,13 +680,13 @@ contract FounderVestingV2EdgeCases is Test {
         fv.checkAltSeason();
         assertEq(fv.overrideMetSince(), t0);
 
-        // 1 block later, ETH drops to exactly $5,000 (still not strictly above) → reset.
+        // 1 block later, ETH drops to exactly $5,000 (still not strictly above) -> reset.
         oracle.setEth(ETH_OVERRIDE_FAIL_HI);
         vm.warp(t0 + 12); // ~1 block on Base.
         fv.checkAltSeason();
         assertEq(fv.overrideMetSince(), 0);
 
-        // Restore — counter starts from this new timestamp.
+        // Restore -- counter starts from this new timestamp.
         oracle.setEth(ETH_OVERRIDE_PASS);
         vm.warp(t0 + 24);
         fv.checkAltSeason();
@@ -695,13 +695,13 @@ contract FounderVestingV2EdgeCases is Test {
 
     function test_Override_DuringPath1Sustained_BothPathsRace() public {
         // Both PATH 1 (2-of-3 via A+B) AND PATH 2 (override) active.
-        oracle.setEth(ETH_OVERRIDE_PASS);     // > $5k → condB true + override
-        oracle.setBtc(60000_00000000);        // condA: 0.083 > 0.05 → true
+        oracle.setEth(ETH_OVERRIDE_PASS);     // > $5k -> condB true + override
+        oracle.setBtc(60000_00000000);        // condA: 0.083 > 0.05 -> true
         aave.setBorrowRate(0);
         fv.checkAltSeason();
         assertEq(fv.conditionsMetSince(), t0);
         assertEq(fv.overrideMetSince(), t0);
-        // After SUSTAINED, both paths could trigger — PATH 1 evaluated first wins.
+        // After SUSTAINED, both paths could trigger -- PATH 1 evaluated first wins.
         vm.warp(t0 + SUSTAINED);
         fv.checkAltSeason();
         assertTrue(fv.altSeasonTriggered());
@@ -747,15 +747,15 @@ contract FounderVestingV2EdgeCases is Test {
     }
 
     function test_Override_OracleReverts_DoesNotAdvance() public {
-        // ETH oracle reverts → ethPrice=0 → ethOverride=false → no advance.
+        // ETH oracle reverts -> ethPrice=0 -> ethOverride=false -> no advance.
         oracle.setRevertOnETH(true);
         fv.checkAltSeason();
         assertEq(fv.overrideMetSince(), 0, "Override cannot advance when ETH feed reverts");
     }
 
-    // ═════════════════════════════════════════════════════════════════════
-    // T-COBRO: Verification of claim — balances + events + dust (9)
-    // ═════════════════════════════════════════════════════════════════════
+    // =====================================================================
+    // T-COBRO: Verification of claim -- balances + events + dust (9)
+    // =====================================================================
 
     function test_Cobro_Tranche1_RecipientBalanceIncreasesByTrancheAmount() public {
         _triggerPath1();
@@ -781,7 +781,7 @@ contract FounderVestingV2EdgeCases is Test {
         vm.warp(trigTs + TRANCHE_INT);
         fv.releaseTranche();
         assertEq(lumina.balanceOf(recipient), 2 * TRANCHE_AMOUNT);
-        // ≈ 5_333_333_333333333333333332 LUMINA wei
+        // ~ 5_333_333_333333333333333332 LUMINA wei
     }
 
     function test_Cobro_Tranche3_RecipientBalanceExactly_8M_NoDustLeft() public {
@@ -812,7 +812,7 @@ contract FounderVestingV2EdgeCases is Test {
     }
 
     function test_Cobro_OldRecipient_NoBalance_AfterUpdateRecipient() public {
-        // Update recipient BEFORE any tranche releases — old recipient must end up with zero.
+        // Update recipient BEFORE any tranche releases -- old recipient must end up with zero.
         address newRecipient = makeAddr("newFounder");
         fv.updateRecipient(newRecipient);
         assertEq(fv.recipient(), newRecipient);
@@ -828,10 +828,10 @@ contract FounderVestingV2EdgeCases is Test {
     }
 
     function test_Cobro_NewRecipient_Receives_AfterUpdateRecipient() public {
-        // Update recipient AFTER tranche 1 has been released — tranches 2+3 go to new recipient.
+        // Update recipient AFTER tranche 1 has been released -- tranches 2+3 go to new recipient.
         uint256 trigTs = _triggerPath1();
         fv.releaseTranche();
-        assertEq(lumina.balanceOf(recipient), TRANCHE_AMOUNT, "T1 → original recipient");
+        assertEq(lumina.balanceOf(recipient), TRANCHE_AMOUNT, "T1 -> original recipient");
 
         address newRecipient = makeAddr("newFounder2");
         fv.updateRecipient(newRecipient);
