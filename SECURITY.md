@@ -33,28 +33,28 @@ in the redeploy.
 | `PolicyManagerV2` (`src/core/PolicyManagerV2.sol`) | Issues policies, settles triggers, marks expirations | `0x0000000000000000000000000000000000000000` |
 | `CoverRouterV2` (`src/core/CoverRouterV2.sol`) | User-facing: `purchasePolicy` (human direct) + `purchasePolicyFor` (relayer) + `quotePremium` | `0x0000000000000000000000000000000000000000` |
 | `LuminaBondMarketplace` (`src/marketplace/LuminaBondMarketplace.sol`) | Secondary market for ClaimBonds. 3% fee (1.5% each side) → 100% burn. | `0x0000000000000000000000000000000000000000` |
-| `BuybackEngine` (`src/marketplace/BuybackEngine.sol`) | Marketplace fee burn path | `0xC824309B1c02A2E57044b15527a53BBb8c3aAD5a` |
-| `ShieldKeeper` (`src/automation/ShieldKeeper.sol`) | Permissionless trigger submission helper | `0x474C9F3819328d919f827deA3f738F71302DdbcF` |
+| `BuybackEngine` (`src/marketplace/BuybackEngine.sol`) | Marketplace fee burn path | `0x0000000000000000000000000000000000000000` |
+| `ShieldKeeper` (`src/automation/ShieldKeeper.sol`) | Permissionless trigger submission helper | `0x0000000000000000000000000000000000000000` |
 | `TWAPBurner` (`src/core/TWAPBurner.sol`) | Routes 100% of premiums + marketplace fees → buy LUMINA → burn to 0xdead | `0x0000000000000000000000000000000000000000` |
 | `LuminaOracleV2` (`src/oracles/LuminaOracleV2.sol`) | EIP-712 shield price oracle. Verifies signed PriceProofs from the off-chain signer; the 9 shields call it inside `_doVerifyAndCalculate`. Replaces the launch-day `MockShieldOracle`. See [`docs/architecture/ORACLE-V2.md`](./docs/architecture/ORACLE-V2.md). | `0x0000000000000000000000000000000000000000` |
 | `FounderVesting` (`src/token/FounderVesting.sol`) | 8M LUMINA founder lock with 2-of-3 AltSeason conditions or 4-year fallback | `0x0000000000000000000000000000000000000000` |
 
-<!-- SPRINT_Z2 cleared (was old testnet SET B/C addresses for: LuminaTokenV2, ClaimBond, BondVault, PolicyManagerV2, CoverRouterV2, LuminaBondMarketplace, TWAPBurner, LuminaOracleV2, FounderVesting). BuybackEngine + ShieldKeeper retained: not in known-list. -->
+<!-- SPRINT_Z2 cleared (was old testnet SET B/C addresses for: LuminaTokenV2, ClaimBond, BondVault, PolicyManagerV2, CoverRouterV2, LuminaBondMarketplace, TWAPBurner, LuminaOracleV2, FounderVesting). SPRINT_Z2 B.1 sweep additionally blanked: BuybackEngine (was 0xC824309B1c02A2E57044b15527a53BBb8c3aAD5a), ShieldKeeper (was 0x474C9F3819328d919f827deA3f738F71302DdbcF), and all 9 shield addresses (FlashBTCShield1h/4h/24h/48h, FlashETHShield1h/24h/48h, MicroDepegShield, RateShockShield) — see the 9-shields table below. -->
 
 
 ### 9 shields (parametric products)
 
 | Shield | Trigger | Sepolia address |
 |---|---|---|
-| `FlashBTCShield1h` | BTC −5% / 1h | `0xfE0A40B31C4a8D20239345B1133d8A4495A1C788` |
-| `FlashBTCShield4h` | BTC −8% / 4h | `0x1Ab1be79659098fEbA0CC8D196F2BBaD87572DA1` |
-| `FlashBTCShield24h` | BTC −10% / 24h | `0x8b3Aa2dbfb6FF39C560A92dB51FD023Ca92E4f8a` |
-| `FlashBTCShield48h` | BTC −15% / 48h | `0x75ee42090C40D3a2fdd84937Eeba53fdE7c1bD18` |
-| `FlashETHShield1h` | ETH −7% / 1h | `0xdd4Dad66D0ADCf7C413ce39b2DfDBBDB11e11dC7` |
-| `FlashETHShield24h` | ETH −12% / 24h | `0x6D232eAE5221B0C445Af30d16976d2A55C8f5A03` |
-| `FlashETHShield48h` | ETH −18% / 48h | `0xBDd8937f740B12A8b1bf9f758cb264f138E2aB26` |
-| `MicroDepegShield` | USDT < $0.995 / 7d | `0x62a2452A2B52C8D3AaC0CEeEb5107159A604adc4` |
-| `RateShockShield` | Aave V3 USDC variable borrow rate > 10% APY | `0x0BEf02A107f374139F466828a0a8A4B9faA501Ff` |
+| `FlashBTCShield1h` | BTC −5% / 1h | `0x0000000000000000000000000000000000000000` |
+| `FlashBTCShield4h` | BTC −8% / 4h | `0x0000000000000000000000000000000000000000` |
+| `FlashBTCShield24h` | BTC −10% / 24h | `0x0000000000000000000000000000000000000000` |
+| `FlashBTCShield48h` | BTC −15% / 48h | `0x0000000000000000000000000000000000000000` |
+| `FlashETHShield1h` | ETH −7% / 1h | `0x0000000000000000000000000000000000000000` |
+| `FlashETHShield24h` | ETH −12% / 24h | `0x0000000000000000000000000000000000000000` |
+| `FlashETHShield48h` | ETH −18% / 48h | `0x0000000000000000000000000000000000000000` |
+| `MicroDepegShield` | USDT < $0.995 / 7d | `0x0000000000000000000000000000000000000000` |
+| `RateShockShield` | Aave V3 USDC variable borrow rate > 10% APY | `0x0000000000000000000000000000000000000000` |
 
 All shields inherit from `BaseShield` (`src/products/BaseShield.sol`). Default minimum cover: $100 USDC.
 
