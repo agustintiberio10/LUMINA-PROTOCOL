@@ -1,5 +1,8 @@
 # Audit V5.1 #40 — POST-DEPLOY VALIDATION (FINAL AUDIT) — REPORT
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 ## Scope
 
 This is the final audit of the V5.1 cycle. Where audits #1–#38 verified the protocol against attack vectors and audit #39 produced the operator-grade pre-broadcast checklist, audit #40 defines what to do **after** the production deploy lands on Base mainnet. Six deliverables:
@@ -11,7 +14,7 @@ This is the final audit of the V5.1 cycle. Where audits #1–#38 verified the pr
 5. `test/audit/v5.1-uups/integration/post-deploy/MainnetHealthCheck.t.sol` — 8-test Foundry suite to run periodically against the live mainnet deploy.
 6. `05-PAUSE-TRIGGERS.md` and `06-UPGRADE-PROCEDURE.md` — emergency response runbooks.
 
-> **Governance reminder:** per the founder note (2026-04-28), no multisig and no Timelock at deploy time. Deployer EOA `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8` is sole admin. Audit #40's 30-day plan (PARTE 4) defines when to install governance.
+> **Governance reminder:** per the founder note (2026-04-28), no multisig and no Timelock at deploy time. Deployer EOA `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8) --> is sole admin. Audit #40's 30-day plan (PARTE 4) defines when to install governance.
 
 ## Periodic health check — verification
 

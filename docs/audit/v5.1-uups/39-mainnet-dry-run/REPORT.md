@@ -1,5 +1,8 @@
 # Audit V5.1 #39 — MAINNET DRY RUN — REPORT
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 ## Scope
 
 Final pre-broadcast audit. Where audit-#38 verified that the V5.1 deploy script wires to live mainnet dependencies, audit-#39 turns the deploy into something the operator can execute. Three deliverables:
@@ -12,7 +15,7 @@ Companion test:
 
 4. **`test/audit/v5.1-uups/integration/dry-run/PreMainnetVerification.t.sol`** — 5 fork tests run on broadcast day to catch a stale Chainlink feed or a depegged USDC before committing capital.
 
-> **Governance note (founder, 2026-04-28):** No multisig and no TimelockController are installed at deploy time. The deployer EOA `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8` owns everything. Founder will install governance manually after the system stabilises. The runbook reflects this — the `MULTISIG` env var equals the deployer EOA.
+> **Governance note (founder, 2026-04-28):** No multisig and no TimelockController are installed at deploy time. The deployer EOA `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8) --> owns everything. Founder will install governance manually after the system stabilises. The runbook reflects this — the `MULTISIG` env var equals the deployer EOA.
 
 ## Pre-mainnet checklist — status of every item
 

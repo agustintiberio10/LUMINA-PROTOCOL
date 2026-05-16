@@ -1,12 +1,15 @@
 # Multisig Oracle — Signer Registry
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 ## Signer Table (addresses only — NEVER store private keys here)
 
 | # | Role | Address | Location |
 |---|------|---------|----------|
 | 1 | Primary (Railway) | *See Railway env `ORACLE_PRIVATE_KEY`* | Railway — MOLTAGENTINSURANCE project |
-| 2 | GCP | `0x9F95c55CE9613D855E255d11f9B68F664a5A573b` | Google Cloud Run — `ORACLE_SIGNER_2_KEY` env var |
-| 3 | Backup (Offline) | `0x063637E9331c5977C789040f35b40a6bEF669f83` | Offline storage (password manager / encrypted file) |
+| 2 | GCP | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x9F95c55CE9613D855E255d11f9B68F664a5A573b) --> | Google Cloud Run — `ORACLE_SIGNER_2_KEY` env var |
+| 3 | Backup (Offline) | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x063637E9331c5977C789040f35b40a6bEF669f83) --> | Offline storage (password manager / encrypted file) |
 | 4 | Reserved | — | Not yet generated |
 | 5 | Reserved | — | Not yet generated |
 
@@ -34,12 +37,12 @@ authorizedSigners(address) → bool
 ## Registration Steps (when ready to activate)
 
 ```bash
-# Step 1: Add Signer 2
-cast send ORACLE_CONTRACT_ADDRESS "addSigner(address)" 0x9F95c55CE9613D855E255d11f9B68F664a5A573b \
+# Step 1: Add Signer 2 — OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x9F95c55CE9613D855E255d11f9B68F664a5A573b)
+cast send ORACLE_CONTRACT_ADDRESS "addSigner(address)" 0x0000000000000000000000000000000000000000 \
   --rpc-url https://mainnet.base.org --private-key OWNER_PRIVATE_KEY
 
-# Step 2: Add Signer 3
-cast send ORACLE_CONTRACT_ADDRESS "addSigner(address)" 0x063637E9331c5977C789040f35b40a6bEF669f83 \
+# Step 2: Add Signer 3 — OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x063637E9331c5977C789040f35b40a6bEF669f83)
+cast send ORACLE_CONTRACT_ADDRESS "addSigner(address)" 0x0000000000000000000000000000000000000000 \
   --rpc-url https://mainnet.base.org --private-key OWNER_PRIVATE_KEY
 
 # Step 3: Activate multisig (3-of-3)
@@ -49,8 +52,10 @@ cast send ORACLE_CONTRACT_ADDRESS "setRequiredSignatures(uint256)" 3 \
 # Step 4: Verify
 cast call ORACLE_CONTRACT_ADDRESS "totalSigners()" --rpc-url https://mainnet.base.org
 cast call ORACLE_CONTRACT_ADDRESS "requiredSignatures()" --rpc-url https://mainnet.base.org
-cast call ORACLE_CONTRACT_ADDRESS "isSigner(address)" 0x9F95c55CE9613D855E255d11f9B68F664a5A573b --rpc-url https://mainnet.base.org
-cast call ORACLE_CONTRACT_ADDRESS "isSigner(address)" 0x063637E9331c5977C789040f35b40a6bEF669f83 --rpc-url https://mainnet.base.org
+# OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x9F95c55CE9613D855E255d11f9B68F664a5A573b)
+cast call ORACLE_CONTRACT_ADDRESS "isSigner(address)" 0x0000000000000000000000000000000000000000 --rpc-url https://mainnet.base.org
+# OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x063637E9331c5977C789040f35b40a6bEF669f83)
+cast call ORACLE_CONTRACT_ADDRESS "isSigner(address)" 0x0000000000000000000000000000000000000000 --rpc-url https://mainnet.base.org
 ```
 
 Replace `ORACLE_CONTRACT_ADDRESS` and `OWNER_PRIVATE_KEY` with actual values.

@@ -1,5 +1,8 @@
 # LUMINA Protocol V5.0 -- Real Testnet Testing Guide
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 ## Network: Base Sepolia (Chain ID: 84532)
 
 ---
@@ -12,9 +15,10 @@
 
 2. **MockUSDC balance** -- the script auto-mints if needed, but you can also mint manually:
    ```bash
-   cast send 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a \
+   cast send 0x0000000000000000000000000000000000000000 \
      "mint(address,uint256)" YOUR_ADDRESS 1000000000000 \
      --rpc-url base-sepolia --private-key $PRIVATE_KEY
+   # OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a)
    ```
 
 3. **Environment setup**:
@@ -35,14 +39,14 @@
 
 | Contract | Address |
 |---|---|
-| CoverRouterV2 | `0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306` |
-| MockUSDC | `0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a` |
-| ClaimBond | `0xd5f8678A0F2149B6342F9014CCe6d743234Ca025` |
-| MockBTCOracle | `0xB52BB8B09Df13dB2D244746688C14A720ceE4C09` |
-| FlashBTCShield1h | `0xDcac6614E6d8CAB79bD655649B5cfdA497f80aeD` |
-| PolicyManagerV2 | `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e` |
-| BondVault | `0x8b4B1E1985e105bb0b50A02F7d1AcD3efc950673` |
-| MockShieldOracle | `0xF11DDa1e81eC766c98B673dFA7e26c75C9a1e453` |
+| CoverRouterV2 | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306) --> |
+| MockUSDC | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a) --> |
+| ClaimBond | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025) --> |
+| MockBTCOracle | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xB52BB8B09Df13dB2D244746688C14A720ceE4C09) --> |
+| FlashBTCShield1h | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xDcac6614E6d8CAB79bD655649B5cfdA497f80aeD) --> |
+| PolicyManagerV2 | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e) --> |
+| BondVault | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x8b4B1E1985e105bb0b50A02F7d1AcD3efc950673) --> |
+| MockShieldOracle | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xF11DDa1e81eC766c98B673dFA7e26c75C9a1e453) --> |
 
 ---
 
@@ -193,7 +197,7 @@ HOLDER=0xYourAddress EPOCH_ID=202604 \
 **Expected output:**
 ```
 === LUMINA Testnet: Verify ClaimBond NFT ===
-ClaimBond:    0xd5f8678A0F2149B6342F9014CCe6d743234Ca025
+ClaimBond:    0x0000000000000000000000000000000000000000  # OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025)
 Holder:       0xYourAddress
 Epoch ID:     202604
 Epoch exists: true
@@ -215,7 +219,7 @@ Maturity:     1746057600
 3. Go to the **NFTs** tab
 4. Click **Import NFT**
 5. Enter:
-   - **Contract Address:** `0xd5f8678A0F2149B6342F9014CCe6d743234Ca025`
+   - **Contract Address:** `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025) -->
    - **Token ID:** Your epoch ID (e.g., `202604`)
 6. Click **Import**
 
@@ -225,19 +229,21 @@ MetaMask will show the ERC-1155 ClaimBond token. Each token represents $1 USD of
 
 ## How to See NFT on BaseScan
 
+<!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025) -->
+
 **Contract page:**
 ```
-https://sepolia.basescan.org/address/0xd5f8678A0F2149B6342F9014CCe6d743234Ca025
+https://sepolia.basescan.org/address/0x0000000000000000000000000000000000000000
 ```
 
 **Your token holdings:**
 ```
-https://sepolia.basescan.org/token/0xd5f8678A0F2149B6342F9014CCe6d743234Ca025?a=YOUR_ADDRESS
+https://sepolia.basescan.org/token/0x0000000000000000000000000000000000000000?a=YOUR_ADDRESS
 ```
 
 **Specific token ID:**
 ```
-https://sepolia.basescan.org/token/0xd5f8678A0F2149B6342F9014CCe6d743234Ca025?a=YOUR_ADDRESS#inventory
+https://sepolia.basescan.org/token/0x0000000000000000000000000000000000000000?a=YOUR_ADDRESS#inventory
 ```
 
 ---
@@ -272,14 +278,17 @@ T+25h+      Verify NFT bonds (Step 4)
 
 ```bash
 # Check policy status
-cast call 0xDcac6614E6d8CAB79bD655649B5cfdA497f80aeD \
+# OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xDcac6614E6d8CAB79bD655649B5cfdA497f80aeD)
+cast call 0x0000000000000000000000000000000000000000 \
   "getPolicyStatus(uint256)(uint8)" 1 --rpc-url base-sepolia
 
 # Check bond balance
-cast call 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025 \
+# OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025)
+cast call 0x0000000000000000000000000000000000000000 \
   "balanceOf(address,uint256)(uint256)" YOUR_ADDRESS 202604 --rpc-url base-sepolia
 
 # Check oracle price
-cast call 0xF11DDa1e81eC766c98B673dFA7e26c75C9a1e453 \
+# OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xF11DDa1e81eC766c98B673dFA7e26c75C9a1e453)
+cast call 0x0000000000000000000000000000000000000000 \
   "getLatestPrice(bytes32)(int256)" $(cast --format-bytes32 "BTC") --rpc-url base-sepolia
 ```

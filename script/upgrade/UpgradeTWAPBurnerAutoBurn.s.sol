@@ -10,7 +10,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 ///         with optional gas refund to the buyer that crosses the threshold.
 contract UpgradeTWAPBurnerAutoBurn is Script {
     // Base Sepolia proxy (chainId 84532).
-    address constant PROXY = 0x357BAF511383be70d1F3A5de7D3b07561Eec7d99;
+    address constant PROXY = 0x0000000000000000000000000000000000000000; // OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x357BAF511383be70d1F3A5de7D3b07561Eec7d99)
 
     // V2 config
     uint256 constant MAX_PURCHASES = 50;

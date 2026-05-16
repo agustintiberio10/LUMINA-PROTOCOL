@@ -1,6 +1,9 @@
 # LUMINA Protocol V5.0 -- Phase Fase-2 Audit Report
 # Attack Tests & NFT Verification
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 **Date:** 2026-04-19
 **Auditor:** LUMINA Security Team
 **Branch:** `test/v5-fase2-attacks-and-nft-verification`
@@ -137,14 +140,14 @@ HOLDER=0xYourAddress EPOCH_ID=202604 forge script script/testnet-tests/04_Verify
 
 | Contract | Address |
 |---|---|
-| CoverRouterV2 | `0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306` |
-| MockUSDC | `0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a` |
-| ClaimBond | `0xd5f8678A0F2149B6342F9014CCe6d743234Ca025` |
-| MockBTCOracle | `0xB52BB8B09Df13dB2D244746688C14A720ceE4C09` |
-| FlashBTCShield1h | `0xDcac6614E6d8CAB79bD655649B5cfdA497f80aeD` |
-| PolicyManagerV2 | `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e` |
-| BondVault | `0x8b4B1E1985e105bb0b50A02F7d1AcD3efc950673` |
-| MockShieldOracle | `0xF11DDa1e81eC766c98B673dFA7e26c75C9a1e453` |
+| CoverRouterV2 | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306) --> |
+| MockUSDC | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a) --> |
+| ClaimBond | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025) --> |
+| MockBTCOracle | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xB52BB8B09Df13dB2D244746688C14A720ceE4C09) --> |
+| FlashBTCShield1h | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xDcac6614E6d8CAB79bD655649B5cfdA497f80aeD) --> |
+| PolicyManagerV2 | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e) --> |
+| BondVault | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x8b4B1E1985e105bb0b50A02F7d1AcD3efc950673) --> |
+| MockShieldOracle | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xF11DDa1e81eC766c98B673dFA7e26c75C9a1e453) --> |
 
 ---
 
