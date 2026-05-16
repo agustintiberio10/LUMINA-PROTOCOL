@@ -14,23 +14,33 @@ If you discover a security vulnerability in Lumina Protocol, please report it re
 
 ## Architecture in scope (V5.1, Base Sepolia)
 
-V5.1 is currently deployed on **Base Sepolia testnet** (chainId 84532). Mainnet deployment is on the roadmap; addresses below will change when V5.1 lands on Base mainnet.
+> ⚠️ OBSOLETO — Las direcciones Sepolia citadas en las tablas siguientes fueron invalidadas
+> por el bug L476-477 (multisig grant+revoke) que bricked LuminaTokenV2 0x7D3E…Aff02.
+> Direcciones se reemplazarán en el redeploy post-Sprint Z.2. Tabla conservada como
+> registro de la arquitectura V5.1 testnet, con address-cells blanqueadas.
+
+V5.1 was deployed on **Base Sepolia testnet** (chainId 84532); deployment was bricked
+pre-Sprint Z.2. Mainnet deployment is on the roadmap; addresses below will be repopulated
+in the redeploy.
 
 ### Core contracts
 
 | Contract | Role | Sepolia address |
 |---|---|---|
-| `LuminaTokenV2` (`src/token/LuminaTokenV2.sol`) | ERC-20, 100M fixed supply, deflationary via TWAPBurner | `0x7D3E392Bdb3258cF92C257C90391957d7b0Aff02` |
-| `ClaimBond` (`src/bonds/ClaimBond.sol`) | ERC-1155, 1 token = $1, 730-day maturity, epoch-fungible | `0xde85056F155d3F18e559Fa63d5861ab3D1318cF0` |
-| `BondVault` (`src/bonds/BondVault.sol`) | **Single** USD-collateral vault. Issues + redeems bonds. (V4 had 4 vaults; V5.1 collapsed to 1.) | `0x49c21d5C7b399f9BfB36801F5c680904E6c69949` |
-| `PolicyManagerV2` (`src/core/PolicyManagerV2.sol`) | Issues policies, settles triggers, marks expirations | `0xD97bFC2959f0673851348b60DF2Eb3376eF612BE` |
-| `CoverRouterV2` (`src/core/CoverRouterV2.sol`) | User-facing: `purchasePolicy` (human direct) + `purchasePolicyFor` (relayer) + `quotePremium` | `0xFA6d57CA87a26F08d68f2123e86990E2fD70B7AE` |
-| `LuminaBondMarketplace` (`src/marketplace/LuminaBondMarketplace.sol`) | Secondary market for ClaimBonds. 3% fee (1.5% each side) → 100% burn. | `0xFa4Af36A4af7e6691bD1906D83a15792257d80de` |
+| `LuminaTokenV2` (`src/token/LuminaTokenV2.sol`) | ERC-20, 100M fixed supply, deflationary via TWAPBurner | `0x0000000000000000000000000000000000000000` |
+| `ClaimBond` (`src/bonds/ClaimBond.sol`) | ERC-1155, 1 token = $1, 730-day maturity, epoch-fungible | `0x0000000000000000000000000000000000000000` |
+| `BondVault` (`src/bonds/BondVault.sol`) | **Single** USD-collateral vault. Issues + redeems bonds. (V4 had 4 vaults; V5.1 collapsed to 1.) | `0x0000000000000000000000000000000000000000` |
+| `PolicyManagerV2` (`src/core/PolicyManagerV2.sol`) | Issues policies, settles triggers, marks expirations | `0x0000000000000000000000000000000000000000` |
+| `CoverRouterV2` (`src/core/CoverRouterV2.sol`) | User-facing: `purchasePolicy` (human direct) + `purchasePolicyFor` (relayer) + `quotePremium` | `0x0000000000000000000000000000000000000000` |
+| `LuminaBondMarketplace` (`src/marketplace/LuminaBondMarketplace.sol`) | Secondary market for ClaimBonds. 3% fee (1.5% each side) → 100% burn. | `0x0000000000000000000000000000000000000000` |
 | `BuybackEngine` (`src/marketplace/BuybackEngine.sol`) | Marketplace fee burn path | `0xC824309B1c02A2E57044b15527a53BBb8c3aAD5a` |
 | `ShieldKeeper` (`src/automation/ShieldKeeper.sol`) | Permissionless trigger submission helper | `0x474C9F3819328d919f827deA3f738F71302DdbcF` |
-| `TWAPBurner` (`src/core/TWAPBurner.sol`) | Routes 100% of premiums + marketplace fees → buy LUMINA → burn to 0xdead | `0xc838BEDE6BE624f6b7b69be71b7587ce51186D75` |
-| `LuminaOracleV2` (`src/oracles/LuminaOracleV2.sol`) | EIP-712 shield price oracle. Verifies signed PriceProofs from the off-chain signer; the 9 shields call it inside `_doVerifyAndCalculate`. Replaces the launch-day `MockShieldOracle`. See [`docs/architecture/ORACLE-V2.md`](./docs/architecture/ORACLE-V2.md). | `0x61918822856ADFB5C4C98f4605bF9c0367ad2E0d` |
-| `FounderVesting` (`src/token/FounderVesting.sol`) | 8M LUMINA founder lock with 2-of-3 AltSeason conditions or 4-year fallback | `0xa3e7685E21A141930F63432E927D679fD3FDE876` |
+| `TWAPBurner` (`src/core/TWAPBurner.sol`) | Routes 100% of premiums + marketplace fees → buy LUMINA → burn to 0xdead | `0x0000000000000000000000000000000000000000` |
+| `LuminaOracleV2` (`src/oracles/LuminaOracleV2.sol`) | EIP-712 shield price oracle. Verifies signed PriceProofs from the off-chain signer; the 9 shields call it inside `_doVerifyAndCalculate`. Replaces the launch-day `MockShieldOracle`. See [`docs/architecture/ORACLE-V2.md`](./docs/architecture/ORACLE-V2.md). | `0x0000000000000000000000000000000000000000` |
+| `FounderVesting` (`src/token/FounderVesting.sol`) | 8M LUMINA founder lock with 2-of-3 AltSeason conditions or 4-year fallback | `0x0000000000000000000000000000000000000000` |
+
+<!-- SPRINT_Z2 cleared (was old testnet SET B/C addresses for: LuminaTokenV2, ClaimBond, BondVault, PolicyManagerV2, CoverRouterV2, LuminaBondMarketplace, TWAPBurner, LuminaOracleV2, FounderVesting). BuybackEngine + ShieldKeeper retained: not in known-list. -->
+
 
 ### 9 shields (parametric products)
 

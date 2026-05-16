@@ -68,13 +68,18 @@ matching the destructuring inside `BaseShield._doVerifyAndCalculate`.
 
 ### Base Sepolia (84532)
 
-- Oracle: `0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194` (deployed 2026-05-05, block 41,030,673).
+> ⚠️ OBSOLETO — La dirección Oracle SET A citada abajo fue invalidada por el bug L476-477
+> (multisig grant+revoke) que bricked LuminaTokenV2 0x7D3E…Aff02. Direcciones se reemplazarán
+> en el redeploy post-Sprint Z.2. Sección conservada como registro histórico.
+
+- Oracle: `0x0000000000000000000000000000000000000000` <!-- SPRINT_Z2: was 0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194 (Oracle SET A) -->
 - Signer (off-chain key): `0x0622340c847bBd8028700b3345021DbD1849a885` — the
   address whose private key sits in `lumina-api`'s `ORACLE_PRIVATE_KEY` env.
 - Sequencer uptime feed: `address(0)` — Base Sepolia has no sequencer feed.
-- Owner: `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8` (deployer).
-- All 9 V5.1 shields rebound on the same deploy; addresses recorded in
-  `deployments/sepolia/shields-upgrade-2026-05-05.json`.
+- Owner: `0x0000000000000000000000000000000000000000` <!-- SPRINT_Z2: cleared pre-redeploy -->
+- All 9 V5.1 shields rebound on the same deploy; manifest file
+  `deployments/sepolia/shields-upgrade-2026-05-05.json` is no longer authoritative
+  (Sprint Z.2 cleanup).
 
 ### Base mainnet (8453)
 
