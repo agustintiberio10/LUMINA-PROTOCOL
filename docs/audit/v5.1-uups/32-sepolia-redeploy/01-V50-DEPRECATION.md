@@ -1,5 +1,8 @@
 # V5.0 Sepolia Deployment — Deprecation Notice
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 **Status:** DEPRECATED. Do NOT use.
 **Replaced by:** V5.1 redeploy with all 8 fixes applied (audit #32).
 
@@ -9,16 +12,16 @@
 
 | Contract | Address |
 |---|---|
-| Deployer wallet | `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8` |
+| Deployer wallet | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8) --> |
 | RPC | `https://base-sepolia.g.alchemy.com/v2/79vtoU18JYDiweaO1njwU` |
-| LuminaTokenV2 | `0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904` |
-| BondVault | `0x8b4B1E1985e105bb0b50A02F7d1AcD3efc950673` |
-| ClaimBond | `0xd5f8678A0F2149B6342F9014CCe6d743234Ca025` |
-| CoverRouterV2 | `0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306` |
-| PolicyManagerV2 | `0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e` |
-| MockUSDC | `0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a` |
-| MockBTCOracle | `0xB52BB8B09Df13dB2D244746688C14A720ceE4C09` |
-| FlashBTCShield1h | `0xDcac6614E6d8CAB79bD655649B5cfdA497f80aeD` |
+| LuminaTokenV2 | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xFee5d6DAdA0A41407e9EA83d4F357DA6214Ff904) --> |
+| BondVault | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x8b4B1E1985e105bb0b50A02F7d1AcD3efc950673) --> |
+| ClaimBond | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025) --> |
+| CoverRouterV2 | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x71DBcE71AA36370f7357F6D8E0c8ba96343C8306) --> |
+| PolicyManagerV2 | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x54CDc21DEDA49841513a6a4A903dc0A0a9e7844e) --> |
+| MockUSDC | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd0De5D53dCA2D96cdE7FAf540BA3f3a44fdB747a) --> |
+| MockBTCOracle | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xB52BB8B09Df13dB2D244746688C14A720ceE4C09) --> |
+| FlashBTCShield1h | `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xDcac6614E6d8CAB79bD655649B5cfdA497f80aeD) --> |
 
 ---
 

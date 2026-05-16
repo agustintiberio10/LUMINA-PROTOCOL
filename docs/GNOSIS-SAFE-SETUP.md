@@ -1,12 +1,15 @@
 # Gnosis Safe Setup — Lumina Protocol
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 ## What It Is
 Gnosis Safe is a multisig wallet. Instead of one private key controlling the contracts, it requires N-of-M signatures to execute any action.
 
 ## Recommended Configuration
 - **Signers:** 3
-  - Signer 1: Deployer key — `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8`
-  - Signer 2: Oracle/GCP key — `0x933b15dd4F42bd2EE2794C1D188882aBCCDa977E`
+  - Signer 1: Deployer key — `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8) -->
+  - Signer 2: Oracle/GCP key — `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x933b15dd4F42bd2EE2794C1D188882aBCCDa977E) -->
   - Signer 3: Backup key (offline) — see docs/MULTISIG-KEYS.md
 - **Threshold:** 2-of-3
 
@@ -18,8 +21,8 @@ Gnosis Safe is a multisig wallet. Instead of one private key controlling the con
 3. Select network: **Base**
 4. Name: "Lumina Protocol Admin"
 5. Add the 3 signers (addresses only, NOT private keys):
-   - Signer 1: `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8`
-   - Signer 2: `0x933b15dd4F42bd2EE2794C1D188882aBCCDa977E`
+   - Signer 1: `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8) -->
+   - Signer 2: `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x933b15dd4F42bd2EE2794C1D188882aBCCDa977E) -->
    - Signer 3: (backup address from MULTISIG-KEYS.md)
 6. Threshold: **2 of 3**
 7. Click "Create" — sign with any of the 3 wallets

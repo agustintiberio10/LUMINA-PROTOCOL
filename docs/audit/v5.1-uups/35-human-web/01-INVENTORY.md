@@ -1,5 +1,8 @@
 # 01 — Frontend inventory
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 Source: `org-lumina/v0-lumina-landing-page@main` (private). Deployed at <https://lumina-org.com> on Vercel. The repo is a hybrid landing-page + dapp dashboard for the human-facing surface of the Lumina Protocol.
 
 ## Stack
@@ -58,8 +61,8 @@ Dependency `firebase-admin` is server-side only and used inside Next route handl
 ```ts
 export const CHAIN = { id: 8453, name: "Base Mainnet", ... }
 export const CONTRACTS = {
-  CoverRouter:   "0xd5f8678A0F2149B6342F9014CCe6d743234Ca025",  // V1/V2
-  PolicyManager: "0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a",  // V1/V2
+  CoverRouter:   "0x0000000000000000000000000000000000000000",  // V1/V2 — OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xd5f8678A0F2149B6342F9014CCe6d743234Ca025)
+  PolicyManager: "0x0000000000000000000000000000000000000000",  // V1/V2 — OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0xCCA07e06762222AA27DEd58482DeD3d9a7d0162a)
   ...
   vaults: { VolatileShort, VolatileLong, StableShort, StableLong, FlashVault },
   shields: { BCS, EAS, Depeg, ILIndex, Exploit, FlashBTC24h, FlashBTC48h, FlashETH24h, FlashETH48h },

@@ -1,5 +1,8 @@
 # 02 — Web manual checklist
 
+> ⚠️ OBSOLETO — Direcciones citadas blanked en Sprint Z.2 pre-redeploy (bug L476-477).
+> Documento conservado como registro histórico. Direcciones se repoblarán post-redeploy.
+
 Foundry and Jest cannot exercise the browser surface. This is the manual smoke pass an operator should run **after** merging the audit-35 fix PR (`fix/audit-35-web-full`) on `org-lumina/v0-lumina-landing-page`. The fix migrates the frontend off Base Mainnet V1/V2 onto Base Sepolia V5.1; this checklist confirms the migration actually works in a real browser.
 
 ## Pre-conditions
@@ -7,7 +10,7 @@ Foundry and Jest cannot exercise the browser surface. This is the manual smoke p
 - Audit-35 fix PR is merged (or running locally with that branch).
 - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` set on Vercel (audit-35 WC-1 fix).
 - `NEXT_PUBLIC_RPC_URL` optionally set to a paid Alchemy/Infura URL (audit-35 CHAIN-1 fix; falls back to public Sepolia RPC).
-- Wallet has Base Sepolia ETH (faucet at <https://www.alchemy.com/faucets/base-sepolia>) and some Mock USDC at `0x63D340AE7229BB464bC801f225651341ebcD3693`.
+- Wallet has Base Sepolia ETH (faucet at <https://www.alchemy.com/faucets/base-sepolia>) and some Mock USDC at `0x0000000000000000000000000000000000000000` <!-- OBSOLETE - Sprint Z.2 cleanup, awaiting redeploy (was 0x63D340AE7229BB464bC801f225651341ebcD3693) -->.
 
 ## Run order
 
