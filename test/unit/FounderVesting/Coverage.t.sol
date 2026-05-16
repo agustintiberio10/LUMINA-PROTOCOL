@@ -159,6 +159,7 @@ contract FounderVestingCoverage is Test {
             uint256 trReleased,
             uint256 totalRel,
             uint256 metSince,
+            ,
             uint256 nextReleaseAt,
             uint256 fallbackAt
         ) = fv.getStatus();
@@ -177,7 +178,7 @@ contract FounderVestingCoverage is Test {
         o.setPrices(5_000_00000000, 50_000_00000000);
         a.setBorrowRate(uint128(8e25));
         fv.checkAltSeason();
-        (bool triggered,,,, uint256 metSince, uint256 nextReleaseAt, uint256 fallbackAt) = fv.getStatus();
+        (bool triggered,,,, uint256 metSince,, uint256 nextReleaseAt, uint256 fallbackAt) = fv.getStatus();
         assertFalse(triggered, "still in sustained window");
         assertGt(metSince, 0, "conditionsMetSince should be set");
         assertEq(nextReleaseAt, 0, "nextReleaseAt 0 pre-trigger");
@@ -193,7 +194,7 @@ contract FounderVestingCoverage is Test {
         // Warp past SUSTAINED_DURATION + call again to flip altSeasonTriggered.
         vm.warp(block.timestamp + fv.SUSTAINED_DURATION() + 1);
         fv.checkAltSeason();
-        (bool triggered, uint256 ts, uint256 trReleased,,, uint256 nextReleaseAt, uint256 fallbackAt) = fv.getStatus();
+        (bool triggered, uint256 ts, uint256 trReleased,,,, uint256 nextReleaseAt, uint256 fallbackAt) = fv.getStatus();
         assertTrue(triggered, "altSeasonTriggered must be true after sustained period");
         assertEq(ts, block.timestamp, "triggerTimestamp = now");
         assertEq(trReleased, 0, "no tranches released yet");
@@ -207,7 +208,7 @@ contract FounderVestingCoverage is Test {
         // Warp past fallback window.
         vm.warp(fv.deployedAt() + fv.FALLBACK_DURATION() + 1);
         fv.triggerFallback();
-        (bool triggered,,,,, uint256 nextReleaseAt, uint256 fallbackAt) = fv.getStatus();
+        (bool triggered,,,,,, uint256 nextReleaseAt, uint256 fallbackAt) = fv.getStatus();
         assertTrue(triggered, "fallback triggered");
         assertGt(nextReleaseAt, 0, "nextReleaseAt should be set post-trigger");
         assertEq(fallbackAt, fv.deployedAt() + fv.FALLBACK_DURATION());

@@ -112,6 +112,18 @@ contract PlainContractRecipient {
 // -----------------------------------------------------------------------------
 
 contract FounderVestingV2EdgeCases is Test {
+    // Re-declare events for vm.expectEmit matching. Solidity 0.8.20 requires events to be
+    // in scope of the emitting contract; re-declaring with identical signature is the
+    // standard foundry pattern when the event lives in another contract.
+    event SustainedPeriodReset(uint256 timestamp);
+    event AltSeasonTriggered(uint256 timestamp);
+    event OverrideConditionMet(uint256 indexed ethPrice, uint256 timestamp);
+    event OverrideConditionLost(uint256 indexed ethPrice, uint256 timestamp);
+    event OverrideTriggered(uint256 indexed ethPrice, uint256 timestamp);
+    event FallbackTriggered(uint256 timestamp);
+    event TrancheReleased(uint256 trancheNumber, uint256 amount, address recipient);
+    event RecipientUpdated(address oldRecipient, address newRecipient);
+
     FounderVesting fv;
     MockOracleV2 oracle;
     MockAavePoolV2 aave;
@@ -394,7 +406,7 @@ contract FounderVestingV2EdgeCases is Test {
         oracle.setPrices(0, 0);
         vm.warp(t0 + 1 hours);
         vm.expectEmit(false, false, false, true);
-        emit FounderVesting.SustainedPeriodReset(t0 + 1 hours);
+        emit SustainedPeriodReset(t0 + 1 hours);
         fv.checkAltSeason();
         assertEq(fv.conditionsMetSince(), 0);
     }
@@ -499,7 +511,7 @@ contract FounderVestingV2EdgeCases is Test {
     function test_FBK_EmitsFallbackTriggered() public {
         vm.warp(t0 + FALLBACK_D);
         vm.expectEmit(false, false, false, true);
-        emit FounderVesting.FallbackTriggered(t0 + FALLBACK_D);
+        emit FallbackTriggered(t0 + FALLBACK_D);
         fv.triggerFallback();
     }
 
@@ -655,7 +667,7 @@ contract FounderVestingV2EdgeCases is Test {
         fv.checkAltSeason();
         vm.warp(t0 + SUSTAINED);
         vm.expectEmit(true, false, false, true);
-        emit FounderVesting.OverrideTriggered(uint256(ETH_OVERRIDE_PASS), t0 + SUSTAINED);
+        emit OverrideTriggered(uint256(ETH_OVERRIDE_PASS), t0 + SUSTAINED);
         fv.checkAltSeason();
         assertTrue(fv.altSeasonTriggered());
         assertEq(fv.triggerTimestamp(), t0 + SUSTAINED);
@@ -670,7 +682,7 @@ contract FounderVestingV2EdgeCases is Test {
         oracle.setEth(4999_99999999);
         vm.warp(t0 + 1 hours);
         vm.expectEmit(true, false, false, true);
-        emit FounderVesting.OverrideConditionLost(uint256(int256(4999_99999999)), t0 + 1 hours);
+        emit OverrideConditionLost(uint256(int256(4999_99999999)), t0 + 1 hours);
         fv.checkAltSeason();
         assertEq(fv.overrideMetSince(), 0);
     }
@@ -799,7 +811,7 @@ contract FounderVestingV2EdgeCases is Test {
         _triggerPath1();
         // First tranche: trancheNumber=1 (post-increment), amount=TRANCHE_AMOUNT, recipient=recipient.
         vm.expectEmit(false, false, false, true);
-        emit FounderVesting.TrancheReleased(1, TRANCHE_AMOUNT, recipient);
+        emit TrancheReleased(1, TRANCHE_AMOUNT, recipient);
         fv.releaseTranche();
     }
 
