@@ -9,8 +9,13 @@ V2 introduces **auto-burn**: instead of waiting for someone to call `executeBurn
 manually, the contract triggers a burn from inside `receivePremium` once a
 configured threshold is reached.
 
-The proxy address (`0x357BAF511383be70d1F3A5de7D3b07561Eec7d99` on Base Sepolia)
-is unchanged — only the implementation behind it.
+The proxy address (`0x0000000000000000000000000000000000000000` on Base Sepolia
+<!-- SPRINT_Z2: was 0x357BAF511383be70d1F3A5de7D3b07561Eec7d99 — pre-redeploy cleanup -->)
+is unchanged across implementation upgrades — only the implementation behind it.
+
+> ⚠️ OBSOLETO — Address blanked pre-redeploy (Sprint Z.2). El testnet V5.1 fue invalidado
+> por el bug L476-477. Esta doc se mantiene como referencia arquitectural; la dirección
+> se repoblará tras el redeploy.
 
 ## Trigger thresholds
 
