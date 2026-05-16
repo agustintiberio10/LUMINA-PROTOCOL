@@ -243,10 +243,15 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // STEP 6: FounderVesting
         // ═══════════════════════════════════════════════════════
+        // [Sprint FV, ADR-025] Oracle wiring fix: FV needs LuminaOracleV2 (EIP-712 price oracle
+        //   with getLatestPrice(bytes32)), NOT CapacityOracle (different ABI). On Sepolia this
+        //   resolves to LuminaOracleV2 SET A 0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194 via the
+        //   deploy-time `res.luminaOracleV2` variable populated at STEP 0a.
         FounderVesting founderVesting =
-            new FounderVesting(res.capacityOracle, cfg.aavePool, precomputedLumina, cfg.usdc, cfg.founderRecipient);
+            new FounderVesting(res.luminaOracleV2, cfg.aavePool, precomputedLumina, cfg.usdc, cfg.founderRecipient);
         res.founderVesting = address(founderVesting);
         console.log("6. FounderVesting:", res.founderVesting);
+        console.log("   oracle (LuminaOracleV2):", res.luminaOracleV2);
 
         // ═══════════════════════════════════════════════════════
         // STEP 7: TreasuryVesting
