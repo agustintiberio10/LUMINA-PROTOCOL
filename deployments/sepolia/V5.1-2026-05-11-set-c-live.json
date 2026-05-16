@@ -14,20 +14,20 @@
     "AerodromeAdapter (testnet-only path: Aerodrome no existe en Sepolia. Mainnet deployment incluir\u00c3\u00a1 los 28 completos)"
   ],
   "core": {
-    "luminaTokenV2": "0x7D3E392Bdb3258cF92C257C90391957d7b0Aff02",
-    "claimBond": "0xde85056F155d3F18e559Fa63d5861ab3D1318cF0",
-    "bondVault": "0x49c21d5C7b399f9BfB36801F5c680904E6c69949",
-    "policyManagerV2": "0xD97bFC2959f0673851348b60DF2Eb3376eF612BE",
-    "coverRouterV2": "0xFA6d57CA87a26F08d68f2123e86990E2fD70B7AE",
-    "twapBurner": "0xc838BEDE6BE624f6b7b69be71b7587ce51186D75",
+    "luminaTokenV2": "0x0000000000000000000000000000000000000000",
+    "claimBond": "0x0000000000000000000000000000000000000000",
+    "bondVault": "0x0000000000000000000000000000000000000000",
+    "policyManagerV2": "0x0000000000000000000000000000000000000000",
+    "coverRouterV2": "0x0000000000000000000000000000000000000000",
+    "twapBurner": "0x0000000000000000000000000000000000000000",
     "adaptiveFeeDistributor": "0xC193eEc407Dc960B5Ca1546eE7127fF57340bfAb",
     "buybackEngine": "0xC824309B1c02A2E57044b15527a53BBb8c3aAD5a",
-    "luminaBondMarketplace": "0xFa4Af36A4af7e6691bD1906D83a15792257d80de"
+    "luminaBondMarketplace": "0x0000000000000000000000000000000000000000"
   },
   "oracles": {
-    "capacityOracle": "0x5bF3689a3b9b757821215eE315E94d6845d19b98",
+    "capacityOracle": "0x0000000000000000000000000000000000000000",
     "solvencyOracle": "0x3fff1f9732cBd2e0ef7b5Ef9A976ac7CE4560feD",
-    "luminaOracleV2": "0x61918822856ADFB5C4C98f4605bF9c0367ad2E0d"
+    "luminaOracleV2": "0x0000000000000000000000000000000000000000"
   },
   "treasury": {
     "cexLiquidityReserve": "0xFA693e74080fEd22bBA7C29CfA7895d61410a7cE",
@@ -37,7 +37,7 @@
     "shieldKeeper": "0x474C9F3819328d919f827deA3f738F71302DdbcF"
   },
   "vesting": {
-    "founderVesting": "0xa3e7685E21A141930F63432E927D679fD3FDE876",
+    "founderVesting": "0x0000000000000000000000000000000000000000",
     "treasuryVesting": "0x15F9DDc39635a1fe1de1443F6c7217f310492b52"
   },
   "dex": {
