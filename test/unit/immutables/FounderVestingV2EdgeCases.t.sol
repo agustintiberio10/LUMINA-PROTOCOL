@@ -776,7 +776,7 @@ contract FounderVestingV2EdgeCases is Test {
         uint256 delta = lumina.balanceOf(recipient) - before_;
         // TRANCHE_AMOUNT = 8M*1e18 / 3 = 2_666_666_666666666666666666 (integer-truncated)
         assertEq(delta, TRANCHE_AMOUNT);
-        assertEq(delta, 8_000_000 * 1e18 / 3);
+        assertEq(delta, uint256(8_000_000 * 1e18 / 3));
     }
 
     function test_Cobro_Tranche1_FVBalanceDecreasesByTrancheAmount() public {

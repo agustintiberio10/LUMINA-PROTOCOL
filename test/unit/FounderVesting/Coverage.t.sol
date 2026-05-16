@@ -90,7 +90,7 @@ contract FounderVestingCoverage is Test {
 
     function test_GetConditions_AllFalse() public {
         (FounderVesting fv,,) = _deployWithMocks();
-        (bool condA, bool condB, bool condC) = fv.getConditions();
+        (bool condA, bool condB, bool condC,) = fv.getConditions();
         assertFalse(condA, "condA expected false");
         assertFalse(condB, "condB expected false");
         assertFalse(condC, "condC expected false");
@@ -101,7 +101,7 @@ contract FounderVestingCoverage is Test {
         // Pick ETH = 3000e8 (below $4000 → condB false) and BTC = 50000e8 so ratio = 3000/50000 = 0.06 > 0.05.
         (FounderVesting fv, FVMockOracle o,) = _deployWithMocks();
         o.setPrices(3_000_00000000, 50_000_00000000);
-        (bool condA, bool condB, bool condC) = fv.getConditions();
+        (bool condA, bool condB, bool condC,) = fv.getConditions();
         assertTrue(condA, "condA expected true");
         assertFalse(condB, "condB expected false");
         assertFalse(condC, "condC expected false");
@@ -112,7 +112,7 @@ contract FounderVestingCoverage is Test {
         // ETH = 5000e8, BTC = 200_000e8 → ratio = 5000/200000 = 0.025 < 0.05. condB true.
         (FounderVesting fv, FVMockOracle o,) = _deployWithMocks();
         o.setPrices(5_000_00000000, 200_000_00000000);
-        (bool condA, bool condB, bool condC) = fv.getConditions();
+        (bool condA, bool condB, bool condC,) = fv.getConditions();
         assertFalse(condA, "condA expected false");
         assertTrue(condB, "condB expected true");
         assertFalse(condC, "condC expected false");
@@ -122,7 +122,7 @@ contract FounderVestingCoverage is Test {
         // condC: Aave borrow rate > 7e25 (7% in RAY). Set both ETH/BTC to 0 to skip A/B.
         (FounderVesting fv,, FVMockAavePool a) = _deployWithMocks();
         a.setBorrowRate(uint128(8e25)); // 8% APY
-        (bool condA, bool condB, bool condC) = fv.getConditions();
+        (bool condA, bool condB, bool condC,) = fv.getConditions();
         assertFalse(condA);
         assertFalse(condB);
         assertTrue(condC, "condC expected true");
@@ -132,7 +132,7 @@ contract FounderVestingCoverage is Test {
         (FounderVesting fv, FVMockOracle o, FVMockAavePool a) = _deployWithMocks();
         o.setPrices(3_000_00000000, 50_000_00000000); // condA true, condB false
         a.setBorrowRate(uint128(8e25)); // condC true
-        (bool condA, bool condB, bool condC) = fv.getConditions();
+        (bool condA, bool condB, bool condC,) = fv.getConditions();
         assertTrue(condA);
         assertFalse(condB);
         assertTrue(condC);
@@ -143,7 +143,7 @@ contract FounderVestingCoverage is Test {
         // ETH = 5000e8, BTC = 50000e8 → ratio = 0.1 > 0.05 (A); ETH > 4000 (B).
         o.setPrices(5_000_00000000, 50_000_00000000);
         a.setBorrowRate(uint128(8e25));
-        (bool condA, bool condB, bool condC) = fv.getConditions();
+        (bool condA, bool condB, bool condC,) = fv.getConditions();
         assertTrue(condA);
         assertTrue(condB);
         assertTrue(condC);
