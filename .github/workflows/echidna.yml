@@ -44,15 +44,19 @@ jobs:
           sudo mv echidna /usr/local/bin/
           echidna --version
 
-      - name: Build contracts
-        run: forge build --skip test
+      - name: Build contracts (incl. test/echidna/)
+        # Full build required: echidna needs the test contract artifact, which
+        # `--skip test` would exclude. Source-only contracts already compile in
+        # the CI workflow's `forge build --sizes` step.
+        run: forge build
 
       - name: Run Echidna on FounderVestingV2
         # `set -o pipefail` so echidna's non-zero exit propagates through tee.
-        # Without it, a failing echidna run still marks the workflow green.
+        # Explicit file path (instead of `.`) since echidna 2.2.5 can't always
+        # autodiscover contracts inside nested test/ trees.
         run: |
           set -o pipefail
-          echidna . \
+          echidna test/echidna/immutables/EchidnaFounderVestingV2.sol \
             --contract EchidnaFounderVestingV2 \
             --config echidna-fv.yaml \
             2>&1 | tee echidna-fv-output.log
