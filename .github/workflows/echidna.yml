@@ -1,0 +1,60 @@
+name: Echidna
+
+on:
+  push:
+    branches: [main, 'feat/**', 'chore/**', 'fix/**', 'docs/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  echidna-founder-vesting-v2:
+    name: Echidna FounderVestingV2 (200k runs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install Echidna
+        run: |
+          wget https://github.com/crytic/echidna/releases/download/v2.2.5/echidna-2.2.5-x86_64-linux.tar.gz
+          tar -xzf echidna-2.2.5-x86_64-linux.tar.gz
+          sudo mv echidna /usr/local/bin/
+          echidna --version
+
+      - name: Build contracts
+        run: forge build --skip test
+
+      - name: Run Echidna on FounderVestingV2
+        run: |
+          echidna . \
+            --contract EchidnaFounderVestingV2 \
+            --config echidna-fv.yaml \
+            2>&1 | tee echidna-fv-output.log
+        env:
+          FOUNDRY_PROFILE: default
+
+      - name: Upload Echidna logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: echidna-fv-output
+          path: echidna-fv-output.log
+          retention-days: 30
+
+      - name: Upload corpus
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: echidna-fv-corpus
+          path: corpus/founder-vesting-v2/
+          retention-days: 30
