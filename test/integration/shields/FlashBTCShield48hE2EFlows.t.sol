@@ -63,11 +63,7 @@ contract FlashBTCShield48hE2EFlows is Test {
     // ===== Helpers =====
 
     function _mockSpot(int256 price) internal {
-        vm.mockCall(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracle.getLatestPrice.selector, ASSET_BTC),
-            abi.encode(price)
-        );
+        vm.mockCall(ORACLE_SET_A, abi.encodeWithSelector(IOracle.getLatestPrice.selector, ASSET_BTC), abi.encode(price));
     }
 
     function _mockSequencerDowntime(uint256 downtime) internal {
@@ -79,8 +75,8 @@ contract FlashBTCShield48hE2EFlows is Test {
         // full selector via vm.mockCall with abi.encodeWithSelector + no args.
         // Forge's matcher will still match when calldata starts with this
         // selector, since the mock data is a prefix of the actual call.
-        bytes memory partial = abi.encodeWithSelector(IOracle.getSequencerDowntime.selector);
-        vm.mockCall(ORACLE_SET_A, partial, abi.encode(downtime));
+        bytes memory selectorOnly = abi.encodeWithSelector(IOracle.getSequencerDowntime.selector);
+        vm.mockCall(ORACLE_SET_A, selectorOnly, abi.encode(downtime));
     }
 
     function _mockEIP712Success() internal {
@@ -95,9 +91,7 @@ contract FlashBTCShield48hE2EFlows is Test {
     function _mockEIP712Failure() internal {
         // verifyPriceProofEIP712 returns address(0) = invalid.
         vm.mockCall(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector),
-            abi.encode(address(0))
+            ORACLE_SET_A, abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector), abi.encode(address(0))
         );
     }
 
@@ -243,9 +237,7 @@ contract FlashBTCShield48hE2EFlows is Test {
         vm.warp(t0 + 2 hours);
         uint256 stale = block.timestamp - 901; // strictly older than 900s
         bytes memory pr = _proof(BTC_TRIGGER - 1, ASSET_BTC, stale);
-        vm.expectRevert(
-            abi.encodeWithSelector(FlashBTCShield48h.ProofTooOld.selector, stale, block.timestamp)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FlashBTCShield48h.ProofTooOld.selector, stale, block.timestamp));
         shield.verifyAndCalculate(pid, pr);
     }
 
@@ -313,9 +305,7 @@ contract FlashBTCShield48hE2EFlows is Test {
     // ---------------------------------------------------------------------
     function test_E2E_OracleRevert_AtCreate_Reverts() public requiresFork {
         vm.mockCallRevert(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracle.getLatestPrice.selector, ASSET_BTC),
-            "oracle-down"
+            ORACLE_SET_A, abi.encodeWithSelector(IOracle.getLatestPrice.selector, ASSET_BTC), "oracle-down"
         );
         _mockSequencerDowntime(0);
 
