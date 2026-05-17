@@ -24,6 +24,19 @@ jobs:
         with:
           version: stable
 
+      - name: Install Python + crytic-compile
+        # Echidna shells out to crytic-compile to drive solc; missing it makes
+        # echidna print "crytic-compile not installed" and exit 0 (via tee) —
+        # silent false-pass. Install pinned versions for reproducible CI.
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install crytic-compile
+        run: |
+          pip install crytic-compile==0.3.7
+          crytic-compile --version
+
       - name: Install Echidna
         run: |
           wget https://github.com/crytic/echidna/releases/download/v2.2.5/echidna-2.2.5-x86_64-linux.tar.gz
@@ -35,7 +48,10 @@ jobs:
         run: forge build --skip test
 
       - name: Run Echidna on FounderVestingV2
+        # `set -o pipefail` so echidna's non-zero exit propagates through tee.
+        # Without it, a failing echidna run still marks the workflow green.
         run: |
+          set -o pipefail
           echidna . \
             --contract EchidnaFounderVestingV2 \
             --config echidna-fv.yaml \
