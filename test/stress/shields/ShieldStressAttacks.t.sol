@@ -299,7 +299,7 @@ contract ShieldStressAttacks is Test {
     // ============================================================
 
     /// @notice A-FLASH-001: Flash-loan dump pushes spot below trigger; attacker buys policy AFTER dump.
-    /// EXPECTED: trigger fires with manipulated price. ACTUAL: same — shield is price-feed-dependent.
+    /// EXPECTED: trigger fires with manipulated price. ACTUAL: same -- shield is price-feed-dependent.
     function test_A_FLASH_001_flashLoanPriceDump() public {
         // 1) Attacker takes flash loan, dumps BTC on DEX, oracle (feed) reports -10%.
         oracle.setPrice(BTC, BTC_PRICE_OK); // pre-dump
@@ -511,7 +511,7 @@ contract ShieldStressAttacks is Test {
         int256 dumped = (BTC_PRICE_OK * 90) / 100;
         oracle.setPrice(BTC, dumped);
         bytes memory pf = _priceProof(dumped, BTC, t0 + 60);
-        // We trigger one policy and assert state — full sweep is the keeper's job.
+        // We trigger one policy and assert state -- full sweep is the keeper's job.
         IShield.PayoutResult memory r = btc1h.verifyAndCalculate(1, pf);
         assertTrue(r.triggered);
     }
@@ -566,7 +566,7 @@ contract ShieldStressAttacks is Test {
         btc1h.markPaidOut(pid);
     }
 
-    /// @notice T-REENTRY-004: cross-shield reentry — markPaidOut on btc1h while inside btc24h flow.
+    /// @notice T-REENTRY-004: cross-shield reentry -- markPaidOut on btc1h while inside btc24h flow.
     function test_T_REENTRY_004_crossShieldReentry() public {
         uint256 p1 = _btcPolicy(btc1h, buyer, 1_000e6);
         uint256 p24 = _btcPolicy(btc24h, buyer, 1_000e6);
@@ -590,7 +590,7 @@ contract ShieldStressAttacks is Test {
         assertEq(btc1h.activePolicies(), 300);
     }
 
-    /// @notice T-DOS-002: dust pollution — many tiny but valid policies.
+    /// @notice T-DOS-002: dust pollution -- many tiny but valid policies.
     function test_T_DOS_002_dustPollution() public {
         // _minCoverage = 100e6 (100 USDC). Anything below reverts.
         for (uint256 i = 0; i < 50; i++) {
@@ -620,7 +620,7 @@ contract ShieldStressAttacks is Test {
         oracle.setPrice(BTC, (BTC_PRICE_OK * 90) / 100);
         bytes memory pf = _priceProof((BTC_PRICE_OK * 90) / 100, BTC, t0 + 60);
         IShield.PayoutResult memory r = btc1h.verifyAndCalculate(pid, pf);
-        // 80% deductible math: (cov * 8000) / 10000 — must not overflow uint256.
+        // 80% deductible math: (cov * 8000) / 10000 -- must not overflow uint256.
         assertEq(r.payoutAmount, (huge * 8000) / 10_000);
     }
 
@@ -658,7 +658,7 @@ contract ShieldStressAttacks is Test {
         // privileged knob) does not let attacker freeze the contract.
         vm.prank(attacker);
         (bool ok,) = address(btc1h).call(abi.encodeWithSignature("pause()"));
-        assertFalse(ok, "no pause function — attacker cannot freeze shield");
+        assertFalse(ok, "no pause function -- attacker cannot freeze shield");
     }
 
     // ============================================================
@@ -725,7 +725,7 @@ contract ShieldStressAttacks is Test {
         btc1h.verifyAndCalculate(pid, pf);
     }
 
-    /// @notice TIME-006: warp negative (rewind). Foundry forbids warping to past — we just
+    /// @notice TIME-006: warp negative (rewind). Foundry forbids warping to past -- we just
     /// re-anchor to t0 and confirm policy still readable.
     function test_TIME_006_warpRewind() public {
         uint256 pid = _btcPolicy(btc1h, buyer, 1_000e6);
@@ -741,13 +741,13 @@ contract ShieldStressAttacks is Test {
         vm.warp(t0 + 60);
         int256 dumped = (BTC_PRICE_OK * 90) / 100;
         oracle.setPrice(BTC, dumped);
-        // verifiedAt in the future — beyond expiresAt.
+        // verifiedAt in the future -- beyond expiresAt.
         bytes memory pf = _priceProof(dumped, BTC, t0 + 10_000);
         vm.expectRevert(); // EventAfterExpiry
         btc1h.verifyAndCalculate(pid, pf);
     }
 
-    /// @notice TIME-008: trigger in exact upgrade block — UUPS upgrade race.
+    /// @notice TIME-008: trigger in exact upgrade block -- UUPS upgrade race.
     /// vm.skip: requires full UUPS upgrade orchestration (impl swap mid-block) not in scope.
     function test_TIME_008_triggerInUpgradeBlock() public {
         vm.skip(true);
@@ -777,7 +777,7 @@ contract ShieldStressAttacks is Test {
     //  GROUP 4: MULTI-SHIELD SCENARIOS (10)
     // ============================================================
 
-    /// @notice MS-001: BTC + ETH simultaneous crash → all 6 shields trigger.
+    /// @notice MS-001: BTC + ETH simultaneous crash -> all 6 shields trigger.
     function test_MS_001_allSixTrigger() public {
         uint256 p1 = _btcPolicy(btc1h, buyer, 5_000e6);
         uint256 p3 = _btcPolicy(btc24h, buyer, 5_000e6);
@@ -844,9 +844,9 @@ contract ShieldStressAttacks is Test {
         assertEq(eth48h.activePolicies(), 1);
     }
 
-    /// @notice MS-005: solvency drain — premium << payout (× 7 shields).
+    /// @notice MS-005: solvency drain -- premium << payout (x 7 shields).
     /// EXPECTED: shield itself does not enforce solvency; that is BondVault's job. Test confirms
-    /// shield accepts unbalanced premium/coverage ratios (a known design choice — solvency lives
+    /// shield accepts unbalanced premium/coverage ratios (a known design choice -- solvency lives
     /// in PolicyManagerV2 + BondVault).
     function test_MS_005_solvencyDrain() public {
         IShield.CreatePolicyParams memory p = _params(attacker, 1_000_000e6, 1, 3600, BTC);
@@ -896,7 +896,7 @@ contract ShieldStressAttacks is Test {
         assertTrue(btc48h.verifyAndCalculate(p48, pf).triggered);
     }
 
-    /// @notice MS-010: cascade failure — one shield's oracle returns 0 (no trigger), others ok.
+    /// @notice MS-010: cascade failure -- one shield's oracle returns 0 (no trigger), others ok.
     function test_MS_010_cascadeFailure() public {
         uint256 pBtc = _btcPolicy(btc1h, buyer, 1_000e6);
         uint256 pEth = _ethPolicy(eth1h, buyer, 1_000e6);
