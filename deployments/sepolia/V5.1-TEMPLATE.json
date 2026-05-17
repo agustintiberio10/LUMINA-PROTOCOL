@@ -31,7 +31,6 @@
       "FlashETH1h": "0x...",
       "FlashETH24h": "0x...",
       "FlashETH48h": "0x...",
-      "MicroDepeg": "0x...",
       "RateShock": "0x..."
     },
     "mocks": {
@@ -49,7 +48,7 @@
     "twapBurnerHasBurnerRole": "PASS / FAIL",
     "buybackEngineAuthorizedInBondVault": "PASS / FAIL",
     "tokenDistribution": "70M/14M/8M/5M/3M = 100M total",
-    "ninePoroductsRegistered": "PASS / FAIL",
+    "eightProductsRegistered": "PASS / FAIL",
     "adaptiveModeEnabled": "PASS / FAIL"
   },
   "deployTxHash": "0x...",

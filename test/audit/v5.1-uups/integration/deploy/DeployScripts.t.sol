@@ -28,7 +28,6 @@ import {FlashBTCShield48h} from "../../../../../src/products/FlashBTCShield48h.s
 import {FlashETHShield1h} from "../../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../../src/products/RateShockShield.sol";
 import {IDexRouter} from "../../../../../src/interfaces/IDexRouter.sol";
 
@@ -122,7 +121,7 @@ contract DeployScriptsTest is Test {
         MockShieldOracle_Deploy shieldOracle;
         address founderVesting;
         address lbpDeposit;
-        // 9 shields
+        // 8 shields
         FlashBTCShield1h btc1h;
         FlashBTCShield4h btc4h;
         FlashBTCShield24h btc24h;
@@ -130,7 +129,6 @@ contract DeployScriptsTest is Test {
         FlashETHShield1h eth1h;
         FlashETHShield24h eth24h;
         FlashETHShield48h eth48h;
-        MicroDepegShield microDepeg;
         RateShockShield rateShock;
     }
 
@@ -192,7 +190,7 @@ contract DeployScriptsTest is Test {
         );
         d.keeper = _deployKeeper(address(d.pm));
 
-        // Phase 9c: 9 shields.
+        // Phase 9c: 8 shields.
         d.shieldOracle = new MockShieldOracle_Deploy();
         d.btc1h = FlashBTCShield1h(
             address(
@@ -258,14 +256,6 @@ contract DeployScriptsTest is Test {
                 )
             )
         );
-        d.microDepeg = MicroDepegShield(
-            address(
-                new ERC1967Proxy(
-                    address(new MicroDepegShield()),
-                    abi.encodeWithSelector(MicroDepegShield.initialize.selector, address(d.pm), address(d.shieldOracle))
-                )
-            )
-        );
         // RateShock needs pool + usdc; use usdc as pool placeholder here (its interface doesn't matter for registration).
         d.rateShock = RateShockShield(
             address(
@@ -282,7 +272,7 @@ contract DeployScriptsTest is Test {
             )
         );
 
-        // Register 9 shields in PolicyManager.
+        // Register 8 shields in PolicyManager.
         d.pm.registerProduct(keccak256("FLASHBTC1H-001"), address(d.btc1h));
         d.pm.registerProduct(keccak256("FLASHBTC4H-001"), address(d.btc4h));
         d.pm.registerProduct(keccak256("FLASHBTC24-001"), address(d.btc24h));
@@ -290,10 +280,9 @@ contract DeployScriptsTest is Test {
         d.pm.registerProduct(keccak256("FLASHETH1H-001"), address(d.eth1h));
         d.pm.registerProduct(keccak256("FLASHETH24-001"), address(d.eth24h));
         d.pm.registerProduct(keccak256("FLASHETH48-001"), address(d.eth48h));
-        d.pm.registerProduct(keccak256("MICRODEPEG-001"), address(d.microDepeg));
         d.pm.registerProduct(keccak256("RATESHOCK-001"), address(d.rateShock));
 
-        // Configure 9 products in CoverRouter (matching Sepolia script parameters).
+        // Configure 8 products in CoverRouter (matching Sepolia script parameters).
         d.router.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 200, 2000, 3600, true);
         d.router.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 150, 2000, 14400, true);
         d.router.configureProduct(keccak256("FLASHBTC24-001"), 8000, 100, 2000, 86400, true);
@@ -301,7 +290,6 @@ contract DeployScriptsTest is Test {
         d.router.configureProduct(keccak256("FLASHETH1H-001"), 8000, 200, 2000, 3600, true);
         d.router.configureProduct(keccak256("FLASHETH24-001"), 8000, 100, 2000, 86400, true);
         d.router.configureProduct(keccak256("FLASHETH48-001"), 8000, 80, 2000, 172800, true);
-        d.router.configureProduct(keccak256("MICRODEPEG-001"), 8000, 50, 2500, 604800, true);
         d.router.configureProduct(keccak256("RATESHOCK-001"), 8000, 30, 3000, 604800, true);
 
         // Authorize BuybackEngine.
@@ -555,7 +543,7 @@ contract DeployScriptsTest is Test {
 
     // ═════════════════════ E. Product registration ═════════════════════
 
-    function test_Deploy_AllNineProducts_RegisteredInPM() public {
+    function test_Deploy_AllEightProducts_RegisteredInPM() public {
         vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         assertTrue(d.pm.productActive(keccak256("FLASHBTC1H-001")));
@@ -565,20 +553,16 @@ contract DeployScriptsTest is Test {
         assertTrue(d.pm.productActive(keccak256("FLASHETH1H-001")));
         assertTrue(d.pm.productActive(keccak256("FLASHETH24-001")));
         assertTrue(d.pm.productActive(keccak256("FLASHETH48-001")));
-        assertTrue(d.pm.productActive(keccak256("MICRODEPEG-001")));
         assertTrue(d.pm.productActive(keccak256("RATESHOCK-001")));
     }
 
-    function test_Deploy_AllNineProducts_ConfiguredInCoverRouter() public {
+    function test_Deploy_AllEightProducts_ConfiguredInCoverRouter() public {
         vm.chainId(8453);
         Deployment memory d = _runSepoliaDeploy();
         CoverRouterV2.ProductConfig memory c1 = d.router.getProductConfig(keccak256("FLASHBTC1H-001"));
         assertEq(c1.payoutRatioBps, 8000);
         assertTrue(c1.active);
         assertEq(c1.durationSeconds, 3600);
-
-        CoverRouterV2.ProductConfig memory c2 = d.router.getProductConfig(keccak256("MICRODEPEG-001"));
-        assertEq(c2.durationSeconds, 604800); // 7 days - matches shield MIN/MAX_DURATION
 
         CoverRouterV2.ProductConfig memory c3 = d.router.getProductConfig(keccak256("RATESHOCK-001"));
         assertEq(c3.durationSeconds, 604800); // 7 days
@@ -595,7 +579,6 @@ contract DeployScriptsTest is Test {
         assertEq(d.eth1h.PRODUCT_ID(), keccak256("FLASHETH1H-001"));
         assertEq(d.eth24h.PRODUCT_ID(), keccak256("FLASHETH24-001"));
         assertEq(d.eth48h.PRODUCT_ID(), keccak256("FLASHETH48-001"));
-        assertEq(d.microDepeg.PRODUCT_ID(), keccak256("MICRODEPEG-001"));
         assertEq(d.rateShock.PRODUCT_ID(), keccak256("RATESHOCK-001"));
     }
 

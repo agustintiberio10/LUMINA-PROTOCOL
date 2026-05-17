@@ -30,7 +30,6 @@ import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../src/products/RateShockShield.sol";
 
 // ═══════════════════════════════════════════════════════════════
@@ -419,7 +418,7 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("ShieldKeeper (proxy):", address(shieldKeeper));
 
         // ──────────────────────────────────────────────────
-        // PHASE 9c: Deploy 9 Shields + mock oracles
+        // PHASE 9c: Deploy 8 Shields + mock oracles
         // ──────────────────────────────────────────────────
         MockShieldOracle shieldOracle = new MockShieldOracle();
         MockAavePool mockAavePool = new MockAavePool();
@@ -476,13 +475,6 @@ contract DeployLuminaV5Sepolia is Script {
         );
         FlashETHShield48h flashEth48h = FlashETHShield48h(address(flashEth48hProxy));
 
-        MicroDepegShield microDepegImpl = new MicroDepegShield();
-        ERC1967Proxy microDepegProxy = new ERC1967Proxy(
-            address(microDepegImpl),
-            abi.encodeWithSelector(MicroDepegShield.initialize.selector, address(policyManager), address(shieldOracle))
-        );
-        MicroDepegShield microDepeg = MicroDepegShield(address(microDepegProxy));
-
         RateShockShield rateShockImpl = new RateShockShield();
         ERC1967Proxy rateShockProxy = new ERC1967Proxy(
             address(rateShockImpl),
@@ -503,7 +495,6 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("FlashETH1H:", address(flashEth1h));
         console.log("FlashETH24H:", address(flashEth24h));
         console.log("FlashETH48H:", address(flashEth48h));
-        console.log("MicroDepeg:", address(microDepeg));
         console.log("RateShock:", address(rateShock));
 
         // Register shields in PolicyManager
@@ -514,9 +505,8 @@ contract DeployLuminaV5Sepolia is Script {
         policyManager.registerProduct(keccak256("FLASHETH1H-001"), address(flashEth1h));
         policyManager.registerProduct(keccak256("FLASHETH24-001"), address(flashEth24h));
         policyManager.registerProduct(keccak256("FLASHETH48-001"), address(flashEth48h));
-        policyManager.registerProduct(keccak256("MICRODEPEG-001"), address(microDepeg));
         policyManager.registerProduct(keccak256("RATESHOCK-001"), address(rateShock));
-        console.log("9 shields deployed and registered in PolicyManager");
+        console.log("8 shields deployed and registered in PolicyManager");
 
         // Configure shields in CoverRouterV2 (pricing parameters)
         // payoutRatioBps = 8000 (80% payout), triggerProbBps, marginBps, durationSeconds, active
@@ -527,9 +517,8 @@ contract DeployLuminaV5Sepolia is Script {
         coverRouter.configureProduct(keccak256("FLASHETH1H-001"), 8000, 200, 2000, 3600, true);
         coverRouter.configureProduct(keccak256("FLASHETH24-001"), 8000, 100, 2000, 86400, true);
         coverRouter.configureProduct(keccak256("FLASHETH48-001"), 8000, 80, 2000, 172800, true);
-        coverRouter.configureProduct(keccak256("MICRODEPEG-001"), 8000, 50, 2500, 604800, true);
         coverRouter.configureProduct(keccak256("RATESHOCK-001"), 8000, 30, 3000, 604800, true);
-        console.log("9 shields configured in CoverRouterV2");
+        console.log("8 shields configured in CoverRouterV2");
 
         // Authorize BuybackEngine in BondVault
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
@@ -591,7 +580,7 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("  ShieldKeeper:       ", address(shieldKeeper));
         console.log("");
         console.log("");
-        console.log("--- Shields (9) ---");
+        console.log("--- Shields (8) ---");
         console.log("  FlashBTC1H:         ", address(flashBtc1h));
         console.log("  FlashBTC4H:         ", address(flashBtc4h));
         console.log("  FlashBTC24H:        ", address(flashBtc24h));
@@ -599,7 +588,6 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("  FlashETH1H:         ", address(flashEth1h));
         console.log("  FlashETH24H:        ", address(flashEth24h));
         console.log("  FlashETH48H:        ", address(flashEth48h));
-        console.log("  MicroDepeg:         ", address(microDepeg));
         console.log("  RateShock:          ", address(rateShock));
         console.log("");
         console.log("--- Placeholders ---");

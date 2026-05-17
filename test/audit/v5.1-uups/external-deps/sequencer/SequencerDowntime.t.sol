@@ -12,7 +12,6 @@ import {FlashBTCShield48h} from "../../../../../src/products/FlashBTCShield48h.s
 import {FlashETHShield1h} from "../../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../../src/products/MicroDepegShield.sol";
 import {IShield} from "../../../../../src/interfaces/IShield.sol";
 import {IOracle} from "../../../../../src/interfaces/IOracle.sol";
 
@@ -66,7 +65,7 @@ contract MockSequencerOracle is IOracle {
  *     sequencer awareness — it extends the cleanup window by the reported
  *     downtime so users don't lose a valid trigger because a sequencer outage
  *     ate into their cleanup grace period.
- *   - All Flash* and MicroDepeg shields inherit this via BaseShield (no overrides).
+ *   - All Flash* shields inherit this via BaseShield (no overrides).
  *   - No other contract (CoverRouterV2, PolicyManagerV2, BondVault, TWAPBurner,
  *     Marketplace*) gates on sequencer status. This is by design: if a tx is
  *     mined, the sequencer is up — only time-based state that ticks even when
@@ -121,10 +120,6 @@ contract SequencerDowntime is Test {
 
     function _eth48h() internal returns (FlashETHShield48h) {
         return ProxyDeployer.deployFlashETHShield48h(address(this), address(oracle));
-    }
-
-    function _micro() internal returns (MicroDepegShield) {
-        return ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
     }
 
     function _params(uint32 duration, bytes32 asset) internal returns (IShield.CreatePolicyParams memory p) {
@@ -323,15 +318,6 @@ contract SequencerDowntime is Test {
         uint256 pid = s.createPolicy(_params(48 hours, "ETH"));
         oracle.setSequencerDowntime(1 hours);
         vm.warp(ANCHOR_TS + 48 hours + 24 hours + 30 minutes);
-        assertTrue(_revertSelector(IShield(address(s)), pid) != IShield.InvalidPolicyStatus.selector);
-    }
-
-    function test_Sequencer_UUPS_MicroDepeg_InheritsExtension() public {
-        MicroDepegShield s = _micro();
-        // MicroDepegShield has fixed 7-day duration.
-        uint256 pid = s.createPolicy(_params(7 days, "USDT"));
-        oracle.setSequencerDowntime(1 hours);
-        vm.warp(ANCHOR_TS + 7 days + 24 hours + 30 minutes);
         assertTrue(_revertSelector(IShield(address(s)), pid) != IShield.InvalidPolicyStatus.selector);
     }
 

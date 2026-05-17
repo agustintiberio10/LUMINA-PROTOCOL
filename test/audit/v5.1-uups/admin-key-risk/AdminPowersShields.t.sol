@@ -11,7 +11,6 @@ import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol"
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../src/products/RateShockShield.sol";
 
 /**
@@ -94,16 +93,6 @@ contract AdminPowersShields is Test {
         FlashETHShield48h s = ProxyDeployer.deployFlashETHShield48h(address(this), ORACLE);
         assertEq(s.owner(), address(this));
         address newImpl = address(new FlashETHShield48h());
-        vm.prank(makeAddr("atk"));
-        vm.expectRevert();
-        s.upgradeToAndCall(newImpl, "");
-        s.upgradeToAndCall(newImpl, "");
-    }
-
-    function test_Admin_MicroDepegShield_OwnerCanUpgrade_NonOwnerCannot() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), ORACLE);
-        assertEq(s.owner(), address(this));
-        address newImpl = address(new MicroDepegShield());
         vm.prank(makeAddr("atk"));
         vm.expectRevert();
         s.upgradeToAndCall(newImpl, "");

@@ -18,7 +18,6 @@ import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../src/products/RateShockShield.sol";
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
@@ -197,14 +196,6 @@ library ProxyDeployer {
             address(impl), abi.encodeWithSelector(FlashETHShield48h.initialize.selector, router_, oracle_)
         );
         return FlashETHShield48h(address(proxy));
-    }
-
-    function deployMicroDepegShield(address router_, address oracle_) internal returns (MicroDepegShield) {
-        MicroDepegShield impl = new MicroDepegShield();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(MicroDepegShield.initialize.selector, router_, oracle_)
-        );
-        return MicroDepegShield(address(proxy));
     }
 
     function deployRateShockShield(address router_, address oracle_, address _aavePool, address _usdc)

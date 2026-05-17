@@ -11,7 +11,6 @@ import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol"
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {IShield} from "../../../../src/interfaces/IShield.sol";
 import {IOracle} from "../../../../src/interfaces/IOracle.sol";
 
@@ -268,15 +267,6 @@ contract ShieldSanityBounds is Test {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // MicroDepegShield — bounds [$0.50, $1.50] applied at settlement
-    // ─────────────────────────────────────────────────────────────
-    function test_Sanity_MicroDepeg_CreatePolicy_NoOracleReadRequired() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        // MicroDepeg does not read oracle at create — no sanity path here.
-        s.createPolicy(_params(604800, "USDT"));
-    }
-
-    // ─────────────────────────────────────────────────────────────
     // Constants verification — each shield exposes MIN_PRICE/MAX_PRICE
     // ─────────────────────────────────────────────────────────────
     function test_Sanity_ConstantsPresent_BTC1h() public {
@@ -319,12 +309,6 @@ contract ShieldSanityBounds is Test {
         FlashETHShield48h s = ProxyDeployer.deployFlashETHShield48h(address(this), address(oracle));
         assertEq(s.MIN_PRICE(), 500e8);
         assertEq(s.MAX_PRICE(), 50_000e8);
-    }
-
-    function test_Sanity_ConstantsPresent_MicroDepeg() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        assertEq(s.MIN_PRICE(), 50_000_000); // $0.50
-        assertEq(s.MAX_PRICE(), 150_000_000); // $1.50
     }
 
     // ─────────────────────────────────────────────────────────────

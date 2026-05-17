@@ -47,11 +47,12 @@ import "../../src/products/FlashBTCShield48h.sol";
 import "../../src/products/FlashETHShield1h.sol";
 import "../../src/products/FlashETHShield24h.sol";
 import "../../src/products/FlashETHShield48h.sol";
-import "../../src/products/MicroDepegShield.sol";
 import "../../src/products/RateShockShield.sol";
 
 /// @title DeployLuminaV5Complete
-/// @notice Full deployment script for LUMINA Protocol V5.0 — 28 contracts.
+/// @notice Full deployment script for LUMINA Protocol V5.0 — 27 contracts.
+///         (Sprint EE 2026-05-17: removed MicroDepegShield — no reliable Sepolia
+///         USDT Chainlink feed; 8 shields total now.)
 ///         (Sprint B 2026-05-07: + LuminaOracleV2, ShieldKeeper, AerodromeAdapter,
 ///         UniswapV3Adapter. Shields now bind to LuminaOracleV2 directly,
 ///         replacing the prior `chainlinkOracle` config that was the wrong type.)
@@ -99,7 +100,6 @@ contract DeployLuminaV5Complete is Script {
         address flashETHShield1h;
         address flashETHShield24h;
         address flashETHShield48h;
-        address microDepegShield;
         address rateShockShield;
         // ─── Sprint B additions ───
         address luminaOracleV2;
@@ -409,7 +409,7 @@ contract DeployLuminaV5Complete is Script {
         console.log("18. BuybackEngine (proxy):", res.buybackEngine);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 19: Deploy 9 Shields — bound to LuminaOracleV2 (Sprint B fix:
+        // STEP 19: Deploy 8 Shields — bound to LuminaOracleV2 (Sprint B fix:
         //         was `cfg.chainlinkOracle`, which was the wrong interface).
         // ═══════════════════════════════════════════════════════
         FlashBTCShield1h flashBtc1hImpl = new FlashBTCShield1h();
@@ -461,13 +461,6 @@ contract DeployLuminaV5Complete is Script {
         );
         res.flashETHShield48h = address(flashEth48hProxy);
 
-        MicroDepegShield microDepegImpl = new MicroDepegShield();
-        ERC1967Proxy microDepegProxy = new ERC1967Proxy(
-            address(microDepegImpl),
-            abi.encodeWithSelector(MicroDepegShield.initialize.selector, res.policyManager, res.luminaOracleV2)
-        );
-        res.microDepegShield = address(microDepegProxy);
-
         RateShockShield rateShockImpl = new RateShockShield();
         ERC1967Proxy rateShockProxy = new ERC1967Proxy(
             address(rateShockImpl),
@@ -476,7 +469,7 @@ contract DeployLuminaV5Complete is Script {
             )
         );
         res.rateShockShield = address(rateShockProxy);
-        console.log("19. Shields deployed (9)");
+        console.log("19. Shields deployed (8)");
 
         // ═══════════════════════════════════════════════════════
         // WIRING: Cross-contract configuration
@@ -528,9 +521,8 @@ contract DeployLuminaV5Complete is Script {
         policyManager.registerProduct(keccak256("FLASHETH1H-001"), res.flashETHShield1h);
         policyManager.registerProduct(keccak256("FLASHETH24-001"), res.flashETHShield24h);
         policyManager.registerProduct(keccak256("FLASHETH48-001"), res.flashETHShield48h);
-        policyManager.registerProduct(keccak256("MICRODEPEG-001"), res.microDepegShield);
         policyManager.registerProduct(keccak256("RATESHOCK-001"), res.rateShockShield);
-        console.log("  PolicyManagerV2: 9 products registered");
+        console.log("  PolicyManagerV2: 8 products registered");
 
         // CoverRouterV2.setCapacityOracle (auto-pause at MIN_PRICE_FOR_NEW_POLICIES)
         coverRouter.setCapacityOracle(res.capacityOracle);
@@ -539,7 +531,7 @@ contract DeployLuminaV5Complete is Script {
         // CoverRouterV2.configureProduct for each shield
         // Default config: payoutRatio=8000bps(80%), triggerProb=200bps(2%), margin=2000bps(20%)
         _configureProducts(coverRouter, res);
-        console.log("  CoverRouterV2: 9 products configured");
+        console.log("  CoverRouterV2: 8 products configured");
 
         // ═══════════════════════════════════════════════════════
         // OWNERSHIP TRANSFER to multisig
@@ -605,7 +597,7 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // FINAL LOG: All deployed addresses (28 total)
         // ═══════════════════════════════════════════════════════
-        console.log("===== LUMINA V5.0 DEPLOYMENT COMPLETE (28 contracts) =====");
+        console.log("===== LUMINA V5.0 DEPLOYMENT COMPLETE (27 contracts) =====");
         console.log("LuminaTokenV2:          ", res.luminaToken);
         console.log("BondVault:              ", res.bondVault);
         console.log("ClaimBond:              ", res.claimBond);
@@ -636,12 +628,11 @@ contract DeployLuminaV5Complete is Script {
         console.log("FlashETHShield1h:       ", res.flashETHShield1h);
         console.log("FlashETHShield24h:      ", res.flashETHShield24h);
         console.log("FlashETHShield48h:      ", res.flashETHShield48h);
-        console.log("MicroDepegShield:       ", res.microDepegShield);
         console.log("RateShockShield:        ", res.rateShockShield);
         console.log("===========================================");
     }
 
-    /// @dev Configure all 9 products on CoverRouterV2 with default parameters.
+    /// @dev Configure all 8 products on CoverRouterV2 with default parameters.
     function _configureProducts(
         CoverRouterV2 router,
         DeploymentResult memory /* res */
@@ -660,8 +651,7 @@ contract DeployLuminaV5Complete is Script {
         router.configureProduct(keccak256("FLASHETH1H-001"), 8000, 25, 15000, 3600, true);
         router.configureProduct(keccak256("FLASHETH24-001"), 8000, 60, 15000, 86400, true);
         router.configureProduct(keccak256("FLASHETH48-001"), 8000, 50, 15000, 172800, true);
-        // Depeg / Rate (duration: 604800 = 7 days, matches shield MIN/MAX_DURATION)
-        router.configureProduct(keccak256("MICRODEPEG-001"), 8000, 100, 15000, 604800, true);
+        // Rate (duration: 604800 = 7 days, matches shield MIN/MAX_DURATION)
         router.configureProduct(keccak256("RATESHOCK-001"), 8000, 80, 15000, 604800, true);
     }
 }

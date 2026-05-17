@@ -12,7 +12,6 @@ import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol"
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../src/products/RateShockShield.sol";
 
 import {IShield} from "../../../../src/interfaces/IShield.sol";
@@ -370,41 +369,6 @@ contract StorageCollisionShields is Test {
         FlashETHShield48h s = ProxyDeployer.deployFlashETHShield48h(address(this), address(oracle));
         s.upgradeToAndCall(address(new FlashETHShield48h()), "");
         address attackerImpl = address(new FlashETHShield48h());
-        vm.prank(makeAddr("atk"));
-        vm.expectRevert();
-        s.upgradeToAndCall(attackerImpl, "");
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // MicroDepegShield (coverage/duration different; we rely only on router/oracle slots)
-    // ─────────────────────────────────────────────────────────────
-
-    function test_Storage_MicroDepegShield_PreservedAfterBasicUpgrade() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        assertEq(s.router(), address(this));
-        assertEq(s.oracle(), address(oracle));
-    }
-
-    function test_Storage_MicroDepegShield_SlotLayout() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        _assertSlotLayout(address(s), address(oracle));
-    }
-
-    function test_Storage_MicroDepegShield_MultipleUpgradesSequential() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        assertEq(s.router(), address(this));
-        assertEq(s.totalPolicies(), 0);
-    }
-
-    function test_Storage_MicroDepegShield_InheritanceOrderCorrect() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        assertEq(s.owner(), address(this));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        address attackerImpl = address(new MicroDepegShield());
         vm.prank(makeAddr("atk"));
         vm.expectRevert();
         s.upgradeToAndCall(attackerImpl, "");

@@ -11,7 +11,6 @@ import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol"
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../src/products/RateShockShield.sol";
 import {IShield} from "../../../../src/interfaces/IShield.sol";
 
@@ -231,30 +230,6 @@ contract UpgradePathE2EShields is Test {
         s.upgradeToAndCall(address(new FlashETHShield48h()), "");
         s.createPolicy(_p(172800, "ETH"));
         assertEq(s.totalPolicies(), 1);
-    }
-
-    // MicroDepegShield — createPolicy requires specific stablecoin params;
-    // kept simpler — config preservation + upgrade.
-    function test_UpgradeE2E_MicroDepegShield_WithActiveState() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        assertEq(s.router(), address(this));
-        assertEq(s.oracle(), address(oracle));
-    }
-
-    function test_UpgradeE2E_MicroDepegShield_SequentialUpgrades() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        assertEq(s.router(), address(this));
-    }
-
-    function test_UpgradeE2E_MicroDepegShield_PostUpgradeOperationsWork() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        assertEq(s.owner(), address(this));
-        assertEq(s.totalPolicies(), 0);
     }
 
     // RateShockShield

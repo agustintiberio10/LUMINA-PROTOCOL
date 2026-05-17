@@ -11,7 +11,6 @@ import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol"
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {IShield} from "../../../../src/interfaces/IShield.sol";
 import {IOracle} from "../../../../src/interfaces/IOracle.sol";
 
@@ -108,10 +107,6 @@ contract ChainlinkFailures is Test {
 
     function _eth48h() internal returns (FlashETHShield48h) {
         return ProxyDeployer.deployFlashETHShield48h(address(this), address(oracle));
-    }
-
-    function _micro() internal returns (MicroDepegShield) {
-        return ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
     }
 
     function _params(uint32 d, bytes32 a) internal returns (IShield.CreatePolicyParams memory p) {
@@ -290,14 +285,6 @@ contract ChainlinkFailures is Test {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // MicroDepegShield has a fixed TRIGGER_PRICE constant
-    // ─────────────────────────────────────────────────────────────
-    function test_Chainlink_MicroDepeg_TriggerPriceIsConstant() public {
-        MicroDepegShield s = _micro();
-        assertEq(s.TRIGGER_PRICE(), 99_500_000); // $0.995 in 8-dec
-    }
-
-    // ─────────────────────────────────────────────────────────────
     // Oracle key is the authorized signer
     // ─────────────────────────────────────────────────────────────
     function test_Chainlink_Oracle_OracleKey_Readable() public {
@@ -343,16 +330,6 @@ contract ChainlinkFailures is Test {
         assertEq(s1.getBSSData(p1).strikePrice, 3_000e8);
         assertEq(s2.getBSSData(p2).strikePrice, 3_000e8);
         assertEq(s3.getBSSData(p3).strikePrice, 3_000e8);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // MicroDepeg oracle read path — uses same IOracle interface
-    // ─────────────────────────────────────────────────────────────
-    function test_Chainlink_MicroDepeg_AcceptsValidUSDTOracle() public {
-        MicroDepegShield s = _micro();
-        // Oracle is set in constructor; we can query its state through the
-        // shield.
-        assertEq(s.oracle(), address(oracle));
     }
 
     // ─────────────────────────────────────────────────────────────

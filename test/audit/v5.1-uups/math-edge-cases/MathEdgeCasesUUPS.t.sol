@@ -22,7 +22,6 @@ import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol"
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../src/products/RateShockShield.sol";
 
 contract MockPriceOracleMath {
@@ -377,13 +376,6 @@ contract MathEdgeCasesUUPS is Test {
     // ─────────────────────────────────────────────────────────────
     // Test 10 — V5.0 fixes still apply
     // ─────────────────────────────────────────────────────────────
-    function test_Math_UUPS_MicroDepeg_Duration_604800() public {
-        vm.chainId(8453);
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), makeAddr("o"));
-        assertEq(s.MIN_DURATION(), 604800);
-        assertEq(s.MAX_DURATION(), 604800);
-    }
-
     function test_Math_UUPS_RateShock_Duration_604800() public {
         vm.chainId(8453);
         RateShockShield s =
@@ -401,8 +393,7 @@ contract MathEdgeCasesUUPS is Test {
         FlashETHShield1h s5 = ProxyDeployer.deployFlashETHShield1h(address(this), makeAddr("o"));
         FlashETHShield24h s6 = ProxyDeployer.deployFlashETHShield24h(address(this), makeAddr("o"));
         FlashETHShield48h s7 = ProxyDeployer.deployFlashETHShield48h(address(this), makeAddr("o"));
-        MicroDepegShield s8 = ProxyDeployer.deployMicroDepegShield(address(this), makeAddr("o"));
-        RateShockShield s9 =
+        RateShockShield s8 =
             ProxyDeployer.deployRateShockShield(address(this), makeAddr("o"), makeAddr("aave"), makeAddr("u"));
 
         // Check each product ID matches its declared constant.
@@ -413,11 +404,10 @@ contract MathEdgeCasesUUPS is Test {
         assertEq(s5.productId(), keccak256("FLASHETH1H-001"));
         assertEq(s6.productId(), keccak256("FLASHETH24-001"));
         assertEq(s7.productId(), keccak256("FLASHETH48-001"));
-        assertEq(s8.productId(), keccak256("MICRODEPEG-001"));
-        assertEq(s9.productId(), keccak256("RATESHOCK-001"));
+        assertEq(s8.productId(), keccak256("RATESHOCK-001"));
 
-        // All 9 must be distinct.
-        bytes32[] memory ids = new bytes32[](9);
+        // All 8 must be distinct.
+        bytes32[] memory ids = new bytes32[](8);
         ids[0] = s1.productId();
         ids[1] = s2.productId();
         ids[2] = s3.productId();
@@ -426,9 +416,8 @@ contract MathEdgeCasesUUPS is Test {
         ids[5] = s6.productId();
         ids[6] = s7.productId();
         ids[7] = s8.productId();
-        ids[8] = s9.productId();
-        for (uint256 i = 0; i < 9; i++) {
-            for (uint256 j = i + 1; j < 9; j++) {
+        for (uint256 i = 0; i < 8; i++) {
+            for (uint256 j = i + 1; j < 8; j++) {
                 assertTrue(ids[i] != ids[j], "Product IDs must be distinct");
             }
         }
