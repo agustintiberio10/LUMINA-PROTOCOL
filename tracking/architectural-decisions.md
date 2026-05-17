@@ -106,3 +106,105 @@ Si cualquiera de los 4 valores no matchea, **DETENER el deploy** y revisar el sc
 ### Status
 
 ACEPTADO — código + tests + runbook listos. Deploy real en Sprint Deploy posterior (incluye redeploy completo V5.1 post-Sprint Z.2 cleanup).
+
+---
+
+## ADR-026 — Sprint EE: Shield Testing Exhaustivo + Eliminación MicroDepeg + Asimetría
+
+**Fecha**: 2026-05-17
+**Estado**: APROBADO por founder, pendiente de deploy
+**PR asociada**: `feat/sprint-ee-shields-testing` en `LUMINA-PROTOCOL`.
+
+### Decisión
+
+1. **ELIMINAR `MicroDepegShield`** del set actual (Phase A).
+2. **ELIMINAR `FlashBTCShield4h`** al final del sprint para simetría con FlashETH (Phase H).
+3. **SET FINAL: 7 shields** (FlashBTC 1h/24h/48h, FlashETH 1h/24h/48h, RateShock).
+4. **Testing exhaustivo**: 64 Echidna props × 200k + 480 unit + 80 E2E fork + 64 wiring + 50 stress = **738 tests + 64 props**.
+
+### Razones
+
+- **MicroDepeg**: Chainlink Sepolia no tiene un feed USDT confiable. No se puede validar el trigger de depeg en fork tests. Sin testing E2E confiable, el shield no puede deployarse responsablemente.
+- **FlashBTC 4h**: la asimetría con FlashETH (que solo tiene 1h/24h/48h) no está justificada actuarialmente. La 4h se eliminó **después** de haber sido testeada (cumple la lección: probar antes de borrar).
+- **Stress testing**: Sprint FV cubrió FounderVesting (3 paths, surface limitada). Los shields tienen attack-surface más amplio: precio oracle, ventana, sequencer, premium, redención de bond, gas griefing — momento de probarlos a fondo.
+
+### Parámetros confirmados por founder (no preguntar de nuevo)
+
+| Parámetro | Valor |
+|---|---|
+| Umbral caída | Valor actuarial del `.sol` actual (no modificar) |
+| Ventana | Desde firma hasta cumplir X horas (móvil) |
+| Cooldown | NO (cada póliza tiene su ventana independiente) |
+| Confirmación oracle | 3 lecturas separadas 60s (filtra flash crashes) |
+| Staleness Chainlink | Fail silent — la póliza expira sin payout |
+| Sequencer Base L2 down | Fail silent (mismo criterio) |
+| Duración póliza | Igual a la ventana (Flash 1h dura 1h) |
+| Payout | Bond ERC-1155 redimible 2 años en LUMINA al precio del momento |
+
+### Lecciones aplicadas
+
+1. Bug L476-477 multisig grant+revoke (Sprint T → ADR-012) — invariantes `require(...)` confirmadas intactas en Phase A.2.
+2. Oracle wiring wrong (Sprint Z.2 + FV fix) — tests E2E con address REAL `LuminaOracleV2 SET A 0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194`.
+3. Tests con mocks no detectan bugs de integración — fork tests obligatorios con `requiresFork` modifier.
+4. Auditar deploy scripts integralmente — ambos modificados en Phase A (MicroDepeg removal) y Phase H (FlashBTC4h removal).
+5. Founder no-técnico — runbook `docs/runbooks/SHIELDS-OPERATIONS.md` con activación trigger, redención bond, 3-formas verificación.
+
+### Test coverage delivered
+
+| Shield | Echidna | Edge | E2E fork | Wiring |
+|---|---|---|---|---|
+| FlashBTC 1h | 8 | 60 | 10 | 8 |
+| FlashBTC 4h * | 8 | 60 | 10 | 8 |
+| FlashBTC 24h | 8 | 60 | 10 | 8 |
+| FlashBTC 48h | 8 | 60 | 10 | 8 |
+| FlashETH 1h | 8 | 60 | 10 | 8 |
+| FlashETH 24h | 8 | 60 | 10 | 8 |
+| FlashETH 48h | 8 | 60 | 10 | 8 |
+| RateShock | 8 | 60 | 10 | 8 |
+| **TOTAL** | **64** | **480** | **80** | **64** |
+
+\* FlashBTC 4h testeada antes de eliminación en Phase H.
+
+Plus **50 stress tests** en `test/stress/shields/ShieldStressAttacks.t.sol`.
+
+### Findings de stress tests (informativo, NO auto-fixed)
+
+5 puntos de diseño que merecen revisión pre-mainnet:
+
+1. `BaseShield` no tiene `nonReentrant` modifier — defense-in-depth via `onlyRouter`. Aceptable si router es trusted, pero documenta una asunción.
+2. Shields aceptan premiums arbitrariamente bajos — solvencia delegada a `PolicyManagerV2`/`BondVault`.
+3. No hay selector `pause()` a nivel shield — solo via UUPS upgrade o `GlobalPauseRegistry` global.
+4. Trigger usa precio firmado EIP-712, no spot live — expande blast radius del signer.
+5. `verifyAndCalculate` es idempotente pre-finalize — gate de finalización está en `markPaidOut`.
+
+### Confirmación on-chain post-deploy (obligatorio en Sprint Deploy)
+
+Por cada shield deployado:
+
+```bash
+cast call <SHIELD> "TRIGGER_DROP_BPS()(uint256)" --rpc-url $RPC
+cast call <SHIELD> "MIN_DURATION()(uint32)" --rpc-url $RPC
+cast call <SHIELD> "DEDUCTIBLE_BPS()(uint256)" --rpc-url $RPC
+cast call <SHIELD> "router()(address)" --rpc-url $RPC      # == PolicyManagerV2
+cast call <SHIELD> "oracle()(address)" --rpc-url $RPC      # == LuminaOracleV2 SET A
+```
+
+Si valores no matchean wiring tests W7, **DETENER deploy**.
+
+### Consequences
+
+**Pro:**
+- 7 shields probados con 738 tests + 64 Echidna props + 50 stress.
+- Set simétrico (BTC y ETH con mismas ventanas).
+- Lecciones Sprint FV aplicadas (oracle wiring real, fork tests).
+- Stress adversarial cubre flash loans, MEV, gas grief, reentry, DoS, timing, multi-shield cascade.
+
+**Con:**
+- Tiempo CI alto: Echidna 8 × 200k = ~6h en CI Linux (sequential per shield).
+- 480 unit tests aumentan `forge test FULL` (~+5-10 min).
+- Stress tests pueden ser flaky (mocks complejos).
+- ~20 `vm.skip(true)` documentados — tests que asumen comportamiento que vive en otros contratos (BondVault, CoverRouterV2, PolicyManagerV2).
+
+### Status
+
+ACEPTADO — código + tests + runbook listos. Deploy real en Sprint Deploy posterior (redeploy completo 27 contratos V5.1 con set final 7 shields).
