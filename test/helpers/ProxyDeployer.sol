@@ -12,7 +12,6 @@ import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
 import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
 import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
 import {FlashBTCShield1h} from "../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
@@ -148,14 +147,6 @@ library ProxyDeployer {
             address(impl), abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, router_, oracle_)
         );
         return FlashBTCShield1h(address(proxy));
-    }
-
-    function deployFlashBTCShield4h(address router_, address oracle_) internal returns (FlashBTCShield4h) {
-        FlashBTCShield4h impl = new FlashBTCShield4h();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, router_, oracle_)
-        );
-        return FlashBTCShield4h(address(proxy));
     }
 
     function deployFlashBTCShield24h(address router_, address oracle_) internal returns (FlashBTCShield24h) {

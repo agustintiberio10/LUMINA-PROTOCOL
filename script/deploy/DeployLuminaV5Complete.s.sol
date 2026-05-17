@@ -41,7 +41,6 @@ import "../../src/marketplace/BuybackEngine.sol";
 
 // ═══════ Products (Shields) ═══════
 import "../../src/products/FlashBTCShield1h.sol";
-import "../../src/products/FlashBTCShield4h.sol";
 import "../../src/products/FlashBTCShield24h.sol";
 import "../../src/products/FlashBTCShield48h.sol";
 import "../../src/products/FlashETHShield1h.sol";
@@ -50,9 +49,12 @@ import "../../src/products/FlashETHShield48h.sol";
 import "../../src/products/RateShockShield.sol";
 
 /// @title DeployLuminaV5Complete
-/// @notice Full deployment script for LUMINA Protocol V5.0 — 27 contracts.
-///         (Sprint EE 2026-05-17: removed MicroDepegShield — no reliable Sepolia
-///         USDT Chainlink feed; 8 shields total now.)
+/// @notice Full deployment script for LUMINA Protocol V5.0 — 26 contracts.
+///         (Sprint EE Phase H 2026-05-17: removed FlashBTCShield4h to mirror the
+///         FlashETH set (1h/24h/48h, no 4h). Per ADR-026, the BTC set is
+///         collapsed from 1h/4h/24h/48h to 1h/24h/48h; 7 shields total now.)
+///         (Sprint EE Phase A 2026-05-17: removed MicroDepegShield — no reliable
+///         Sepolia USDT Chainlink feed.)
 ///         (Sprint B 2026-05-07: + LuminaOracleV2, ShieldKeeper, AerodromeAdapter,
 ///         UniswapV3Adapter. Shields now bind to LuminaOracleV2 directly,
 ///         replacing the prior `chainlinkOracle` config that was the wrong type.)
@@ -94,7 +96,6 @@ contract DeployLuminaV5Complete is Script {
         address marketplace;
         address buybackEngine;
         address flashBTCShield1h;
-        address flashBTCShield4h;
         address flashBTCShield24h;
         address flashBTCShield48h;
         address flashETHShield1h;
@@ -409,7 +410,7 @@ contract DeployLuminaV5Complete is Script {
         console.log("18. BuybackEngine (proxy):", res.buybackEngine);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 19: Deploy 8 Shields — bound to LuminaOracleV2 (Sprint B fix:
+        // STEP 19: Deploy 7 Shields — bound to LuminaOracleV2 (Sprint B fix:
         //         was `cfg.chainlinkOracle`, which was the wrong interface).
         // ═══════════════════════════════════════════════════════
         FlashBTCShield1h flashBtc1hImpl = new FlashBTCShield1h();
@@ -418,13 +419,6 @@ contract DeployLuminaV5Complete is Script {
             abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, res.policyManager, res.luminaOracleV2)
         );
         res.flashBTCShield1h = address(flashBtc1hProxy);
-
-        FlashBTCShield4h flashBtc4hImpl = new FlashBTCShield4h();
-        ERC1967Proxy flashBtc4hProxy = new ERC1967Proxy(
-            address(flashBtc4hImpl),
-            abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, res.policyManager, res.luminaOracleV2)
-        );
-        res.flashBTCShield4h = address(flashBtc4hProxy);
 
         FlashBTCShield24h flashBtc24hImpl = new FlashBTCShield24h();
         ERC1967Proxy flashBtc24hProxy = new ERC1967Proxy(
@@ -469,7 +463,7 @@ contract DeployLuminaV5Complete is Script {
             )
         );
         res.rateShockShield = address(rateShockProxy);
-        console.log("19. Shields deployed (8)");
+        console.log("19. Shields deployed (7)");
 
         // ═══════════════════════════════════════════════════════
         // WIRING: Cross-contract configuration
@@ -515,14 +509,13 @@ contract DeployLuminaV5Complete is Script {
         // PolicyManagerV2.registerProduct for each shield
         // IDs MUST match the PRODUCT_ID constant in each shield contract
         policyManager.registerProduct(keccak256("FLASHBTC1H-001"), res.flashBTCShield1h);
-        policyManager.registerProduct(keccak256("FLASHBTC4H-001"), res.flashBTCShield4h);
         policyManager.registerProduct(keccak256("FLASHBTC24-001"), res.flashBTCShield24h);
         policyManager.registerProduct(keccak256("FLASHBTC48-001"), res.flashBTCShield48h);
         policyManager.registerProduct(keccak256("FLASHETH1H-001"), res.flashETHShield1h);
         policyManager.registerProduct(keccak256("FLASHETH24-001"), res.flashETHShield24h);
         policyManager.registerProduct(keccak256("FLASHETH48-001"), res.flashETHShield48h);
         policyManager.registerProduct(keccak256("RATESHOCK-001"), res.rateShockShield);
-        console.log("  PolicyManagerV2: 8 products registered");
+        console.log("  PolicyManagerV2: 7 products registered");
 
         // CoverRouterV2.setCapacityOracle (auto-pause at MIN_PRICE_FOR_NEW_POLICIES)
         coverRouter.setCapacityOracle(res.capacityOracle);
@@ -531,7 +524,7 @@ contract DeployLuminaV5Complete is Script {
         // CoverRouterV2.configureProduct for each shield
         // Default config: payoutRatio=8000bps(80%), triggerProb=200bps(2%), margin=2000bps(20%)
         _configureProducts(coverRouter, res);
-        console.log("  CoverRouterV2: 8 products configured");
+        console.log("  CoverRouterV2: 7 products configured");
 
         // ═══════════════════════════════════════════════════════
         // OWNERSHIP TRANSFER to multisig
@@ -595,9 +588,9 @@ contract DeployLuminaV5Complete is Script {
         vm.stopBroadcast();
 
         // ═══════════════════════════════════════════════════════
-        // FINAL LOG: All deployed addresses (28 total)
+        // FINAL LOG: All deployed addresses (27 total)
         // ═══════════════════════════════════════════════════════
-        console.log("===== LUMINA V5.0 DEPLOYMENT COMPLETE (27 contracts) =====");
+        console.log("===== LUMINA V5.0 DEPLOYMENT COMPLETE (26 contracts) =====");
         console.log("LuminaTokenV2:          ", res.luminaToken);
         console.log("BondVault:              ", res.bondVault);
         console.log("ClaimBond:              ", res.claimBond);
@@ -622,7 +615,6 @@ contract DeployLuminaV5Complete is Script {
         }
         console.log("UniswapV3Adapter:       ", res.uniswapV3Adapter);
         console.log("FlashBTCShield1h:       ", res.flashBTCShield1h);
-        console.log("FlashBTCShield4h:       ", res.flashBTCShield4h);
         console.log("FlashBTCShield24h:      ", res.flashBTCShield24h);
         console.log("FlashBTCShield48h:      ", res.flashBTCShield48h);
         console.log("FlashETHShield1h:       ", res.flashETHShield1h);
@@ -632,7 +624,7 @@ contract DeployLuminaV5Complete is Script {
         console.log("===========================================");
     }
 
-    /// @dev Configure all 8 products on CoverRouterV2 with default parameters.
+    /// @dev Configure all 7 products on CoverRouterV2 with default parameters.
     function _configureProducts(
         CoverRouterV2 router,
         DeploymentResult memory /* res */
@@ -644,7 +636,6 @@ contract DeployLuminaV5Complete is Script {
         // payoutRatioBps = 8000 (80% payout)
         // BTC shields
         router.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 20, 15000, 3600, true);
-        router.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 30, 15000, 14400, true);
         router.configureProduct(keccak256("FLASHBTC24-001"), 8000, 50, 15000, 86400, true);
         router.configureProduct(keccak256("FLASHBTC48-001"), 8000, 40, 15000, 172800, true);
         // ETH shields

@@ -6,7 +6,6 @@ import {ProxyDeployer} from "../../../../helpers/ProxyDeployer.sol";
 
 import {BaseShield} from "../../../../../src/products/BaseShield.sol";
 import {FlashBTCShield1h} from "../../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../../../src/products/FlashETHShield1h.sol";
@@ -96,10 +95,6 @@ contract SequencerDowntime is Test {
 
     function _btc1h() internal returns (FlashBTCShield1h) {
         return ProxyDeployer.deployFlashBTCShield1h(address(this), address(oracle));
-    }
-
-    function _btc4h() internal returns (FlashBTCShield4h) {
-        return ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
     }
 
     function _btc24h() internal returns (FlashBTCShield24h) {
@@ -270,14 +265,6 @@ contract SequencerDowntime is Test {
         uint256 pid = s.createPolicy(_params(3600, "BTC"));
         oracle.setSequencerDowntime(1 hours);
         vm.warp(ANCHOR_TS + 3600 + 24 hours + 30 minutes);
-        assertTrue(_revertSelector(IShield(address(s)), pid) != IShield.InvalidPolicyStatus.selector);
-    }
-
-    function test_Sequencer_UUPS_FlashBTC4h_InheritsExtension() public {
-        FlashBTCShield4h s = _btc4h();
-        uint256 pid = s.createPolicy(_params(4 hours, "BTC"));
-        oracle.setSequencerDowntime(1 hours);
-        vm.warp(ANCHOR_TS + 4 hours + 24 hours + 30 minutes);
         assertTrue(_revertSelector(IShield(address(s)), pid) != IShield.InvalidPolicyStatus.selector);
     }
 

@@ -3,13 +3,11 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../../src/products/FlashBTCShield1h.sol";
-import "../../src/products/FlashBTCShield4h.sol";
 import "../../src/products/FlashETHShield1h.sol";
 import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 contract FlashShieldsTest is Test {
     FlashBTCShield1h btc1h;
-    FlashBTCShield4h btc4h;
     FlashETHShield1h eth1h;
 
     address router = makeAddr("router");
@@ -18,7 +16,6 @@ contract FlashShieldsTest is Test {
     function setUp() public {
         vm.chainId(8453);
         btc1h = ProxyDeployer.deployFlashBTCShield1h(router, oracle);
-        btc4h = ProxyDeployer.deployFlashBTCShield4h(router, oracle);
         eth1h = ProxyDeployer.deployFlashETHShield1h(router, oracle);
     }
 
@@ -39,25 +36,6 @@ contract FlashShieldsTest is Test {
 
     function test_btc1h_deductibleBps() public view {
         assertEq(btc1h.DEDUCTIBLE_BPS(), 2000);
-    }
-
-    // ═══════ FlashBTCShield4h ═══════
-    function test_btc4h_productId() public view {
-        assertEq(btc4h.productId(), keccak256("FLASHBTC4H-001"));
-    }
-
-    function test_btc4h_durationRange() public view {
-        (uint32 min, uint32 max) = btc4h.durationRange();
-        assertEq(min, 14400);
-        assertEq(max, 14400);
-    }
-
-    function test_btc4h_triggerDropBps() public view {
-        assertEq(btc4h.TRIGGER_DROP_BPS(), 800);
-    }
-
-    function test_btc4h_deductibleBps() public view {
-        assertEq(btc4h.DEDUCTIBLE_BPS(), 2000);
     }
 
     // ═══════ FlashETHShield1h ═══════

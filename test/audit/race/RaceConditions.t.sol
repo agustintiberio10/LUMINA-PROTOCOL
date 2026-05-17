@@ -199,7 +199,7 @@ contract RaceConditionsTest is Test {
     address admin = makeAddr("admin");
 
     bytes32 constant PRODUCT_ID = keccak256("FLASHBTC1H-RACE");
-    bytes32 constant PRODUCT_ID_2 = keccak256("FLASHBTC4H-RACE");
+    bytes32 constant PRODUCT_ID_2 = keccak256("FLASHBTC24-RACE");
     uint256 constant BASE_TS = 1767225600; // Jan 1 2026 UTC
 
     function setUp() public {

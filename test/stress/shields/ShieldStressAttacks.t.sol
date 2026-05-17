@@ -7,7 +7,6 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IShield} from "../../../src/interfaces/IShield.sol";
 import {BaseShield} from "../../../src/products/BaseShield.sol";
 import {FlashBTCShield1h} from "../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../src/products/FlashETHShield1h.sol";
@@ -200,7 +199,6 @@ contract ShieldStressAttacks is Test {
 
     // ------ Shields ------
     FlashBTCShield1h btc1h;
-    FlashBTCShield4h btc4h;
     FlashBTCShield24h btc24h;
     FlashBTCShield48h btc48h;
     FlashETHShield1h eth1h;
@@ -243,9 +241,8 @@ contract ShieldStressAttacks is Test {
         lumina = new MockLuminaToken();
         claimBond = new MockClaimBond();
 
-        // Deploy 8 shields behind ERC1967Proxy. router == this (we are PolicyManager).
+        // Deploy 7 shields behind ERC1967Proxy. router == this (we are PolicyManager).
         btc1h = ProxyDeployer.deployFlashBTCShield1h(router, address(oracle));
-        btc4h = ProxyDeployer.deployFlashBTCShield4h(router, address(oracle));
         btc24h = ProxyDeployer.deployFlashBTCShield24h(router, address(oracle));
         btc48h = ProxyDeployer.deployFlashBTCShield48h(router, address(oracle));
         eth1h = ProxyDeployer.deployFlashETHShield1h(router, address(oracle));
@@ -276,10 +273,6 @@ contract ShieldStressAttacks is Test {
 
     function _btcPolicy(FlashBTCShield1h s, address b, uint256 cov) internal returns (uint256) {
         return s.createPolicy(_params(b, cov, cov / 100, 3600, BTC));
-    }
-
-    function _btcPolicy(FlashBTCShield4h s, address b, uint256 cov) internal returns (uint256) {
-        return s.createPolicy(_params(b, cov, cov / 100, 14_400, BTC));
     }
 
     function _btcPolicy(FlashBTCShield24h s, address b, uint256 cov) internal returns (uint256) {
@@ -324,12 +317,12 @@ contract ShieldStressAttacks is Test {
     /// @notice A-FLASH-002: Multi-DEX correlated dump (mocked as a single feed move).
     function test_A_FLASH_002_multiDexCorrelated() public {
         uint256 p1 = _btcPolicy(btc1h, attacker, 50_000e6);
-        uint256 p2 = _btcPolicy(btc4h, attacker, 50_000e6);
+        uint256 p2 = _btcPolicy(btc24h, attacker, 50_000e6);
         vm.warp(t0 + 300);
         oracle.setPrice(BTC, (BTC_PRICE_OK * 80) / 100); // -20% across DEXes
         bytes memory pf = _priceProof((BTC_PRICE_OK * 80) / 100, BTC, t0 + 300);
         IShield.PayoutResult memory r1 = btc1h.verifyAndCalculate(p1, pf);
-        IShield.PayoutResult memory r2 = btc4h.verifyAndCalculate(p2, pf);
+        IShield.PayoutResult memory r2 = btc24h.verifyAndCalculate(p2, pf);
         assertTrue(r1.triggered && r2.triggered, "both triggered");
     }
 
@@ -359,15 +352,15 @@ contract ShieldStressAttacks is Test {
         assertEq(btc1h.activePolicies(), created, "all policies active");
     }
 
-    /// @notice A-FLASH-005: Cross-shield flash dump triggers BTC4h via mocked oracle.
+    /// @notice A-FLASH-005: Cross-shield flash dump triggers BTC24h via mocked oracle.
     function test_A_FLASH_005_crossShieldFlash() public {
-        uint256 pid = _btcPolicy(btc4h, attacker, 25_000e6);
-        vm.warp(t0 + 7200);
-        // 4h trigger is 8% drop
-        int256 newP = (BTC_PRICE_OK * 90) / 100;
+        uint256 pid = _btcPolicy(btc24h, attacker, 25_000e6);
+        vm.warp(t0 + 43_200);
+        // 24h trigger is 10% drop
+        int256 newP = (BTC_PRICE_OK * 88) / 100;
         oracle.setPrice(BTC, newP);
-        bytes memory pf = _priceProof(newP, BTC, t0 + 7200);
-        IShield.PayoutResult memory r = btc4h.verifyAndCalculate(pid, pf);
+        bytes memory pf = _priceProof(newP, BTC, t0 + 43_200);
+        IShield.PayoutResult memory r = btc24h.verifyAndCalculate(pid, pf);
         assertTrue(r.triggered);
     }
 
@@ -423,10 +416,9 @@ contract ShieldStressAttacks is Test {
         btc1h.verifyAndCalculate(pid, pf);
     }
 
-    /// @notice A-WHALE-001: Whale dumps 100M USD of BTC, triggering all 4 BTC shields simultaneously.
+    /// @notice A-WHALE-001: Whale dumps 100M USD of BTC, triggering all 3 BTC shields simultaneously.
     function test_A_WHALE_001_whaleDumpsAllBTC() public {
         uint256 p1 = _btcPolicy(btc1h, whale, 100_000e6);
-        uint256 p4 = _btcPolicy(btc4h, whale, 100_000e6);
         uint256 p24 = _btcPolicy(btc24h, whale, 100_000e6);
         uint256 p48 = _btcPolicy(btc48h, whale, 100_000e6);
         vm.warp(t0 + 60);
@@ -435,7 +427,6 @@ contract ShieldStressAttacks is Test {
         oracle.setPrice(BTC, dumped);
         bytes memory pf = _priceProof(dumped, BTC, t0 + 60);
         assertTrue(btc1h.verifyAndCalculate(p1, pf).triggered);
-        assertTrue(btc4h.verifyAndCalculate(p4, pf).triggered);
         assertTrue(btc24h.verifyAndCalculate(p24, pf).triggered);
         assertTrue(btc48h.verifyAndCalculate(p48, pf).triggered);
     }
@@ -576,20 +567,20 @@ contract ShieldStressAttacks is Test {
         btc1h.markPaidOut(pid);
     }
 
-    /// @notice T-REENTRY-004: cross-shield reentry — markPaidOut on btc1h while inside btc4h flow.
+    /// @notice T-REENTRY-004: cross-shield reentry — markPaidOut on btc1h while inside btc24h flow.
     function test_T_REENTRY_004_crossShieldReentry() public {
         uint256 p1 = _btcPolicy(btc1h, buyer, 1_000e6);
-        uint256 p4 = _btcPolicy(btc4h, buyer, 1_000e6);
+        uint256 p24 = _btcPolicy(btc24h, buyer, 1_000e6);
         vm.warp(t0 + 60);
         int256 dumped = (BTC_PRICE_OK * 80) / 100;
         oracle.setPrice(BTC, dumped);
         bytes memory pf = _priceProof(dumped, BTC, t0 + 60);
         btc1h.verifyAndCalculate(p1, pf);
-        btc4h.verifyAndCalculate(p4, pf);
+        btc24h.verifyAndCalculate(p24, pf);
         btc1h.markPaidOut(p1);
-        btc4h.markPaidOut(p4);
+        btc24h.markPaidOut(p24);
         assertEq(btc1h.activePolicies(), 0);
-        assertEq(btc4h.activePolicies(), 0);
+        assertEq(btc24h.activePolicies(), 0);
     }
 
     /// @notice T-DOS-001: 100k policy spam (capped to 300 for runtime).
@@ -787,10 +778,9 @@ contract ShieldStressAttacks is Test {
     //  GROUP 4: MULTI-SHIELD SCENARIOS (10)
     // ============================================================
 
-    /// @notice MS-001: BTC + ETH simultaneous crash → all 7 shields trigger.
-    function test_MS_001_allSevenTrigger() public {
+    /// @notice MS-001: BTC + ETH simultaneous crash → all 6 shields trigger.
+    function test_MS_001_allSixTrigger() public {
         uint256 p1 = _btcPolicy(btc1h, buyer, 5_000e6);
-        uint256 p2 = _btcPolicy(btc4h, buyer, 5_000e6);
         uint256 p3 = _btcPolicy(btc24h, buyer, 5_000e6);
         uint256 p4 = _btcPolicy(btc48h, buyer, 5_000e6);
         uint256 p5 = _ethPolicy(eth1h, buyer, 5_000e6);
@@ -805,7 +795,6 @@ contract ShieldStressAttacks is Test {
         bytes memory pfB = _priceProof(dBtc, BTC, t0 + 60);
         bytes memory pfE = _priceProof(dEth, ETH, t0 + 60);
         assertTrue(btc1h.verifyAndCalculate(p1, pfB).triggered);
-        assertTrue(btc4h.verifyAndCalculate(p2, pfB).triggered);
         assertTrue(btc24h.verifyAndCalculate(p3, pfB).triggered);
         assertTrue(btc48h.verifyAndCalculate(p4, pfB).triggered);
         assertTrue(eth1h.verifyAndCalculate(p5, pfE).triggered);
@@ -817,16 +806,16 @@ contract ShieldStressAttacks is Test {
     /// but reentry across shields is harmless because each shield has its own state).
     function test_MS_002_crossShieldReentryChain() public {
         uint256 p1 = _btcPolicy(btc1h, buyer, 1_000e6);
-        uint256 p2 = _btcPolicy(btc4h, buyer, 1_000e6);
+        uint256 p2 = _btcPolicy(btc24h, buyer, 1_000e6);
         vm.warp(t0 + 60);
         int256 d = (BTC_PRICE_OK * 80) / 100;
         oracle.setPrice(BTC, d);
         bytes memory pf = _priceProof(d, BTC, t0 + 60);
         btc1h.verifyAndCalculate(p1, pf);
-        btc4h.verifyAndCalculate(p2, pf);
+        btc24h.verifyAndCalculate(p2, pf);
         btc1h.markPaidOut(p1);
-        btc4h.markPaidOut(p2);
-        assertEq(btc1h.activePolicies() + btc4h.activePolicies(), 0);
+        btc24h.markPaidOut(p2);
+        assertEq(btc1h.activePolicies() + btc24h.activePolicies(), 0);
     }
 
     /// @notice MS-003: sequential trigger of 7 shields in same block.
@@ -844,10 +833,9 @@ contract ShieldStressAttacks is Test {
         assertTrue(eth1h.verifyAndCalculate(p5, pfE).triggered);
     }
 
-    /// @notice MS-004: attacker holds policies on all 7 shields.
-    function test_MS_004_attackerHoldsAllSeven() public {
+    /// @notice MS-004: attacker holds policies on all 6 shields.
+    function test_MS_004_attackerHoldsAllSix() public {
         _btcPolicy(btc1h, attacker, 1_000e6);
-        _btcPolicy(btc4h, attacker, 1_000e6);
         _btcPolicy(btc24h, attacker, 1_000e6);
         _btcPolicy(btc48h, attacker, 1_000e6);
         _ethPolicy(eth1h, attacker, 1_000e6);
@@ -870,13 +858,13 @@ contract ShieldStressAttacks is Test {
     /// @notice MS-006: shared oracle update affects all shields.
     function test_MS_006_sharedOracleUpdate() public {
         uint256 p1 = _btcPolicy(btc1h, buyer, 1_000e6);
-        uint256 p4 = _btcPolicy(btc4h, buyer, 1_000e6);
+        uint256 p4 = _btcPolicy(btc24h, buyer, 1_000e6);
         vm.warp(t0 + 60);
         int256 d = (BTC_PRICE_OK * 80) / 100;
         oracle.setPrice(BTC, d);
         bytes memory pf = _priceProof(d, BTC, t0 + 60);
         assertTrue(btc1h.verifyAndCalculate(p1, pf).triggered);
-        assertTrue(btc4h.verifyAndCalculate(p4, pf).triggered);
+        assertTrue(btc24h.verifyAndCalculate(p4, pf).triggered);
     }
 
     /// @notice MS-007: ShieldKeeper rebalance bug during stress.
@@ -895,10 +883,9 @@ contract ShieldStressAttacks is Test {
         // RATIONALE: vesting is BondVault responsibility; shields are stateless on redeem.
     }
 
-    /// @notice MS-009: BTC crash collapses 4 BTC shields (covered asset == BTC).
+    /// @notice MS-009: BTC crash collapses 3 BTC shields (covered asset == BTC).
     function test_MS_009_btcCrashCollapsesAllBtcShields() public {
         uint256 p1 = _btcPolicy(btc1h, buyer, 1_000e6);
-        uint256 p4 = _btcPolicy(btc4h, buyer, 1_000e6);
         uint256 p24 = _btcPolicy(btc24h, buyer, 1_000e6);
         uint256 p48 = _btcPolicy(btc48h, buyer, 1_000e6);
         vm.warp(t0 + 60);
@@ -906,7 +893,6 @@ contract ShieldStressAttacks is Test {
         oracle.setPrice(BTC, d);
         bytes memory pf = _priceProof(d, BTC, t0 + 60);
         assertTrue(btc1h.verifyAndCalculate(p1, pf).triggered);
-        assertTrue(btc4h.verifyAndCalculate(p4, pf).triggered);
         assertTrue(btc24h.verifyAndCalculate(p24, pf).triggered);
         assertTrue(btc48h.verifyAndCalculate(p48, pf).triggered);
     }

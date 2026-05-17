@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import {ProxyDeployer} from "../../../helpers/ProxyDeployer.sol";
 
 import {FlashBTCShield1h} from "../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
@@ -46,7 +45,7 @@ contract MockOracleSB is IOracle {
 /**
  * @title ShieldSanityBounds
  * @notice Verifies the M-01 fix: shields now reject extreme prices at create
- *         and at settlement. Tests cover 8 shields × 6 test types.
+ *         and at settlement. Tests cover 7 shields × 6 test types.
  */
 contract ShieldSanityBounds is Test {
     MockOracleSB oracle;
@@ -108,29 +107,6 @@ contract ShieldSanityBounds is Test {
         FlashBTCShield1h s = ProxyDeployer.deployFlashBTCShield1h(address(this), address(oracle));
         vm.expectRevert();
         s.createPolicy(_params(3600, "BTC"));
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // FlashBTCShield4h — identical bounds
-    // ─────────────────────────────────────────────────────────────
-    function test_Sanity_FlashBTC4h_AtMaxBoundary_Accepted() public {
-        oracle.setPrice("BTC", 1_000_000e8);
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        s.createPolicy(_params(14400, "BTC"));
-    }
-
-    function test_Sanity_FlashBTC4h_OneWeiAboveMax_Reverts() public {
-        oracle.setPrice("BTC", int256(1_000_000e8) + 1);
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        vm.expectRevert();
-        s.createPolicy(_params(14400, "BTC"));
-    }
-
-    function test_Sanity_FlashBTC4h_BelowMin_Reverts() public {
-        oracle.setPrice("BTC", 9_999e8);
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        vm.expectRevert();
-        s.createPolicy(_params(14400, "BTC"));
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -271,12 +247,6 @@ contract ShieldSanityBounds is Test {
     // ─────────────────────────────────────────────────────────────
     function test_Sanity_ConstantsPresent_BTC1h() public {
         FlashBTCShield1h s = ProxyDeployer.deployFlashBTCShield1h(address(this), address(oracle));
-        assertEq(s.MIN_PRICE(), 10_000e8);
-        assertEq(s.MAX_PRICE(), 1_000_000e8);
-    }
-
-    function test_Sanity_ConstantsPresent_BTC4h() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
         assertEq(s.MIN_PRICE(), 10_000e8);
         assertEq(s.MAX_PRICE(), 1_000_000e8);
     }

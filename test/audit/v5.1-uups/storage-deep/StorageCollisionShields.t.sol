@@ -6,7 +6,6 @@ import {ProxyDeployer} from "../../../helpers/ProxyDeployer.sol";
 
 import {BaseShield} from "../../../../src/products/BaseShield.sol";
 import {FlashBTCShield1h} from "../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
@@ -58,7 +57,7 @@ contract MockAavePoolSD {
 
 /**
  * @title StorageCollisionShields
- * @notice Storage layout deep audit for the 9 concrete Shield products + BaseShield abstract.
+ * @notice Storage layout deep audit for the 7 concrete Shield products + BaseShield abstract.
  *
  * Every shield inherits BaseShield storage:
  *   slot 0: router
@@ -147,44 +146,6 @@ contract StorageCollisionShields is Test {
         s.upgradeToAndCall(address(new FlashBTCShield1h()), "");
         address attackerImpl = address(new FlashBTCShield1h());
         vm.prank(makeAddr("attacker"));
-        vm.expectRevert();
-        s.upgradeToAndCall(attackerImpl, "");
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // FlashBTCShield4h
-    // ─────────────────────────────────────────────────────────────
-
-    function test_Storage_FlashBTCShield4h_PreservedAfterBasicUpgrade() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        s.createPolicy(_params(14400, "BTC"));
-        uint256 tpBefore = s.totalPolicies();
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        assertEq(s.totalPolicies(), tpBefore);
-        assertEq(s.router(), address(this));
-    }
-
-    function test_Storage_FlashBTCShield4h_SlotLayout() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        _assertSlotLayout(address(s), address(oracle));
-    }
-
-    function test_Storage_FlashBTCShield4h_MultipleUpgradesSequential() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        s.createPolicy(_params(14400, "BTC"));
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        s.createPolicy(_params(14400, "BTC"));
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        s.createPolicy(_params(14400, "BTC"));
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        assertEq(s.totalPolicies(), 3);
-    }
-
-    function test_Storage_FlashBTCShield4h_InheritanceOrderCorrect() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        address attackerImpl = address(new FlashBTCShield4h());
-        vm.prank(makeAddr("atk"));
         vm.expectRevert();
         s.upgradeToAndCall(attackerImpl, "");
     }
