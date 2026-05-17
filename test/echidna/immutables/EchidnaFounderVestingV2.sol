@@ -31,8 +31,13 @@ contract MockOracleE {
         return 0;
     }
 
-    function setEthPrice(int256 p) external { ethPrice = p; }
-    function setBtcPrice(int256 p) external { btcPrice = p; }
+    function setEthPrice(int256 p) external {
+        ethPrice = p;
+    }
+
+    function setBtcPrice(int256 p) external {
+        btcPrice = p;
+    }
 }
 
 contract MockAavePoolE {
@@ -60,7 +65,9 @@ contract MockAavePoolE {
         data.currentVariableBorrowRate = borrowRate;
     }
 
-    function setBorrowRate(uint128 r) external { borrowRate = r; }
+    function setBorrowRate(uint128 r) external {
+        borrowRate = r;
+    }
 }
 
 /// @dev Minimal ERC20 -- only the surface FounderVesting actually touches.
@@ -139,9 +146,7 @@ contract EchidnaFounderVestingV2 {
         oracle = new MockOracleE();
         aavePool = new MockAavePoolE();
         lumina = new MockLuminaE();
-        vesting = new FounderVesting(
-            address(oracle), address(aavePool), address(lumina), USDC, RECIPIENT_SEED
-        );
+        vesting = new FounderVesting(address(oracle), address(aavePool), address(lumina), USDC, RECIPIENT_SEED);
         lumina.mint(address(vesting), 8_000_000 * 1e18);
         _ghost_deployedAt = vesting.deployedAt();
         _ghost_recipientInit = vesting.recipient();
@@ -152,7 +157,7 @@ contract EchidnaFounderVestingV2 {
         (bool a, bool b, bool c, bool ethOverride) = vesting.getConditions();
         uint256 metCount = (a ? 1 : 0) + (b ? 1 : 0) + (c ? 1 : 0);
         if (metCount >= 2) _ghost_path1_ever_satisfied = true;
-        if (ethOverride)   _ghost_path2_ever_satisfied = true;
+        if (ethOverride) _ghost_path2_ever_satisfied = true;
         if (block.timestamp >= _ghost_deployedAt + vesting.FALLBACK_DURATION()) {
             _ghost_path3_ever_reached = true;
         }
@@ -276,8 +281,6 @@ contract EchidnaFounderVestingV2 {
     ///         PATH 2 can fire independently of PATH 1 (and vice versa).
     function echidna_trigger_implies_history() external view returns (bool) {
         if (!vesting.altSeasonTriggered()) return true;
-        return _ghost_path1_ever_satisfied
-            || _ghost_path2_ever_satisfied
-            || _ghost_path3_ever_reached;
+        return _ghost_path1_ever_satisfied || _ghost_path2_ever_satisfied || _ghost_path3_ever_reached;
     }
 }

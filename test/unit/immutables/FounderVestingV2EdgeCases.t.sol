@@ -42,15 +42,30 @@ contract MockOracleV2 {
     bool public revertOnBTC;
     bool public revertOnAny;
 
-    function setEth(int256 p) external { ethPrice = p; }
-    function setBtc(int256 p) external { btcPrice = p; }
+    function setEth(int256 p) external {
+        ethPrice = p;
+    }
+
+    function setBtc(int256 p) external {
+        btcPrice = p;
+    }
+
     function setPrices(int256 _eth, int256 _btc) external {
         ethPrice = _eth;
         btcPrice = _btc;
     }
-    function setRevertOnETH(bool v) external { revertOnETH = v; }
-    function setRevertOnBTC(bool v) external { revertOnBTC = v; }
-    function setRevertOnAny(bool v) external { revertOnAny = v; }
+
+    function setRevertOnETH(bool v) external {
+        revertOnETH = v;
+    }
+
+    function setRevertOnBTC(bool v) external {
+        revertOnBTC = v;
+    }
+
+    function setRevertOnAny(bool v) external {
+        revertOnAny = v;
+    }
 
     function getLatestPrice(bytes32 asset) external view returns (int256) {
         if (revertOnAny) revert("oracle down");
@@ -71,14 +86,15 @@ contract MockAavePoolV2 {
     uint128 public borrowRate;
     bool public revertOnRead;
 
-    function setBorrowRate(uint128 r) external { borrowRate = r; }
-    function setRevertOnRead(bool v) external { revertOnRead = v; }
+    function setBorrowRate(uint128 r) external {
+        borrowRate = r;
+    }
 
-    function getReserveData(address)
-        external
-        view
-        returns (IAaveV3PoolReader.ReserveData memory data)
-    {
+    function setRevertOnRead(bool v) external {
+        revertOnRead = v;
+    }
+
+    function getReserveData(address) external view returns (IAaveV3PoolReader.ReserveData memory data) {
         if (revertOnRead) revert("aave down");
         data.currentVariableBorrowRate = borrowRate;
     }
@@ -105,7 +121,8 @@ contract MockLumina {
 ///         confirm tokens can land in a contract address via ERC20.transfer.
 contract PlainContractRecipient {
     // intentionally empty -- receives via ERC20 balance ledger only.
-}
+
+    }
 
 // -----------------------------------------------------------------------------
 // Test Harness
@@ -137,16 +154,16 @@ contract FounderVestingV2EdgeCases is Test {
     uint256 t0;
 
     // Mirror of constants for readability inside tests.
-    uint256 constant SUSTAINED = 1 days;        // 86_400 seconds
-    uint256 constant FALLBACK_D = 1095 days;    // 94_608_000 seconds
+    uint256 constant SUSTAINED = 1 days; // 86_400 seconds
+    uint256 constant FALLBACK_D = 1095 days; // 94_608_000 seconds
     uint256 constant TRANCHE_INT = 31 days;
     uint256 constant TOTAL_AMOUNT = 8_000_000 * 1e18;
     uint256 constant TRANCHE_AMOUNT = TOTAL_AMOUNT / 3; // 2_666_666.666... * 1e18 (integer-truncated)
 
     // Threshold for PATH 2 override: ETH > $5,000 in 8-dec Chainlink.
-    int256 constant ETH_OVERRIDE_THRESHOLD = 500_000_000_000;       // exactly $5,000.00000000
-    int256 constant ETH_OVERRIDE_PASS     = 500_000_000_001;        // $5,000.00000001 -- strictly above
-    int256 constant ETH_OVERRIDE_FAIL_HI  = 500_000_000_000;        // exactly $5,000 -- NOT above (strict `>`)
+    int256 constant ETH_OVERRIDE_THRESHOLD = 500_000_000_000; // exactly $5,000.00000000
+    int256 constant ETH_OVERRIDE_PASS = 500_000_000_001; // $5,000.00000001 -- strictly above
+    int256 constant ETH_OVERRIDE_FAIL_HI = 500_000_000_000; // exactly $5,000 -- NOT above (strict `>`)
 
     function setUp() public {
         // Pin a non-trivial block.timestamp to avoid wrap-around with FALLBACK_D.
@@ -560,9 +577,11 @@ contract FounderVestingV2EdgeCases is Test {
 
     function test_REL_ThirdTranche_LastTrancheGetsRemainder() public {
         uint256 trigTs = _triggerPath1();
-        fv.releaseTranche();                          // T1
-        vm.warp(trigTs + TRANCHE_INT);  fv.releaseTranche(); // T2
-        vm.warp(trigTs + 2 * TRANCHE_INT); fv.releaseTranche(); // T3
+        fv.releaseTranche(); // T1
+        vm.warp(trigTs + TRANCHE_INT); // T2
+        fv.releaseTranche();
+        vm.warp(trigTs + 2 * TRANCHE_INT); // T3
+        fv.releaseTranche();
 
         // Last tranche = TOTAL_AMOUNT - totalReleased(after T2) = TOTAL - 2*TRANCHE_AMOUNT
         uint256 expectedT3 = TOTAL_AMOUNT - 2 * TRANCHE_AMOUNT;
@@ -575,8 +594,10 @@ contract FounderVestingV2EdgeCases is Test {
     function test_REL_BeyondTotal_Reverts() public {
         uint256 trigTs = _triggerPath1();
         fv.releaseTranche();
-        vm.warp(trigTs + TRANCHE_INT); fv.releaseTranche();
-        vm.warp(trigTs + 2 * TRANCHE_INT); fv.releaseTranche();
+        vm.warp(trigTs + TRANCHE_INT);
+        fv.releaseTranche();
+        vm.warp(trigTs + 2 * TRANCHE_INT);
+        fv.releaseTranche();
 
         // 4th call must revert.
         vm.warp(trigTs + 3 * TRANCHE_INT);
@@ -707,8 +728,8 @@ contract FounderVestingV2EdgeCases is Test {
 
     function test_Override_DuringPath1Sustained_BothPathsRace() public {
         // Both PATH 1 (2-of-3 via A+B) AND PATH 2 (override) active.
-        oracle.setEth(ETH_OVERRIDE_PASS);     // > $5k -> condB true + override
-        oracle.setBtc(60000_00000000);        // condA: 0.083 > 0.05 -> true
+        oracle.setEth(ETH_OVERRIDE_PASS); // > $5k -> condB true + override
+        oracle.setBtc(60000_00000000); // condA: 0.083 > 0.05 -> true
         aave.setBorrowRate(0);
         fv.checkAltSeason();
         assertEq(fv.conditionsMetSince(), t0);
@@ -798,8 +819,10 @@ contract FounderVestingV2EdgeCases is Test {
     function test_Cobro_Tranche3_RecipientBalanceExactly_8M_NoDustLeft() public {
         uint256 trigTs = _triggerPath1();
         fv.releaseTranche();
-        vm.warp(trigTs + TRANCHE_INT); fv.releaseTranche();
-        vm.warp(trigTs + 2 * TRANCHE_INT); fv.releaseTranche();
+        vm.warp(trigTs + TRANCHE_INT);
+        fv.releaseTranche();
+        vm.warp(trigTs + 2 * TRANCHE_INT);
+        fv.releaseTranche();
         // Last tranche absorbs the integer-division dust (TOTAL - 2*TRANCHE_AMOUNT).
         assertEq(lumina.balanceOf(recipient), TOTAL_AMOUNT, "Recipient holds exactly 8M");
         assertEq(lumina.balanceOf(address(fv)), 0, "No dust left in FV contract");
@@ -817,8 +840,10 @@ contract FounderVestingV2EdgeCases is Test {
     function test_Cobro_FVBalanceFinal_Zero_After3Tranches() public {
         uint256 trigTs = _triggerPath1();
         fv.releaseTranche();
-        vm.warp(trigTs + TRANCHE_INT); fv.releaseTranche();
-        vm.warp(trigTs + 2 * TRANCHE_INT); fv.releaseTranche();
+        vm.warp(trigTs + TRANCHE_INT);
+        fv.releaseTranche();
+        vm.warp(trigTs + 2 * TRANCHE_INT);
+        fv.releaseTranche();
         assertEq(lumina.balanceOf(address(fv)), 0);
     }
 
@@ -830,8 +855,10 @@ contract FounderVestingV2EdgeCases is Test {
 
         uint256 trigTs = _triggerPath1();
         fv.releaseTranche();
-        vm.warp(trigTs + TRANCHE_INT); fv.releaseTranche();
-        vm.warp(trigTs + 2 * TRANCHE_INT); fv.releaseTranche();
+        vm.warp(trigTs + TRANCHE_INT);
+        fv.releaseTranche();
+        vm.warp(trigTs + 2 * TRANCHE_INT);
+        fv.releaseTranche();
 
         // Original `recipient` (set at deploy) never received any tranche.
         assertEq(lumina.balanceOf(recipient), 0, "Old recipient holds zero");
@@ -847,8 +874,10 @@ contract FounderVestingV2EdgeCases is Test {
         address newRecipient = makeAddr("newFounder2");
         fv.updateRecipient(newRecipient);
 
-        vm.warp(trigTs + TRANCHE_INT); fv.releaseTranche();
-        vm.warp(trigTs + 2 * TRANCHE_INT); fv.releaseTranche();
+        vm.warp(trigTs + TRANCHE_INT);
+        fv.releaseTranche();
+        vm.warp(trigTs + 2 * TRANCHE_INT);
+        fv.releaseTranche();
 
         // Original recipient: T1 only.
         assertEq(lumina.balanceOf(recipient), TRANCHE_AMOUNT);
@@ -866,8 +895,10 @@ contract FounderVestingV2EdgeCases is Test {
         fv.releaseTranche();
         assertEq(lumina.balanceOf(address(ctr)), TRANCHE_AMOUNT, "Contract receives T1");
 
-        vm.warp(trigTs + TRANCHE_INT); fv.releaseTranche();
-        vm.warp(trigTs + 2 * TRANCHE_INT); fv.releaseTranche();
+        vm.warp(trigTs + TRANCHE_INT);
+        fv.releaseTranche();
+        vm.warp(trigTs + 2 * TRANCHE_INT);
+        fv.releaseTranche();
         assertEq(lumina.balanceOf(address(ctr)), TOTAL_AMOUNT, "Contract receives full 8M");
     }
 }

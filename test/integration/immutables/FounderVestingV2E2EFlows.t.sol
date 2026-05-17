@@ -340,9 +340,7 @@ contract FounderVestingV2E2EFlows is Test {
         );
         // Also break Aave so condC=false and we know metCount=0.
         vm.mockCallRevert(
-            AAVE_POOL_SEPOLIA,
-            abi.encodeWithSelector(IAaveV3PoolReader.getReserveData.selector, USDC_MOCK),
-            "aave-down"
+            AAVE_POOL_SEPOLIA, abi.encodeWithSelector(IAaveV3PoolReader.getReserveData.selector, USDC_MOCK), "aave-down"
         );
 
         uint256 t0 = block.timestamp;
@@ -433,7 +431,7 @@ contract FounderVestingV2E2EFlows is Test {
         assertEq(lumina.balanceOf(FOUNDER), totalAmt, "balanceOf must equal 8M");
 
         // Method 2: getStatus()
-        (, , uint256 _tranchesReleased, uint256 _totalReleased, , , , ) = fv.getStatus();
+        (,, uint256 _tranchesReleased, uint256 _totalReleased,,,,) = fv.getStatus();
         assertEq(_tranchesReleased, 3, "getStatus tranchesReleased=3");
         assertEq(_totalReleased, totalAmt, "getStatus totalReleased=8M");
     }
