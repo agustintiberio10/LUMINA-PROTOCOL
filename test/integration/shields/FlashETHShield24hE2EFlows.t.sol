@@ -56,24 +56,18 @@ contract FlashETHShield24hE2EFlows is Test {
     // ===== Helpers =====
     function _mockPrice(int256 price) internal {
         vm.mockCall(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("ETH")),
-            abi.encode(price)
+            ORACLE_SET_A, abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("ETH")), abi.encode(price)
         );
     }
 
     function _mockSeqDowntime(uint256 d) internal {
         // Mock the bare selector so any `sinceTimestamp` matches.
-        vm.mockCall(
-            ORACLE_SET_A, abi.encodeWithSelector(IOracle.getSequencerDowntime.selector), abi.encode(d)
-        );
+        vm.mockCall(ORACLE_SET_A, abi.encodeWithSelector(IOracle.getSequencerDowntime.selector), abi.encode(d));
     }
 
     function _mockEip712Signer(address signer) internal {
         // Match any (price,asset,verifiedAt,sig) inputs to return `signer`.
-        vm.mockCall(
-            ORACLE_SET_A, abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector), abi.encode(signer)
-        );
+        vm.mockCall(ORACLE_SET_A, abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector), abi.encode(signer));
     }
 
     function _params(address buyer) internal pure returns (IShield.CreatePolicyParams memory p) {
@@ -221,9 +215,7 @@ contract FlashETHShield24hE2EFlows is Test {
     // ---------------------------------------------------------------------
     function test_E2E_OracleRevert_AtCreate() public requiresFork {
         vm.mockCallRevert(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("ETH")),
-            "feed down"
+            ORACLE_SET_A, abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("ETH")), "feed down"
         );
         FlashETHShield24h s = _deploy();
         vm.expectRevert();

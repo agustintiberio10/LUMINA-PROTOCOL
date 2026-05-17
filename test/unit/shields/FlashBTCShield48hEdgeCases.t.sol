@@ -218,9 +218,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         vm.warp(ANCHOR_TS + 30 minutes);
         uint256 stale = block.timestamp - 901; // strictly > MAX_PROOF_AGE
         bytes memory pr = _proof(int256(BTC_TRIGGER) - 1, ASSET_BTC, stale);
-        vm.expectRevert(
-            abi.encodeWithSelector(FlashBTCShield48h.ProofTooOld.selector, stale, block.timestamp)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FlashBTCShield48h.ProofTooOld.selector, stale, block.timestamp));
         shield.verifyAndCalculate(pid, pr);
     }
 
@@ -264,9 +262,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         vm.warp(ANCHOR_TS + 1 hours);
         // proofAsset = ETH but policy asset = BTC.
         bytes memory pr = _proof(int256(BTC_TRIGGER) - 1, ASSET_ETH, block.timestamp - 10);
-        vm.expectRevert(
-            abi.encodeWithSelector(FlashBTCShield48h.AssetMismatch.selector, ASSET_BTC, ASSET_ETH)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FlashBTCShield48h.AssetMismatch.selector, ASSET_BTC, ASSET_ETH));
         shield.verifyAndCalculate(pid, pr);
     }
 
@@ -275,9 +271,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         vm.warp(ANCHOR_TS + 1 hours);
         bytes32 garbage = bytes32(uint256(0xdeadbeef));
         bytes memory pr = _proof(int256(BTC_TRIGGER) - 1, garbage, block.timestamp - 10);
-        vm.expectRevert(
-            abi.encodeWithSelector(FlashBTCShield48h.AssetMismatch.selector, ASSET_BTC, garbage)
-        );
+        vm.expectRevert(abi.encodeWithSelector(FlashBTCShield48h.AssetMismatch.selector, ASSET_BTC, garbage));
         shield.verifyAndCalculate(pid, pr);
     }
 
@@ -342,9 +336,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         uint256 vAt = ANCHOR_TS - 1; // before waitingEndsAt
         bytes memory pr = _proof(int256(BTC_TRIGGER) - 1, ASSET_BTC, vAt);
         // verifiedAt < waitingEndsAt triggers EventAfterExpiry per the contract.
-        vm.expectRevert(
-            abi.encodeWithSelector(BaseShield.EventAfterExpiry.selector, pid, vAt, ANCHOR_TS + DURATION)
-        );
+        vm.expectRevert(abi.encodeWithSelector(BaseShield.EventAfterExpiry.selector, pid, vAt, ANCHOR_TS + DURATION));
         shield.verifyAndCalculate(pid, pr);
     }
 
@@ -354,9 +346,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         vm.warp(ANCHOR_TS + DURATION + 10);
         uint256 vAt = ANCHOR_TS + DURATION + 1; // strictly after expiresAt
         bytes memory pr = _proof(int256(BTC_TRIGGER) - 1, ASSET_BTC, vAt);
-        vm.expectRevert(
-            abi.encodeWithSelector(BaseShield.EventAfterExpiry.selector, pid, vAt, ANCHOR_TS + DURATION)
-        );
+        vm.expectRevert(abi.encodeWithSelector(BaseShield.EventAfterExpiry.selector, pid, vAt, ANCHOR_TS + DURATION));
         shield.verifyAndCalculate(pid, pr);
     }
 
@@ -439,9 +429,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         uint256 pid = _createOK();
         vm.warp(ANCHOR_TS + 1 hours);
         bytes memory pr = _proof(BTC_TRIGGER, ASSET_BTC, block.timestamp - 10);
-        vm.expectRevert(
-            abi.encodeWithSelector(IShield.TriggerNotMet.selector, pid, bytes32("PRICE_ABOVE_TRIGGER"))
-        );
+        vm.expectRevert(abi.encodeWithSelector(IShield.TriggerNotMet.selector, pid, bytes32("PRICE_ABOVE_TRIGGER")));
         shield.verifyAndCalculate(pid, pr);
     }
 
@@ -475,9 +463,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         uint256 pid = _createOK();
         vm.warp(ANCHOR_TS + 1 hours);
         bytes memory pr = _proof(BTC_TRIGGER, ASSET_BTC, block.timestamp - 10);
-        vm.expectRevert(
-            abi.encodeWithSelector(IShield.TriggerNotMet.selector, pid, bytes32("PRICE_ABOVE_TRIGGER"))
-        );
+        vm.expectRevert(abi.encodeWithSelector(IShield.TriggerNotMet.selector, pid, bytes32("PRICE_ABOVE_TRIGGER")));
         shield.verifyAndCalculate(pid, pr);
     }
 
@@ -590,7 +576,9 @@ contract FlashBTCShield48hEdgeCases is Test {
 
     function test_PAY_BelowMinCoverage_Reverts() public {
         vm.expectRevert(
-            abi.encodeWithSelector(IShield.CoverageOutOfRange.selector, uint256(99e6), uint256(100e6), type(uint256).max)
+            abi.encodeWithSelector(
+                IShield.CoverageOutOfRange.selector, uint256(99e6), uint256(100e6), type(uint256).max
+            )
         );
         shield.createPolicy(_paramsCustom(ASSET_BTC, DURATION, 99e6));
     }
@@ -672,10 +660,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         shield.markPaidOut(pid);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IShield.InvalidPolicyStatus.selector,
-                pid,
-                IShield.PolicyStatus.PAID_OUT,
-                IShield.PolicyStatus.ACTIVE
+                IShield.InvalidPolicyStatus.selector, pid, IShield.PolicyStatus.PAID_OUT, IShield.PolicyStatus.ACTIVE
             )
         );
         shield.markPaidOut(pid);
@@ -686,10 +671,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         shield.markPaidOut(pid);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IShield.InvalidPolicyStatus.selector,
-                pid,
-                IShield.PolicyStatus.PAID_OUT,
-                IShield.PolicyStatus.ACTIVE
+                IShield.InvalidPolicyStatus.selector, pid, IShield.PolicyStatus.PAID_OUT, IShield.PolicyStatus.ACTIVE
             )
         );
         shield.markExpired(pid);
@@ -700,10 +682,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         shield.markExpired(pid);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IShield.InvalidPolicyStatus.selector,
-                pid,
-                IShield.PolicyStatus.EXPIRED,
-                IShield.PolicyStatus.ACTIVE
+                IShield.InvalidPolicyStatus.selector, pid, IShield.PolicyStatus.EXPIRED, IShield.PolicyStatus.ACTIVE
             )
         );
         shield.markPaidOut(pid);
@@ -724,10 +703,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         bytes memory pr = _proof(BTC_TRIGGER - 1, ASSET_BTC, block.timestamp - 10);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IShield.InvalidPolicyStatus.selector,
-                pid,
-                IShield.PolicyStatus.PAID_OUT,
-                IShield.PolicyStatus.ACTIVE
+                IShield.InvalidPolicyStatus.selector, pid, IShield.PolicyStatus.PAID_OUT, IShield.PolicyStatus.ACTIVE
             )
         );
         shield.verifyAndCalculate(pid, pr);
@@ -740,10 +716,7 @@ contract FlashBTCShield48hEdgeCases is Test {
         bytes memory pr = _proof(BTC_TRIGGER - 1, ASSET_BTC, block.timestamp - 10);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IShield.InvalidPolicyStatus.selector,
-                pid,
-                IShield.PolicyStatus.EXPIRED,
-                IShield.PolicyStatus.ACTIVE
+                IShield.InvalidPolicyStatus.selector, pid, IShield.PolicyStatus.EXPIRED, IShield.PolicyStatus.ACTIVE
             )
         );
         shield.verifyAndCalculate(pid, pr);

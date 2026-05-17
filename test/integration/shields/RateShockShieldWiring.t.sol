@@ -66,7 +66,7 @@ contract RateShockShieldWiring is Test {
     //        (reinterpreted from "oracle wiring" -- RateShock reads Aave on-chain)
     // ---------------------------------------------------------------------
     function test_Wiring_W1_AavePool_OnChainMatches_BaseSepolia() public requiresFork {
-        (RateShockShield shield, , ) = _deployShield();
+        (RateShockShield shield,,) = _deployShield();
         assertEq(address(shield.aavePool()), AAVE_POOL_SEPOLIA, "aavePool must point to canonical Aave V3 Sepolia");
     }
 
@@ -92,7 +92,7 @@ contract RateShockShieldWiring is Test {
     // 3. Router immutable (well, storage) wired through proxy initializer
     // ---------------------------------------------------------------------
     function test_Wiring_Router_Initialized() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         assertEq(shield.router(), router, "router must equal the address passed to initialize");
     }
 
@@ -100,7 +100,7 @@ contract RateShockShieldWiring is Test {
     // 4. Oracle storage wired through initializer
     // ---------------------------------------------------------------------
     function test_Wiring_Oracle_Initialized() public requiresFork {
-        (RateShockShield shield, _WiringMockOracle o, ) = _deployShield();
+        (RateShockShield shield, _WiringMockOracle o,) = _deployShield();
         assertEq(shield.oracle(), address(o), "oracle must equal the address passed to initialize");
     }
 
@@ -108,7 +108,7 @@ contract RateShockShieldWiring is Test {
     // 5. USDC storage wired through initializer
     // ---------------------------------------------------------------------
     function test_Wiring_USDC_Initialized() public requiresFork {
-        (RateShockShield shield, , ) = _deployShield();
+        (RateShockShield shield,,) = _deployShield();
         assertEq(shield.usdc(), USDC_MOCK, "usdc must equal the address passed to initialize");
     }
 
@@ -116,7 +116,7 @@ contract RateShockShieldWiring is Test {
     // 6. Product metadata constants (PRODUCT_ID, RISK_TYPE, allocation, duration)
     // ---------------------------------------------------------------------
     function test_Wiring_ProductConstants() public requiresFork {
-        (RateShockShield shield, , ) = _deployShield();
+        (RateShockShield shield,,) = _deployShield();
         assertEq(shield.PRODUCT_ID(), keccak256("RATESHOCK-001"), "PRODUCT_ID");
         assertEq(shield.RISK_TYPE(), keccak256("RATE"), "RISK_TYPE");
         assertEq(uint256(shield.MAX_ALLOCATION_BPS()), 3000, "MAX_ALLOCATION_BPS");
@@ -131,7 +131,7 @@ contract RateShockShieldWiring is Test {
     // 7. Pool rotation -- setAavePool emits + updates + non-owner reverts
     // ---------------------------------------------------------------------
     function test_Wiring_setAavePool_FlowAndAccessControl() public requiresFork {
-        (RateShockShield shield, , ) = _deployShield();
+        (RateShockShield shield,,) = _deployShield();
         address newPool = makeAddr("newPool");
 
         // Non-owner reverts
@@ -153,7 +153,7 @@ contract RateShockShieldWiring is Test {
     // 8. UUPS upgrade path -- only owner can _authorizeUpgrade (proxied)
     // ---------------------------------------------------------------------
     function test_Wiring_UUPS_OwnerControlsUpgrade() public requiresFork {
-        (RateShockShield shield, , ) = _deployShield();
+        (RateShockShield shield,,) = _deployShield();
         // owner() defaults to the deployer of the proxy = this test contract
         assertEq(shield.owner(), address(this), "owner must be deployer/this");
         // Non-owner upgradeToAndCall reverts; we exercise the access-control surface

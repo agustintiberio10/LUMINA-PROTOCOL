@@ -646,9 +646,7 @@ contract RateShockShieldEdgeCases is Test {
     function test_PAY_ZeroCoverage_BelowMin_Reverts() public {
         IShield.CreatePolicyParams memory p = _defaultParams(0);
         vm.prank(router);
-        vm.expectRevert(
-            abi.encodeWithSelector(IShield.CoverageOutOfRange.selector, 0, MIN_COVERAGE, type(uint256).max)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IShield.CoverageOutOfRange.selector, 0, MIN_COVERAGE, type(uint256).max));
         shield.createPolicy(p);
     }
 

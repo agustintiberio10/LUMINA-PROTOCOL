@@ -97,10 +97,10 @@ contract EchidnaRateShockShield {
     MockOracleRate public oracle;
     MockAavePoolRate public aave;
 
-    address public constant ROUTER = address(0xa0a0a0a0A0A0A0A0a0A0a0A0A0a0A0a0a0a0a0A0);
-    address public constant BUYER1 = address(0xb0B0B0B0b0b0B0b0B0b0b0B0b0B0b0b0B0b0B001);
-    address public constant BUYER2 = address(0xB0b0b0B0b0B0b0b0B0b0b0b0b0b0B0b0B0B0B002);
-    address public constant USDC = address(0x0000000000000000000000000000000000DC0DC0);
+    address public constant ROUTER = address(0xA0a0a0A0A0A0a0a0A0A0a0A0a0A0a0A0A0A0a0a0);
+    address public constant BUYER1 = address(0xb0b0B0B0B0B0B0B0b0B0b0B0b0b0b0b0b0B0B001);
+    address public constant BUYER2 = address(0xb0B0B0b0b0B0b0b0B0b0b0B0b0B0b0b0b0b0B002);
+    address public constant USDC = address(0x0000000000000000000000000000000000Dc0Dc0);
     bytes32 public constant ASSET = bytes32("USDC");
 
     uint256 internal _ghost_triggerRate;
@@ -123,9 +123,8 @@ contract EchidnaRateShockShield {
         aave.setKnownAsset(USDC);
 
         RateShockShield impl = new RateShockShield();
-        bytes memory initData = abi.encodeWithSelector(
-            RateShockShield.initialize.selector, ROUTER, address(oracle), address(aave), USDC
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(RateShockShield.initialize.selector, ROUTER, address(oracle), address(aave), USDC);
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         shield = RateShockShield(address(proxy));
 

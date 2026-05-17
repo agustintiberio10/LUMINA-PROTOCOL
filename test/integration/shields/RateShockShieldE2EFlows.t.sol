@@ -128,7 +128,7 @@ contract RateShockShieldE2EFlows is Test {
     // 1. PATH happy: create -> rate spike -> verifyAndCalculate triggers
     // ---------------------------------------------------------------------
     function test_E2E_HappyPath_RateSpike15Percent_Triggers() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         address buyer = makeAddr("buyer");
         uint256 t0 = block.timestamp;
 
@@ -153,7 +153,7 @@ contract RateShockShieldE2EFlows is Test {
     // 2. No trigger end-to-end: rate stays low; settle as EXPIRED
     // ---------------------------------------------------------------------
     function test_E2E_NoTrigger_RateStaysLow_SettleExpired() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         address buyer = makeAddr("buyer");
         uint256 t0 = block.timestamp;
 
@@ -174,7 +174,7 @@ contract RateShockShieldE2EFlows is Test {
     // 3. Permissionless settle as triggered -- attacker calls
     // ---------------------------------------------------------------------
     function test_E2E_PermissionlessSettle_AttackerCalls_Triggered() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         address buyer = makeAddr("buyer");
         address randomCaller = makeAddr("anyone");
         uint256 t0 = block.timestamp;
@@ -194,7 +194,7 @@ contract RateShockShieldE2EFlows is Test {
     // 4. Rate exactly at threshold (10 percent) -- no trigger (strict >)
     // ---------------------------------------------------------------------
     function test_E2E_RateExactlyAtThreshold_NoTrigger() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         address buyer = makeAddr("buyer");
 
         _mockAaveRate(uint128(TRIGGER_RATE)); // exactly 10 percent
@@ -210,7 +210,7 @@ contract RateShockShieldE2EFlows is Test {
     // 5. Aave reverts during verify -- shield bubbles the revert
     // ---------------------------------------------------------------------
     function test_E2E_AaveReverts_VerifyBubbles() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         address buyer = makeAddr("buyer");
         uint256 t0 = block.timestamp;
 
@@ -230,7 +230,7 @@ contract RateShockShieldE2EFlows is Test {
     // 6. Rate spike + recovery -- only the snapshot at verify counts
     // ---------------------------------------------------------------------
     function test_E2E_SpikeAndRecovery_OnlySnapshotCounts() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         address buyer = makeAddr("buyer");
         uint256 t0 = block.timestamp;
 
@@ -255,7 +255,7 @@ contract RateShockShieldE2EFlows is Test {
     // 7. Multiple policies, divergent outcomes (one triggered, one expired)
     // ---------------------------------------------------------------------
     function test_E2E_MultiPolicy_DivergentOutcomes() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         address buyerA = makeAddr("buyerA");
         address buyerB = makeAddr("buyerB");
         uint256 t0 = block.timestamp;
@@ -292,7 +292,7 @@ contract RateShockShieldE2EFlows is Test {
     // 8. Aave pool rotation mid-policy -- new pool's rates apply
     // ---------------------------------------------------------------------
     function test_E2E_AavePoolRotation_NewPoolApplies() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         address buyer = makeAddr("buyer");
         uint256 t0 = block.timestamp;
 
@@ -345,7 +345,7 @@ contract RateShockShieldE2EFlows is Test {
     // 10. Active coverage accounting: 3 policies, settle 2, counter matches
     // ---------------------------------------------------------------------
     function test_E2E_ActiveCoverageAccounting_3Policies() public requiresFork {
-        (RateShockShield shield, , address router) = _deployShield();
+        (RateShockShield shield,, address router) = _deployShield();
         uint256 t0 = block.timestamp;
 
         _mockAaveRate(uint128(uint256(500) * 1e23)); // initially non-triggering

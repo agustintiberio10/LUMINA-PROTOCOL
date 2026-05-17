@@ -72,24 +72,18 @@ contract FlashBTCShield24hE2EFlows is Test {
 
     function _mockPrice(int256 btcPrice) internal {
         vm.mockCall(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("BTC")),
-            abi.encode(btcPrice)
+            ORACLE_SET_A, abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("BTC")), abi.encode(btcPrice)
         );
     }
 
     function _mockSequencerDowntime(uint256 d) internal {
-        vm.mockCall(
-            ORACLE_SET_A, abi.encodeWithSelector(IOracle.getSequencerDowntime.selector), abi.encode(d)
-        );
+        vm.mockCall(ORACLE_SET_A, abi.encodeWithSelector(IOracle.getSequencerDowntime.selector), abi.encode(d));
     }
 
     function _mockEip712Signer(address signer) internal {
         // verifyPriceProofEIP712 returns the recovered signer; BaseShield treats
         // any non-zero return as valid. We mock to return a non-zero address.
-        vm.mockCall(
-            ORACLE_SET_A, abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector), abi.encode(signer)
-        );
+        vm.mockCall(ORACLE_SET_A, abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector), abi.encode(signer));
     }
 
     function _params(bytes32 asset) internal view returns (IShield.CreatePolicyParams memory p) {

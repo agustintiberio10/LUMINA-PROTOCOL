@@ -248,8 +248,7 @@ contract ShieldStressAttacks is Test {
         eth1h = ProxyDeployer.deployFlashETHShield1h(router, address(oracle));
         eth24h = ProxyDeployer.deployFlashETHShield24h(router, address(oracle));
         eth48h = ProxyDeployer.deployFlashETHShield48h(router, address(oracle));
-        rateShield =
-            ProxyDeployer.deployRateShockShield(router, address(oracle), address(aavePool), address(usdc));
+        rateShield = ProxyDeployer.deployRateShockShield(router, address(oracle), address(aavePool), address(usdc));
     }
 
     // ------ Helpers ------

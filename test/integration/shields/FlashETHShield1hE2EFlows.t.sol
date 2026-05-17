@@ -59,34 +59,22 @@ contract FlashETHShield1hE2EFlows is Test {
     // ===== Helpers =====
     function _mockPrice(int256 price) internal {
         vm.mockCall(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("ETH")),
-            abi.encode(price)
+            ORACLE_SET_A, abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("ETH")), abi.encode(price)
         );
     }
 
     function _mockDowntime(uint256 dt) internal {
-        vm.mockCall(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracle.getSequencerDowntime.selector),
-            abi.encode(dt)
-        );
+        vm.mockCall(ORACLE_SET_A, abi.encodeWithSelector(IOracle.getSequencerDowntime.selector), abi.encode(dt));
     }
 
     function _mockSignerOk(address signer) internal {
         // Accept any verifyPriceProofEIP712 call by returning a non-zero signer.
-        vm.mockCall(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector),
-            abi.encode(signer)
-        );
+        vm.mockCall(ORACLE_SET_A, abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector), abi.encode(signer));
     }
 
     function _mockSignerBad() internal {
         vm.mockCall(
-            ORACLE_SET_A,
-            abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector),
-            abi.encode(address(0))
+            ORACLE_SET_A, abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector), abi.encode(address(0))
         );
     }
 
@@ -296,11 +284,7 @@ contract FlashETHShield1hE2EFlows is Test {
             abi.encodeWithSelector(IOracle.getLatestPrice.selector, bytes32("ETH")),
             abi.encode(int256(ETH_OK))
         );
-        vm.mockCall(
-            newOracle,
-            abi.encodeWithSelector(IOracle.getSequencerDowntime.selector),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(newOracle, abi.encodeWithSelector(IOracle.getSequencerDowntime.selector), abi.encode(uint256(0)));
         vm.mockCall(
             newOracle,
             abi.encodeWithSelector(IOracleV2.verifyPriceProofEIP712.selector),
