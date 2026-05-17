@@ -221,11 +221,7 @@ contract FounderVesting is Ownable {
 
     // ═══════ INTERNAL ═══════
     /// @dev Returns the 3 PATH 1 conditions plus the raw ethPrice that PATH 2 needs.
-    function _evaluateAllConditions()
-        internal
-        view
-        returns (bool condA, bool condB, bool condC, int256 ethPriceOut)
-    {
+    function _evaluateAllConditions() internal view returns (bool condA, bool condB, bool condC, int256 ethPriceOut) {
         int256 ethPrice;
         int256 btcPrice;
 

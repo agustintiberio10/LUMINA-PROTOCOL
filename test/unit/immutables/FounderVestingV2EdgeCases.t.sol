@@ -119,10 +119,8 @@ contract MockLumina {
 
 /// @notice Plain contract recipient (no payable, no special interface) -- used to
 ///         confirm tokens can land in a contract address via ERC20.transfer.
-contract PlainContractRecipient {
-    // intentionally empty -- receives via ERC20 balance ledger only.
-
-    }
+///         Intentionally empty body -- receives via ERC20 balance ledger only.
+contract PlainContractRecipient {}
 
 // -----------------------------------------------------------------------------
 // Test Harness

@@ -158,8 +158,7 @@ contract FounderVestingCoverage is Test {
             uint256 ts,
             uint256 trReleased,
             uint256 totalRel,
-            uint256 metSince,
-            ,
+            uint256 metSince,,
             uint256 nextReleaseAt,
             uint256 fallbackAt
         ) = fv.getStatus();
