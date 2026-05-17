@@ -276,11 +276,13 @@ contract AaveIntegration is Test {
     }
 
     function test_Aave_FounderVesting_SustainedShortOf7Days_NoTrigger() public {
+        // [Sprint FV] SUSTAINED_DURATION was reduced 7d -> 1d. Test name kept for git
+        // history continuity; assertion updated to "just under 1 day" boundary.
         (FounderVesting fv,) = _founderVesting();
         pool.setVariableBorrowRate(uint128(8e25));
         oracle.setPrice(bytes32("ETH"), 4_001e8);
         fv.checkAltSeason();
-        vm.warp(block.timestamp + 7 days - 1);
+        vm.warp(block.timestamp + 1 days - 1);
         fv.checkAltSeason();
         assertFalse(fv.altSeasonTriggered());
     }
@@ -294,8 +296,10 @@ contract AaveIntegration is Test {
     }
 
     function test_Aave_FounderVesting_SustainedDuration_7Days() public {
+        // [Sprint FV] SUSTAINED_DURATION = 1 day (was 7 days). Test name retained
+        // for git history; constant value updated to current.
         (FounderVesting fv,) = _founderVesting();
-        assertEq(fv.SUSTAINED_DURATION(), 7 days);
+        assertEq(fv.SUSTAINED_DURATION(), 1 days);
     }
 
     function test_Aave_FounderVesting_ETH_USD_Threshold_4000_Dollars() public {

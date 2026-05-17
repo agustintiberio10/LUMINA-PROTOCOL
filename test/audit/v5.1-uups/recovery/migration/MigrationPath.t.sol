@@ -888,7 +888,8 @@ contract MigrationPath is Test {
         assertEq(fv1.recipient(), makeAddr("recipient"));
         assertEq(fv2.recipient(), makeAddr("recipient2"));
         // fv2's fallback clock restarts.
-        assertEq(ts2 + fv2.FALLBACK_DURATION(), ts2 + 1460 days);
+        // [Sprint FV] FALLBACK_DURATION reduced 1460d (4y) -> 1095d (3y).
+        assertEq(ts2 + fv2.FALLBACK_DURATION(), ts2 + 1095 days);
     }
 
     // ─────────────────────────────────────────────────────────────

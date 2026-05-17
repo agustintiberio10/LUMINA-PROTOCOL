@@ -5,13 +5,15 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title FounderVesting
-/// @notice 8M LUMINA locked until AltSeason conditions or 4-year fallback.
-/// @dev Conditions (2-of-3 sustained 7 days):
-///      A: ETH/BTC > 0.050
-///      B: ETH > $4,000
-///      C: Aave V3 USDC borrow rate > 7% APY
+/// @notice 8M LUMINA locked until AltSeason conditions, ETH-override threshold, or 3-year fallback.
+/// @dev Three independent unlock paths (first to satisfy wins):
+///      PATH 1 — 2-of-3 AltSeason conditions, sustained 1 day:
+///        A: ETH/BTC > 0.050
+///        B: ETH > $4,000
+///        C: Aave V3 USDC borrow rate > 7% APY
+///      PATH 2 — ETH > $5,000 USD, sustained 1 day (independent of PATH 1)
+///      PATH 3 — Fallback after 1095 days (3 years) from deploy
 ///      Release: 3 tranches every 31 days after trigger.
-///      Fallback: 1460 days from deploy if conditions never trigger.
 
 interface ILuminaOracleReader {
     function getLatestPrice(bytes32 asset) external view returns (int256);
@@ -43,12 +45,13 @@ contract FounderVesting is Ownable {
     uint256 public constant ETH_BTC_THRESHOLD = 50e15; // 0.050 in 18 decimals
     int256 public constant ETH_USD_THRESHOLD = 400_000_000_000; // $4,000 in 8 decimals
     uint256 public constant BORROW_RATE_THRESHOLD = 7e25; // 7% APY in RAY (27 decimals)
-    uint256 public constant SUSTAINED_DURATION = 7 days;
+    uint256 public constant SUSTAINED_DURATION = 1 days;
     uint256 public constant TRANCHE_INTERVAL = 31 days;
     uint256 public constant TOTAL_TRANCHES = 3;
-    uint256 public constant FALLBACK_DURATION = 1460 days; // 4 years
+    uint256 public constant FALLBACK_DURATION = 1095 days; // 3 years
     uint256 public constant TOTAL_AMOUNT = 8_000_000 * 1e18; // 8M LUMINA
-    uint256 public constant TRANCHE_AMOUNT = TOTAL_AMOUNT / TOTAL_TRANCHES; // ~3.333M per tranche
+    uint256 public constant TRANCHE_AMOUNT = TOTAL_AMOUNT / TOTAL_TRANCHES; // ~2.666M per tranche
+    uint256 public constant ETH_OVERRIDE_THRESHOLD = 500_000_000_000; // $5,000 USD * 1e8 (Chainlink decimals)
 
     // ═══════ IMMUTABLES ═══════
     ILuminaOracleReader public immutable oracle;
@@ -60,6 +63,7 @@ contract FounderVesting is Ownable {
     // ═══════ STATE ═══════
     address public recipient;
     uint256 public conditionsMetSince;
+    uint256 public overrideMetSince;
     bool public altSeasonTriggered;
     uint256 public triggerTimestamp;
     uint256 public tranchesReleased;
@@ -70,6 +74,9 @@ contract FounderVesting is Ownable {
     event SustainedPeriodStarted(uint256 timestamp);
     event SustainedPeriodReset(uint256 timestamp);
     event AltSeasonTriggered(uint256 timestamp);
+    event OverrideConditionMet(uint256 indexed ethPrice, uint256 timestamp);
+    event OverrideConditionLost(uint256 indexed ethPrice, uint256 timestamp);
+    event OverrideTriggered(uint256 indexed ethPrice, uint256 timestamp);
     event TrancheReleased(uint256 trancheNumber, uint256 amount, address recipient);
     event RecipientUpdated(address oldRecipient, address newRecipient);
     event FallbackTriggered(uint256 timestamp);
@@ -92,14 +99,19 @@ contract FounderVesting is Ownable {
     }
 
     // ═══════ CORE: checkAltSeason() ═══════
+    /// @notice Evaluates PATH 1 (2-of-3 sustained) AND PATH 2 (ETH override sustained).
+    ///         First path to satisfy `SUSTAINED_DURATION` wins; later paths are no-ops.
     function checkAltSeason() external {
         require(!altSeasonTriggered, "Already triggered");
 
-        (bool condA, bool condB, bool condC) = _evaluateConditions();
+        (bool condA, bool condB, bool condC, int256 ethPrice) = _evaluateAllConditions();
+
         uint256 metCount = (condA ? 1 : 0) + (condB ? 1 : 0) + (condC ? 1 : 0);
+        bool ethOverride = ethPrice > 0 && uint256(ethPrice) > ETH_OVERRIDE_THRESHOLD;
 
         emit ConditionsChecked(condA, condB, condC, metCount, block.timestamp);
 
+        // PATH 1: 2-of-3 sustained 1 day
         if (metCount >= 2) {
             if (conditionsMetSince == 0) {
                 conditionsMetSince = block.timestamp;
@@ -108,16 +120,35 @@ contract FounderVesting is Ownable {
                 altSeasonTriggered = true;
                 triggerTimestamp = block.timestamp;
                 emit AltSeasonTriggered(block.timestamp);
+                return;
             }
         } else {
             if (conditionsMetSince != 0) {
                 emit SustainedPeriodReset(block.timestamp);
+                conditionsMetSince = 0;
             }
-            conditionsMetSince = 0;
+        }
+
+        // PATH 2: ETH > $5,000 sustained 1 day (independent of PATH 1)
+        if (ethOverride) {
+            if (overrideMetSince == 0) {
+                overrideMetSince = block.timestamp;
+                emit OverrideConditionMet(uint256(ethPrice), block.timestamp);
+            } else if (block.timestamp - overrideMetSince >= SUSTAINED_DURATION) {
+                altSeasonTriggered = true;
+                triggerTimestamp = block.timestamp;
+                emit OverrideTriggered(uint256(ethPrice), block.timestamp);
+                return;
+            }
+        } else {
+            if (overrideMetSince != 0) {
+                emit OverrideConditionLost(ethPrice > 0 ? uint256(ethPrice) : 0, block.timestamp);
+                overrideMetSince = 0;
+            }
         }
     }
 
-    // ═══════ triggerFallback() ═══════
+    // ═══════ PATH 3: triggerFallback() ═══════
     function triggerFallback() external {
         require(!altSeasonTriggered, "Already triggered");
         require(block.timestamp >= deployedAt + FALLBACK_DURATION, "Fallback not reached");
@@ -156,8 +187,10 @@ contract FounderVesting is Ownable {
     }
 
     // ═══════ VIEW FUNCTIONS ═══════
-    function getConditions() external view returns (bool condA, bool condB, bool condC) {
-        return _evaluateConditions();
+    function getConditions() external view returns (bool condA, bool condB, bool condC, bool ethOverride) {
+        int256 ethPrice;
+        (condA, condB, condC, ethPrice) = _evaluateAllConditions();
+        ethOverride = ethPrice > 0 && uint256(ethPrice) > ETH_OVERRIDE_THRESHOLD;
     }
 
     function getStatus()
@@ -169,6 +202,7 @@ contract FounderVesting is Ownable {
             uint256 _tranchesReleased,
             uint256 _totalReleased,
             uint256 _conditionsMetSince,
+            uint256 _overrideMetSince,
             uint256 nextReleaseAt,
             uint256 fallbackAt
         )
@@ -178,6 +212,7 @@ contract FounderVesting is Ownable {
         _tranchesReleased = tranchesReleased;
         _totalReleased = totalReleased;
         _conditionsMetSince = conditionsMetSince;
+        _overrideMetSince = overrideMetSince;
         fallbackAt = deployedAt + FALLBACK_DURATION;
         if (altSeasonTriggered && tranchesReleased < TOTAL_TRANCHES) {
             nextReleaseAt = triggerTimestamp + (tranchesReleased * TRANCHE_INTERVAL);
@@ -185,19 +220,29 @@ contract FounderVesting is Ownable {
     }
 
     // ═══════ INTERNAL ═══════
-    function _evaluateConditions() internal view returns (bool condA, bool condB, bool condC) {
-        try oracle.getLatestPrice(bytes32("ETH")) returns (int256 ethPrice) {
-            try oracle.getLatestPrice(bytes32("BTC")) returns (int256 btcPrice) {
-                if (ethPrice > 0 && btcPrice > 0) {
-                    uint256 ethBtcRatio = uint256(ethPrice) * 1e18 / uint256(btcPrice);
-                    condA = ethBtcRatio > ETH_BTC_THRESHOLD;
-                    condB = ethPrice > ETH_USD_THRESHOLD;
-                }
-            } catch {}
+    /// @dev Returns the 3 PATH 1 conditions plus the raw ethPrice that PATH 2 needs.
+    function _evaluateAllConditions() internal view returns (bool condA, bool condB, bool condC, int256 ethPriceOut) {
+        int256 ethPrice;
+        int256 btcPrice;
+
+        try oracle.getLatestPrice(bytes32("ETH")) returns (int256 _eth) {
+            if (_eth > 0) ethPrice = _eth;
         } catch {}
+
+        try oracle.getLatestPrice(bytes32("BTC")) returns (int256 _btc) {
+            if (_btc > 0) btcPrice = _btc;
+        } catch {}
+
+        if (ethPrice > 0 && btcPrice > 0) {
+            uint256 ratio = uint256(ethPrice) * 1e18 / uint256(btcPrice);
+            condA = ratio > ETH_BTC_THRESHOLD;
+            condB = ethPrice > ETH_USD_THRESHOLD;
+        }
 
         try IAaveV3PoolReader(aavePool).getReserveData(usdc) returns (IAaveV3PoolReader.ReserveData memory data) {
             condC = uint256(data.currentVariableBorrowRate) > BORROW_RATE_THRESHOLD;
         } catch {}
+
+        ethPriceOut = ethPrice;
     }
 }

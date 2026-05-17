@@ -12,6 +12,13 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # [Sprint FV] Fork-test RPC URL passed via repo secret. Foundry's
+      # foundry.toml `[rpc_endpoints]` block uses `${BASE_SEPOLIA_RPC}` to
+      # resolve the `base_sepolia` alias used by test/integration/immutables/
+      # fork tests. Without this env var those tests skip via the
+      # `requiresFork` modifier (vm.envString fallthrough).
+      BASE_SEPOLIA_RPC: ${{ secrets.BASE_SEPOLIA_RPC }}
     steps:
       - uses: actions/checkout@v4
         with:
