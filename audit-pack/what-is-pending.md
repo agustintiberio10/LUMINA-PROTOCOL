@@ -193,10 +193,26 @@ Lista de gaps de aseguramiento conocidos al día de hoy. Cada item incluye la ra
 - `redeem()` bond claim path.
 - Gas snapshot delta entre upgrades UUPS.
 
-**Razón**: Optimización requiere refactor del contract → cada cambio invalida los Echidna corpus + Halmos proofs + requiere re-auditar. Trade-off costo / beneficio.
+**Razón**: Optimización requiere refactor del contract -> cada cambio invalida los Echidna corpus + Halmos proofs + requiere re-auditar. Trade-off costo / beneficio.
+
+---
+
+## 13. Compra de póliza E2E (USDC mock balance)
+
+**Estado**: tests D.3 + D.4 del Sprint Reconexión skipeados — founder wallet `0xe585e76A...fDa8` con balance USDC mock = 0 en Base Sepolia.
+
+**Pendiente cubrir**:
+
+- Mint de USDC mock al founder wallet (desde el contrato mock o faucet Circle).
+- Re-ejecutar D.3: comprar póliza on-chain directo via `cast send CoverRouter.purchasePolicy(...)`.
+- Re-ejecutar D.4: comprar póliza vía API relayer endpoint POST `/policies`.
+- Verificar: policyId minteado, premium transferido a TWAPBurner, bond ERC-1155 creado en BondVault.
+
+**Razón**: hard-stop del spec Sprint Reconexión — "Si founder wallet no tiene USDC mock para D.3: STOP + pedir mint". Sin USDC, los tests del flujo compra-póliza no se pueden ejecutar sobre el deploy V5.2. **Acción founder**: faucet de USDC Circle en Base Sepolia OR mint desde el contrato `0x036CbD53842c5426634e7929541eC2318f3dCF7e` si tiene minter role.
 
 ---
 
 ## Changelog
 
+- **2026-05-18 (Sprint Reconexión)**: agregado item 13 (D.3/D.4 skipped por USDC balance=0).
 - **2026-05-18 (Sprint DD)**: documento inicial creado con 12 items pendientes.

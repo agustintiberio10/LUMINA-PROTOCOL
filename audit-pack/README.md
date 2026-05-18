@@ -1,6 +1,6 @@
 # Audit Pack — Lumina V5.1
 
-**Última actualización**: 2026-05-18 (Sprint Deploy)
+**Última actualización**: 2026-05-18 (Sprint Reconexión)
 **Status**: ACTIVO — documento vivo, se actualiza en cada sprint
 
 ## Propósito
@@ -64,7 +64,8 @@ Cada sprint que toque el audit-pack debe:
 - **50 stress tests** adversariales (económicos / técnicos / timing / multi-shield).
 - **14 workflows CI** activos en cada push (Aderyn, Mythril, Slither vía CI step, Halmos, Echidna matrix de 8 contratos, Coverage, Gas Snapshot, build + test + fmt).
 - **ADRs 010-027** documentando 18 decisiones arquitectónicas.
-- **Sprint Deploy V5.2 ejecutado** 2026-05-18: 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS, 0.000302 ETH gastados (~$1). Manifest en tracker PR #28.
+- **Sprint Deploy V5.2 ejecutado** 2026-05-18: 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS, 0.000302 ETH gastados.
+- **Sprint Reconexión completado** 2026-05-18: API Railway + landing Vercel + SDK 0.5.3 + audit-pack actualizados. 3/5 E2E tests PASS (D.3/D.4 skipped por USDC balance founder=0).
 
 ### Pendiente ⏳ (12 items abiertos)
 
@@ -83,5 +84,6 @@ Cada sprint que toque el audit-pack debe:
 
 ## Changelog del audit-pack
 
-- **2026-05-18 (Sprint Deploy)**: agregada Sección 10 a `what-we-tested.md` con verificación on-chain post-deploy V5.2 (16/16 checks PASS, 26 contratos deployados a Base Sepolia). Manifest completo en tracker PR #28.
+- **2026-05-18 (Sprint Reconexión)**: Sección 11 agregada a `what-we-tested.md` con resultados E2E (3 PASS + 2 SKIPPED). Item 13 agregado a `what-is-pending.md` (USDC E2E). Header + resumen rápido + ADRs 010-027.
+- **2026-05-18 (Sprint Deploy)**: Sección 10 agregada a `what-we-tested.md` con verificación on-chain post-deploy V5.2 (16/16 checks PASS, 26 contratos deployados a Base Sepolia). Manifest completo en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Snapshot del estado al cierre de Sprint EE-FIX.

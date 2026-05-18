@@ -239,7 +239,7 @@ Sprint Z.2 + FV + EE modificaron `script/deploy/DeployLuminaV5Complete.s.sol` y 
 ### 10.2 Phase B broadcast
 
 - Status: `ONCHAIN EXECUTION COMPLETE & SUCCESSFUL`.
-- 85 txs en bloques 41,680,281 — 41,680,365.
+- 85 txs en bloques 41,680,281 - 41,680,365.
 - Gas total: 0.000302 ETH (~$1 USD).
 - 26 contratos (15 UUPS + 2 inmutables + 7 shields + AerodromeAdapter skipped + 2 implementation contracts no-proxy).
 
@@ -251,7 +251,7 @@ Sprint Z.2 + FV + EE modificaron `script/deploy/DeployLuminaV5Complete.s.sol` y 
 | `BOND_VAULT.hasRole(DEFAULT_ADMIN_ROLE, founder)` | ✅ TRUE |
 | `SOLVENCY_ORACLE.hasRole(DEFAULT_ADMIN_ROLE, founder)` | ✅ TRUE |
 | Ownership founder en TWAP/CR/PM/CO/FV/TV/CB/OracleV2/UNI/SK (10 contratos) | ✅ todos = founder |
-| `FounderVesting.oracle() == LuminaOracleV2` (no CapacityOracle) | ✅ — fix ADR-025 verificado en producción |
+| `FounderVesting.oracle() == LuminaOracleV2` (no CapacityOracle) | ✅ - fix ADR-025 verificado en producción |
 | `FounderVesting.luminaToken() == LuminaTokenV2` | ✅ |
 | `FounderVesting.recipient() == founder` | ✅ |
 | `FounderVesting.SUSTAINED_DURATION() == 86400` (1 día) | ✅ |
@@ -278,7 +278,41 @@ Sprint Z.2 + FV + EE modificaron `script/deploy/DeployLuminaV5Complete.s.sol` y 
 
 ---
 
+## 11. Tests E2E post-Sprint Reconexión
+
+**Fecha**: 2026-05-18
+**Sprint**: Reconexión
+**Cobertura**: 5 tests E2E sobre la triple superficie reconectada (API + landing + on-chain). Per política Sprint DD, este sprint documenta su impacto en el audit-pack.
+
+| # | Test | Resultado | Detalle |
+|---|---|---|---|
+| D.1 | API `/health` endpoint | ✅ PASS | Status 200; `contracts.luminaToken == 0x62C0b58bB30CA857674ec593F1e23B3F15266680`; `chainId == 84532` |
+| D.2 | API `/products` endpoint | ✅ PASS | Lista de 7 productos con shield addresses V5.2 correctas (FLASHBTC1H/24/48, FLASHETH1H/24/48, RATESHOCK) |
+| D.3 | Compra póliza on-chain directo | ⏭️ SKIPPED | Hard-stop: founder wallet balance USDC mock = 0. Requiere mint manual desde el contrato mock antes de re-ejecutar |
+| D.4 | Compra póliza vía API relayer | ⏭️ SKIPPED | Depende de D.3 (necesita USDC en wallet) |
+| D.5 | Landing `https://www.lumina-org.com` accessibility | ✅ PASS | HTTP 200 OK |
+
+### 11.1 Notas
+
+- **Railway env vars**: 28 variables seteadas vía `railway variables --set` (LUMINA_TOKEN, BOND_VAULT, COVER_ROUTER, POLICY_MANAGER, las 7 shields, etc.) — verificadas con `railway variables`.
+- **API redeploy** automático tras setear vars. Health endpoint sirve las nuevas addresses V5.2 (verificado).
+- **Path correction**: el spec referenció `/api/v1/health` pero el endpoint real es `/health` (sin prefix v1). El `/products` también es root-level. Sin impacto en el código, solo el path de verificación cambia.
+- **Sandbox/relayer wallet**: balance 0.0199 ETH, suficiente para ~5,000 tx en Base L2. NO requiere top-up inmediato.
+
+### 11.2 Items movidos pendiente -> testeado
+
+Ninguno este sprint. Los 12 items pendientes documentados en Sprint DD permanecen.
+
+### 11.3 Items nuevos en pendiente
+
+| Nuevo gap | Razón |
+|---|---|
+| Test E2E D.3/D.4 (compra póliza con USDC) | Founder wallet sin balance USDC mock en Sepolia. Documentado en `what-is-pending.md` item 13. |
+
+---
+
 ## Changelog
 
+- **2026-05-18 (Sprint Reconexión)**: agregada Sección 11 con resultados E2E (3 PASS, 2 SKIPPED por USDC balance). Item 13 en what-is-pending agregado.
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 con verificación on-chain post-deploy V5.2. 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS. Manifest en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Refleja el estado al cierre de Sprint EE-FIX (PR #130 mergeado a `main` el 2026-05-18 17:04 UTC).
