@@ -5,13 +5,11 @@ import "forge-std/Test.sol";
 import {ProxyDeployer} from "../../../helpers/ProxyDeployer.sol";
 
 import {FlashBTCShield1h} from "../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../src/products/RateShockShield.sol";
 
 /**
@@ -38,16 +36,6 @@ contract AdminPowersShields is Test {
         vm.expectRevert();
         s.upgradeToAndCall(newImpl, "");
         s.upgradeToAndCall(newImpl, ""); // owner path succeeds
-    }
-
-    function test_Admin_FlashBTCShield4h_OwnerCanUpgrade_NonOwnerCannot() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), ORACLE);
-        assertEq(s.owner(), address(this));
-        address newImpl = address(new FlashBTCShield4h());
-        vm.prank(makeAddr("atk"));
-        vm.expectRevert();
-        s.upgradeToAndCall(newImpl, "");
-        s.upgradeToAndCall(newImpl, "");
     }
 
     function test_Admin_FlashBTCShield24h_OwnerCanUpgrade_NonOwnerCannot() public {
@@ -94,16 +82,6 @@ contract AdminPowersShields is Test {
         FlashETHShield48h s = ProxyDeployer.deployFlashETHShield48h(address(this), ORACLE);
         assertEq(s.owner(), address(this));
         address newImpl = address(new FlashETHShield48h());
-        vm.prank(makeAddr("atk"));
-        vm.expectRevert();
-        s.upgradeToAndCall(newImpl, "");
-        s.upgradeToAndCall(newImpl, "");
-    }
-
-    function test_Admin_MicroDepegShield_OwnerCanUpgrade_NonOwnerCannot() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), ORACLE);
-        assertEq(s.owner(), address(this));
-        address newImpl = address(new MicroDepegShield());
         vm.prank(makeAddr("atk"));
         vm.expectRevert();
         s.upgradeToAndCall(newImpl, "");

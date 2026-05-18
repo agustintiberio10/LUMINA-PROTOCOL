@@ -6,18 +6,16 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {ProxyDeployer} from "../../../helpers/ProxyDeployer.sol";
 
 import {FlashBTCShield1h} from "../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../src/products/RateShockShield.sol";
 
 /**
  * @title InitializerSecurityShields
- * @notice Initializer security audit for the 9 concrete Shield products.
+ * @notice Initializer security audit for the 7 concrete Shield products.
  *
  * Shields inherit BaseShield and delegate to `__BaseShield_init(router_, oracle_)`,
  * which enforces the two zero-address checks and calls the Ownable/UUPS init
@@ -91,60 +89,6 @@ contract InitializerSecurityShields is Test {
 
     function test_Init_FlashBTCShield1h_FrontRunningProtected() public {
         FlashBTCShield1h impl = new FlashBTCShield1h();
-        vm.prank(makeAddr("atk"));
-        vm.expectRevert();
-        impl.initialize(ROUTER, ORACLE);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // FlashBTCShield4h
-    // ─────────────────────────────────────────────────────────────
-    function test_Init_FlashBTCShield4h_CannotBeCalledTwice() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(ROUTER, ORACLE);
-        vm.expectRevert();
-        s.initialize(ROUTER, ORACLE);
-    }
-
-    function test_Init_FlashBTCShield4h_ImplementationLocked() public {
-        FlashBTCShield4h impl = new FlashBTCShield4h();
-        vm.expectRevert();
-        impl.initialize(ROUTER, ORACLE);
-    }
-
-    function test_Init_FlashBTCShield4h_OnlyOwnerCanUpgrade() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(ROUTER, ORACLE);
-        address newImpl = address(new FlashBTCShield4h());
-        vm.prank(makeAddr("atk"));
-        vm.expectRevert();
-        s.upgradeToAndCall(newImpl, "");
-        s.upgradeToAndCall(newImpl, "");
-    }
-
-    function test_Init_FlashBTCShield4h_OwnerSetCorrectly() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(ROUTER, ORACLE);
-        assertEq(s.owner(), address(this));
-    }
-
-    function test_Init_FlashBTCShield4h_RevertsOnZeroAddressParams() public {
-        FlashBTCShield4h impl = new FlashBTCShield4h();
-        bytes memory data = abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, address(0), ORACLE);
-        vm.expectRevert();
-        new ERC1967Proxy(address(impl), data);
-    }
-
-    function test_Init_FlashBTCShield4h_ParentInitializersCalled() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(ROUTER, ORACLE);
-        assertEq(s.owner(), address(this));
-    }
-
-    function test_Init_FlashBTCShield4h_InitialStateCorrect() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(ROUTER, ORACLE);
-        assertEq(s.router(), ROUTER);
-        assertEq(s.oracle(), ORACLE);
-    }
-
-    function test_Init_FlashBTCShield4h_FrontRunningProtected() public {
-        FlashBTCShield4h impl = new FlashBTCShield4h();
         vm.prank(makeAddr("atk"));
         vm.expectRevert();
         impl.initialize(ROUTER, ORACLE);
@@ -415,60 +359,6 @@ contract InitializerSecurityShields is Test {
 
     function test_Init_FlashETHShield48h_FrontRunningProtected() public {
         FlashETHShield48h impl = new FlashETHShield48h();
-        vm.prank(makeAddr("atk"));
-        vm.expectRevert();
-        impl.initialize(ROUTER, ORACLE);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // MicroDepegShield
-    // ─────────────────────────────────────────────────────────────
-    function test_Init_MicroDepegShield_CannotBeCalledTwice() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(ROUTER, ORACLE);
-        vm.expectRevert();
-        s.initialize(ROUTER, ORACLE);
-    }
-
-    function test_Init_MicroDepegShield_ImplementationLocked() public {
-        MicroDepegShield impl = new MicroDepegShield();
-        vm.expectRevert();
-        impl.initialize(ROUTER, ORACLE);
-    }
-
-    function test_Init_MicroDepegShield_OnlyOwnerCanUpgrade() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(ROUTER, ORACLE);
-        address newImpl = address(new MicroDepegShield());
-        vm.prank(makeAddr("atk"));
-        vm.expectRevert();
-        s.upgradeToAndCall(newImpl, "");
-        s.upgradeToAndCall(newImpl, "");
-    }
-
-    function test_Init_MicroDepegShield_OwnerSetCorrectly() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(ROUTER, ORACLE);
-        assertEq(s.owner(), address(this));
-    }
-
-    function test_Init_MicroDepegShield_RevertsOnZeroAddressParams() public {
-        MicroDepegShield impl = new MicroDepegShield();
-        bytes memory data = abi.encodeWithSelector(MicroDepegShield.initialize.selector, address(0), ORACLE);
-        vm.expectRevert();
-        new ERC1967Proxy(address(impl), data);
-    }
-
-    function test_Init_MicroDepegShield_ParentInitializersCalled() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(ROUTER, ORACLE);
-        assertEq(s.owner(), address(this));
-    }
-
-    function test_Init_MicroDepegShield_InitialStateCorrect() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(ROUTER, ORACLE);
-        assertEq(s.router(), ROUTER);
-        assertEq(s.oracle(), ORACLE);
-    }
-
-    function test_Init_MicroDepegShield_FrontRunningProtected() public {
-        MicroDepegShield impl = new MicroDepegShield();
         vm.prank(makeAddr("atk"));
         vm.expectRevert();
         impl.initialize(ROUTER, ORACLE);

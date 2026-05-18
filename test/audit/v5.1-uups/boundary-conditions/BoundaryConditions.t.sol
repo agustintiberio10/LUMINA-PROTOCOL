@@ -19,13 +19,11 @@ import {MaintenanceReserve} from "../../../../src/treasury/MaintenanceReserve.so
 import {CEXLiquidityReserve} from "../../../../src/treasury/CEXLiquidityReserve.sol";
 
 import {FlashBTCShield1h} from "../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../src/products/RateShockShield.sol";
 
 contract MockOracleBoundary {
@@ -489,12 +487,6 @@ contract BoundaryConditions is Test {
         assertEq(s.TRIGGER_DROP_BPS(), 500); // 5%
     }
 
-    function test_Boundary_Shield_TriggerDropBps_FlashBTC_4h_800() public {
-        vm.chainId(8453);
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), makeAddr("o"));
-        assertEq(s.TRIGGER_DROP_BPS(), 800); // 8%
-    }
-
     function test_Boundary_Shield_TriggerDropBps_FlashBTC_24h_1000() public {
         vm.chainId(8453);
         FlashBTCShield24h s = ProxyDeployer.deployFlashBTCShield24h(address(this), makeAddr("o"));
@@ -525,12 +517,6 @@ contract BoundaryConditions is Test {
         assertEq(s.TRIGGER_DROP_BPS(), 1800); // 18%
     }
 
-    function test_Boundary_Shield_MicroDepeg_TriggerPrice_99_500_000() public {
-        vm.chainId(8453);
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), makeAddr("o"));
-        assertEq(s.TRIGGER_PRICE(), 99_500_000); // $0.995 in 8-dec
-    }
-
     function test_Boundary_Shield_RateShock_TriggerRate_10e25_RAY() public {
         vm.chainId(8453);
         RateShockShield s =
@@ -538,22 +524,20 @@ contract BoundaryConditions is Test {
         assertEq(s.TRIGGER_RATE(), 10e25); // 10% APY in RAY (27-dec)
     }
 
-    function test_Boundary_Shield_DeductibleBps_All9_Equal2000() public {
+    function test_Boundary_Shield_DeductibleBps_AllShields_Equal2000() public {
         vm.chainId(8453);
         FlashBTCShield1h s1 = ProxyDeployer.deployFlashBTCShield1h(address(this), makeAddr("o"));
-        FlashBTCShield4h s2 = ProxyDeployer.deployFlashBTCShield4h(address(this), makeAddr("o"));
-        FlashBTCShield24h s3 = ProxyDeployer.deployFlashBTCShield24h(address(this), makeAddr("o"));
-        FlashBTCShield48h s4 = ProxyDeployer.deployFlashBTCShield48h(address(this), makeAddr("o"));
-        FlashETHShield1h s5 = ProxyDeployer.deployFlashETHShield1h(address(this), makeAddr("o"));
-        FlashETHShield24h s6 = ProxyDeployer.deployFlashETHShield24h(address(this), makeAddr("o"));
-        FlashETHShield48h s7 = ProxyDeployer.deployFlashETHShield48h(address(this), makeAddr("o"));
+        FlashBTCShield24h s2 = ProxyDeployer.deployFlashBTCShield24h(address(this), makeAddr("o"));
+        FlashBTCShield48h s3 = ProxyDeployer.deployFlashBTCShield48h(address(this), makeAddr("o"));
+        FlashETHShield1h s4 = ProxyDeployer.deployFlashETHShield1h(address(this), makeAddr("o"));
+        FlashETHShield24h s5 = ProxyDeployer.deployFlashETHShield24h(address(this), makeAddr("o"));
+        FlashETHShield48h s6 = ProxyDeployer.deployFlashETHShield48h(address(this), makeAddr("o"));
         assertEq(s1.DEDUCTIBLE_BPS(), 2000);
         assertEq(s2.DEDUCTIBLE_BPS(), 2000);
         assertEq(s3.DEDUCTIBLE_BPS(), 2000);
         assertEq(s4.DEDUCTIBLE_BPS(), 2000);
         assertEq(s5.DEDUCTIBLE_BPS(), 2000);
         assertEq(s6.DEDUCTIBLE_BPS(), 2000);
-        assertEq(s7.DEDUCTIBLE_BPS(), 2000);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -565,14 +549,6 @@ contract BoundaryConditions is Test {
         (uint32 minD, uint32 maxD) = s.durationRange();
         assertEq(minD, 3600);
         assertEq(maxD, 3600);
-    }
-
-    function test_Boundary_Shield_Duration_FlashBTC_4h_14400() public {
-        vm.chainId(8453);
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), makeAddr("o"));
-        (uint32 minD, uint32 maxD) = s.durationRange();
-        assertEq(minD, 14400);
-        assertEq(maxD, 14400);
     }
 
     function test_Boundary_Shield_Duration_FlashBTC_24h_86400() public {
@@ -589,14 +565,6 @@ contract BoundaryConditions is Test {
         (uint32 minD, uint32 maxD) = s.durationRange();
         assertEq(minD, 172800);
         assertEq(maxD, 172800);
-    }
-
-    function test_Boundary_Shield_Duration_MicroDepeg_604800() public {
-        vm.chainId(8453);
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), makeAddr("o"));
-        (uint32 minD, uint32 maxD) = s.durationRange();
-        assertEq(minD, 604800);
-        assertEq(maxD, 604800);
     }
 
     function test_Boundary_Shield_Duration_RateShock_604800() public {

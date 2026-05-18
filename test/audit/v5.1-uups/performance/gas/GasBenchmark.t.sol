@@ -22,7 +22,7 @@ import {BuybackEngine} from "../../../../../src/marketplace/BuybackEngine.sol";
 import {ShieldKeeper} from "../../../../../src/automation/ShieldKeeper.sol";
 
 import {FlashBTCShield1h} from "../../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../../src/products/FlashBTCShield4h.sol";
+import {FlashBTCShield24h} from "../../../../../src/products/FlashBTCShield24h.sol";
 import {FlashETHShield1h} from "../../../../../src/products/FlashETHShield1h.sol";
 
 import {IDexRouter} from "../../../../../src/interfaces/IDexRouter.sol";
@@ -163,12 +163,12 @@ contract GasBenchmark is Test {
 
     // ─── Shields (only what we benchmark) ───
     FlashBTCShield1h flashBtc1h;
-    FlashBTCShield4h flashBtc4h;
+    FlashBTCShield24h flashBtc24h;
     FlashETHShield1h flashEth1h;
 
     // ─── IDs ───
     bytes32 constant ID_FLASHBTC1H = keccak256("FLASHBTC1H-001");
-    bytes32 constant ID_FLASHBTC4H = keccak256("FLASHBTC4H-001");
+    bytes32 constant ID_FLASHBTC24 = keccak256("FLASHBTC24-001");
     bytes32 constant ID_FLASHETH1H = keccak256("FLASHETH1H-001");
 
     uint256 constant EMERGENCY_PRICE = 0.036e18;
@@ -241,15 +241,15 @@ contract GasBenchmark is Test {
 
         // Shields
         flashBtc1h = ProxyDeployer.deployFlashBTCShield1h(address(policyManager), address(shieldOracle));
-        flashBtc4h = ProxyDeployer.deployFlashBTCShield4h(address(policyManager), address(shieldOracle));
+        flashBtc24h = ProxyDeployer.deployFlashBTCShield24h(address(policyManager), address(shieldOracle));
         flashEth1h = ProxyDeployer.deployFlashETHShield1h(address(policyManager), address(shieldOracle));
 
         policyManager.registerProduct(ID_FLASHBTC1H, address(flashBtc1h));
-        policyManager.registerProduct(ID_FLASHBTC4H, address(flashBtc4h));
+        policyManager.registerProduct(ID_FLASHBTC24, address(flashBtc24h));
         policyManager.registerProduct(ID_FLASHETH1H, address(flashEth1h));
 
         coverRouter.configureProduct(ID_FLASHBTC1H, 8000, 200, 2000, 3600, true);
-        coverRouter.configureProduct(ID_FLASHBTC4H, 8000, 150, 2000, 14400, true);
+        coverRouter.configureProduct(ID_FLASHBTC24, 8000, 100, 2000, 86400, true);
         coverRouter.configureProduct(ID_FLASHETH1H, 8000, 200, 2000, 3600, true);
 
         coverRouter.setRelayer(relayer, true);
@@ -318,7 +318,7 @@ contract GasBenchmark is Test {
 
         vm.prank(buyer);
         uint256 g2 = gasleft();
-        coverRouter.purchasePolicy(ID_FLASHBTC4H, 1000e6, "BTC");
+        coverRouter.purchasePolicy(ID_FLASHBTC24, 1000e6, "BTC");
         uint256 u2 = g2 - gasleft();
 
         vm.prank(buyer);
@@ -327,7 +327,7 @@ contract GasBenchmark is Test {
         uint256 u3 = g3 - gasleft();
 
         emit log_named_uint("purchasePolicy  FlashBTC1h warm gas", u1);
-        emit log_named_uint("purchasePolicy  FlashBTC4h warm gas", u2);
+        emit log_named_uint("purchasePolicy  FlashBTC24h warm gas", u2);
         emit log_named_uint("purchasePolicy  FlashETH1h warm gas", u3);
 
         // Spread ≤ 25% (generous — shields are expected to be similar, but

@@ -22,13 +22,11 @@ import {BuybackEngine} from "../../../src/marketplace/BuybackEngine.sol";
 
 // ─── Shields (real contracts) ───
 import {FlashBTCShield1h} from "../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../src/products/RateShockShield.sol";
 
 // ═══════════════════════════════════════════════════════════════
@@ -172,26 +170,22 @@ contract DeployE2ETest is Test {
     LuminaBondMarketplace marketplace;
     BuybackEngine buybackEngine;
 
-    // ─── Real Shields (all 9) ───
+    // ─── Real Shields (all 7) ───
     FlashBTCShield1h flashBtc1h;
-    FlashBTCShield4h flashBtc4h;
     FlashBTCShield24h flashBtc24h;
     FlashBTCShield48h flashBtc48h;
     FlashETHShield1h flashEth1h;
     FlashETHShield24h flashEth24h;
     FlashETHShield48h flashEth48h;
-    MicroDepegShield microDepeg;
     RateShockShield rateShock;
 
     // ─── Correct Product IDs (from shield contracts) ───
     bytes32 constant ID_FLASHBTC1H = keccak256("FLASHBTC1H-001");
-    bytes32 constant ID_FLASHBTC4H = keccak256("FLASHBTC4H-001");
     bytes32 constant ID_FLASHBTC24 = keccak256("FLASHBTC24-001");
     bytes32 constant ID_FLASHBTC48 = keccak256("FLASHBTC48-001");
     bytes32 constant ID_FLASHETH1H = keccak256("FLASHETH1H-001");
     bytes32 constant ID_FLASHETH24 = keccak256("FLASHETH24-001");
     bytes32 constant ID_FLASHETH48 = keccak256("FLASHETH48-001");
-    bytes32 constant ID_MICRODEPEG = keccak256("MICRODEPEG-001");
     bytes32 constant ID_RATESHOCK = keccak256("RATESHOCK-001");
 
     // ─── Constants ───
@@ -276,39 +270,33 @@ contract DeployE2ETest is Test {
         lumina.grantRole(lumina.BURNER_ROLE(), address(twapBurner));
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
 
-        // ── Phase 12: Deploy 9 REAL shields ──
+        // ── Phase 12: Deploy 7 REAL shields ──
         flashBtc1h = ProxyDeployer.deployFlashBTCShield1h(address(policyManager), address(shieldOracle));
-        flashBtc4h = ProxyDeployer.deployFlashBTCShield4h(address(policyManager), address(shieldOracle));
         flashBtc24h = ProxyDeployer.deployFlashBTCShield24h(address(policyManager), address(shieldOracle));
         flashBtc48h = ProxyDeployer.deployFlashBTCShield48h(address(policyManager), address(shieldOracle));
         flashEth1h = ProxyDeployer.deployFlashETHShield1h(address(policyManager), address(shieldOracle));
         flashEth24h = ProxyDeployer.deployFlashETHShield24h(address(policyManager), address(shieldOracle));
         flashEth48h = ProxyDeployer.deployFlashETHShield48h(address(policyManager), address(shieldOracle));
-        microDepeg = ProxyDeployer.deployMicroDepegShield(address(policyManager), address(shieldOracle));
         rateShock = ProxyDeployer.deployRateShockShield(
             address(policyManager), address(shieldOracle), address(aavePool), address(usdc)
         );
 
         // ── Phase 13: Register shields in PolicyManager (correct IDs!) ──
         policyManager.registerProduct(ID_FLASHBTC1H, address(flashBtc1h));
-        policyManager.registerProduct(ID_FLASHBTC4H, address(flashBtc4h));
         policyManager.registerProduct(ID_FLASHBTC24, address(flashBtc24h));
         policyManager.registerProduct(ID_FLASHBTC48, address(flashBtc48h));
         policyManager.registerProduct(ID_FLASHETH1H, address(flashEth1h));
         policyManager.registerProduct(ID_FLASHETH24, address(flashEth24h));
         policyManager.registerProduct(ID_FLASHETH48, address(flashEth48h));
-        policyManager.registerProduct(ID_MICRODEPEG, address(microDepeg));
         policyManager.registerProduct(ID_RATESHOCK, address(rateShock));
 
         // ── Phase 14: Configure shields in CoverRouter (correct IDs + 8000 payout!) ──
         coverRouter.configureProduct(ID_FLASHBTC1H, 8000, 200, 2000, 3600, true);
-        coverRouter.configureProduct(ID_FLASHBTC4H, 8000, 150, 2000, 14400, true);
         coverRouter.configureProduct(ID_FLASHBTC24, 8000, 100, 2000, 86400, true);
         coverRouter.configureProduct(ID_FLASHBTC48, 8000, 80, 2000, 172800, true);
         coverRouter.configureProduct(ID_FLASHETH1H, 8000, 200, 2000, 3600, true);
         coverRouter.configureProduct(ID_FLASHETH24, 8000, 100, 2000, 86400, true);
         coverRouter.configureProduct(ID_FLASHETH48, 8000, 80, 2000, 172800, true);
-        coverRouter.configureProduct(ID_MICRODEPEG, 8000, 50, 2500, 604800, true);
         coverRouter.configureProduct(ID_RATESHOCK, 8000, 30, 3000, 604800, true);
 
         // ── Phase 15: Ownership transfer ──
@@ -348,13 +336,11 @@ contract DeployE2ETest is Test {
         assertTrue(address(marketplace) != address(0), "Marketplace zero");
         assertTrue(address(buybackEngine) != address(0), "BuybackEngine zero");
         assertTrue(address(flashBtc1h) != address(0), "FlashBTCShield1h zero");
-        assertTrue(address(flashBtc4h) != address(0), "FlashBTCShield4h zero");
         assertTrue(address(flashBtc24h) != address(0), "FlashBTCShield24h zero");
         assertTrue(address(flashBtc48h) != address(0), "FlashBTCShield48h zero");
         assertTrue(address(flashEth1h) != address(0), "FlashETHShield1h zero");
         assertTrue(address(flashEth24h) != address(0), "FlashETHShield24h zero");
         assertTrue(address(flashEth48h) != address(0), "FlashETHShield48h zero");
-        assertTrue(address(microDepeg) != address(0), "MicroDepegShield zero");
         assertTrue(address(rateShock) != address(0), "RateShockShield zero");
     }
 
@@ -444,46 +430,40 @@ contract DeployE2ETest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  SECTION D: All 9 shields registered AND configured
+    //  SECTION D: All 7 shields registered AND configured
     // ═══════════════════════════════════════════════════════════════
 
-    function test_SectionD_All9Shields_RegisteredInPolicyManager() public view {
+    function test_SectionD_All7Shields_RegisteredInPolicyManager() public view {
         assertEq(policyManager.productShield(ID_FLASHBTC1H), address(flashBtc1h), "PM: FlashBTC1H not registered");
-        assertEq(policyManager.productShield(ID_FLASHBTC4H), address(flashBtc4h), "PM: FlashBTC4H not registered");
         assertEq(policyManager.productShield(ID_FLASHBTC24), address(flashBtc24h), "PM: FlashBTC24H not registered");
         assertEq(policyManager.productShield(ID_FLASHBTC48), address(flashBtc48h), "PM: FlashBTC48H not registered");
         assertEq(policyManager.productShield(ID_FLASHETH1H), address(flashEth1h), "PM: FlashETH1H not registered");
         assertEq(policyManager.productShield(ID_FLASHETH24), address(flashEth24h), "PM: FlashETH24H not registered");
         assertEq(policyManager.productShield(ID_FLASHETH48), address(flashEth48h), "PM: FlashETH48H not registered");
-        assertEq(policyManager.productShield(ID_MICRODEPEG), address(microDepeg), "PM: MicroDepeg not registered");
         assertEq(policyManager.productShield(ID_RATESHOCK), address(rateShock), "PM: RateShock not registered");
 
         // All active
         assertTrue(policyManager.productActive(ID_FLASHBTC1H), "FlashBTC1H not active");
-        assertTrue(policyManager.productActive(ID_FLASHBTC4H), "FlashBTC4H not active");
         assertTrue(policyManager.productActive(ID_FLASHBTC24), "FlashBTC24H not active");
         assertTrue(policyManager.productActive(ID_FLASHBTC48), "FlashBTC48H not active");
         assertTrue(policyManager.productActive(ID_FLASHETH1H), "FlashETH1H not active");
         assertTrue(policyManager.productActive(ID_FLASHETH24), "FlashETH24H not active");
         assertTrue(policyManager.productActive(ID_FLASHETH48), "FlashETH48H not active");
-        assertTrue(policyManager.productActive(ID_MICRODEPEG), "MicroDepeg not active");
         assertTrue(policyManager.productActive(ID_RATESHOCK), "RateShock not active");
 
         // Product count
-        assertEq(policyManager.getProductCount(), 9, "Should have exactly 9 products");
+        assertEq(policyManager.getProductCount(), 7, "Should have exactly 7 products");
     }
 
     /// @notice KEY TEST: Catches missing configureProduct() calls (Bug #2)
-    function test_E2E_All9Shields_ConfiguredInCoverRouter() public view {
+    function test_E2E_All7Shields_ConfiguredInCoverRouter() public view {
         // Each product must have durationSeconds > 0 (indicates configured)
         _assertProductConfigured(ID_FLASHBTC1H, 8000, 3600, "FlashBTC1H");
-        _assertProductConfigured(ID_FLASHBTC4H, 8000, 14400, "FlashBTC4H");
         _assertProductConfigured(ID_FLASHBTC24, 8000, 86400, "FlashBTC24H");
         _assertProductConfigured(ID_FLASHBTC48, 8000, 172800, "FlashBTC48H");
         _assertProductConfigured(ID_FLASHETH1H, 8000, 3600, "FlashETH1H");
         _assertProductConfigured(ID_FLASHETH24, 8000, 86400, "FlashETH24H");
         _assertProductConfigured(ID_FLASHETH48, 8000, 172800, "FlashETH48H");
-        _assertProductConfigured(ID_MICRODEPEG, 8000, 604800, "MicroDepeg");
         _assertProductConfigured(ID_RATESHOCK, 8000, 604800, "RateShock");
     }
 
@@ -508,13 +488,11 @@ contract DeployE2ETest is Test {
     function test_E2E_ShieldIds_MatchAcross_Shield_PM_Router() public view {
         // Verify each shield's PRODUCT_ID matches what's registered in PolicyManager and CoverRouter
         assertEq(flashBtc1h.PRODUCT_ID(), ID_FLASHBTC1H, "FlashBTC1H: PRODUCT_ID mismatch");
-        assertEq(flashBtc4h.PRODUCT_ID(), ID_FLASHBTC4H, "FlashBTC4H: PRODUCT_ID mismatch");
         assertEq(flashBtc24h.PRODUCT_ID(), ID_FLASHBTC24, "FlashBTC24H: PRODUCT_ID mismatch");
         assertEq(flashBtc48h.PRODUCT_ID(), ID_FLASHBTC48, "FlashBTC48H: PRODUCT_ID mismatch");
         assertEq(flashEth1h.PRODUCT_ID(), ID_FLASHETH1H, "FlashETH1H: PRODUCT_ID mismatch");
         assertEq(flashEth24h.PRODUCT_ID(), ID_FLASHETH24, "FlashETH24H: PRODUCT_ID mismatch");
         assertEq(flashEth48h.PRODUCT_ID(), ID_FLASHETH48, "FlashETH48H: PRODUCT_ID mismatch");
-        assertEq(microDepeg.PRODUCT_ID(), ID_MICRODEPEG, "MicroDepeg: PRODUCT_ID mismatch");
         assertEq(rateShock.PRODUCT_ID(), ID_RATESHOCK, "RateShock: PRODUCT_ID mismatch");
 
         // Verify the shield registered in PolicyManager matches the actual shield contract
@@ -591,12 +569,12 @@ contract DeployE2ETest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  SECTION F: Can buy each of 9 shields immediately after deploy
+    //  SECTION F: Can buy each of 7 shields immediately after deploy
     //  KEY TEST: Catches BOTH bugs (wrong IDs + missing configureProduct)
     // ═══════════════════════════════════════════════════════════════
 
-    /// @notice KEY TEST: End-to-end purchase of all 9 shields
-    function test_E2E_CanBuyEach9Shields() public {
+    /// @notice KEY TEST: End-to-end purchase of all 7 shields
+    function test_E2E_CanBuyEach7Shields() public {
         address buyer = makeAddr("buyer");
         uint256 coverage = 1000e6; // $1000
         usdc.mint(buyer, 100_000e6); // plenty of USDC
@@ -610,7 +588,6 @@ contract DeployE2ETest is Test {
 
         // BTC shields
         coverRouter.purchasePolicy(ID_FLASHBTC1H, coverage, bytes32("BTC"));
-        coverRouter.purchasePolicy(ID_FLASHBTC4H, coverage, bytes32("BTC"));
         coverRouter.purchasePolicy(ID_FLASHBTC24, coverage, bytes32("BTC"));
         coverRouter.purchasePolicy(ID_FLASHBTC48, coverage, bytes32("BTC"));
 
@@ -619,25 +596,18 @@ contract DeployE2ETest is Test {
         coverRouter.purchasePolicy(ID_FLASHETH24, coverage, bytes32("ETH"));
         coverRouter.purchasePolicy(ID_FLASHETH48, coverage, bytes32("ETH"));
 
-        // MicroDepeg (asset = USDT for depeg coverage)
-        coverRouter.purchasePolicy(ID_MICRODEPEG, coverage, bytes32("USDT"));
-
         // RateShock (asset = USDC reference)
         coverRouter.purchasePolicy(ID_RATESHOCK, coverage, bytes32("USDC"));
 
         vm.stopPrank();
 
         // Verify policies were created
-        assertEq(policyManager.totalPolicies(), 9, "Should have 9 policies total");
-        assertEq(policyManager.activePolicies(), 9, "Should have 9 active policies");
+        assertEq(policyManager.totalPolicies(), 7, "Should have 7 policies total");
+        assertEq(policyManager.activePolicies(), 7, "Should have 7 active policies");
     }
 
     function test_E2E_CanBuy_FlashBTC1H() public {
         _buyShield(ID_FLASHBTC1H, bytes32("BTC"), 1000e6);
-    }
-
-    function test_E2E_CanBuy_FlashBTC4H() public {
-        _buyShield(ID_FLASHBTC4H, bytes32("BTC"), 1000e6);
     }
 
     function test_E2E_CanBuy_FlashBTC24H() public {
@@ -658,10 +628,6 @@ contract DeployE2ETest is Test {
 
     function test_E2E_CanBuy_FlashETH48H() public {
         _buyShield(ID_FLASHETH48, bytes32("ETH"), 1000e6);
-    }
-
-    function test_E2E_CanBuy_MicroDepeg() public {
-        _buyShield(ID_MICRODEPEG, bytes32("USDT"), 1000e6);
     }
 
     function test_E2E_CanBuy_RateShock() public {

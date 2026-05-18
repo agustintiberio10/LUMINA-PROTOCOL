@@ -12,13 +12,11 @@ import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
 import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
 import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
 import {FlashBTCShield1h} from "../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../src/products/RateShockShield.sol";
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
@@ -151,14 +149,6 @@ library ProxyDeployer {
         return FlashBTCShield1h(address(proxy));
     }
 
-    function deployFlashBTCShield4h(address router_, address oracle_) internal returns (FlashBTCShield4h) {
-        FlashBTCShield4h impl = new FlashBTCShield4h();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(FlashBTCShield4h.initialize.selector, router_, oracle_)
-        );
-        return FlashBTCShield4h(address(proxy));
-    }
-
     function deployFlashBTCShield24h(address router_, address oracle_) internal returns (FlashBTCShield24h) {
         FlashBTCShield24h impl = new FlashBTCShield24h();
         ERC1967Proxy proxy = new ERC1967Proxy(
@@ -197,14 +187,6 @@ library ProxyDeployer {
             address(impl), abi.encodeWithSelector(FlashETHShield48h.initialize.selector, router_, oracle_)
         );
         return FlashETHShield48h(address(proxy));
-    }
-
-    function deployMicroDepegShield(address router_, address oracle_) internal returns (MicroDepegShield) {
-        MicroDepegShield impl = new MicroDepegShield();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(MicroDepegShield.initialize.selector, router_, oracle_)
-        );
-        return MicroDepegShield(address(proxy));
     }
 
     function deployRateShockShield(address router_, address oracle_, address _aavePool, address _usdc)

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  echidna-founder-vesting-v2:
+  echidna-fv:
     name: Echidna FounderVestingV2 (200k runs)
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -25,9 +25,6 @@ jobs:
           version: stable
 
       - name: Install Python + crytic-compile
-        # Echidna shells out to crytic-compile to drive solc; missing it makes
-        # echidna print "crytic-compile not installed" and exit 0 (via tee) —
-        # silent false-pass. Install pinned versions for reproducible CI.
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -45,15 +42,9 @@ jobs:
           echidna --version
 
       - name: Build contracts (incl. test/echidna/)
-        # Full build required: echidna needs the test contract artifact, which
-        # `--skip test` would exclude. Source-only contracts already compile in
-        # the CI workflow's `forge build --sizes` step.
         run: forge build
 
       - name: Run Echidna on FounderVestingV2
-        # `set -o pipefail` so echidna's non-zero exit propagates through tee.
-        # Explicit file path (instead of `.`) since echidna 2.2.5 can't always
-        # autodiscover contracts inside nested test/ trees.
         run: |
           set -o pipefail
           echidna test/echidna/immutables/EchidnaFounderVestingV2.sol \
@@ -63,7 +54,7 @@ jobs:
         env:
           FOUNDRY_PROFILE: default
 
-      - name: Upload Echidna logs
+      - name: Upload Echidna logs (FV)
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -71,10 +62,83 @@ jobs:
           path: echidna-fv-output.log
           retention-days: 30
 
-      - name: Upload corpus
+      - name: Upload corpus (FV)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: echidna-fv-corpus
           path: corpus/founder-vesting-v2/
+          retention-days: 30
+
+  echidna-shields:
+    name: Echidna ${{ matrix.shield }} (200k runs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        shield:
+          - FlashBTCShield1h
+          - FlashBTCShield24h
+          - FlashBTCShield48h
+          - FlashETHShield1h
+          - FlashETHShield24h
+          - FlashETHShield48h
+          - RateShockShield
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install Python + crytic-compile
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install crytic-compile
+        run: |
+          pip install crytic-compile==0.3.7
+          crytic-compile --version
+
+      - name: Install Echidna
+        run: |
+          wget https://github.com/crytic/echidna/releases/download/v2.2.5/echidna-2.2.5-x86_64-linux.tar.gz
+          tar -xzf echidna-2.2.5-x86_64-linux.tar.gz
+          sudo mv echidna /usr/local/bin/
+          echidna --version
+
+      - name: Build contracts (incl. test/echidna/)
+        run: forge build
+
+      - name: Run Echidna on ${{ matrix.shield }}
+        run: |
+          set -o pipefail
+          echidna test/echidna/shields/Echidna${{ matrix.shield }}.sol \
+            --contract Echidna${{ matrix.shield }} \
+            --config echidna-shield-${{ matrix.shield }}.yaml \
+            2>&1 | tee echidna-${{ matrix.shield }}-output.log
+        env:
+          FOUNDRY_PROFILE: default
+
+      - name: Upload Echidna logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: echidna-${{ matrix.shield }}-output
+          path: echidna-${{ matrix.shield }}-output.log
+          retention-days: 30
+
+      - name: Upload corpus
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: echidna-${{ matrix.shield }}-corpus
+          path: corpus/shields/${{ matrix.shield }}/
           retention-days: 30

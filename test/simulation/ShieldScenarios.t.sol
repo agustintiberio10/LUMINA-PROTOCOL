@@ -3,13 +3,11 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../../src/products/FlashBTCShield1h.sol";
-import "../../src/products/FlashBTCShield4h.sol";
 import "../../src/products/FlashBTCShield24h.sol";
 import "../../src/products/FlashBTCShield48h.sol";
 import "../../src/products/FlashETHShield1h.sol";
 import "../../src/products/FlashETHShield24h.sol";
 import "../../src/products/FlashETHShield48h.sol";
-import "../../src/products/MicroDepegShield.sol";
 import "../../src/products/RateShockShield.sol";
 import "../../src/products/BaseShield.sol";
 import "../../src/core/CoverRouterV2.sol";
@@ -136,13 +134,11 @@ contract ShieldScenariosTest is Test {
 
     // ═══════ SHIELDS ═══════
     FlashBTCShield1h btc1h;
-    FlashBTCShield4h btc4h;
     FlashBTCShield24h btc24h;
     FlashBTCShield48h btc48h;
     FlashETHShield1h eth1h;
     FlashETHShield24h eth24h;
     FlashETHShield48h eth48h;
-    MicroDepegShield microDepeg;
     RateShockShield rateShock;
 
     // ═══════ CONSTANTS ═══════
@@ -210,41 +206,35 @@ contract ShieldScenariosTest is Test {
         // Wire PolicyManager -> Router
         policyManager.setRouter(address(coverRouter));
 
-        // Deploy all 9 shields (router_ = policyManager per H-1 pattern)
+        // Deploy all 7 shields (router_ = policyManager per H-1 pattern)
         address pm = address(policyManager);
         address orc = address(oracle);
 
         btc1h = ProxyDeployer.deployFlashBTCShield1h(pm, orc);
-        btc4h = ProxyDeployer.deployFlashBTCShield4h(pm, orc);
         btc24h = ProxyDeployer.deployFlashBTCShield24h(pm, orc);
         btc48h = ProxyDeployer.deployFlashBTCShield48h(pm, orc);
         eth1h = ProxyDeployer.deployFlashETHShield1h(pm, orc);
         eth24h = ProxyDeployer.deployFlashETHShield24h(pm, orc);
         eth48h = ProxyDeployer.deployFlashETHShield48h(pm, orc);
-        microDepeg = ProxyDeployer.deployMicroDepegShield(pm, orc);
         rateShock = ProxyDeployer.deployRateShockShield(pm, orc, address(aavePool), address(usdc));
 
         // Register all shields in PolicyManager
         policyManager.registerProduct(keccak256("FLASHBTC1H-001"), address(btc1h));
-        policyManager.registerProduct(keccak256("FLASHBTC4H-001"), address(btc4h));
         policyManager.registerProduct(keccak256("FLASHBTC24-001"), address(btc24h));
         policyManager.registerProduct(keccak256("FLASHBTC48-001"), address(btc48h));
         policyManager.registerProduct(keccak256("FLASHETH1H-001"), address(eth1h));
         policyManager.registerProduct(keccak256("FLASHETH24-001"), address(eth24h));
         policyManager.registerProduct(keccak256("FLASHETH48-001"), address(eth48h));
-        policyManager.registerProduct(keccak256("MICRODEPEG-001"), address(microDepeg));
         policyManager.registerProduct(keccak256("RATESHOCK-001"), address(rateShock));
 
         // Configure products in CoverRouter (pricing params)
         // payoutRatioBps=8000, triggerProbBps varies, marginBps=15000
         coverRouter.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 20, 15000, 3600, true);
-        coverRouter.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 30, 15000, 14400, true);
         coverRouter.configureProduct(keccak256("FLASHBTC24-001"), 8000, 50, 15000, 86400, true);
         coverRouter.configureProduct(keccak256("FLASHBTC48-001"), 8000, 70, 15000, 172800, true);
         coverRouter.configureProduct(keccak256("FLASHETH1H-001"), 8000, 25, 15000, 3600, true);
         coverRouter.configureProduct(keccak256("FLASHETH24-001"), 8000, 60, 15000, 86400, true);
         coverRouter.configureProduct(keccak256("FLASHETH48-001"), 8000, 80, 15000, 172800, true);
-        coverRouter.configureProduct(keccak256("MICRODEPEG-001"), 8000, 15, 15000, 604800, true);
         coverRouter.configureProduct(keccak256("RATESHOCK-001"), 8000, 10, 15000, 604800, true);
 
         // Fund BUYER with USDC for purchases
@@ -263,7 +253,7 @@ contract ShieldScenariosTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  PART 1A: NO TRIGGER — POLICY EXPIRES (9 tests)
+    //  PART 1A: NO TRIGGER — POLICY EXPIRES (8 tests)
     // ═══════════════════════════════════════════════════════════
 
     function test_Shield_FlashBTC1h_NoTrigger_Expires() public {
@@ -272,13 +262,6 @@ contract ShieldScenariosTest is Test {
         vm.warp(block.timestamp + 3600 + 24 hours + 1);
         btc1h.checkAndSettlePolicy(pid);
         assertEq(uint8(btc1h.getPolicyStatus(pid)), uint8(IShield.PolicyStatus.EXPIRED));
-    }
-
-    function test_Shield_FlashBTC4h_NoTrigger_Expires() public {
-        uint256 pid = _createPolicy(keccak256("FLASHBTC4H-001"), "BTC");
-        vm.warp(block.timestamp + 14400 + 24 hours + 1);
-        btc4h.checkAndSettlePolicy(pid);
-        assertEq(uint8(btc4h.getPolicyStatus(pid)), uint8(IShield.PolicyStatus.EXPIRED));
     }
 
     function test_Shield_FlashBTC24h_NoTrigger_Expires() public {
@@ -316,13 +299,6 @@ contract ShieldScenariosTest is Test {
         assertEq(uint8(eth48h.getPolicyStatus(pid)), uint8(IShield.PolicyStatus.EXPIRED));
     }
 
-    function test_Shield_MicroDepeg_NoTrigger_Expires() public {
-        uint256 pid = _createPolicy(keccak256("MICRODEPEG-001"), "USDT");
-        vm.warp(block.timestamp + 604800 + 24 hours + 1);
-        microDepeg.checkAndSettlePolicy(pid);
-        assertEq(uint8(microDepeg.getPolicyStatus(pid)), uint8(IShield.PolicyStatus.EXPIRED));
-    }
-
     function test_Shield_RateShock_NoTrigger_Expires() public {
         uint256 pid = _createPolicy(keccak256("RATESHOCK-001"), "USDC");
         vm.warp(block.timestamp + 604800 + 24 hours + 1);
@@ -331,7 +307,7 @@ contract ShieldScenariosTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  PART 1B: TRIGGERED — POLICY PAID OUT (9 tests)
+    //  PART 1B: TRIGGERED — POLICY PAID OUT (8 tests)
     // ═══════════════════════════════════════════════════════════
 
     function test_Shield_FlashBTC1h_Triggered_PaidOut() public {
@@ -341,15 +317,6 @@ contract ShieldScenariosTest is Test {
         vm.warp(block.timestamp + 3600 + 24 hours + 1);
         btc1h.checkAndSettlePolicy(pid);
         assertEq(uint8(btc1h.getPolicyStatus(pid)), uint8(IShield.PolicyStatus.PAID_OUT));
-    }
-
-    function test_Shield_FlashBTC4h_Triggered_PaidOut() public {
-        uint256 pid = _createPolicy(keccak256("FLASHBTC4H-001"), "BTC");
-        // Drop BTC >8%: 60000 * 0.91 = 54600 (below 92% trigger)
-        oracle.setPrice("BTC", 54_000_0000_0000); // $54,000
-        vm.warp(block.timestamp + 14400 + 24 hours + 1);
-        btc4h.checkAndSettlePolicy(pid);
-        assertEq(uint8(btc4h.getPolicyStatus(pid)), uint8(IShield.PolicyStatus.PAID_OUT));
     }
 
     function test_Shield_FlashBTC24h_Triggered_PaidOut() public {
@@ -397,15 +364,6 @@ contract ShieldScenariosTest is Test {
         assertEq(uint8(eth48h.getPolicyStatus(pid)), uint8(IShield.PolicyStatus.PAID_OUT));
     }
 
-    function test_Shield_MicroDepeg_Triggered_PaidOut() public {
-        uint256 pid = _createPolicy(keccak256("MICRODEPEG-001"), "USDT");
-        // Set USDT below $0.995 (Chainlink 8 dec: < 99_500_000)
-        oracle.setPrice("USDT", 99_000_000); // $0.990
-        vm.warp(block.timestamp + 604800 + 24 hours + 1);
-        microDepeg.checkAndSettlePolicy(pid);
-        assertEq(uint8(microDepeg.getPolicyStatus(pid)), uint8(IShield.PolicyStatus.PAID_OUT));
-    }
-
     function test_Shield_RateShock_Triggered_PaidOut() public {
         uint256 pid = _createPolicy(keccak256("RATESHOCK-001"), "USDC");
         // Set borrow rate above 10% APY (10e25 in RAY)
@@ -416,31 +374,29 @@ contract ShieldScenariosTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  PART 2: PREMIUM MATRIX — 9 shields x 5 coverage levels
-    // ════════��══════════════════════════════════════════════════
+    //  PART 2: PREMIUM MATRIX — 7 shields x 5 coverage levels
+    // ═══════════════════════════════════════════════════════════
 
-    function test_PremiumMatrix_All9Shields_5Coverages() public view {
-        bytes32[9] memory productIds = [
+    function test_PremiumMatrix_All7Shields_5Coverages() public view {
+        bytes32[7] memory productIds = [
             keccak256("FLASHBTC1H-001"),
-            keccak256("FLASHBTC4H-001"),
             keccak256("FLASHBTC24-001"),
             keccak256("FLASHBTC48-001"),
             keccak256("FLASHETH1H-001"),
             keccak256("FLASHETH24-001"),
             keccak256("FLASHETH48-001"),
-            keccak256("MICRODEPEG-001"),
             keccak256("RATESHOCK-001")
         ];
 
         // triggerProbBps per product (from configureProduct calls in setUp)
-        uint256[9] memory triggerProbs = [uint256(20), 30, 50, 70, 25, 60, 80, 15, 10];
+        uint256[7] memory triggerProbs = [uint256(20), 50, 70, 25, 60, 80, 10];
         // All products share: payoutRatioBps=8000, marginBps=15000
         uint256 payoutRatioBps = 8000;
         uint256 marginBps = 15000;
 
         uint256[5] memory coverages = [uint256(100e6), 1000e6, 10_000e6, 100_000e6, 1_000_000e6];
 
-        for (uint256 i = 0; i < 9; i++) {
+        for (uint256 i = 0; i < 7; i++) {
             for (uint256 j = 0; j < 5; j++) {
                 (uint256 premium, uint256 payout) = coverRouter.quotePremium(productIds[i], coverages[j]);
 

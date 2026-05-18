@@ -154,16 +154,14 @@ contract CoverRouterV2Test is Test {
     }
 
     function test_configureAllProducts() public {
-        router.configureProduct(keccak256("FLASHBTC4H-001"), 8000, 35, 15000, 14400, true);
         router.configureProduct(keccak256("FLASHBTC24-001"), 8000, 150, 15000, 86400, true);
         router.configureProduct(keccak256("FLASHBTC48-001"), 8000, 80, 15000, 172800, true);
         router.configureProduct(keccak256("FLASHETH1H-001"), 8000, 25, 15000, 3600, true);
         router.configureProduct(keccak256("FLASHETH24-001"), 8000, 200, 15000, 86400, true);
         router.configureProduct(keccak256("FLASHETH48-001"), 8000, 90, 15000, 172800, true);
-        router.configureProduct(keccak256("MICRODEPEG-001"), 8000, 350, 15000, 604800, true);
         router.configureProduct(keccak256("RATESHOCK-001"), 8000, 400, 15000, 604800, true);
 
-        assertEq(router.getProductCount(), 9);
+        assertEq(router.getProductCount(), 7);
     }
 
     function test_cannot_initialize_twice() public {

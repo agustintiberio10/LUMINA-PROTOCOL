@@ -5,13 +5,11 @@ import "forge-std/Test.sol";
 import {ProxyDeployer} from "../../../helpers/ProxyDeployer.sol";
 
 import {FlashBTCShield1h} from "../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {IShield} from "../../../../src/interfaces/IShield.sol";
 import {IOracle} from "../../../../src/interfaces/IOracle.sol";
 
@@ -86,10 +84,6 @@ contract ChainlinkFailures is Test {
         return ProxyDeployer.deployFlashBTCShield1h(address(this), address(oracle));
     }
 
-    function _btc4h() internal returns (FlashBTCShield4h) {
-        return ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-    }
-
     function _btc24h() internal returns (FlashBTCShield24h) {
         return ProxyDeployer.deployFlashBTCShield24h(address(this), address(oracle));
     }
@@ -110,10 +104,6 @@ contract ChainlinkFailures is Test {
         return ProxyDeployer.deployFlashETHShield48h(address(this), address(oracle));
     }
 
-    function _micro() internal returns (MicroDepegShield) {
-        return ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-    }
-
     function _params(uint32 d, bytes32 a) internal returns (IShield.CreatePolicyParams memory p) {
         p.buyer = makeAddr("b");
         p.coverageAmount = 1000e6;
@@ -130,13 +120,6 @@ contract ChainlinkFailures is Test {
         FlashBTCShield1h s = _btc1h();
         vm.expectRevert();
         s.createPolicy(_params(3600, "BTC"));
-    }
-
-    function test_Chainlink_FlashBTC4h_PriceZero_CreatePolicy_Reverts() public {
-        oracle.setPrice("BTC", 0);
-        FlashBTCShield4h s = _btc4h();
-        vm.expectRevert();
-        s.createPolicy(_params(14400, "BTC"));
     }
 
     function test_Chainlink_FlashBTC24h_PriceZero_CreatePolicy_Reverts() public {
@@ -290,14 +273,6 @@ contract ChainlinkFailures is Test {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // MicroDepegShield has a fixed TRIGGER_PRICE constant
-    // ─────────────────────────────────────────────────────────────
-    function test_Chainlink_MicroDepeg_TriggerPriceIsConstant() public {
-        MicroDepegShield s = _micro();
-        assertEq(s.TRIGGER_PRICE(), 99_500_000); // $0.995 in 8-dec
-    }
-
-    // ─────────────────────────────────────────────────────────────
     // Oracle key is the authorized signer
     // ─────────────────────────────────────────────────────────────
     function test_Chainlink_Oracle_OracleKey_Readable() public {
@@ -316,19 +291,16 @@ contract ChainlinkFailures is Test {
     // ─────────────────────────────────────────────────────────────
     function test_Chainlink_AllBTCShields_ReadSameFeedConsistently() public {
         FlashBTCShield1h s1 = _btc1h();
-        FlashBTCShield4h s2 = _btc4h();
-        FlashBTCShield24h s3 = _btc24h();
-        FlashBTCShield48h s4 = _btc48h();
+        FlashBTCShield24h s2 = _btc24h();
+        FlashBTCShield48h s3 = _btc48h();
 
         uint256 p1 = s1.createPolicy(_params(3600, "BTC"));
-        uint256 p2 = s2.createPolicy(_params(14400, "BTC"));
-        uint256 p3 = s3.createPolicy(_params(86400, "BTC"));
-        uint256 p4 = s4.createPolicy(_params(172800, "BTC"));
+        uint256 p2 = s2.createPolicy(_params(86400, "BTC"));
+        uint256 p3 = s3.createPolicy(_params(172800, "BTC"));
 
         assertEq(s1.getBSSData(p1).strikePrice, 60_000e8);
         assertEq(s2.getBSSData(p2).strikePrice, 60_000e8);
         assertEq(s3.getBSSData(p3).strikePrice, 60_000e8);
-        assertEq(s4.getBSSData(p4).strikePrice, 60_000e8);
     }
 
     function test_Chainlink_AllETHShields_ReadSameFeedConsistently() public {
@@ -343,16 +315,6 @@ contract ChainlinkFailures is Test {
         assertEq(s1.getBSSData(p1).strikePrice, 3_000e8);
         assertEq(s2.getBSSData(p2).strikePrice, 3_000e8);
         assertEq(s3.getBSSData(p3).strikePrice, 3_000e8);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // MicroDepeg oracle read path — uses same IOracle interface
-    // ─────────────────────────────────────────────────────────────
-    function test_Chainlink_MicroDepeg_AcceptsValidUSDTOracle() public {
-        MicroDepegShield s = _micro();
-        // Oracle is set in constructor; we can query its state through the
-        // shield.
-        assertEq(s.oracle(), address(oracle));
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -374,7 +336,6 @@ contract ChainlinkFailures is Test {
         // Pre-deploy all shields BEFORE zeroing the price so that their
         // constructors/initializers don't hit the zero read.
         FlashBTCShield1h btc1 = _btc1h();
-        FlashBTCShield4h btc4 = _btc4h();
         FlashBTCShield24h btc24 = _btc24h();
         FlashBTCShield48h btc48 = _btc48h();
         FlashETHShield1h eth1 = _eth1h();
@@ -386,7 +347,6 @@ contract ChainlinkFailures is Test {
 
         // Pre-build calldata params once so vm.expectRevert applies cleanly.
         IShield.CreatePolicyParams memory pBTC1 = _params(3600, "BTC");
-        IShield.CreatePolicyParams memory pBTC4 = _params(14400, "BTC");
         IShield.CreatePolicyParams memory pBTC24 = _params(86400, "BTC");
         IShield.CreatePolicyParams memory pBTC48 = _params(172800, "BTC");
         IShield.CreatePolicyParams memory pETH1 = _params(3600, "ETH");
@@ -395,8 +355,6 @@ contract ChainlinkFailures is Test {
 
         vm.expectRevert();
         btc1.createPolicy(pBTC1);
-        vm.expectRevert();
-        btc4.createPolicy(pBTC4);
         vm.expectRevert();
         btc24.createPolicy(pBTC24);
         vm.expectRevert();

@@ -5,13 +5,11 @@ import "forge-std/Test.sol";
 import {ProxyDeployer} from "../../../helpers/ProxyDeployer.sol";
 
 import {FlashBTCShield1h} from "../../../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield4h} from "../../../../src/products/FlashBTCShield4h.sol";
 import {FlashBTCShield24h} from "../../../../src/products/FlashBTCShield24h.sol";
 import {FlashBTCShield48h} from "../../../../src/products/FlashBTCShield48h.sol";
 import {FlashETHShield1h} from "../../../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../../../src/products/FlashETHShield48h.sol";
-import {MicroDepegShield} from "../../../../src/products/MicroDepegShield.sol";
 import {RateShockShield} from "../../../../src/products/RateShockShield.sol";
 import {IShield} from "../../../../src/interfaces/IShield.sol";
 
@@ -25,7 +23,7 @@ contract MockOracleShieldE2E {
 
 /**
  * @title UpgradePathE2EShields
- * @notice E2E upgrade tests for the 9 concrete Shield products.
+ * @notice E2E upgrade tests for the 7 concrete Shield products.
  *
  * Each shield:
  *   (A) Deploy V1, createPolicy × 2, upgrade, verify state + create more policies
@@ -81,32 +79,6 @@ contract UpgradePathE2EShields is Test {
         uint256 pid = s.createPolicy(_p(3600, "BTC"));
         FlashBTCShield1h.BSSData memory data = s.getBSSData(pid);
         assertGt(data.strikePrice, 0);
-        assertEq(s.totalPolicies(), 1);
-    }
-
-    // FlashBTCShield4h
-    function test_UpgradeE2E_FlashBTCShield4h_WithActiveState() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        s.createPolicy(_p(14400, "BTC"));
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        s.createPolicy(_p(14400, "BTC"));
-        assertEq(s.totalPolicies(), 2);
-    }
-
-    function test_UpgradeE2E_FlashBTCShield4h_SequentialUpgrades() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        s.createPolicy(_p(14400, "BTC"));
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        s.createPolicy(_p(14400, "BTC"));
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        s.createPolicy(_p(14400, "BTC"));
-        assertEq(s.totalPolicies(), 3);
-    }
-
-    function test_UpgradeE2E_FlashBTCShield4h_PostUpgradeOperationsWork() public {
-        FlashBTCShield4h s = ProxyDeployer.deployFlashBTCShield4h(address(this), address(oracle));
-        s.upgradeToAndCall(address(new FlashBTCShield4h()), "");
-        s.createPolicy(_p(14400, "BTC"));
         assertEq(s.totalPolicies(), 1);
     }
 
@@ -231,30 +203,6 @@ contract UpgradePathE2EShields is Test {
         s.upgradeToAndCall(address(new FlashETHShield48h()), "");
         s.createPolicy(_p(172800, "ETH"));
         assertEq(s.totalPolicies(), 1);
-    }
-
-    // MicroDepegShield — createPolicy requires specific stablecoin params;
-    // kept simpler — config preservation + upgrade.
-    function test_UpgradeE2E_MicroDepegShield_WithActiveState() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        assertEq(s.router(), address(this));
-        assertEq(s.oracle(), address(oracle));
-    }
-
-    function test_UpgradeE2E_MicroDepegShield_SequentialUpgrades() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        assertEq(s.router(), address(this));
-    }
-
-    function test_UpgradeE2E_MicroDepegShield_PostUpgradeOperationsWork() public {
-        MicroDepegShield s = ProxyDeployer.deployMicroDepegShield(address(this), address(oracle));
-        s.upgradeToAndCall(address(new MicroDepegShield()), "");
-        assertEq(s.owner(), address(this));
-        assertEq(s.totalPolicies(), 0);
     }
 
     // RateShockShield
