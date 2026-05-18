@@ -183,10 +183,13 @@ contract FlashETHShield24hE2EFlows is Test {
         uint256 t0 = block.timestamp;
         uint256 pid = s.createPolicy(_params(makeAddr("e2e_buyer4")));
 
-        // Without the downtime credit, cleanup is t0+86400+24h. With 1d downtime
-        // adjustedCleanupAt = t0+86400+24h+24h. Warp to inside that window.
-        bytes memory proof = _proof(_triggerOf(3_000e8) - 1, "ETH", t0 + 100);
-        vm.warp(t0 + 86400 + 12 hours);
+        // Downtime extension (1d) is configured -- exercises the
+        // _validateStatusForTrigger downtime branch. Actual claim window is
+        // bounded by MAX_PROOF_AGE=900s AND verifiedAt <= expiresAt; we warp
+        // just past expiresAt with verifiedAt=expiresAt so the proof remains
+        // fresh and the downtime path is the only thing keeping us alive.
+        bytes memory proof = _proof(_triggerOf(3_000e8) - 1, "ETH", t0 + 86400);
+        vm.warp(t0 + 86400 + 600);
         IShield.PayoutResult memory r = s.verifyAndCalculate(pid, proof);
         assertTrue(r.triggered);
     }

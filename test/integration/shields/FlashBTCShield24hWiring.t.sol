@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {FlashBTCShield24h} from "../../../src/products/FlashBTCShield24h.sol";
 import {IShield} from "../../../src/interfaces/IShield.sol";
 import {IOracle} from "../../../src/interfaces/IOracle.sol";
@@ -121,10 +122,19 @@ contract FlashBTCShield24hWiring is Test {
     function test_W8_Wiring_RejectsZeroRouter() public requiresFork {
         // Attempting to deploy with router=address(0) must revert with
         // ZeroAddress("router"). Same guard applies for oracle=address(0).
-        vm.expectRevert();
-        ProxyDeployer.deployFlashBTCShield24h(address(0), ORACLE_SET_A);
+        // Deploy the impl outside expectRevert so the cheatcode binds to the
+        // ERC1967Proxy CREATE (which runs initialize and reverts), not to the
+        // unrelated impl deployment that always succeeds.
+        FlashBTCShield24h impl = new FlashBTCShield24h();
 
         vm.expectRevert();
-        ProxyDeployer.deployFlashBTCShield24h(router, address(0));
+        new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, address(0), ORACLE_SET_A)
+        );
+
+        vm.expectRevert();
+        new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, router, address(0))
+        );
     }
 }

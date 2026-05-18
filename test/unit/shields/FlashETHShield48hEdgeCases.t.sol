@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {FlashETHShield48h} from "../../../src/products/FlashETHShield48h.sol";
 import {BaseShield} from "../../../src/products/BaseShield.sol";
 import {IShield} from "../../../src/interfaces/IShield.sol";
@@ -222,8 +223,14 @@ contract FlashETHShield48hEdgeCases is Test {
     }
 
     function test_TINIT_06_ZeroOracle_AtInit_Reverts() public {
+        // Deploy the impl outside expectRevert so the cheatcode binds to the
+        // ERC1967Proxy CREATE (which runs initialize and reverts on zero oracle),
+        // not the unrelated impl deployment that always succeeds.
+        FlashETHShield48h impl = new FlashETHShield48h();
         vm.expectRevert();
-        ProxyDeployer.deployFlashETHShield48h(router, address(0));
+        new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(FlashETHShield48h.initialize.selector, router, address(0))
+        );
     }
 
     // =========================================================================

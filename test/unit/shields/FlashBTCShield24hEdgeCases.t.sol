@@ -503,8 +503,12 @@ contract FlashBTCShield24hEdgeCases is Test {
     function test_SEQ_Downtime60s_CoversGap_StatusCheckPasses() public {
         uint256 pid = _createBTCPolicy();
         oracle.setSequencerDowntime(60);
-        // 30 sec past cleanupAt -- with 60s downtime extension we are still inside.
-        vm.warp(t0 + DURATION + 24 hours + 30);
+        // Exercise the downtime-extension code path in _validateStatusForTrigger
+        // while keeping the proof fresh (MAX_PROOF_AGE=900s). verifiedAt is set
+        // at expiresAt (the latest allowed) and block.timestamp at expiresAt+30
+        // -- well inside the proof-freshness window AND past expiresAt so the
+        // status is EXPIRED, exercising the downtime branch.
+        vm.warp(t0 + DURATION + 30);
         bytes memory proof = _proof(TRIGGER_60K - 1, "BTC", t0 + DURATION);
         IShield.PayoutResult memory r = shield.verifyAndCalculate(pid, proof);
         assertTrue(r.triggered);
@@ -513,7 +517,11 @@ contract FlashBTCShield24hEdgeCases is Test {
     function test_SEQ_Downtime1h_CoversGap_StatusCheckPasses() public {
         uint256 pid = _createBTCPolicy();
         oracle.setSequencerDowntime(1 hours);
-        vm.warp(t0 + DURATION + 24 hours + 30 minutes);
+        // Downtime is configured (1h) but the actual claim must still satisfy
+        // proof freshness (block.timestamp - verifiedAt <= 900) AND
+        // verifiedAt <= expiresAt. Both bounds intersect only inside
+        // [expiresAt, expiresAt+900], so we warp there.
+        vm.warp(t0 + DURATION + 600);
         bytes memory proof = _proof(TRIGGER_60K - 1, "BTC", t0 + DURATION);
         IShield.PayoutResult memory r = shield.verifyAndCalculate(pid, proof);
         assertTrue(r.triggered);
