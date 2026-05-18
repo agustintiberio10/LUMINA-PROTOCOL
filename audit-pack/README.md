@@ -1,6 +1,6 @@
 # Audit Pack — Lumina V5.1
 
-**Última actualización**: 2026-05-18 (Sprint DD)
+**Última actualización**: 2026-05-18 (Sprint Deploy)
 **Status**: ACTIVO — documento vivo, se actualiza en cada sprint
 
 ## Propósito
@@ -63,7 +63,8 @@ Cada sprint que toque el audit-pack debe:
 - **18 tests fork Sepolia** con `LuminaOracleV2 SET A` real (`0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194`).
 - **50 stress tests** adversariales (económicos / técnicos / timing / multi-shield).
 - **14 workflows CI** activos en cada push (Aderyn, Mythril, Slither vía CI step, Halmos, Echidna matrix de 8 contratos, Coverage, Gas Snapshot, build + test + fmt).
-- **ADRs 010-026** documentando 17 decisiones arquitectónicas.
+- **ADRs 010-027** documentando 18 decisiones arquitectónicas.
+- **Sprint Deploy V5.2 ejecutado** 2026-05-18: 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS, 0.000302 ETH gastados (~$1). Manifest en tracker PR #28.
 
 ### Pendiente ⏳ (12 items abiertos)
 
@@ -82,4 +83,5 @@ Cada sprint que toque el audit-pack debe:
 
 ## Changelog del audit-pack
 
+- **2026-05-18 (Sprint Deploy)**: agregada Sección 10 a `what-we-tested.md` con verificación on-chain post-deploy V5.2 (16/16 checks PASS, 26 contratos deployados a Base Sepolia). Manifest completo en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Snapshot del estado al cierre de Sprint EE-FIX.

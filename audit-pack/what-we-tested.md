@@ -218,6 +218,67 @@ Sprint Z.2 + FV + EE modificaron `script/deploy/DeployLuminaV5Complete.s.sol` y 
 
 ---
 
+## 10. Verificación on-chain post-deploy V5.2 (Sprint Deploy)
+
+**Fecha**: 2026-05-18
+**Chain**: Base Sepolia (84532)
+**Deploy script**: `script/deploy/DeployLuminaV5Complete.s.sol`
+**26 contratos deployados**. Manifest completo en `lumina-testnet-tracker` PR #28: `tracking/sepolia-deployments/2026-05-18-V5.2-fresh-deploy.md`.
+
+### 10.1 Pre-flight checks
+
+| Check | Resultado |
+|---|---|
+| Chain ID == 84532 | ✅ |
+| Deployer balance > 0.05 ETH | ✅ 0.159 ETH |
+| L476-477 invariants intactas (3 `require(...)` activos) | ✅ |
+| 0 executable revoke pattern en deploy script | ✅ |
+| `forge build --skip test` | ✅ 201 artefactos |
+| Dry-run simulation | ✅ |
+
+### 10.2 Phase B broadcast
+
+- Status: `ONCHAIN EXECUTION COMPLETE & SUCCESSFUL`.
+- 85 txs en bloques 41,680,281 — 41,680,365.
+- Gas total: 0.000302 ETH (~$1 USD).
+- 26 contratos (15 UUPS + 2 inmutables + 7 shields + AerodromeAdapter skipped + 2 implementation contracts no-proxy).
+
+### 10.3 Phase C verificación on-chain (16 checks, ALL PASS)
+
+| Check | Resultado |
+|---|---|
+| `LUMINA_TOKEN.hasRole(DEFAULT_ADMIN_ROLE, founder)` | ✅ TRUE |
+| `BOND_VAULT.hasRole(DEFAULT_ADMIN_ROLE, founder)` | ✅ TRUE |
+| `SOLVENCY_ORACLE.hasRole(DEFAULT_ADMIN_ROLE, founder)` | ✅ TRUE |
+| Ownership founder en TWAP/CR/PM/CO/FV/TV/CB/OracleV2/UNI/SK (10 contratos) | ✅ todos = founder |
+| `FounderVesting.oracle() == LuminaOracleV2` (no CapacityOracle) | ✅ — fix ADR-025 verificado en producción |
+| `FounderVesting.luminaToken() == LuminaTokenV2` | ✅ |
+| `FounderVesting.recipient() == founder` | ✅ |
+| `FounderVesting.SUSTAINED_DURATION() == 86400` (1 día) | ✅ |
+| `FounderVesting.FALLBACK_DURATION() == 94608000` (1095 días) | ✅ |
+| `FounderVesting.ETH_OVERRIDE_THRESHOLD() == 500000000000` ($5,000) | ✅ |
+| `LUMINA.totalSupply() == 100M` | ✅ |
+| BondVault balance == 70M LUMINA | ✅ |
+| CEXLiquidityReserve balance == 14M | ✅ |
+| FounderVesting balance == 8M | ✅ |
+| Founder wallet balance == 5M (LBP) | ✅ |
+| TreasuryVesting balance == 3M | ✅ |
+| 7 shields registered con product IDs correctos en PolicyManagerV2 | ✅ |
+
+### 10.4 Address snapshot (resumen)
+
+- **LuminaTokenV2**: `0x62C0b58bB30CA857674ec593F1e23B3F15266680`
+- **BondVault**: `0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC`
+- **PolicyManagerV2**: `0x546C07e07DeBCdbf7a2A7Ef12C38c8c8fcAFcDd8`
+- **CoverRouterV2**: `0xcdB70B40e6a3DEac3189185d947A0e458518F566`
+- **LuminaOracleV2** (SET B fresh): `0x9bfa2f7A5098C89b8740D1694d1f716A0Bd871dD`
+- **FounderVesting V2**: `0xfF4Db529bBCd4E3CC091E07b7845241EB4762832`
+
+> Tabla completa de 26 addresses + tx hashes + bloques en tracker manifest PR #28.
+
+---
+
 ## Changelog
 
+- **2026-05-18 (Sprint Deploy)**: agregada Sección 10 con verificación on-chain post-deploy V5.2. 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS. Manifest en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Refleja el estado al cierre de Sprint EE-FIX (PR #130 mergeado a `main` el 2026-05-18 17:04 UTC).
