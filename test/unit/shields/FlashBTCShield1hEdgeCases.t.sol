@@ -362,13 +362,16 @@ contract MockOracle is IOracleV2 {
         function test_WIN_TriggerBeforeStart_Reverts() public {
             // FlashBTCShield1h has WAITING_PERIOD=0, so "before start" requires us
             // to set verifiedAt strictly less than cp.waitingEndsAt. waitingEndsAt
-            // == startTimestamp. We pick verifiedAt = startTs - 1.
+            // == startTimestamp. We pick verifiedAt = waitingEndsAt - 1.
+            // NOTE: via_ir inlines local timestamp captures, so we read
+            // waitingEndsAt from the policy (storage-backed) to keep the value
+            // stable across vm.warp.
             uint256 pid = _createPolicy();
-            uint256 t0 = block.timestamp;
+            uint256 waitingEndsAt = shield.getPolicyInfo(pid).waitingEndsAt;
             // Move forward so we can set verifiedAt in the past safely.
-            vm.warp(t0 + 100);
+            vm.warp(waitingEndsAt + 100);
             int256 droppedPrice = (BTC_PRICE_OK * 94) / 100;
-            bytes memory proof = _encodeProof(droppedPrice, "BTC", t0 - 1);
+            bytes memory proof = _encodeProof(droppedPrice, "BTC", waitingEndsAt - 1);
 
             vm.prank(router);
             vm.expectRevert();

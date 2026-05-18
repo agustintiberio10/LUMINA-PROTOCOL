@@ -204,11 +204,12 @@ contract FlashBTCShield48hE2EFlows is Test {
         _mockSequencerDowntime(1 hours);
 
         FlashBTCShield48h shield = _deployShield();
-        uint256 t0 = block.timestamp;
         uint256 pid = shield.createPolicy(_params(buyer));
 
-        vm.warp(t0 + DURATION + 600);
-        bytes memory pr = _proof(BTC_TRIGGER - 1, ASSET_BTC, t0 + DURATION);
+        // Read expiresAt from policy storage (stable across vm.warp under via_ir).
+        uint256 expiresAt = shield.getPolicyInfo(pid).expiresAt;
+        vm.warp(expiresAt + 600);
+        bytes memory pr = _proof(BTC_TRIGGER - 1, ASSET_BTC, expiresAt);
         IShield.PayoutResult memory r = shield.verifyAndCalculate(pid, pr);
         assertTrue(r.triggered, "downtime extension code path runs");
     }

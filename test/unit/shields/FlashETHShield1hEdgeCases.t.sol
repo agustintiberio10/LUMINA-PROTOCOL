@@ -174,10 +174,12 @@ contract FlashETHShield1hEdgeCases is Test {
     function test_WIN_01_RevertsWhenProofTooOld() public {
         uint256 pid = _create();
         oracle.setSignerOk(true);
-        uint256 t0 = block.timestamp;
-        // verifiedAt = t0, jump 901s later -> stale
-        vm.warp(t0 + MAX_PROOF_AGE + 1);
-        bytes memory proof = _proof(int256(ETH_OK) * 90 / 100, "ETH", t0);
+        // verifiedAt = waitingEndsAt (block.timestamp at create); jump 901s later -> stale.
+        // Read from policy storage so via_ir cannot inline t0 = block.timestamp
+        // and re-read it after the warp.
+        uint256 verifiedAt = shield.getPolicyInfo(pid).waitingEndsAt;
+        vm.warp(verifiedAt + MAX_PROOF_AGE + 1);
+        bytes memory proof = _proof(int256(ETH_OK) * 90 / 100, "ETH", verifiedAt);
         vm.expectRevert();
         shield.verifyAndCalculate(pid, proof);
     }
@@ -197,12 +199,16 @@ contract FlashETHShield1hEdgeCases is Test {
     function test_WIN_03_VerifiedAtBeforeWaitingEnds_Reverts() public {
         // WAITING_PERIOD = 0 so waitingEndsAt = startTimestamp.
         // verifiedAt strictly less than waitingEndsAt triggers EventAfterExpiry.
-        uint256 t0 = block.timestamp;
-        vm.warp(t0 + 100);
+        // NOTE: read waitingEndsAt from policy storage; under via_ir, local
+        // captures of block.timestamp may be re-evaluated after a warp.
         uint256 pid = _create();
         oracle.setSignerOk(true);
-        bytes memory proof = _proof(int256(ETH_OK) * 90 / 100, "ETH", t0 + 50); // < waitingEndsAt = t0+100
-        vm.warp(t0 + 200);
+        uint256 waitingEndsAt = shield.getPolicyInfo(pid).waitingEndsAt;
+        // verifiedAt = waitingEndsAt - 1 (strictly before window opens).
+        // Stay close to waitingEndsAt so proof-freshness (MAX_PROOF_AGE=900s)
+        // doesn't pre-empt the window check.
+        bytes memory proof = _proof(int256(ETH_OK) * 90 / 100, "ETH", waitingEndsAt > 0 ? waitingEndsAt - 1 : 0);
+        vm.warp(waitingEndsAt + 100);
         vm.expectRevert();
         shield.verifyAndCalculate(pid, proof);
     }
@@ -428,12 +434,15 @@ contract FlashETHShield1hEdgeCases is Test {
         // Verify the call path is exercised. Real claim window is bounded by
         // MAX_PROOF_AGE=900s AND verifiedAt <= expiresAt; we warp just past
         // expiresAt with verifiedAt=expiresAt so the proof is fresh.
+        // NOTE: under via_ir local `t0` captures of block.timestamp get
+        // inlined and re-evaluated post-warp; read expiresAt from policy
+        // storage so the value is stable.
         oracle.setDowntime(2 hours);
-        uint256 t0 = block.timestamp;
         uint256 pid = _create();
         oracle.setSignerOk(true);
-        vm.warp(t0 + DURATION + 600);
-        bytes memory proof = _proof(int256(ETH_OK) * 90 / 100, "ETH", t0 + DURATION);
+        uint256 expiresAt = shield.getPolicyInfo(pid).expiresAt;
+        vm.warp(expiresAt + 600);
+        bytes memory proof = _proof(int256(ETH_OK) * 90 / 100, "ETH", expiresAt);
         IShield.PayoutResult memory r = shield.verifyAndCalculate(pid, proof);
         assertTrue(r.triggered);
     }

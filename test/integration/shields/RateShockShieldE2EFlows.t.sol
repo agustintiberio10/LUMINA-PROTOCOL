@@ -258,25 +258,28 @@ contract RateShockShieldE2EFlows is Test {
         (RateShockShield shield,, address router) = _deployShield();
         address buyerA = makeAddr("buyerA");
         address buyerB = makeAddr("buyerB");
-        uint256 t0 = block.timestamp;
 
         _mockAaveRate(uint128(uint256(500) * 1e23));
         vm.prank(router);
         uint256 pidA = shield.createPolicy(_defaultParams(buyerA, 1_000e6));
+        // Capture pidA's expiresAt from policy storage; under via_ir, local
+        // captures of block.timestamp get re-evaluated after vm.warp, which
+        // would corrupt absolute time anchors derived from a single t0.
+        uint256 expiresA = shield.getPolicyInfo(pidA).expiresAt;
 
         // Wait 3 days, create the second policy
-        vm.warp(t0 + 3 days);
+        vm.warp(expiresA - 4 days); // t0 + 3 days (since expiresA = t0 + 7d)
         vm.prank(router);
         uint256 pidB = shield.createPolicy(_defaultParams(buyerB, 2_000e6));
 
         // Spike on day 5 -- policy A still active (expires day 7); policy B still active (expires day 10)
-        vm.warp(t0 + 5 days);
+        vm.warp(expiresA - 2 days); // t0 + 5 days
         _mockAaveRate(uint128(uint256(1500) * 1e23));
         vm.prank(router);
         IShield.PayoutResult memory rA = shield.verifyAndCalculate(pidA, "");
         assertTrue(rA.triggered, "policy A triggers");
 
-        // Markk A as paid out
+        // Mark A as paid out
         vm.prank(router);
         shield.markPaidOut(pidA);
 
@@ -287,7 +290,7 @@ contract RateShockShieldE2EFlows is Test {
         // tests; this test only asserts divergent outcomes (A triggered,
         // B not paid out).
         _mockAaveRate(uint128(uint256(700) * 1e23));
-        vm.warp(t0 + 6 days);
+        vm.warp(expiresA - 1 days); // t0 + 6 days; pidB still active (expires t0+10d)
         vm.prank(router);
         vm.expectRevert();
         shield.verifyAndCalculate(pidB, "");

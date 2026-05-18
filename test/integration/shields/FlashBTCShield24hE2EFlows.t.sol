@@ -181,17 +181,19 @@ contract FlashBTCShield24hE2EFlows is Test {
         _mockEip712Signer(address(0xABCD));
 
         FlashBTCShield24h s = _deployShield();
-        uint256 t0 = block.timestamp;
         uint256 pid = s.createPolicy(_params("BTC"));
 
         // Downtime (2h) is configured to exercise the
         // _validateStatusForTrigger downtime branch. Effective claim window is
         // bounded by MAX_PROOF_AGE=900s AND verifiedAt <= expiresAt; we warp
         // just past expiresAt with verifiedAt=expiresAt to keep the proof fresh.
+        // NOTE: read expiresAt from policy storage to avoid via_ir inlining
+        // block.timestamp across the vm.warp boundary.
+        uint256 expiresAt = s.getPolicyInfo(pid).expiresAt;
         _mockSequencerDowntime(2 hours);
-        vm.warp(t0 + DURATION + 600);
+        vm.warp(expiresAt + 600);
 
-        bytes memory proof = _proof(TRIGGER_60K - 1, "BTC", t0 + DURATION);
+        bytes memory proof = _proof(TRIGGER_60K - 1, "BTC", expiresAt);
         IShield.PayoutResult memory r = s.verifyAndCalculate(pid, proof);
         assertTrue(r.triggered, "Downtime extension preserves trigger eligibility in the proof-freshness window");
     }
@@ -205,10 +207,11 @@ contract FlashBTCShield24hE2EFlows is Test {
         _mockEip712Signer(address(0xABCD));
 
         FlashBTCShield24h s = _deployShield();
-        uint256 t0 = block.timestamp;
         uint256 pid = s.createPolicy(_params("BTC"));
 
-        uint256 verifiedAt = t0;
+        // Pull waitingEndsAt from policy storage (== block.timestamp at create)
+        // to bypass via_ir's block.timestamp inlining of local captures.
+        uint256 verifiedAt = s.getPolicyInfo(pid).waitingEndsAt;
         vm.warp(verifiedAt + MAX_PROOF_AGE + 1); // 1s past freshness
         bytes memory proof = _proof(TRIGGER_60K - 1, "BTC", verifiedAt);
         vm.expectRevert();

@@ -193,12 +193,14 @@ contract FlashETHShield1hE2EFlows is Test {
         _mockPrice(int256(ETH_OK));
         FlashETHShield1h shield = _deployShield();
 
-        uint256 t0 = block.timestamp;
         uint256 pid = shield.createPolicy(_params());
 
+        // Read waitingEndsAt (== block.timestamp at create) from policy storage so
+        // via_ir cannot inline-fold the value across the vm.warp below.
+        uint256 verifiedAt = shield.getPolicyInfo(pid).waitingEndsAt;
         // 15min+1s after verifiedAt -> ProofTooOld
-        vm.warp(t0 + 16 minutes);
-        bytes memory proof = _proof(int256(ETH_OK) * 92 / 100, "ETH", t0);
+        vm.warp(verifiedAt + 16 minutes);
+        bytes memory proof = _proof(int256(ETH_OK) * 92 / 100, "ETH", verifiedAt);
         vm.expectRevert();
         shield.verifyAndCalculate(pid, proof);
     }
