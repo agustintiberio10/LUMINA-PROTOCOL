@@ -1,6 +1,6 @@
 # Audit Pack — Lumina V5.1
 
-**Última actualización**: 2026-05-18 (Sprint Deploy)
+**Última actualización**: 2026-05-20 (Sprint Pricing — multiplicador Lumina derivado desde código)
 **Status**: ACTIVO — documento vivo, se actualiza en cada sprint
 
 ## Propósito
@@ -18,6 +18,7 @@ El audit-pack es la "fuente de verdad" del estado de aseguramiento del protocolo
 |---|---|---|
 | [`what-we-tested.md`](./what-we-tested.md) | Todo lo auditado al día de hoy (9 categorías) | Cada sprint que agregue tests o suba números |
 | [`what-is-pending.md`](./what-is-pending.md) | Lo que NO está cubierto y por qué (12 items abiertos) | Cada sprint que cierre o agregue gaps |
+| [`pricing-7-products-lumina-model.md`](./pricing-7-products-lumina-model.md) | Pricing de los 7 productos del informe Dune con multiplicador derivado desde código. Re-derivación independiente del Sprint V1: ambos métodos convergen a M_Lumina=1.20. Comparación contra externo 1.863 (−27.6% uniforme). Flujo end-to-end por producto | Cada sprint que toque `CoverRouterV2.purchasePolicy`, `payoutRatioBps`, `marginBps`, o split AFD |
 
 ## Política de mantenimiento
 
@@ -83,5 +84,6 @@ Cada sprint que toque el audit-pack debe:
 
 ## Changelog del audit-pack
 
+- **2026-05-20 (Sprint Pricing — multiplicador Lumina desde código)**: agregado `pricing-7-products-lumina-model.md`. Re-derivación independiente: el multiplicador Lumina hardcoded en `CoverRouterV2.sol:204` resulta `0.80 × 1.50 = 1.20`. Coincide con el `1.20` derivado en Sprint V1 desde first principles, validando el modelo por dos caminos independientes. Primas Lumina = $1,200 × PoR. Comparación contra multiplicador externo 1.863: diff uniforme −27.6%. Cross-ref tracker ADR-031.
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 a `what-we-tested.md` con verificación on-chain post-deploy V5.2 (16/16 checks PASS, 26 contratos deployados a Base Sepolia). Manifest completo en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Snapshot del estado al cierre de Sprint EE-FIX.

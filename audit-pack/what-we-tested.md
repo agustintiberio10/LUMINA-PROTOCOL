@@ -280,5 +280,6 @@ Sprint Z.2 + FV + EE modificaron `script/deploy/DeployLuminaV5Complete.s.sol` y 
 
 ## Changelog
 
+- **2026-05-20 (Sprint Pricing — multiplicador desde código)**: pricing de los 7 productos del Dune aplicando multiplicador derivado de la fórmula real del contrato (`CoverRouterV2.sol:204`). Re-derivación independiente: `M_Lumina = payoutRatioBps × marginBps / 10⁸ = 0.80 × 1.50 = 1.20`, idéntico al derivado en Sprint V1 desde first principles. Primas resultantes son −27.6% vs externo 1.863. Ver [`pricing-7-products-lumina-model.md`](./pricing-7-products-lumina-model.md). Cross-ref tracker ADR-031.
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 con verificación on-chain post-deploy V5.2. 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS. Manifest en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Refleja el estado al cierre de Sprint EE-FIX (PR #130 mergeado a `main` el 2026-05-18 17:04 UTC).
