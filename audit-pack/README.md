@@ -1,6 +1,6 @@
 # Audit Pack — Lumina V5.1
 
-**Última actualización**: 2026-05-20 (Sprint Análisis V2 — re-cálculo real)
+**Última actualización**: 2026-05-20 (Sprint Análisis Financiero Productos)
 **Status**: ACTIVO — documento vivo, se actualiza en cada sprint
 
 ## Propósito
@@ -20,6 +20,7 @@ El audit-pack es la "fuente de verdad" del estado de aseguramiento del protocolo
 | [`what-is-pending.md`](./what-is-pending.md) | Lo que NO está cubierto y por qué (12 items abiertos) | Cada sprint que cierre o agregue gaps |
 | [`economic-model-vs-actuary.md`](./economic-model-vs-actuary.md) | Contraste del modelo económico real (on-chain) vs supuestos actuariales externos. Documenta flujo USDC, flujo LUMINA, split AdaptiveFeeDistributor, gap M-1 throttle | Cada sprint que toque CoverRouterV2, TWAPBurner, BondVault o AdaptiveFeeDistributor |
 | [`economic-viability-real-model.md`](./economic-viability-real-model.md) | Re-cálculo de viabilidad económica con el modelo real (Sprint V2). Aplica frecuencias/volúmenes/primas del actuario a buyback-and-burn + BondVault. Quema neta anual por escenario de precio, runway vault, impacto cisne negro. Veredicto viabilidad | Cada sprint que cambie split AFD, volúmenes esperados, o capacidad BondVault |
+| [`financial-analysis-7-products.md`](./financial-analysis-7-products.md) | Pricing de los 7 productos calculado desde modelo Lumina (no P&C). Deriva multiplicador 1.20 desde first principles. Comparación contra primas externas (−27.6%). Revenue/burn/outflow por producto. Rankings + veredictos. | Cada sprint que toque pricing layer, split AFD, o catálogo de productos |
 
 ## Política de mantenimiento
 
@@ -85,6 +86,7 @@ Cada sprint que toque el audit-pack debe:
 
 ## Changelog del audit-pack
 
+- **2026-05-20 (Sprint Análisis Financiero Productos)**: agregado `financial-analysis-7-products.md`. Pricing de los 7 productos calculado DESDE CERO con modelo Lumina (no P&C). Multiplicador derivado: **1.20** (vs 1.863 P&C externo, ratio 1.55× más eficiente). Primas Lumina **−27.6% vs externo**, sigue deflacionario (+38,697 LUMINA/mes neto @ $0.50). Veredictos: 5 ✅ mantener, 2 ⚠️ re-precio (1h products). Cross-ref tracker ADR-030.
 - **2026-05-20 (Sprint Análisis V2 — re-cálculo real)**: agregado `economic-viability-real-model.md`. Re-aplicación de los datos válidos del actuario (PoR, volúmenes, primas, cisne negro) al modelo real on-chain. Hallazgo central: ratio USD burn/redeem = 1.541, invariante al precio → modelo estructuralmente deflacionario en cualquier escenario $0.25-$1.00. Runway BondVault 6-20 años según precio. Cisne negro reduce runway ~1.5 año. P0 confirmados: M-1 throttle + auto-refill BondVault. Cross-ref tracker ADR-029.
 - **2026-05-20 (Sprint Análisis económico)**: agregado `economic-model-vs-actuary.md` con contraste contra análisis actuarial externo. Hallazgos: framework P&C tradicional asumido por actuario NO aplica; modelo real es buyback-and-burn con 70M LUMINA pre-fondeados en BondVault. 5/8 supuestos falsos, 2/8 confirmados, 1/8 parcial. Identificado gap estructural: `BondVault.redeemBond` sin throttle (M-1). Cross-ref tracker ADR-028.
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 a `what-we-tested.md` con verificación on-chain post-deploy V5.2 (16/16 checks PASS, 26 contratos deployados a Base Sepolia). Manifest completo en tracker PR #28.
