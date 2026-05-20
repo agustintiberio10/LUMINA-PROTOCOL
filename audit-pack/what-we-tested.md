@@ -280,5 +280,6 @@ Sprint Z.2 + FV + EE modificaron `script/deploy/DeployLuminaV5Complete.s.sol` y 
 
 ## Changelog
 
+- **2026-05-20 (Sprint Análisis económico)**: contraste actuario externo vs contratos reales completado. Ver [`economic-model-vs-actuary.md`](./economic-model-vs-actuary.md). 8 supuestos contrastados: 5 falsos, 2 confirmados, 1 parcial. Identificado gap estructural en `BondVault.redeemBond` (sin throttle on-chain). Cross-ref tracker ADR-028.
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 con verificación on-chain post-deploy V5.2. 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS. Manifest en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Refleja el estado al cierre de Sprint EE-FIX (PR #130 mergeado a `main` el 2026-05-18 17:04 UTC).

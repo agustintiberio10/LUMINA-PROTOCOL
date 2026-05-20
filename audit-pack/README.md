@@ -1,6 +1,6 @@
 # Audit Pack — Lumina V5.1
 
-**Última actualización**: 2026-05-18 (Sprint Deploy)
+**Última actualización**: 2026-05-20 (Sprint Análisis económico)
 **Status**: ACTIVO — documento vivo, se actualiza en cada sprint
 
 ## Propósito
@@ -18,6 +18,7 @@ El audit-pack es la "fuente de verdad" del estado de aseguramiento del protocolo
 |---|---|---|
 | [`what-we-tested.md`](./what-we-tested.md) | Todo lo auditado al día de hoy (9 categorías) | Cada sprint que agregue tests o suba números |
 | [`what-is-pending.md`](./what-is-pending.md) | Lo que NO está cubierto y por qué (12 items abiertos) | Cada sprint que cierre o agregue gaps |
+| [`economic-model-vs-actuary.md`](./economic-model-vs-actuary.md) | Contraste del modelo económico real (on-chain) vs supuestos actuariales externos. Documenta flujo USDC, flujo LUMINA, split AdaptiveFeeDistributor, gap M-1 throttle | Cada sprint que toque CoverRouterV2, TWAPBurner, BondVault o AdaptiveFeeDistributor |
 
 ## Política de mantenimiento
 
@@ -83,5 +84,6 @@ Cada sprint que toque el audit-pack debe:
 
 ## Changelog del audit-pack
 
+- **2026-05-20 (Sprint Análisis económico)**: agregado `economic-model-vs-actuary.md` con contraste contra análisis actuarial externo. Hallazgos: framework P&C tradicional asumido por actuario NO aplica; modelo real es buyback-and-burn con 70M LUMINA pre-fondeados en BondVault. 5/8 supuestos falsos, 2/8 confirmados, 1/8 parcial. Identificado gap estructural: `BondVault.redeemBond` sin throttle (M-1). Cross-ref tracker ADR-028.
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 a `what-we-tested.md` con verificación on-chain post-deploy V5.2 (16/16 checks PASS, 26 contratos deployados a Base Sepolia). Manifest completo en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Snapshot del estado al cierre de Sprint EE-FIX.
