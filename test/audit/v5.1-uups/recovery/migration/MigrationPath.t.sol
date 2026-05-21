@@ -813,7 +813,7 @@ contract MigrationPath is Test {
 
     function test_Migration_UUPS_Rollback_AfterBugInV2() public {
         vm.chainId(8453);
-        // V2 has a "bug" — we demonstrate the admin can rewind.
+        // V2 has a "bug" -- we demonstrate the admin can rewind.
         PolicyManagerV2 pm = ProxyDeployer.deployPolicyManagerV2(makeAddr("v"));
         pm.setRouter(address(this));
         pm.registerProduct(keccak256("PID"), makeAddr("s"));
@@ -873,7 +873,7 @@ contract MigrationPath is Test {
             makeAddr("oracle"), makeAddr("aave"), address(token), address(usdc), makeAddr("recipient")
         );
 
-        // "Upgrade" via redeploy — new address, new deployedAt clock.
+        // "Upgrade" via redeploy -- new address, new deployedAt clock.
         uint256 ts1 = fv1.deployedAt();
         vm.warp(block.timestamp + 365 days);
 

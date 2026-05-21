@@ -488,7 +488,7 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("");
         console.log("");
         console.log("--- Shields ---");
-        console.log("  (none; pending Phase C — Sprint T-30a re-implementation)");
+        console.log("  (none; pending Phase C -- Sprint T-30a re-implementation)");
         console.log("");
         console.log("--- Placeholders ---");
         console.log("  FounderVesting:     ", founderVesting);

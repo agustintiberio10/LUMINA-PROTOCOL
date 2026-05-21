@@ -526,7 +526,7 @@ contract CertiKSimulation is Test {
     /// @dev    NOTE: In this setup bondVault.policyManager == address(this) (test contract),
     ///         not the PolicyManagerV2 contract. So the end-to-end flow
     ///         (CoverRouter → PolicyManagerV2 → BondVault.issueBond) will
-    ///         fail inside bondVault with "Only PolicyManager" — which is
+    ///         fail inside bondVault with "Only PolicyManager" -- which is
     ///         itself a PROTECTION. We verify that the evil shield's
     ///         inflated payoutAmount (999M USDC) is IGNORED: PolicyManagerV2
     ///         uses its own `pr.payoutAmount = coverage × 80%` for bond
