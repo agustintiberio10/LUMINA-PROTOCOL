@@ -95,6 +95,9 @@ contract EchidnaFlashBTCShield1h {
     function e_setPrice(int256 p) external {
         // Clamp to (0, type(int256).max] to avoid invalid answers.
         if (p <= 0) p = 1;
+        // [Sprint T-30b] Bound to <= 1e15 ($10T at 8-dec precision) so
+        //                drop math properties never overflow strike * 10000.
+        if (p > int256(1e15)) p = int256(1e15);
         oracle.setAnswer(p);
     }
 

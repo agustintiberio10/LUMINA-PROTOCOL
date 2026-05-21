@@ -5,7 +5,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ChainGuard} from "../utils/ChainGuard.sol";
-import {IShieldV2} from "../interfaces/IShieldV2.sol";
 
 /// @title PolicyManagerV2
 /// @notice Simplified brain of Lumina V2 — no vaults, no waterfall.
@@ -21,6 +20,43 @@ interface IBondVault {
     function reserveCapacity(uint256 amount) external;
     function releaseReservation(uint256 amount) external;
     function commitReservation(uint256 amount) external;
+}
+
+interface IShieldV2 {
+    function productId() external view returns (bytes32);
+    function createPolicy(IShieldV2.CreatePolicyParams calldata params) external returns (uint256);
+    function verifyAndCalculate(uint256 policyId, bytes calldata oracleProof)
+        external
+        returns (IShieldV2.PayoutResult memory);
+    function getPolicyInfo(uint256 policyId)
+        external
+        view
+        returns (
+            address insuredAgent,
+            uint256 coverageAmount,
+            uint256 premiumPaid,
+            uint256 maxPayout,
+            uint256 expiresAt,
+            uint8 status
+        );
+
+    struct CreatePolicyParams {
+        address buyer;
+        uint256 coverageAmount;
+        uint256 premiumAmount;
+        uint32 durationSeconds;
+        bytes32 asset;
+        bytes32 stablecoin;
+        address protocol;
+        bytes extraData; // [C-1] aligned with IShield.CreatePolicyParams
+    }
+
+    struct PayoutResult {
+        bool triggered;
+        uint256 payoutAmount;
+        address recipient;
+        bytes32 reason;
+    }
 }
 
 contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
@@ -173,18 +209,24 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         totalPolicies++;
         activePolicies++;
 
-        // [T-30b] PolicyManagerV2 assigns policyId locally (slim IShieldV2);
-        //         shields no longer maintain their own counter.
-        policyId = totalPolicies;
-        uint256 expiresAt = block.timestamp + durationSeconds;
-
-        // Create policy in the shield (slim interface; oracleProof / asset /
-        // stablecoin / protocol / extraData no longer flow into the shield —
-        // flash shields read Chainlink directly and snapshot strike).
+        // Create policy in the shield
         address shield = productShield[productId];
-        IShieldV2(shield).createPolicy(policyId, buyer, coverageAmount, uint64(block.timestamp), uint64(expiresAt));
+        policyId = IShieldV2(shield)
+            .createPolicy(
+                IShieldV2.CreatePolicyParams({
+                buyer: buyer,
+                coverageAmount: coverageAmount,
+                premiumAmount: premiumAmount,
+                durationSeconds: durationSeconds,
+                asset: asset,
+                stablecoin: "USDC",
+                protocol: address(0),
+                extraData: ""
+            })
+            );
 
-        // Record locally
+        // Record locally (must happen after external call to obtain policyId)
+        uint256 expiresAt = block.timestamp + durationSeconds;
         policies[productId][policyId] = PolicyRecord({
             productId: productId,
             shield: shield,
@@ -238,19 +280,14 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             bondVault.commitReservation(reserved);
         }
 
-        // External interactions (last).
-        // [T-30b] Slim IShieldV2: shields read Chainlink directly. The
-        //         `oracleProof` parameter on this function is retained for
-        //         relayer ABI stability but is unused — see Sprint T-30b
-        //         interface bridge.
-        oracleProof; // silence unused-var warning
+        // External interactions (last)
         address shield = pr.shield;
-        (bool triggered,,, bytes32 reason) = IShieldV2(shield).verifyAndCalculate(policyId);
-        require(triggered, "Trigger not met");
+        IShieldV2.PayoutResult memory result = IShieldV2(shield).verifyAndCalculate(policyId, oracleProof);
+        require(result.triggered, "Trigger not met");
 
         bondVault.issueBond(pr.buyer, payoutUSD);
 
-        emit PolicyTriggered(productId, policyId, pr.buyer, payoutUSD, reason);
+        emit PolicyTriggered(productId, policyId, pr.buyer, payoutUSD, result.reason);
     }
 
     // ═══════ CORE: settlePolicy (new trigger flow) ═══════
