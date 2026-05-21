@@ -1,6 +1,6 @@
 # Audit Pack — Lumina V5.1
 
-**Última actualización**: 2026-05-18 (Sprint Deploy)
+**Última actualización**: 2026-05-20 (Sprint T-30a)
 **Status**: ACTIVO — documento vivo, se actualiza en cada sprint
 
 ## Propósito

@@ -197,6 +197,20 @@ Lista de gaps de aseguramiento conocidos al día de hoy. Cada item incluye la ra
 
 ---
 
+## 13. Auditorías profundas T-30b (Slither/Aderyn/Mythril/Halmos + Echidna 200k)
+
+**Estado**: Sprint T-30a entregó código + tests unitarios + Echidna scaffolds (testLimit=1000). Auditorías profundas pendientes:
+
+- Slither / Aderyn / Mythril sobre los nuevos shields + BaseFlashShield + CoverRouterV2 (sequencer) + BondVault (throttle).
+- Halmos formal verification sobre BaseFlashShield + BondVault throttle invariants.
+- Echidna 200k runs × 48 properties (6 shields × 8 props) — requiere matrix workflow extendido.
+- Tests integration completos (cubrir 2 TODOs en `ShieldsE2E.t.sol`: testNoTrigger_PolicyExpires + testBondRedemption_RespectsThrottle).
+
+**Razón**: T-30a alcance ESTRICTO se limita a código + tests scaffolds para que T-30b corra las auditorías sobre código fijado.
+
+---
+
 ## Changelog
 
+- **2026-05-20 (Sprint T-30a)**: agregado item 13 (T-30b auditorías profundas + integration TODOs).
 - **2026-05-18 (Sprint DD)**: documento inicial creado con 12 items pendientes.

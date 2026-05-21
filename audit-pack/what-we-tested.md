@@ -282,3 +282,92 @@ Sprint Z.2 + FV + EE modificaron `script/deploy/DeployLuminaV5Complete.s.sol` y 
 
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 con verificación on-chain post-deploy V5.2. 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS. Manifest en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Refleja el estado al cierre de Sprint EE-FIX (PR #130 mergeado a `main` el 2026-05-18 17:04 UTC).
+
+---
+
+## 12. Sprint T-30a — Shields nuevos + protecciones P0
+
+**Fecha**: 2026-05-20
+**Sprint**: T-30a (re-implementación shields + BondVault throttle + Sequencer L2 check)
+**Scope**: solo código + tests unitarios + Echidna scaffolds. NO deploy, NO auditorías profundas, NO Echidna 200k.
+
+### 12.1 Cambios estructurales
+
+**Borrados (Phase B)**:
+- 7 shields V5.2 (FlashBTC 1h/24h/48h + FlashETH 1h/24h/48h + RateShockShield).
+- `src/products/BaseShield.sol` (reemplazado por BaseFlashShield).
+- Tests asociados: 75 archivos eliminados (test/products/, test/echidna/shields/, test/integration/shields/, test/stress/shields/, 22 audit tests UUPS).
+- `script/upgrade/UpgradeRateShockShield.s.sol`.
+- 7 yamls `echidna-shield-*.yaml` en repo root.
+- Workflow `echidna.yml` matrix de shields removida (job `echidna-fv` preservado).
+
+**Creados (Phase C+E)**:
+- `src/interfaces/IShieldV2.sol` — nueva interfaz slim para shields T-30a.
+- `src/interfaces/IChainlinkAggregator.sol` — Chainlink direct read.
+- `src/interfaces/IChainlinkL2SequencerUptimeFeed.sol` — L2 sequencer uptime.
+- `src/shields/BaseFlashShield.sol` (abstract) — strikePrice snapshot + 3 confirmations + L2 sequencer check + drop-from-purchase trigger.
+- 6 shields concretos en `src/products/`:
+  - FlashBTCShield1h (TRIGGER_DROP_BPS=250, WINDOW=3600s)
+  - FlashBTCShield24h (TRIGGER_DROP_BPS=600, WINDOW=86400s)
+  - FlashBTCShield48h (TRIGGER_DROP_BPS=1000, WINDOW=172800s)
+  - FlashETHShield1h (TRIGGER_DROP_BPS=400, WINDOW=3600s)
+  - FlashETHShield24h (TRIGGER_DROP_BPS=850, WINDOW=86400s)
+  - FlashETHShield48h (TRIGGER_DROP_BPS=1400, WINDOW=172800s)
+- Constantes comunes: DEDUCTIBLE_BPS=2000 (20%, payout 80%), ORACLE_CONFIRMATIONS=3, CONFIRMATION_INTERVAL=60s, MAX_PRICE_STALENESS=3600s, GRACE_PERIOD=3600s.
+
+**Modificados (Phase C+E+D)**:
+- `src/core/CoverRouterV2.sol` (+50/-1): `IChainlinkL2SequencerUptimeFeed` storage + `whenSequencerActive` modifier + `setSequencerFeed(address)` admin setter. `__gap` 49→48.
+- `src/bonds/BondVault.sol` (+172/-9): MAX_REDEMPTION_PER_EPOCH_BPS=108, EPOCH_DURATION=7days, FIFO queue, processQueue() permissionless. `__gap` 49→46.
+- Deploy scripts (`DeployLuminaV5Complete.s.sol` + `DeployLuminaV5Sepolia.s.sol`): shield deploy blocks → `// TODO Phase C` placeholders (re-wire en T-30c).
+
+### 12.2 Tests
+
+**Unit (Phase F)**: 48 tests (6 archivos × 8 tests cada uno) en `test/products/Flash*Shield*.t.sol`.
+
+Por shield, cada archivo testea:
+1. testCreatePolicy_SnapshotsStrikePrice
+2. testCreatePolicy_RevertsWhenSequencerDown
+3. testVerify_TriggersAtExactThreshold
+4. testVerify_NoTriggerBelowThreshold
+5. testVerify_RevertsAfterWindowExpired
+6. testVerify_3ConfirmationsRequired (min-of-3 conservative)
+7. testPayout_Is80PercentOfCoverage
+8. testStaleOracle_Reverts
+
+**Throttle (Phase D)**: 6 tests en `test/BondVault.throttle.t.sol`:
+1. testRedemptionUnderLimit
+2. testRedemptionAtLimit
+3. testRedemptionOverLimit_Queues
+4. testCisneNegro_12WeeksDrain (~13% drain en 12 epochs)
+5. testQueueOrderingFIFO
+6. testProcessQueueWhenEpochAdvances
+
+**Integration (Phase F)**: 2 tests + 2 TODOs en `test/integration/ShieldsE2E.t.sol`:
+- testPurchasePolicy_Through_CoverRouter
+- testTrigger_EmitsBond
+- (TODO) testNoTrigger_PolicyExpires
+- (TODO) testBondRedemption_RespectsThrottle
+
+**Echidna scaffolds (Phase F)**: 48 properties (6 contratos × 8 properties).
+- testLimit=1000 (NO 200k — eso es T-30b).
+- Properties: strikePrice_set_at_creation, trigger_only_within_window, payout_equals_80_percent_coverage, sequencer_down_blocks_all_actions, drop_calculation_correct, no_double_payout, oracle_confirmations_enforced, window_strictly_enforced.
+
+### 12.3 Lessons aplicadas (acumuladas + T-30a)
+
+- ⚠️ **Storage UUPS preservation**: BondVault y CoverRouterV2 modificados con `__gap` reducido pero campos existentes intactos. Slot layout preservado para upgrade compatibility.
+- ⚠️ **PolicyManagerV2 vs new IShieldV2**: el PolicyManagerV2 importa la legacy `IShieldV2` struct interface; nuevas shields implementan la slim `src/interfaces/IShieldV2.sol`. Integration test deferred 2 cases con TODO en `ShieldsE2E.t.sol` — rewire integral en T-30c.
+- ⚠️ **Deploy scripts incompletos**: T-30c re-introducirá los 6 shields con nueva constructor signature `(router, priceFeed, sequencerFeed)`.
+
+### 12.4 Forge build/test status
+
+- `forge fmt --check`: PASS (post forge fmt commit).
+- `forge build`: NO ejecutado localmente (Windows OOM con via_ir + 200+ archivos). **Delegado a CI Linux** post-push.
+- `forge test`: NO ejecutado localmente — CI valida.
+
+---
+
+## Changelog
+
+- **2026-05-20 (Sprint T-30a)**: agregada Sección 12 con cambios estructurales del re-design. 6 shields nuevos + BaseFlashShield + BondVault throttle + L2 sequencer check + 48 unit + 6 throttle + 2 integration + 48 Echidna scaffolds. T-30b auditorías profundas + T-30c deploy fresco pendientes.
+- **2026-05-18 (Sprint Deploy)**: agregada Sección 10 con verificación on-chain post-deploy V5.2. 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS. Manifest en tracker PR #28.
+- **2026-05-18 (Sprint DD)**: documento inicial creado. Refleja el estado al cierre de Sprint EE-FIX (PR #130 mergeado a `main` el 2026-05-18 17:04 UTC).
