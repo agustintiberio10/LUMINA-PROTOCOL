@@ -5,15 +5,16 @@ pragma solidity ^0.8.20;
 /// @notice Aave-V3-compatible `IPool` mock for testnet (Sepolia) testing.
 ///         Mainnet uses real Aave V3; this contract is **testnet-only**
 ///         (decision Sprint H — see `testnet-deltas.md`).
-/// @dev Lumina's consumers (`RateShockShield`, `FounderVesting`) only read
+/// @dev Lumina's consumer (`FounderVesting`) only reads
 ///      `getReserveData(asset).currentVariableBorrowRate`. The full ReserveData
 ///      struct is preserved so the surface stays compatible with the real Aave
 ///      V3 `IPool` interface (drop-in replacement).
 ///      Admin can mutate the per-asset rates (`setBorrowRate`, `setLiquidityRate`),
 ///      simulate stale data (`setStale`), and simulate provider outages
 ///      (`setRevert`). Rates are accepted in BPS for ergonomics and converted
-///      internally to RAY (Aave's 1e27 convention) — `RateShockShield.TRIGGER_RATE`
-///      is `10e25`, i.e. 10% APY = 1000 BPS.
+///      internally to RAY (Aave's 1e27 convention).
+///      [Sprint T-30a Phase B] RateShockShield removed (founder decision); only
+///      FounderVesting still consumes this mock.
 contract MockAavePool {
     /// @dev Mirror of Aave V3 `DataTypes.ReserveData`. Lumina only consumes
     ///      `currentVariableBorrowRate`, but the full layout keeps the ABI

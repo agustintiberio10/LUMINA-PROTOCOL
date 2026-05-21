@@ -40,13 +40,9 @@ import "../../src/marketplace/LuminaBondMarketplace.sol";
 import "../../src/marketplace/BuybackEngine.sol";
 
 // ═══════ Products (Shields) ═══════
-import "../../src/products/FlashBTCShield1h.sol";
-import "../../src/products/FlashBTCShield24h.sol";
-import "../../src/products/FlashBTCShield48h.sol";
-import "../../src/products/FlashETHShield1h.sol";
-import "../../src/products/FlashETHShield24h.sol";
-import "../../src/products/FlashETHShield48h.sol";
-import "../../src/products/RateShockShield.sol";
+// [Sprint T-30a Phase B] V5.2 shield set (FlashBTC/FlashETH 1h/24h/48h + RateShock)
+// removed. New shields land in Phase C with the drop-from-purchase mechanic.
+// RateShock not replaced (founder decision: removed permanently).
 
 /// @title DeployLuminaV5Complete
 /// @notice Full deployment script for LUMINA Protocol V5.0 — 26 contracts.
@@ -95,13 +91,8 @@ contract DeployLuminaV5Complete is Script {
         address treasuryVesting;
         address marketplace;
         address buybackEngine;
-        address flashBTCShield1h;
-        address flashBTCShield24h;
-        address flashBTCShield48h;
-        address flashETHShield1h;
-        address flashETHShield24h;
-        address flashETHShield48h;
-        address rateShockShield;
+        // [Sprint T-30a Phase B] shield struct fields removed; re-added in Phase C
+        // with new shield names.
         // ─── Sprint B additions ───
         address luminaOracleV2;
         address shieldKeeper;
@@ -410,60 +401,14 @@ contract DeployLuminaV5Complete is Script {
         console.log("18. BuybackEngine (proxy):", res.buybackEngine);
 
         // ═══════════════════════════════════════════════════════
-        // STEP 19: Deploy 7 Shields — bound to LuminaOracleV2 (Sprint B fix:
-        //         was `cfg.chainlinkOracle`, which was the wrong interface).
+        // STEP 19: Deploy Shields
+        // [Sprint T-30a Phase B] Shield deploy block removed. New shield set
+        // (drop-from-purchase mechanic) lands in Phase C with the new
+        // BaseFlashShield base contract + Chainlink direct-read constructor
+        // signatures. Until then, the script deploys core protocol only.
+        // RateShockShield NOT replaced (founder decision: removed permanently).
+        // TODO Phase C: re-introduce shield impls + proxies + res.* assignments.
         // ═══════════════════════════════════════════════════════
-        FlashBTCShield1h flashBtc1hImpl = new FlashBTCShield1h();
-        ERC1967Proxy flashBtc1hProxy = new ERC1967Proxy(
-            address(flashBtc1hImpl),
-            abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, res.policyManager, res.luminaOracleV2)
-        );
-        res.flashBTCShield1h = address(flashBtc1hProxy);
-
-        FlashBTCShield24h flashBtc24hImpl = new FlashBTCShield24h();
-        ERC1967Proxy flashBtc24hProxy = new ERC1967Proxy(
-            address(flashBtc24hImpl),
-            abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, res.policyManager, res.luminaOracleV2)
-        );
-        res.flashBTCShield24h = address(flashBtc24hProxy);
-
-        FlashBTCShield48h flashBtc48hImpl = new FlashBTCShield48h();
-        ERC1967Proxy flashBtc48hProxy = new ERC1967Proxy(
-            address(flashBtc48hImpl),
-            abi.encodeWithSelector(FlashBTCShield48h.initialize.selector, res.policyManager, res.luminaOracleV2)
-        );
-        res.flashBTCShield48h = address(flashBtc48hProxy);
-
-        FlashETHShield1h flashEth1hImpl = new FlashETHShield1h();
-        ERC1967Proxy flashEth1hProxy = new ERC1967Proxy(
-            address(flashEth1hImpl),
-            abi.encodeWithSelector(FlashETHShield1h.initialize.selector, res.policyManager, res.luminaOracleV2)
-        );
-        res.flashETHShield1h = address(flashEth1hProxy);
-
-        FlashETHShield24h flashEth24hImpl = new FlashETHShield24h();
-        ERC1967Proxy flashEth24hProxy = new ERC1967Proxy(
-            address(flashEth24hImpl),
-            abi.encodeWithSelector(FlashETHShield24h.initialize.selector, res.policyManager, res.luminaOracleV2)
-        );
-        res.flashETHShield24h = address(flashEth24hProxy);
-
-        FlashETHShield48h flashEth48hImpl = new FlashETHShield48h();
-        ERC1967Proxy flashEth48hProxy = new ERC1967Proxy(
-            address(flashEth48hImpl),
-            abi.encodeWithSelector(FlashETHShield48h.initialize.selector, res.policyManager, res.luminaOracleV2)
-        );
-        res.flashETHShield48h = address(flashEth48hProxy);
-
-        RateShockShield rateShockImpl = new RateShockShield();
-        ERC1967Proxy rateShockProxy = new ERC1967Proxy(
-            address(rateShockImpl),
-            abi.encodeWithSelector(
-                RateShockShield.initialize.selector, res.policyManager, res.luminaOracleV2, cfg.aavePool, cfg.usdc
-            )
-        );
-        res.rateShockShield = address(rateShockProxy);
-        console.log("19. Shields deployed (7)");
 
         // ═══════════════════════════════════════════════════════
         // WIRING: Cross-contract configuration
@@ -506,25 +451,19 @@ contract DeployLuminaV5Complete is Script {
         claimBond.setAuthorizedOperator(res.buybackEngine, true);
         console.log("  Marketplace + BuybackEngine authorized as ClaimBond operators");
 
-        // PolicyManagerV2.registerProduct for each shield
-        // IDs MUST match the PRODUCT_ID constant in each shield contract
-        policyManager.registerProduct(keccak256("FLASHBTC1H-001"), res.flashBTCShield1h);
-        policyManager.registerProduct(keccak256("FLASHBTC24-001"), res.flashBTCShield24h);
-        policyManager.registerProduct(keccak256("FLASHBTC48-001"), res.flashBTCShield48h);
-        policyManager.registerProduct(keccak256("FLASHETH1H-001"), res.flashETHShield1h);
-        policyManager.registerProduct(keccak256("FLASHETH24-001"), res.flashETHShield24h);
-        policyManager.registerProduct(keccak256("FLASHETH48-001"), res.flashETHShield48h);
-        policyManager.registerProduct(keccak256("RATESHOCK-001"), res.rateShockShield);
-        console.log("  PolicyManagerV2: 7 products registered");
+        // PolicyManagerV2.registerProduct
+        // [Sprint T-30a Phase B] product registration removed (old shields deleted).
+        // Phase C re-adds registerProduct() calls keyed to the new PRODUCT_IDs.
+        // TODO Phase C: policyManager.registerProduct(<NEW_PRODUCT_ID>, <newShield>) per shield.
 
         // CoverRouterV2.setCapacityOracle (auto-pause at MIN_PRICE_FOR_NEW_POLICIES)
         coverRouter.setCapacityOracle(res.capacityOracle);
         console.log("  CoverRouterV2.setCapacityOracle done");
 
-        // CoverRouterV2.configureProduct for each shield
-        // Default config: payoutRatio=8000bps(80%), triggerProb=200bps(2%), margin=2000bps(20%)
-        _configureProducts(coverRouter, res);
-        console.log("  CoverRouterV2: 7 products configured");
+        // CoverRouterV2.configureProduct
+        // [Sprint T-30a Phase B] product configuration removed (old shields deleted).
+        // TODO Phase C: re-introduce _configureProducts(coverRouter, res) for the new set.
+        // _configureProducts(coverRouter, res);
 
         // ═══════════════════════════════════════════════════════
         // OWNERSHIP TRANSFER to multisig
@@ -588,9 +527,9 @@ contract DeployLuminaV5Complete is Script {
         vm.stopBroadcast();
 
         // ═══════════════════════════════════════════════════════
-        // FINAL LOG: All deployed addresses (27 total)
+        // FINAL LOG: All deployed addresses
         // ═══════════════════════════════════════════════════════
-        console.log("===== LUMINA V5.0 DEPLOYMENT COMPLETE (26 contracts) =====");
+        console.log("===== LUMINA V5.0 DEPLOYMENT COMPLETE (core only; shields pending Phase C) =====");
         console.log("LuminaTokenV2:          ", res.luminaToken);
         console.log("BondVault:              ", res.bondVault);
         console.log("ClaimBond:              ", res.claimBond);
@@ -614,35 +553,11 @@ contract DeployLuminaV5Complete is Script {
             console.log("AerodromeAdapter:        SKIPPED (testnet)");
         }
         console.log("UniswapV3Adapter:       ", res.uniswapV3Adapter);
-        console.log("FlashBTCShield1h:       ", res.flashBTCShield1h);
-        console.log("FlashBTCShield24h:      ", res.flashBTCShield24h);
-        console.log("FlashBTCShield48h:      ", res.flashBTCShield48h);
-        console.log("FlashETHShield1h:       ", res.flashETHShield1h);
-        console.log("FlashETHShield24h:      ", res.flashETHShield24h);
-        console.log("FlashETHShield48h:      ", res.flashETHShield48h);
-        console.log("RateShockShield:        ", res.rateShockShield);
+        // [Sprint T-30a Phase B] Shield address logs removed; re-added in Phase C
+        // with the new shield names.
         console.log("===========================================");
     }
 
-    /// @dev Configure all 7 products on CoverRouterV2 with default parameters.
-    function _configureProducts(
-        CoverRouterV2 router,
-        DeploymentResult memory /* res */
-    )
-        internal
-    {
-        // Product configs: payoutRatioBps, triggerProbBps, marginBps, durationSeconds, active
-        // IDs MUST match the PRODUCT_ID constant in each shield contract
-        // payoutRatioBps = 8000 (80% payout)
-        // BTC shields
-        router.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 20, 15000, 3600, true);
-        router.configureProduct(keccak256("FLASHBTC24-001"), 8000, 50, 15000, 86400, true);
-        router.configureProduct(keccak256("FLASHBTC48-001"), 8000, 40, 15000, 172800, true);
-        // ETH shields
-        router.configureProduct(keccak256("FLASHETH1H-001"), 8000, 25, 15000, 3600, true);
-        router.configureProduct(keccak256("FLASHETH24-001"), 8000, 60, 15000, 86400, true);
-        router.configureProduct(keccak256("FLASHETH48-001"), 8000, 50, 15000, 172800, true);
-        // Rate (duration: 604800 = 7 days, matches shield MIN/MAX_DURATION)
-        router.configureProduct(keccak256("RATESHOCK-001"), 8000, 80, 15000, 604800, true);
-    }
+    // [Sprint T-30a Phase B] _configureProducts() removed; new shields land in Phase C
+    // with their own configureProduct() parameters.
 }

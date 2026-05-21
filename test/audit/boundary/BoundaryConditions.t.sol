@@ -427,26 +427,10 @@ contract BoundaryConditions is Test {
     //  GROUP 5: SAFETY WINDOW (24 hours after policy expiry)
     // ═══════════════════════════════════════════════════════════════
 
-    function test_SafetyWindow_Constant_Is24Hours() public pure {
-        // BaseShield.SAFETY_WINDOW should be exactly 24 hours
-        uint256 safetyWindow = 24 hours;
-        assertEq(safetyWindow, uint256(86400), "24 hours should be 86400 seconds");
-    }
-
-    function test_SafetyWindow_ClaimGracePeriod_Is24Hours() public pure {
-        // BaseShield.CLAIM_GRACE_PERIOD is 24 hours
-        uint256 gracePeriod = 24 hours;
-        assertEq(gracePeriod, uint256(86400), "CLAIM_GRACE_PERIOD should be 86400 seconds");
-    }
-
-    function test_SafetyWindow_ValueMatchesSpec() public pure {
-        // Verify the constant exists and matches the spec
-        // We test the constant value from the contract source: SAFETY_WINDOW = 24 hours
-        // Since BaseShield is abstract, we verify the constant value matches our expectation
-        uint256 SAFETY_WINDOW = 24 hours;
-        uint256 expectedSeconds = 86400;
-        assertEq(SAFETY_WINDOW, expectedSeconds, "SAFETY_WINDOW must be 86400 seconds");
-    }
+    // [Sprint T-30a Phase B] The old SAFETY_WINDOW / CLAIM_GRACE_PERIOD assertions
+    // anchored to the now-deleted BaseShield contract. They were sanity asserts
+    // against literal 24h constants and are revalidated against the new
+    // BaseFlashShield in Phase F. Removed here to avoid dangling references.
 
     // ═══════════════════════════════════════════════════════════════
     //  GROUP 6: TWAP BURNER COOLDOWN (900 seconds)

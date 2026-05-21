@@ -23,13 +23,9 @@ import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
 import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
 
 // ─── Shields ───
-import {FlashBTCShield1h} from "../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield24h} from "../../src/products/FlashBTCShield24h.sol";
-import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
-import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
-import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
-import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
-import {RateShockShield} from "../../src/products/RateShockShield.sol";
+// [Sprint T-30a Phase B] V5.2 shield set (FlashBTC/FlashETH 1h/24h/48h + RateShock)
+// removed. Phase C re-introduces the new shield set with the drop-from-purchase
+// mechanic. RateShock NOT replaced (founder decision: removed permanently).
 
 // ═══════════════════════════════════════════════════════════════
 //  INLINE MOCKS FOR SEPOLIA
@@ -118,7 +114,8 @@ contract MockShieldOracle {
     }
 }
 
-/// @notice Mock Aave V3 Pool for RateShockShield (returns a fixed borrow rate).
+/// @notice Mock Aave V3 Pool (returns a fixed borrow rate). Used by FounderVesting
+///         on testnet; RateShockShield consumer removed in Sprint T-30a Phase B.
 contract MockAavePool {
     function getReserveData(address)
         external
@@ -417,98 +414,18 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("ShieldKeeper (proxy):", address(shieldKeeper));
 
         // ──────────────────────────────────────────────────
-        // PHASE 9c: Deploy 7 Shields + mock oracles
-        // (Sprint EE Phase H: removed FlashBTC4h to mirror FlashETH set.)
+        // PHASE 9c: Deploy Shields
+        // [Sprint T-30a Phase B] Shield deploy + registration + configuration
+        // removed (old shields deleted). Phase C re-introduces the new shield
+        // set with the drop-from-purchase mechanic + Chainlink direct-read.
+        // Mock oracles are also no longer needed (the new shields read
+        // Chainlink directly). RateShockShield NOT replaced (founder decision).
+        // TODO Phase C:
+        //   1. Deploy new shield set via UUPS proxies.
+        //   2. policyManager.registerProduct(<NEW_PRODUCT_ID>, <newShield>) per shield.
+        //   3. coverRouter.configureProduct(<NEW_PRODUCT_ID>, ...) per shield.
+        //   4. Log shield addresses below.
         // ──────────────────────────────────────────────────
-        MockShieldOracle shieldOracle = new MockShieldOracle();
-        MockAavePool mockAavePool = new MockAavePool();
-        console.log("MockShieldOracle:", address(shieldOracle));
-        console.log("MockAavePool:", address(mockAavePool));
-
-        // Deploy shields via UUPS proxy (router_ = policyManager, oracle_ = shieldOracle)
-        FlashBTCShield1h flashBtc1hImpl = new FlashBTCShield1h();
-        ERC1967Proxy flashBtc1hProxy = new ERC1967Proxy(
-            address(flashBtc1hImpl),
-            abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, address(policyManager), address(shieldOracle))
-        );
-        FlashBTCShield1h flashBtc1h = FlashBTCShield1h(address(flashBtc1hProxy));
-
-        FlashBTCShield24h flashBtc24hImpl = new FlashBTCShield24h();
-        ERC1967Proxy flashBtc24hProxy = new ERC1967Proxy(
-            address(flashBtc24hImpl),
-            abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, address(policyManager), address(shieldOracle))
-        );
-        FlashBTCShield24h flashBtc24h = FlashBTCShield24h(address(flashBtc24hProxy));
-
-        FlashBTCShield48h flashBtc48hImpl = new FlashBTCShield48h();
-        ERC1967Proxy flashBtc48hProxy = new ERC1967Proxy(
-            address(flashBtc48hImpl),
-            abi.encodeWithSelector(FlashBTCShield48h.initialize.selector, address(policyManager), address(shieldOracle))
-        );
-        FlashBTCShield48h flashBtc48h = FlashBTCShield48h(address(flashBtc48hProxy));
-
-        FlashETHShield1h flashEth1hImpl = new FlashETHShield1h();
-        ERC1967Proxy flashEth1hProxy = new ERC1967Proxy(
-            address(flashEth1hImpl),
-            abi.encodeWithSelector(FlashETHShield1h.initialize.selector, address(policyManager), address(shieldOracle))
-        );
-        FlashETHShield1h flashEth1h = FlashETHShield1h(address(flashEth1hProxy));
-
-        FlashETHShield24h flashEth24hImpl = new FlashETHShield24h();
-        ERC1967Proxy flashEth24hProxy = new ERC1967Proxy(
-            address(flashEth24hImpl),
-            abi.encodeWithSelector(FlashETHShield24h.initialize.selector, address(policyManager), address(shieldOracle))
-        );
-        FlashETHShield24h flashEth24h = FlashETHShield24h(address(flashEth24hProxy));
-
-        FlashETHShield48h flashEth48hImpl = new FlashETHShield48h();
-        ERC1967Proxy flashEth48hProxy = new ERC1967Proxy(
-            address(flashEth48hImpl),
-            abi.encodeWithSelector(FlashETHShield48h.initialize.selector, address(policyManager), address(shieldOracle))
-        );
-        FlashETHShield48h flashEth48h = FlashETHShield48h(address(flashEth48hProxy));
-
-        RateShockShield rateShockImpl = new RateShockShield();
-        ERC1967Proxy rateShockProxy = new ERC1967Proxy(
-            address(rateShockImpl),
-            abi.encodeWithSelector(
-                RateShockShield.initialize.selector,
-                address(policyManager),
-                address(shieldOracle),
-                address(mockAavePool),
-                address(usdc)
-            )
-        );
-        RateShockShield rateShock = RateShockShield(address(rateShockProxy));
-
-        console.log("FlashBTC1H:", address(flashBtc1h));
-        console.log("FlashBTC24H:", address(flashBtc24h));
-        console.log("FlashBTC48H:", address(flashBtc48h));
-        console.log("FlashETH1H:", address(flashEth1h));
-        console.log("FlashETH24H:", address(flashEth24h));
-        console.log("FlashETH48H:", address(flashEth48h));
-        console.log("RateShock:", address(rateShock));
-
-        // Register shields in PolicyManager
-        policyManager.registerProduct(keccak256("FLASHBTC1H-001"), address(flashBtc1h));
-        policyManager.registerProduct(keccak256("FLASHBTC24-001"), address(flashBtc24h));
-        policyManager.registerProduct(keccak256("FLASHBTC48-001"), address(flashBtc48h));
-        policyManager.registerProduct(keccak256("FLASHETH1H-001"), address(flashEth1h));
-        policyManager.registerProduct(keccak256("FLASHETH24-001"), address(flashEth24h));
-        policyManager.registerProduct(keccak256("FLASHETH48-001"), address(flashEth48h));
-        policyManager.registerProduct(keccak256("RATESHOCK-001"), address(rateShock));
-        console.log("7 shields deployed and registered in PolicyManager");
-
-        // Configure shields in CoverRouterV2 (pricing parameters)
-        // payoutRatioBps = 8000 (80% payout), triggerProbBps, marginBps, durationSeconds, active
-        coverRouter.configureProduct(keccak256("FLASHBTC1H-001"), 8000, 200, 2000, 3600, true);
-        coverRouter.configureProduct(keccak256("FLASHBTC24-001"), 8000, 100, 2000, 86400, true);
-        coverRouter.configureProduct(keccak256("FLASHBTC48-001"), 8000, 80, 2000, 172800, true);
-        coverRouter.configureProduct(keccak256("FLASHETH1H-001"), 8000, 200, 2000, 3600, true);
-        coverRouter.configureProduct(keccak256("FLASHETH24-001"), 8000, 100, 2000, 86400, true);
-        coverRouter.configureProduct(keccak256("FLASHETH48-001"), 8000, 80, 2000, 172800, true);
-        coverRouter.configureProduct(keccak256("RATESHOCK-001"), 8000, 30, 3000, 604800, true);
-        console.log("7 shields configured in CoverRouterV2");
 
         // Authorize BuybackEngine in BondVault
         bondVault.setAuthorizedCaller(address(buybackEngine), true);
@@ -570,14 +487,8 @@ contract DeployLuminaV5Sepolia is Script {
         console.log("  ShieldKeeper:       ", address(shieldKeeper));
         console.log("");
         console.log("");
-        console.log("--- Shields (7) ---");
-        console.log("  FlashBTC1H:         ", address(flashBtc1h));
-        console.log("  FlashBTC24H:        ", address(flashBtc24h));
-        console.log("  FlashBTC48H:        ", address(flashBtc48h));
-        console.log("  FlashETH1H:         ", address(flashEth1h));
-        console.log("  FlashETH24H:        ", address(flashEth24h));
-        console.log("  FlashETH48H:        ", address(flashEth48h));
-        console.log("  RateShock:          ", address(rateShock));
+        console.log("--- Shields ---");
+        console.log("  (none; pending Phase C — Sprint T-30a re-implementation)");
         console.log("");
         console.log("--- Placeholders ---");
         console.log("  FounderVesting:     ", founderVesting);

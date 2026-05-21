@@ -1,8 +1,14 @@
 # V2 Deploy Order
 
+> Sprint T-30a Phase B note: the V5.2 BaseShield + FlashBTC/FlashETH/RateShock
+> contracts referenced below were deleted. New shields (drop-from-purchase
+> mechanic) land in Phase C with their own base contract. The high-level
+> deploy ordering still holds; only the shield-specific steps (10/11/12) need
+> Phase C wiring.
+
 ## CRITICAL: Shield constructor takes `router_` parameter.
 ## In V2, `router_` MUST be the PolicyManagerV2 address.
-## BaseShield.onlyRouter gates createPolicy() to this address.
+## Historically BaseShield.onlyRouter gated createPolicy() to this address.
 
 1. Deploy LuminaTokenV2(bondVault, lbp, founderVesting, treasuryVesting)
 2. Deploy ClaimBond()

@@ -11,13 +11,8 @@ import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
 import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
 import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
 import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
-import {FlashBTCShield1h} from "../../src/products/FlashBTCShield1h.sol";
-import {FlashBTCShield24h} from "../../src/products/FlashBTCShield24h.sol";
-import {FlashBTCShield48h} from "../../src/products/FlashBTCShield48h.sol";
-import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
-import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
-import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
-import {RateShockShield} from "../../src/products/RateShockShield.sol";
+// [Sprint T-30a Phase B] Old shield imports removed. New shields land in Phase C
+// and will reintroduce their own deploy helpers (or be deployed directly).
 import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
 import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
 import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
@@ -140,66 +135,8 @@ library ProxyDeployer {
     }
 
     // ═══════ SHIELDS ═══════
-
-    function deployFlashBTCShield1h(address router_, address oracle_) internal returns (FlashBTCShield1h) {
-        FlashBTCShield1h impl = new FlashBTCShield1h();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(FlashBTCShield1h.initialize.selector, router_, oracle_)
-        );
-        return FlashBTCShield1h(address(proxy));
-    }
-
-    function deployFlashBTCShield24h(address router_, address oracle_) internal returns (FlashBTCShield24h) {
-        FlashBTCShield24h impl = new FlashBTCShield24h();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(FlashBTCShield24h.initialize.selector, router_, oracle_)
-        );
-        return FlashBTCShield24h(address(proxy));
-    }
-
-    function deployFlashBTCShield48h(address router_, address oracle_) internal returns (FlashBTCShield48h) {
-        FlashBTCShield48h impl = new FlashBTCShield48h();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(FlashBTCShield48h.initialize.selector, router_, oracle_)
-        );
-        return FlashBTCShield48h(address(proxy));
-    }
-
-    function deployFlashETHShield1h(address router_, address oracle_) internal returns (FlashETHShield1h) {
-        FlashETHShield1h impl = new FlashETHShield1h();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(FlashETHShield1h.initialize.selector, router_, oracle_)
-        );
-        return FlashETHShield1h(address(proxy));
-    }
-
-    function deployFlashETHShield24h(address router_, address oracle_) internal returns (FlashETHShield24h) {
-        FlashETHShield24h impl = new FlashETHShield24h();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(FlashETHShield24h.initialize.selector, router_, oracle_)
-        );
-        return FlashETHShield24h(address(proxy));
-    }
-
-    function deployFlashETHShield48h(address router_, address oracle_) internal returns (FlashETHShield48h) {
-        FlashETHShield48h impl = new FlashETHShield48h();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl), abi.encodeWithSelector(FlashETHShield48h.initialize.selector, router_, oracle_)
-        );
-        return FlashETHShield48h(address(proxy));
-    }
-
-    function deployRateShockShield(address router_, address oracle_, address _aavePool, address _usdc)
-        internal
-        returns (RateShockShield)
-    {
-        RateShockShield impl = new RateShockShield();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(impl),
-            abi.encodeWithSelector(RateShockShield.initialize.selector, router_, oracle_, _aavePool, _usdc)
-        );
-        return RateShockShield(address(proxy));
-    }
+    // [Sprint T-30a Phase B] Shield deploy helpers removed (V5.2 shield set deleted).
+    // Phase C reintroduces helpers for the new shield set (drop-from-purchase mechanic).
 
     // ═══════ PHASE D: ORACLES & RESERVES ═══════
 
