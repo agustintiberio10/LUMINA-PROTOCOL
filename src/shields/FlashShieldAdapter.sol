@@ -85,7 +85,10 @@ contract FlashShieldAdapter is Initializable, UUPSUpgradeable, OwnableUpgradeabl
 
     /// @notice Forward legacy verifyAndCalculate to slim shield; oracleProof unused
     ///         (slim shields read Chainlink directly).
-    function verifyAndCalculate(uint256 policyId, bytes calldata /*oracleProof*/ )
+    function verifyAndCalculate(
+        uint256 policyId,
+        bytes calldata /*oracleProof*/
+    )
         external
         returns (LegacyPayoutResult memory r)
     {
