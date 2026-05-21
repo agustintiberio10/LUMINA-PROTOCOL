@@ -23,11 +23,10 @@ contract MockPriceOracleSM {
     }
 }
 
+// Mock shield (slim IShieldV2 — Sprint T-30b); policyId is assigned by PolicyManagerV2.
 contract MockShieldSM {
     bytes32 public productId;
-    uint256 public nextPolicyId;
 
-    // Track policies for verifyAndCalculate
     mapping(uint256 => bool) public shouldTrigger;
     mapping(uint256 => address) public policyBuyers;
 
@@ -35,32 +34,26 @@ contract MockShieldSM {
         productId = _productId;
     }
 
-    function setNextPolicyId(uint256 id) external {
-        nextPolicyId = id;
-    }
+    function setNextPolicyId(uint256) external { /* no-op; PM assigns ids now */ }
 
     function setTriggerResult(uint256 policyId, bool trigger) external {
         shouldTrigger[policyId] = trigger;
     }
 
-    function createPolicy(IShieldV2.CreatePolicyParams calldata params) external returns (uint256) {
-        uint256 id = nextPolicyId++;
-        policyBuyers[id] = params.buyer;
-        return id;
+    function createPolicy(uint256 policyId, address holder, uint256, uint64, uint64) external {
+        policyBuyers[policyId] = holder;
     }
 
-    function verifyAndCalculate(uint256 policyId, bytes calldata)
+    function verifyAndCalculate(uint256 policyId)
         external
         view
-        returns (IShieldV2.PayoutResult memory)
+        returns (bool triggered, uint256 payout, address holder, bytes32 reason)
     {
-        return IShieldV2.PayoutResult({
-            triggered: shouldTrigger[policyId], payoutAmount: 800e6, recipient: policyBuyers[policyId], reason: "DEPEG"
-        });
+        return (shouldTrigger[policyId], 800e6, policyBuyers[policyId], "DEPEG");
     }
 
-    function getPolicyInfo(uint256) external pure returns (address, uint256, uint256, uint256, uint256, uint8) {
-        return (address(0), 0, 0, 0, 0, 0);
+    function getPolicyInfo(uint256) external pure returns (address, uint256, uint256, uint64, uint64, bool) {
+        return (address(0), 0, 0, 0, 0, false);
     }
 }
 

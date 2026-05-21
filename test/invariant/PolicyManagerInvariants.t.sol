@@ -2,7 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import {PolicyManagerV2, IShieldV2} from "../../src/core/PolicyManagerV2.sol";
+import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
+import {IShieldV2} from "../../src/interfaces/IShieldV2.sol";
 import {ProxyDeployer} from "../helpers/ProxyDeployer.sol";
 
 // ═══════ Mocks ═══════
@@ -52,42 +53,26 @@ contract PMMockBondVault {
     }
 }
 
-/// @notice Mock shield: createPolicy returns a sequential id; never reverts.
+/// @notice Mock shield (slim IShieldV2 — Sprint T-30b): no-op createPolicy, always-triggered verify.
 contract PMMockShield is IShieldV2 {
     bytes32 public _pid;
-    uint256 public nextId = 1;
 
     constructor(bytes32 pid_) {
         _pid = pid_;
     }
 
-    function productId() external view returns (bytes32) {
-        return _pid;
-    }
+    function createPolicy(uint256, address, uint256, uint64, uint64) external {}
 
-    function createPolicy(
-        IShieldV2.CreatePolicyParams calldata /*params*/
-    )
-        external
-        returns (uint256)
-    {
-        return nextId++;
-    }
-
-    function verifyAndCalculate(
-        uint256,
-        /*policyId*/
-        bytes calldata /*oracleProof*/
-    )
+    function verifyAndCalculate(uint256)
         external
         pure
-        returns (IShieldV2.PayoutResult memory r)
+        returns (bool triggered, uint256 payout, address holder, bytes32 reason)
     {
-        r = IShieldV2.PayoutResult({triggered: true, payoutAmount: 0, recipient: address(0), reason: bytes32("MOCK")});
+        return (true, 0, address(0), bytes32("MOCK"));
     }
 
-    function getPolicyInfo(uint256) external pure returns (address, uint256, uint256, uint256, uint256, uint8) {
-        return (address(0), 0, 0, 0, 0, 0);
+    function getPolicyInfo(uint256) external pure returns (address, uint256, uint256, uint64, uint64, bool) {
+        return (address(0), 0, 0, 0, 0, false);
     }
 }
 

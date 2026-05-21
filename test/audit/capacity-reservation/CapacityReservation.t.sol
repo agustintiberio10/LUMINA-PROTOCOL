@@ -21,10 +21,9 @@ contract MockPriceOracleCR {
     }
 }
 
-// ═══════ Minimal Mock Shield ═══════
+// ═══════ Minimal Mock Shield (slim IShieldV2 — Sprint T-30b) ═══════
 contract MockShieldCR {
     bytes32 public productId;
-    uint256 public nextPolicyId = 1;
     bool public triggerResult = true;
 
     constructor(bytes32 _productId) {
@@ -35,18 +34,18 @@ contract MockShieldCR {
         triggerResult = _result;
     }
 
-    function createPolicy(IShieldV2.CreatePolicyParams calldata) external returns (uint256) {
-        return nextPolicyId++;
+    function createPolicy(uint256, address, uint256, uint64, uint64) external {}
+
+    function verifyAndCalculate(uint256)
+        external
+        view
+        returns (bool triggered, uint256 payout, address holder, bytes32 reason)
+    {
+        return (triggerResult, 0, address(0), "MOCK_TRIGGER");
     }
 
-    function verifyAndCalculate(uint256, bytes calldata) external view returns (IShieldV2.PayoutResult memory) {
-        return IShieldV2.PayoutResult({
-            triggered: triggerResult, payoutAmount: 0, recipient: address(0), reason: "MOCK_TRIGGER"
-        });
-    }
-
-    function getPolicyInfo(uint256) external pure returns (address, uint256, uint256, uint256, uint256, uint8) {
-        return (address(0), 0, 0, 0, 0, 0);
+    function getPolicyInfo(uint256) external pure returns (address, uint256, uint256, uint64, uint64, bool) {
+        return (address(0), 0, 0, 0, 0, false);
     }
 }
 

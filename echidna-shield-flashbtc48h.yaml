@@ -1,5 +1,5 @@
 testMode: property
-testLimit: 1000
+testLimit: 200000
 seqLen: 100
 shrinkLimit: 5000
 corpusDir: corpus/shields/flashbtc48h
