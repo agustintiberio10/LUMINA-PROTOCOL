@@ -75,8 +75,10 @@ contract MockAavePoolTest is Test {
         assertEq(pool.variableBorrowRateOf(usdc), 7e25);
     }
 
-    function test_setBorrowRate_convertsBPSToRay_1000bps_equals_TRIGGER_RATE() public {
-        // 1000 BPS == 10% APY == 10e25, the RateShockShield trigger threshold.
+    function test_setBorrowRate_convertsBPSToRay_1000bps_equals_10pct() public {
+        // 1000 BPS == 10% APY == 10e25 (Aave RAY scale).
+        // (Historical: this matched the old RateShockShield trigger threshold,
+        //  removed in Sprint T-30a Phase B.)
         pool.setBorrowRate(usdc, 1000);
         assertEq(pool.variableBorrowRateOf(usdc), 10e25);
     }

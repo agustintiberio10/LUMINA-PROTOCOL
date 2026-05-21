@@ -36,7 +36,7 @@ contract ShieldKeeperCoverage is Test {
         keeper = ProxyDeployer.deployShieldKeeper(address(pm));
     }
 
-    /// @notice Covers L105 — final `return (false, "")` in checkUpkeep (no products + no active policies).
+    /// @notice Covers L105 -- final `return (false, "")` in checkUpkeep (no products + no active policies).
     function test_CheckUpkeep_NoProducts_ReturnsFalseEmpty() public view {
         (bool upkeepNeeded, bytes memory performData) = keeper.checkUpkeep("");
         assertFalse(upkeepNeeded, "expected upkeepNeeded false");

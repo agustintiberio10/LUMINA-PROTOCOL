@@ -198,7 +198,7 @@ contract ReentrancyDeep is Test {
     function test_Reentrancy_BondVault_RedeemBond_NoHookAttack() public {
         vm.chainId(8453);
         (BondVault v, LuminaTokenV2 token,,) = _bvFull();
-        address holder = makeAddr("holder"); // EOA — not a contract.
+        address holder = makeAddr("holder"); // EOA -- not a contract.
         v.issueBond(holder, 100);
 
         // Warp past maturity.

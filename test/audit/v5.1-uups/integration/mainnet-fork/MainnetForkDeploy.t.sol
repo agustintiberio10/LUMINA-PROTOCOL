@@ -16,8 +16,10 @@ interface IChainlinkAggregator {
 }
 
 /// @dev Mirrors the layout used by V5.1's own `FounderVesting` to read Aave.
-///      Returning the struct (not a tuple of fields) is what `RateShockShield`
-///      and `FounderVesting` actually do, so this is what we should test.
+///      Returning the struct (not a tuple of fields) is what `FounderVesting`
+///      actually does, so this is what we should test.
+///      (Historical: `RateShockShield` was also a consumer; removed in
+///      Sprint T-30a Phase B per founder decision.)
 interface IAaveReserveReader {
     struct ReserveData {
         uint256 configuration;
@@ -123,7 +125,8 @@ contract MainnetForkDeployTest is Test {
 
     // ─────────────────────────────────────────────────────────────────
     // 5. Aave V3 USDC variable borrow rate is in the band the protocol
-    //    expects. RateShockShield + FounderVesting both read this value.
+    //    expects. FounderVesting reads this value.
+    //    (RateShockShield was also a consumer; removed in Sprint T-30a Phase B.)
     // ─────────────────────────────────────────────────────────────────
     function test_Fork_AavePool_HasCode() public view {
         // First sanity: the address must be a deployed contract on the fork.
@@ -145,9 +148,9 @@ contract MainnetForkDeployTest is Test {
     // improves and the limitation goes away.
     //
     // Note: this does NOT block the production deploy. The deploy script
-    // never calls Aave at deploy time; the only Aave readers are
-    // `RateShockShield` and `FounderVesting`, both invoked at runtime
-    // against the live (non-forked) chain.
+    // never calls Aave at deploy time; the only Aave reader now is
+    // `FounderVesting`, invoked at runtime against the live (non-forked) chain.
+    // (RateShockShield was a second consumer; removed in Sprint T-30a Phase B.)
     function test_Fork_AaveProxy_DocumentedForkLimitation() public {
         (bool ok,) = AAVE_POOL_REAL.staticcall{gas: 5_000_000}(
             abi.encodeWithSignature("getReserveNormalizedIncome(address)", USDC_REAL)

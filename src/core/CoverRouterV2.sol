@@ -8,6 +8,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ChainGuard} from "../utils/ChainGuard.sol";
+import {IChainlinkL2SequencerUptimeFeed} from "../interfaces/IChainlinkL2SequencerUptimeFeed.sol";
 
 /// @title CoverRouterV2
 /// @notice Single entry point for users (humans + AI agents) to buy policies.
@@ -78,6 +79,16 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     ///         so the flag persists across txs.
     bool public autoPausedOnce;
 
+    /// @notice [Sprint T-30a Phase E] Optional Chainlink L2 sequencer uptime feed.
+    /// @dev    When set (non-zero), purchases require the sequencer to be up AND
+    ///         past the grace period. Set to address(0) on chains without an
+    ///         uptime feed (Sepolia, mainnet-L1) — the check becomes a no-op.
+    IChainlinkL2SequencerUptimeFeed public sequencerFeed;
+
+    /// @notice [Sprint T-30a Phase E] Grace period (seconds) after a sequencer
+    ///         up-transition before purchases are re-enabled.
+    uint32 public constant SEQUENCER_GRACE_PERIOD = 3600;
+
     // ═══════ EVENTS ═══════
     event PolicyPurchased(
         bytes32 indexed productId,
@@ -104,6 +115,8 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     event AutoPauseActivated(uint256 priceWei);
     /// @notice [Fix audit #28 INFO-7] Emitted when circuit-breaker auto-pause is deactivated.
     event AutoPauseDeactivated(uint256 priceWei);
+    /// @notice [Sprint T-30a Phase E] Emitted when the L2 sequencer feed is set/updated.
+    event SequencerFeedUpdated(address indexed oldFeed, address indexed newFeed);
 
     // ═══════ ERRORS ═══════
     error ContractPaused();
@@ -119,6 +132,14 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     modifier whenNotPaused() {
         if (paused) revert ContractPaused();
+        _;
+    }
+
+    /// @notice [Sprint T-30a Phase E] Reverts when the configured L2 sequencer
+    ///         is down or within the grace period after recovery. No-op when
+    ///         the feed is unset (address(0)).
+    modifier whenSequencerActive() {
+        require(_sequencerActive(), "SEQUENCER_DOWN");
         _;
     }
 
@@ -148,6 +169,7 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         external
         nonReentrant
         whenNotPaused
+        whenSequencerActive
         returns (uint256 policyId)
     {
         return _purchase(productId, coverageAmount, asset, msg.sender, msg.sender);
@@ -160,6 +182,7 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         external
         nonReentrant
         whenNotPaused
+        whenSequencerActive
         returns (uint256 policyId)
     {
         ChainGuard.requireValidChain();
@@ -281,6 +304,15 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit CapacityOracleUpdated(old, _oracle);
     }
 
+    /// @notice [Sprint T-30a Phase E] Set or clear the L2 sequencer uptime feed.
+    /// @dev    Pass address(0) to disable the check (no-op modifier) — useful
+    ///         for L1 / Sepolia where no feed exists. Owner-gated.
+    function setSequencerFeed(address _feed) external onlyOwner {
+        address old = address(sequencerFeed);
+        sequencerFeed = IChainlinkL2SequencerUptimeFeed(_feed);
+        emit SequencerFeedUpdated(old, _feed);
+    }
+
     // ═══════ VIEW ═══════
 
     /// @notice Calculate premium for a given product and coverage.
@@ -337,6 +369,22 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         }
     }
 
+    /// @notice [Sprint T-30a Phase E] Returns true if either no sequencer feed
+    ///         is configured (L1/testnet), or the feed reports the sequencer
+    ///         up AND past the grace period.
+    function _sequencerActive() internal view returns (bool) {
+        if (address(sequencerFeed) == address(0)) return true;
+        (, int256 answer, uint256 startedAt,,) = sequencerFeed.latestRoundData();
+        if (answer != 0) return false; // 1 == down
+        if (block.timestamp - startedAt <= SEQUENCER_GRACE_PERIOD) return false;
+        return true;
+    }
+
+    /// @notice [Sprint T-30a Phase E] External view to query sequencer health.
+    function isSequencerActive() external view returns (bool) {
+        return _sequencerActive();
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
@@ -354,5 +402,6 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     // Storage gap for future upgrades
     // [Fix audit #28 INFO-7] Reduced from 50 to 49 to make room for `autoPausedOnce`.
-    uint256[49] private __gap;
+    // [Sprint T-30a Phase E] Reduced from 49 to 48 to make room for `sequencerFeed`.
+    uint256[48] private __gap;
 }

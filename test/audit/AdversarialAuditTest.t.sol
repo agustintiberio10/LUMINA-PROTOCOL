@@ -746,16 +746,22 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_oracle_zero_uses_floor() public {
-        _issueBondAsPM(user1, 800);
+        // [Sprint T-30a CI fix] Bond size reduced from $800 to $500 to stay
+        // inside the per-epoch redemption throttle cap at MIN_REDEEM_PRICE
+        // ($0.001). With 70M LUMINA in the vault, the cap is
+        // (70M * 0.001 * 108/10000) = $756. The original $800 over-cap path
+        // is now exercised by the queue tests in test/BondVault.throttle.t.sol;
+        // this test focuses on the floor-pricing branch.
+        _issueBondAsPM(user1, 500);
         uint256 epochId = _epochOfCurrentPlus24();
 
         vm.warp(claimBond.maturityDate(epochId) + 1);
         oracle.setPrice(0);
 
         vm.prank(user1);
-        bondVault.redeemBond(epochId, 800);
+        bondVault.redeemBond(epochId, 500);
 
-        uint256 expected = (800 * 1e36) / 0.001e18;
+        uint256 expected = (500 * 1e36) / 0.001e18;
         assertEq(token.balanceOf(user1), expected);
     }
 

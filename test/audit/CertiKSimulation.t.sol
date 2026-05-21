@@ -442,27 +442,33 @@ contract CertiKSimulation is Test {
     /// @notice Oracle returns extremely low price — attempt to drain vault
     ///         by redeeming at deflated price (getting more LUMINA per dollar)
     function test_ATTACK_oracle_deflate_for_drain() public {
-        // Issue bond at normal price
-        _issueBondAsPM(victim, 800);
+        // [Sprint T-30a CI fix] Bond size $800 → $500 to fit the throttle cap
+        // at $0.001 with 70M LUMINA in the vault: cap = 70M * 0.001 * 108/10000
+        // = $756. The original $800 redemption now goes through the FIFO queue
+        // (covered separately in test/BondVault.throttle.t.sol); this test
+        // continues to validate the "low-price expands LUMINA payout" attack
+        // surface within the throttle envelope.
+        _issueBondAsPM(victim, 500);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
         // Oracle reports $0.001 (floor price)
         oracle.setPrice(0.001e18);
 
-        // Victim redeems — gets 800,000 LUMINA ($800 / $0.001)
+        // Victim redeems — gets 500,000 LUMINA ($500 / $0.001)
         vm.prank(victim);
-        bondVault.redeemBond(epoch, 800);
+        bondVault.redeemBond(epoch, 500);
 
         uint256 received = token.balanceOf(victim);
         uint256 priceLow = 0.001e18;
-        uint256 expected = (uint256(800) * 1e36) / priceLow; // 800,000 LUMINA
+        uint256 expected = (uint256(500) * 1e36) / priceLow; // 500,000 LUMINA
         assertEq(received, expected);
 
         // This IS a lot of LUMINA, but it's the correct behavior:
-        // The bond is worth $800. At $0.001/LUMINA, that IS 800K LUMINA.
-        // The vault has 82M, so it can handle this.
-        // The risk is if MANY bonds redeem at $0.001 simultaneously.
+        // The bond is worth $500. At $0.001/LUMINA, that IS 500K LUMINA.
+        // The vault has 70M, so it can handle this.
+        // The risk if MANY bonds redeem at $0.001 simultaneously is now
+        // mitigated by the per-epoch throttle (Sprint T-30a Phase D).
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -526,7 +532,7 @@ contract CertiKSimulation is Test {
     /// @dev    NOTE: In this setup bondVault.policyManager == address(this) (test contract),
     ///         not the PolicyManagerV2 contract. So the end-to-end flow
     ///         (CoverRouter → PolicyManagerV2 → BondVault.issueBond) will
-    ///         fail inside bondVault with "Only PolicyManager" — which is
+    ///         fail inside bondVault with "Only PolicyManager" -- which is
     ///         itself a PROTECTION. We verify that the evil shield's
     ///         inflated payoutAmount (999M USDC) is IGNORED: PolicyManagerV2
     ///         uses its own `pr.payoutAmount = coverage × 80%` for bond
@@ -683,21 +689,27 @@ contract CertiKSimulation is Test {
 
     /// @notice Redeem at extremely low price to get absurd LUMINA amount
     function test_ATTACK_redeem_at_dust_price() public {
-        _issueBondAsPM(attacker, 800);
+        // [Sprint T-30a CI fix] Bond size $800 → $500 to fit the per-epoch
+        // throttle cap at MIN_REDEEM_PRICE: cap = 70M * 0.001 * 108/10000
+        // = $756. Over-cap redemptions now enter the FIFO queue (covered by
+        // test/BondVault.throttle.t.sol). This test still verifies that the
+        // immediate-redeem path mints `usdAmount / price` LUMINA at the floor
+        // price, the original "dust price" attack surface.
+        _issueBondAsPM(attacker, 500);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
         // Set price to minimum
         oracle.setPrice(0.001e18); // MIN_REDEEM_PRICE
 
-        // luminaAmount = 800 * 1e36 / 0.001e18 = 800 * 1e36 / 1e15 = 800e21 = 800,000e18
-        // = 800,000 LUMINA. Vault has 82M, so this is fine.
+        // luminaAmount = 500 * 1e36 / 0.001e18 = 500 * 1e36 / 1e15 = 500e21 = 500,000e18
+        // = 500,000 LUMINA. Vault has 70M, so this is fine.
         vm.prank(attacker);
-        bondVault.redeemBond(epoch, 800);
+        bondVault.redeemBond(epoch, 500);
 
         uint256 received = token.balanceOf(attacker);
-        assertEq(received, 800_000 * 1e18); // 800K LUMINA
-        // Vault still has 82M - 800K = 81.2M. Solvent.
+        assertEq(received, 500_000 * 1e18); // 500K LUMINA
+        // Vault still has 70M - 500K = 69.5M. Solvent.
     }
 
     /// @notice What if price is below MIN_REDEEM_PRICE?

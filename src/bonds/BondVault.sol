@@ -52,6 +52,15 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     uint256 public constant MIN_BOND_MATURITY_SECONDS = 1 minutes;
     uint256 public constant MAX_BOND_MATURITY_SECONDS = 10 * 365 days; // 10 years
 
+    /// @notice [Sprint T-30a, Phase D] Redemption throttle.
+    /// @dev    Caps cumulative USD-value redeemed per 7-day epoch at 1.08% of
+    ///         the current vault LUMINA balance (measured at the time of the
+    ///         call). Over-cap redemptions are queued FIFO to the next epoch.
+    ///         Founder decision: in a black-swan mass-redemption scenario the
+    ///         vault drains at most ~13% in 12 weeks (12 * 1.08% ~= 12.96%).
+    uint16 public constant MAX_REDEMPTION_PER_EPOCH_BPS = 108; // 1.08% of vault per epoch
+    uint32 public constant EPOCH_DURATION = 7 days; // 604800 seconds
+
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
     uint256 public totalReservedUSD; // capacity reserved by active policies awaiting trigger (18-dec USD-wei)
@@ -65,6 +74,27 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///         storage so Sepolia can run E2E redemption flows in seconds rather
     ///         than waiting 730 days. Mainnet keeps the 730d default.
     uint256 public bondMaturitySeconds;
+
+    // ═══════ THROTTLE STORAGE (Sprint T-30a, Phase D) ═══════
+    /// @notice Cumulative USD-value (18-dec USD-wei) redeemed per 7-day epoch.
+    mapping(uint256 => uint256) public redeemedInEpoch;
+
+    /// @notice One entry per over-cap bond redemption deferred to a future epoch.
+    /// @dev    Bonds are burned from the holder at queue time (custody-by-debt).
+    ///         When `processQueue()` drains an entry, LUMINA is transferred to
+    ///         `holder` at the price observed at processing time.
+    struct QueuedRedemption {
+        address holder;
+        uint256 epochIdBond; // ClaimBond ERC-1155 epoch ID (YYYYMM) — the bond's maturity epoch
+        uint256 usdAmount; // integer dollars (matches redeemBond's `usdAmount` argument)
+        uint64 queuedAt;
+    }
+
+    /// @notice FIFO queue per 7-day epoch (key = `currentEpoch()` value).
+    mapping(uint256 => QueuedRedemption[]) public queueByEpoch;
+
+    /// @notice Next index to process in `queueByEpoch[epoch]`.
+    mapping(uint256 => uint256) public queueProcessedIndex;
 
     // ═══════ EVENTS ═══════
     event BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount);
@@ -82,6 +112,22 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     event TokenRecovered(address indexed token, uint256 amount, address indexed to);
     /// @notice [Sprint T, ADR-009] Emitted when admin updates the bond maturity duration.
     event BondMaturityUpdated(uint256 oldValue, uint256 newValue);
+
+    /// @notice [Sprint T-30a, Phase D] Emitted when a redemption would exceed the
+    ///         per-epoch cap and is deferred FIFO to the next epoch.
+    /// @param  holder           Bond holder whose redemption was queued.
+    /// @param  epochIdBond      ClaimBond epoch ID (YYYYMM) the queued bond belongs to.
+    /// @param  usdAmount        USD amount queued (integer dollars).
+    /// @param  targetThrottleEpoch  Throttle-epoch index the redemption is queued into.
+    event BondQueued(
+        address indexed holder, uint256 indexed epochIdBond, uint256 usdAmount, uint256 indexed targetThrottleEpoch
+    );
+
+    /// @notice [Sprint T-30a, Phase D] Emitted when `processQueue()` drains
+    ///         queued redemptions in the current throttle-epoch.
+    /// @param  throttleEpoch  Throttle-epoch processed.
+    /// @param  count          Number of queue entries drained in this call.
+    event QueueProcessed(uint256 indexed throttleEpoch, uint256 count);
 
     // ═══════ ERRORS (rescue) ═══════
     error CoreTokenProtected(address token);
@@ -205,8 +251,17 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     // ═══════ REDEEM BONDS (called by holder at maturity) ═══════
 
     /// @notice Redeem matured bonds. Pays USD value in LUMINA at current market price.
-    /// @param epochId Maturity epoch
-    /// @param usdAmount USD amount to redeem (partial allowed)
+    /// @dev    [Sprint T-30a, Phase D] Subject to the per-epoch throttle
+    ///         (`MAX_REDEMPTION_PER_EPOCH_BPS` of vault LUMINA per `EPOCH_DURATION`).
+    ///         If the request would push the current throttle-epoch over its cap,
+    ///         the bonds are burned from `msg.sender` (custody-by-debt) and the
+    ///         redemption is enqueued FIFO for the next throttle-epoch. The
+    ///         queued holder then receives LUMINA when `processQueue()` is called
+    ///         in (or after) the target epoch. ClaimBond `totalCommittedUSD`
+    ///         accounting is decremented up-front in BOTH paths so that available
+    ///         capacity reflects the in-flight obligation.
+    /// @param  epochId   ClaimBond maturity epoch (YYYYMM).
+    /// @param  usdAmount Integer-dollar amount to redeem (partial allowed).
     function redeemBond(uint256 epochId, uint256 usdAmount) external nonReentrant {
         ChainGuard.requireValidChain();
         require(usdAmount > 0, "Zero amount");
@@ -216,22 +271,123 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 currentPrice = _getSafePrice();
         require(currentPrice >= MIN_REDEEM_PRICE, "Price too low");
 
-        // [V2/SR2] Pay LUMINA in 18-decimal wei.
-        uint256 luminaAmount = (usdAmount * 1e36) / currentPrice;
-        require(lumina.balanceOf(address(this)) >= luminaAmount, "Insufficient reserve");
+        // [Sprint T-30a, Phase D] Throttle check. Compute cap in 18-dec USD-wei
+        // so it can be compared directly to `redeemedInEpoch`.
+        uint256 throttleEpoch = currentEpoch();
+        uint256 capUSD18 = _maxRedeemUSD18ThisEpoch(currentPrice);
+        uint256 requestedUSD18 = usdAmount * 1e18;
 
-        // [V3/SR2] totalCommittedUSD is in 18-dec USD-wei. Remove the same scaled amount.
-        uint256 commitmentToRemove = usdAmount * 1e18;
+        // [V3/SR2] totalCommittedUSD is in 18-dec USD-wei. Decrement up-front in
+        // BOTH the immediate-redeem and the queued path — the obligation is no
+        // longer "in flight as a bond" after this call.
+        uint256 commitmentToRemove = requestedUSD18;
         if (totalCommittedUSD >= commitmentToRemove) {
             totalCommittedUSD -= commitmentToRemove;
         } else {
             totalCommittedUSD = 0;
         }
 
+        if (redeemedInEpoch[throttleEpoch] + requestedUSD18 > capUSD18) {
+            // Over cap: burn the bonds from the holder (custody-by-debt) and
+            // enqueue for the NEXT throttle-epoch. LUMINA is paid out when
+            // `processQueue()` is called against the target epoch.
+            claimBond.burn(msg.sender, epochId, usdAmount);
+            uint256 target = throttleEpoch + 1;
+            queueByEpoch[target].push(
+                QueuedRedemption({
+                    holder: msg.sender, epochIdBond: epochId, usdAmount: usdAmount, queuedAt: uint64(block.timestamp)
+                })
+            );
+            emit BondQueued(msg.sender, epochId, usdAmount, target);
+            return;
+        }
+
+        // Within cap: redeem immediately.
+        redeemedInEpoch[throttleEpoch] += requestedUSD18;
+
+        // [V2/SR2] Pay LUMINA in 18-decimal wei.
+        uint256 luminaAmount = (usdAmount * 1e36) / currentPrice;
+        require(lumina.balanceOf(address(this)) >= luminaAmount, "Insufficient reserve");
+
         claimBond.burn(msg.sender, epochId, usdAmount);
         require(lumina.transfer(msg.sender, luminaAmount), "Transfer failed");
 
         emit BondRedeemed(msg.sender, epochId, usdAmount, luminaAmount, currentPrice);
+    }
+
+    // ═══════ THROTTLE — PUBLIC VIEW HELPERS (Sprint T-30a, Phase D) ═══════
+
+    /// @notice Current 7-day throttle epoch index (block.timestamp / EPOCH_DURATION).
+    /// @dev    This is independent of ClaimBond's monthly `epochId` (YYYYMM).
+    function currentEpoch() public view returns (uint256) {
+        return block.timestamp / EPOCH_DURATION;
+    }
+
+    /// @notice Max USD-value redeemable in the current throttle-epoch.
+    /// @dev    Returns INTEGER dollars (no 18-dec scaling) so wallets/UIs can
+    ///         consume it directly. The value is `(vaultLuminaBalance *
+    ///         currentPrice / 1e18) * MAX_REDEMPTION_PER_EPOCH_BPS / 10_000`,
+    ///         then descaled to integer USD. Computed lazily — every call
+    ///         re-reads vault balance + price, so it shrinks as the vault is
+    ///         drained.
+    function maxRedeemThisEpoch() external view returns (uint256) {
+        uint256 currentPrice = _getSafePrice();
+        return _maxRedeemUSD18ThisEpoch(currentPrice) / 1e18;
+    }
+
+    /// @dev Internal: USD-cap for the current throttle-epoch, in 18-dec USD-wei
+    ///      so it lines up with `redeemedInEpoch[]` entries.
+    function _maxRedeemUSD18ThisEpoch(uint256 currentPrice) internal view returns (uint256) {
+        uint256 reserveBalance = lumina.balanceOf(address(this));
+        uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
+        return (reserveValueUSD18 * uint256(MAX_REDEMPTION_PER_EPOCH_BPS)) / 10_000;
+    }
+
+    /// @notice Length of the FIFO queue for a given throttle-epoch.
+    function queueLength(uint256 throttleEpoch) external view returns (uint256) {
+        return queueByEpoch[throttleEpoch].length;
+    }
+
+    /// @notice Permissionless: drain as many queued redemptions as the current
+    ///         throttle-epoch cap allows, in FIFO order. Anyone may call.
+    /// @dev    Stops on the first entry that would breach the cap; remaining
+    ///         entries stay queued for a subsequent call (later in this epoch
+    ///         or in a future epoch). LUMINA is paid out at the price observed
+    ///         AT PROCESSING TIME — same model as the immediate-redeem path.
+    function processQueue() external nonReentrant {
+        uint256 throttleEpoch = currentEpoch();
+        uint256 currentPrice = _getSafePrice();
+        require(currentPrice >= MIN_REDEEM_PRICE, "Price too low");
+
+        uint256 capUSD18 = _maxRedeemUSD18ThisEpoch(currentPrice);
+        uint256 already = redeemedInEpoch[throttleEpoch];
+        uint256 idx = queueProcessedIndex[throttleEpoch];
+        QueuedRedemption[] storage queue = queueByEpoch[throttleEpoch];
+        uint256 processed = 0;
+
+        while (idx < queue.length) {
+            QueuedRedemption storage q = queue[idx];
+            uint256 needUSD18 = q.usdAmount * 1e18;
+            if (already + needUSD18 > capUSD18) break;
+
+            uint256 luminaAmount = (q.usdAmount * 1e36) / currentPrice;
+            require(lumina.balanceOf(address(this)) >= luminaAmount, "Insufficient reserve");
+
+            already += needUSD18;
+            // Bonds were already burned at queue time — only LUMINA is moved here.
+            require(lumina.transfer(q.holder, luminaAmount), "Transfer failed");
+
+            emit BondRedeemed(q.holder, q.epochIdBond, q.usdAmount, luminaAmount, currentPrice);
+
+            unchecked {
+                ++idx;
+                ++processed;
+            }
+        }
+
+        redeemedInEpoch[throttleEpoch] = already;
+        queueProcessedIndex[throttleEpoch] = idx;
+        emit QueueProcessed(throttleEpoch, processed);
     }
 
     // ═══════ VIEW FUNCTIONS ═══════
@@ -388,8 +544,12 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return token == address(lumina) || token == address(claimBond);
     }
 
-    // [Sprint T, ADR-009] Storage gap reduced from 50 → 49 to compensate for
+    // [Sprint T, ADR-009] Storage gap reduced from 50 -> 49 to compensate for
     // the new `bondMaturitySeconds` storage variable. Total storage footprint
     // (existing state vars + new var + gap) preserved.
-    uint256[49] private __gap;
+    // [Sprint T-30a, Phase D] Gap reduced further from 49 -> 46 to compensate
+    // for three new mapping slots (`redeemedInEpoch`, `queueByEpoch`,
+    // `queueProcessedIndex`). Mappings consume one slot each regardless of
+    // value-type size (the QueuedRedemption struct lives in dynamic storage).
+    uint256[46] private __gap;
 }

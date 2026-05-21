@@ -92,7 +92,7 @@ contract MockOracle_SK {
 }
 
 /// @dev Minimal mock shield that supports the new checkAndSettlePolicy flow.
-///      Simulates BaseShield behavior with configurable trigger conditions.
+///      Simulates IShield behavior with configurable trigger conditions.
 contract MockSettleableShield_SK {
     bytes32 public immutable _productId;
     address public immutable policyManager;
