@@ -295,10 +295,7 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             uint256 target = throttleEpoch + 1;
             queueByEpoch[target].push(
                 QueuedRedemption({
-                    holder: msg.sender,
-                    epochIdBond: epochId,
-                    usdAmount: usdAmount,
-                    queuedAt: uint64(block.timestamp)
+                    holder: msg.sender, epochIdBond: epochId, usdAmount: usdAmount, queuedAt: uint64(block.timestamp)
                 })
             );
             emit BondQueued(msg.sender, epochId, usdAmount, target);

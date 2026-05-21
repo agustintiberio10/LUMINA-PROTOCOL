@@ -9,13 +9,8 @@ pragma solidity ^0.8.20;
 ///         only implement this slimmer surface; richer status/lifecycle is
 ///         handled by PolicyManagerV2 / off-chain components.
 interface IShieldV2 {
-    function createPolicy(
-        uint256 policyId,
-        address holder,
-        uint256 coverage,
-        uint64 startTimestamp,
-        uint64 expiresAt
-    ) external;
+    function createPolicy(uint256 policyId, address holder, uint256 coverage, uint64 startTimestamp, uint64 expiresAt)
+        external;
 
     function verifyAndCalculate(uint256 policyId)
         external

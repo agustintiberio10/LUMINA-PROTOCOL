@@ -108,13 +108,11 @@ abstract contract BaseFlashShield is IShieldV2 {
 
     // ═══════ EXTERNAL: IShieldV2 ═══════
 
-    function createPolicy(
-        uint256 policyId,
-        address holder,
-        uint256 coverage,
-        uint64 startTimestamp,
-        uint64 expiresAt
-    ) external onlyRouter whenSequencerActive {
+    function createPolicy(uint256 policyId, address holder, uint256 coverage, uint64 startTimestamp, uint64 expiresAt)
+        external
+        onlyRouter
+        whenSequencerActive
+    {
         require(policies[policyId].holder == address(0), "POLICY_EXISTS");
         require(expiresAt > startTimestamp, "INVALID_WINDOW");
         require(expiresAt - startTimestamp == _window(), "WINDOW_MISMATCH");
@@ -173,11 +171,7 @@ abstract contract BaseFlashShield is IShieldV2 {
         emit PolicyVerified(policyId, triggered, payout, dropBps, reason);
     }
 
-    function getPolicyInfo(uint256 policyId)
-        external
-        view
-        returns (address, uint256, uint256, uint64, uint64, bool)
-    {
+    function getPolicyInfo(uint256 policyId) external view returns (address, uint256, uint256, uint64, uint64, bool) {
         Policy storage p = policies[policyId];
         return (p.holder, p.coverage, p.strikePrice, p.startTimestamp, p.expiresAt, p.finalized);
     }

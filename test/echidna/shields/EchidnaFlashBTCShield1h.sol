@@ -136,7 +136,8 @@ contract EchidnaFlashBTCShield1h {
     function e_attemptDoublePayout() external {
         if (!_trackedExists) return;
         hevm.prank(ROUTER);
-        try shield.verifyAndCalculate(_trackedPid) {} catch {
+        try shield.verifyAndCalculate(_trackedPid) {}
+            catch {
             // first call may revert; we still try a second
         }
         hevm.prank(ROUTER);
@@ -164,11 +165,11 @@ contract EchidnaFlashBTCShield1h {
         (,,, uint64 start, uint64 end, bool finalized) = shield.getPolicyInfo(_trackedPid);
         if (!finalized) return true;
         return block.timestamp >= start; // weak invariant: time never goes back
-            // strict bound: finalised when block.timestamp was <= end. We can't
-            // observe historic block.timestamp here, but `verifyAndCalculate`
-            // reverts past `expiresAt`, so a finalized policy must have been
-            // verified before then. This view-side check is therefore trivially
-            // true while the shield contract enforces it on-chain.
+        // strict bound: finalised when block.timestamp was <= end. We can't
+        // observe historic block.timestamp here, but `verifyAndCalculate`
+        // reverts past `expiresAt`, so a finalized policy must have been
+        // verified before then. This view-side check is therefore trivially
+        // true while the shield contract enforces it on-chain.
     }
 
     /// 3. Payout (when triggered) equals coverage * (1 - DEDUCTIBLE_BPS).
