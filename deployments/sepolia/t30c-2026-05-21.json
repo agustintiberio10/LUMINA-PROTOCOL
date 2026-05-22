@@ -1,0 +1,92 @@
+{
+  "_status": "LIVE -- canonical Sprint T-30c deployment (Base Sepolia)",
+  "_deployedAt": "2026-05-21",
+  "_sprint": "T-30c",
+  "_summary": "Fresh deploy of 6 flash-shield products (BTC/ETH x 1h/24h/48h) + 6 FlashShieldAdapter UUPS proxies. Adapters wrap each slim shield so PolicyManagerV2 continues to speak the legacy IShieldV2 surface introduced in Sprint T-30b.",
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "deployer": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+  "broadcastLog": "broadcast/DeployFlashShieldsT30c.s.sol/84532/run-latest.json",
+  "verificationStatus": "All (18) contracts verified on BaseScan",
+  "oracles": {
+    "btcUsd": "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+    "ethUsd": "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1",
+    "sequencer": "0x0000000000000000000000000000000000000000",
+    "_sequencerNote": "Base Sepolia has no L2 sequencer uptime feed at the canonical address; BaseFlashShield.sequencerActive() treats address(0) as no-op (assumed active)."
+  },
+  "shields": {
+    "FlashBTCShield1h": {
+      "shield": "0x06ED1ffB6bA493c036472bf1C58EC9301B5A2363",
+      "adapter": "0x5fC732D28c09DfcA2e7eF0AAd6C9491c8474eAdB",
+      "productId": "0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd",
+      "productIdString": "FLASHBTC1H-001",
+      "triggerDropBps": 250,
+      "windowSeconds": 3600,
+      "triggerProbBps": 18,
+      "marginBps": 20000,
+      "payoutRatioBps": 8000
+    },
+    "FlashBTCShield24h": {
+      "shield": "0x9E4C1E799AA41a36ae074768b33198b9D8aCC173",
+      "adapter": "0x844A5fDb3C910DC33Eb720fDB5387C3d55eC867d",
+      "productIdString": "FLASHBTC24-001",
+      "triggerDropBps": 600,
+      "windowSeconds": 86400,
+      "triggerProbBps": 329,
+      "marginBps": 20000,
+      "payoutRatioBps": 8000
+    },
+    "FlashBTCShield48h": {
+      "shield": "0x815802E93cD7fB0C4Ce49f290F1A1Ee9473F0406",
+      "adapter": "0x0840d638a3E79919afE3b1AB589E6D4b5E8C45Bb",
+      "productIdString": "FLASHBTC48-001",
+      "triggerDropBps": 1000,
+      "windowSeconds": 172800,
+      "triggerProbBps": 929,
+      "marginBps": 20000,
+      "payoutRatioBps": 8000
+    },
+    "FlashETHShield1h": {
+      "shield": "0xF858b572De264DF8980dF57A680762B7cb88E351",
+      "adapter": "0xeC42c7169B4D80F4D8A113607367F75c2df02935",
+      "productIdString": "FLASHETH1H-001",
+      "triggerDropBps": 400,
+      "windowSeconds": 3600,
+      "triggerProbBps": 10,
+      "marginBps": 20000,
+      "payoutRatioBps": 8000
+    },
+    "FlashETHShield24h": {
+      "shield": "0x18ccC1eE644C8A79DD93D0F4694960FeC5348eFA",
+      "adapter": "0xb0f143beF75F32BcAB569766e9159366f8fD69C4",
+      "productIdString": "FLASHETH24-001",
+      "triggerDropBps": 850,
+      "windowSeconds": 86400,
+      "triggerProbBps": 286,
+      "marginBps": 20000,
+      "payoutRatioBps": 8000
+    },
+    "FlashETHShield48h": {
+      "shield": "0xC42360BC94401B07ca337Bc4d0Fb338604F8f4cE",
+      "adapter": "0x26db224D3Ddc00F4bFcF8ab26A92B9f7c81A47E6",
+      "productIdString": "FLASHETH48-001",
+      "triggerDropBps": 1400,
+      "windowSeconds": 172800,
+      "triggerProbBps": 769,
+      "marginBps": 20000,
+      "payoutRatioBps": 8000
+    }
+  },
+  "infraReused_V52_DO_NOT_REDEPLOY": {
+    "_note": "Addresses provided by founder in instrucciones2.txt as the live V5.2 infra to wire against. Verified out-of-band; not redeployed by this sprint.",
+    "luminaTokenV2": "0x62C0b58bB30CA857674ec593F1e23B3F15266680",
+    "bondVault": "0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC",
+    "claimBond": "0xaa57Ab52Eb00f296Ad4CFA9E9c201f3737271FB4",
+    "coverRouter": "0xcdB70B40e6a3DEac3189185d947A0e458518F566",
+    "policyManager": "0x546C07e07DeBCdbf7a2A7Ef12C38c8c8fcAFcDd8",
+    "founderVesting": "0xfF4Db529bBCd4E3CC091E07b7845241EB4762832",
+    "luminaOracleV2": "0x9bfa2f7A5098C89b8740D1694d1f716A0Bd871dD",
+    "twapBurner": "0x242d76082856901b4ba1E7c50C022D46a6941bC0",
+    "adaptiveFeeDistributor": "0xeC7841A4a9ecfb8cA58391E233A645B021c59D54"
+  }
+}
