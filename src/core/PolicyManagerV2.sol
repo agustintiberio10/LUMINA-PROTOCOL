@@ -97,6 +97,12 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ═══════ EVENTS ═══════
     event ProductRegistered(bytes32 indexed productId, address shield);
     event ProductDeactivated(bytes32 indexed productId);
+    /// @notice [Sprint Cleanup] Emitted when a productId is removed from `productIds[]`.
+    ///         Does NOT clear `productShield` or `productActive` mappings — those
+    ///         persist (and `productActive` should already be `false`). Used for
+    ///         array cleanup of duplicates that accumulated through repeated
+    ///         `registerProduct` calls (the function is append-only by design).
+    event ProductRemoved(bytes32 indexed productId);
     /// @notice [Fix audit #27 INFO-5] Emitted when router address is updated.
     event RouterUpdated(address indexed oldRouter, address indexed newRouter);
     /// @notice [Sprint V-A] Emitted when bondVault address is updated.
@@ -171,6 +177,51 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit ProductDeactivated(_productId);
     }
 
+    /// @notice [Sprint Cleanup] Remove every occurrence of `productId` from
+    ///         `productIds[]` via swap-and-pop. Mappings `productShield` and
+    ///         `productActive` are NOT touched — callers should `deactivateProduct`
+    ///         first if they want to disable purchases, then `removeProduct`
+    ///         to compact the array.
+    /// @dev    Cleans up duplicates that accumulated when `registerProduct` was
+    ///         called multiple times for the same `productId` (append-only push).
+    ///         Owner-only; reverts if no occurrence of `productId` is found.
+    function removeProduct(bytes32 productId) external onlyOwner {
+        _removeProduct(productId);
+    }
+
+    /// @notice [Sprint Cleanup] Batch version of `removeProduct`. Each entry is
+    ///         processed independently; if ANY entry is not in the array the
+    ///         whole call reverts (no partial cleanup).
+    function removeProductBatch(bytes32[] calldata _productIds) external onlyOwner {
+        for (uint256 i = 0; i < _productIds.length; i++) {
+            _removeProduct(_productIds[i]);
+        }
+    }
+
+    /// @dev Internal swap-and-pop that strips every occurrence of `productId`
+    ///      from `productIds[]`. Reverts if zero occurrences. Single
+    ///      `ProductRemoved` event per call (regardless of how many duplicates
+    ///      were removed) — the event signals intent, not multiplicity.
+    function _removeProduct(bytes32 productId) internal {
+        uint256 length = productIds.length;
+        bool found = false;
+        uint256 i = 0;
+        while (i < length) {
+            if (productIds[i] == productId) {
+                productIds[i] = productIds[length - 1];
+                productIds.pop();
+                length--;
+                found = true;
+                // do NOT advance i — recheck this slot, which now holds the
+                // formerly-last element (which itself could be a duplicate).
+            } else {
+                i++;
+            }
+        }
+        require(found, "PM: productId not in array");
+        emit ProductRemoved(productId);
+    }
+
     // ═══════ CORE: recordPolicy (called by CoverRouter) ═══════
 
     /// @notice Record a new policy. Called by CoverRouterV2 after receiving premium.
@@ -214,15 +265,15 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         policyId = IShieldV2(shield)
             .createPolicy(
                 IShieldV2.CreatePolicyParams({
-                buyer: buyer,
-                coverageAmount: coverageAmount,
-                premiumAmount: premiumAmount,
-                durationSeconds: durationSeconds,
-                asset: asset,
-                stablecoin: "USDC",
-                protocol: address(0),
-                extraData: ""
-            })
+                    buyer: buyer,
+                    coverageAmount: coverageAmount,
+                    premiumAmount: premiumAmount,
+                    durationSeconds: durationSeconds,
+                    asset: asset,
+                    stablecoin: "USDC",
+                    protocol: address(0),
+                    extraData: ""
+                })
             );
 
         // Record locally (must happen after external call to obtain policyId)
