@@ -1,6 +1,6 @@
 # Audit Pack — Lumina V5.1
 
-**Última actualización**: 2026-05-20 (Sprint T-30a)
+**Última actualización**: 2026-05-21 (Sprint T-30b)
 **Status**: ACTIVO — documento vivo, se actualiza en cada sprint
 
 ## Propósito
@@ -66,6 +66,7 @@ Cada sprint que toque el audit-pack debe:
 - **ADRs 010-027** documentando 18 decisiones arquitectónicas.
 - **Sprint Deploy V5.2 ejecutado** 2026-05-18: 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS, 0.000302 ETH gastados (~$1). Manifest en tracker PR #28.
 - **Sprint T-30a re-implementación shields** 2026-05-20: 7 shields V5.2 + RateShock borrados (75 archivos); 6 shields nuevos con drop-from-purchase + sequencer L2 check; BondVault throttle 1.08%/sem FIFO; 48 unit + 6 throttle + 2 integration + 48 Echidna scaffolds (testLimit=1000). T-30b auditorías + T-30c deploy pendientes.
+- **Sprint T-30b auditorías profundas** 2026-05-21: 48 Echidna properties × 200k × 6 shields = 9.6M PROVEN; 5 Halmos invariants nuevos PROVEN (`SprintT30bHalmos`); Aderyn + Mythril clean sobre código nuevo; FlashShieldAdapter (UUPS, ~125 LOC) resuelve interface bridge via adapter pattern (Opción B). 20/20 CI workflows verde commit `705ca08`. PR #139 draft.
 
 ### Pendiente ⏳ (12 items abiertos)
 
@@ -84,6 +85,7 @@ Cada sprint que toque el audit-pack debe:
 
 ## Changelog del audit-pack
 
+- **2026-05-21 (Sprint T-30b)**: Sección 13 agregada a `what-we-tested.md` con auditorías profundas completadas (9.6M Echidna runs + 5 Halmos invariants + adapter pattern + SAST clean). Item 13 en `what-is-pending.md` CERRADO; item 14 nuevo (FlashShieldAdapter integration tests para T-30c).
 - **2026-05-20 (Sprint T-30a)**: Sección 12 agregada a `what-we-tested.md` con re-implementación shields + BondVault throttle + Sequencer L2 check + 48 unit + 6 throttle + 2 integration + 48 Echidna scaffolds. Item 13 nuevo en `what-is-pending.md` (T-30b auditorías + integration TODOs).
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 a `what-we-tested.md` con verificación on-chain post-deploy V5.2 (16/16 checks PASS, 26 contratos deployados a Base Sepolia). Manifest completo en tracker PR #28.
 - **2026-05-18 (Sprint DD)**: documento inicial creado. Snapshot del estado al cierre de Sprint EE-FIX.
