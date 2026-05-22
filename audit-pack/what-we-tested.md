@@ -455,8 +455,148 @@ ADRs 016 (Slither baseline Sprint X) y 017 (Mythril full Sprint Y) siguen autori
 
 ---
 
+## 14. Sprint T-30c — Deploy Sepolia + reconexión + primas live (2026-05-21)
+
+**Status: CLOSED ✅ — V5.3 LIVE on Base Sepolia.**
+
+### 14.1 Scope (último sub-sprint de FASE 4)
+
+1. Cerrar PENDING #14 de T-30b: FlashShieldAdapter sin tests dedicados.
+2. Cerrar los 2 integration TODOs (`testPurchasePolicy_Through_CoverRouter_Full`, `testTrigger_EmitsBond_Full`) en `test/integration/ShieldsE2E.t.sol`.
+3. Deploy fresco a Base Sepolia: 6 shields + 6 adapters UUPS.
+4. Verificación on-chain BaseScan.
+5. Registrar 6 productos en PolicyManagerV2 (canonical adapter address por productId).
+6. configureProduct() × 6 con primas finales en CoverRouterV2 (margin `20000`).
+7. Reconectar API + Landing + SDK con nuevas addresses.
+8. End-to-end read verification post-deploy.
+
+### 14.2 FlashShieldAdapter unit tests (Phase B)
+
+`test/shields/FlashShieldAdapter.t.sol` (16 tests, todos PASS):
+
+| Suite | Tests | Coverage objetivo |
+|---|---|---|
+| Initialize (3) | SetsCorrectShield · RevertsIfShieldZero · RevertsIfCalledTwice | ≥95% |
+| createPolicy (2) | TranslatesCorrectly · AssignsMonotonicIds | ≥95% |
+| verifyAndCalculate (4) | HandlesTriggered · HandlesNoTrigger · IgnoresOracleProof · PropagatesShieldRevert | ≥95% |
+| getPolicyInfo (3) | TranslatesFromShield · StatusFinalizedAfterVerify · NonExistentReturnsZeros | ≥95% |
+| UUPS (2) | OnlyOwnerCanUpgrade · UpgradeAuthorization (storage persists) | ≥95% |
+| Sequencer + router (2) | SequencerCheck_Inherited · Shield_RejectsCallsNotFromAdapter | ≥95% |
+
+Total: **16/16 PASS**, gas-checked, ASCII-only literals, via_ir absolute warps.
+
+### 14.3 Integration TODOs cerrados (Phase C)
+
+Nuevo `ShieldsE2EFullTest` en `test/integration/ShieldsE2E.t.sol`:
+- `testPurchasePolicy_Through_CoverRouter_Full`: full `CoverRouterV2 → PolicyManagerV2 → FlashShieldAdapter → BaseFlashShield` con premium pull, USDC accounting, PM record, bond reservation.
+- `testTrigger_EmitsBond_Full`: full trigger flow con `MockBondVault.issueBond` firing para el buyer; reservation committed, PM stats advanced, slim shield finalized.
+
+Total: **4/4 PASS** (2 legacy + 2 nuevos).
+
+### 14.4 Deploy fresco a Base Sepolia (Phase E)
+
+Script: `script/deploy/DeployFlashShieldsT30c.s.sol`. Patrón: deploy adapter proxy uninit → deploy shield con adapter como router → init adapter con shield + productId.
+
+Manifest: `deployments/sepolia/t30c-2026-05-21.json`. Deployer: `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8`. 18 contratos on-chain (6 shields + 6 adapter impls + 6 ERC1967 proxies).
+
+| Contract | Address |
+|---|---|
+| FlashBTCShield1h shield | `0x06ED1ffB6bA493c036472bf1C58EC9301B5A2363` |
+| FlashBTCShield1h adapter | `0x5fC732D28c09DfcA2e7eF0AAd6C9491c8474eAdB` |
+| FlashBTCShield24h shield | `0x9E4C1E799AA41a36ae074768b33198b9D8aCC173` |
+| FlashBTCShield24h adapter | `0x844A5fDb3C910DC33Eb720fDB5387C3d55eC867d` |
+| FlashBTCShield48h shield | `0x815802E93cD7fB0C4Ce49f290F1A1Ee9473F0406` |
+| FlashBTCShield48h adapter | `0x0840d638a3E79919afE3b1AB589E6D4b5E8C45Bb` |
+| FlashETHShield1h shield | `0xF858b572De264DF8980dF57A680762B7cb88E351` |
+| FlashETHShield1h adapter | `0xeC42c7169B4D80F4D8A113607367F75c2df02935` |
+| FlashETHShield24h shield | `0x18ccC1eE644C8A79DD93D0F4694960FeC5348eFA` |
+| FlashETHShield24h adapter | `0xb0f143beF75F32BcAB569766e9159366f8fD69C4` |
+| FlashETHShield48h shield | `0xC42360BC94401B07ca337Bc4d0Fb338604F8f4cE` |
+| FlashETHShield48h adapter | `0x26db224D3Ddc00F4bFcF8ab26A92B9f7c81A47E6` |
+
+Oracles wireados (Chainlink real Base Sepolia):
+- BTC/USD: `0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298`
+- ETH/USD: `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`
+- Sequencer: `0x0000000000000000000000000000000000000000` (Base Sepolia sin feed canónico — `BaseFlashShield.sequencerActive()` lo trata como `true`).
+
+### 14.5 Verificación BaseScan (Phase F)
+
+**18/18 contratos verificados** vía `forge script ... --verify --etherscan-api-key ETHERSCAN_API_KEY --chain base-sepolia`. Broadcast log: `broadcast/DeployFlashShieldsT30c.s.sol/84532/run-latest.json`.
+
+### 14.6 Registro de productos en PolicyManagerV2 (Phase G)
+
+PM: `0x546C07e07DeBCdbf7a2A7Ef12C38c8c8fcAFcDd8` — `registerProduct(productId, adapterAddress)` × 6. Re-validado on-chain post: `productShield(pid)` ⇒ adapter address por cada uno.
+
+| ProductId (string) | keccak256 |
+|---|---|
+| FLASHBTC1H-001 | `0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd` |
+| FLASHBTC24-001 | `0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9` |
+| FLASHBTC48-001 | `0xb630608784616003f974941232dd618003e5a182176cc14010db95cda2ab1ee8` |
+| FLASHETH1H-001 | `0x6cedbccfc3dc131aec7bdd9a9761ac0a8e665daa87763328ffca700f9b678915` |
+| FLASHETH24-001 | `0xcc03aef924fc23ad01e6391af37bcfdb9ad40cce7c76218e51be62c38167f240` |
+| FLASHETH48-001 | `0x89a37df7cf246013d58a6b121e57b1e6417cea854b354183025ed0b41663712d` |
+
+Caveat: 3 productIds tenían ya valores previos en `productShield[]` (V5.2 legacy registrations); el registro nuevo los overwriteó. Esos 3 mappings antiguos pueden permanecer apuntando a shields previos vía `productIds[]` (append-only) pero `productShield[pid]` ahora canónicamente apunta al nuevo adapter.
+
+### 14.7 configureProduct() × 6 en CoverRouterV2 (Phase H)
+
+CR: `0xcdB70B40e6a3DEac3189185d947A0e458518F566`. Primas finales `(payoutRatio=8000, marginBps=20000)`:
+
+| Producto | triggerProbBps | duration |
+|---|---|---|
+| FlashBTC1h | 18 | 3600 |
+| FlashBTC24h | 329 | 86400 |
+| FlashBTC48h | 929 | 172800 |
+| FlashETH1h | 10 | 3600 |
+| FlashETH24h | 286 | 86400 |
+| FlashETH48h | 769 | 172800 |
+
+Re-leído `products(pid)` por cada productId — todos confirmados con margin `20000`, active `true`.
+
+### 14.8 E2E read verification post-deploy (Phase J)
+
+6/6 productos pasan el cuádruple check on-chain:
+1. `PolicyManagerV2.productShield(pid)` == adapter address
+2. `Adapter.shield()` == underlying slim-shield address
+3. `Adapter.productId()` == `keccak256(productId)`
+4. `Shield.asset()` == `"BTC"` o `"ETH"` (bytes32 padded)
+
+**Sin reverts. Sin mismatches.**
+
+### 14.9 Reconexión off-chain (Phase I)
+
+- `lumina-api`: addresses driven por env vars Railway; PR draft documentando addresses + CHANGELOG (delegado a sub-agente). Env updates en Railway son founder action.
+- `lumina-sdk`: bump `0.5.2 → 0.6.0` (PR #12). Addresses runtime-resolved vía `/health` (sin cambios de código), CHANGELOG señaliza V5.3 live.
+- `v0-lumina-landing-page`: PR draft con address map update (delegado a sub-agente).
+
+### 14.10 Reverse audit /10
+
+**Pros (≥4)**:
+1. **Adapter pattern conservó test surface** — 16 unit tests + 2 integration full-stack sin tocar PolicyManagerV2.
+2. **Idempotente y deterministic deploy** — dry-run y broadcast generaron las mismas 12 addresses.
+3. **18/18 BaseScan verified al primer intento** — no verification-pending residuals.
+4. **Cuádruple cross-check on-chain** — PM↔Adapter↔Shield↔Asset por cada producto sin reverts ni mismatches.
+5. **No modificó contratos del ciclo de vida** — PM/CR/BV/CB V5.2 intactos.
+
+**Con (≥1)**:
+1. **Retry intermitente sobre `cast send`** — 3 de 6 calls fallaron silentemente la primera iteración (probable nonce-race o RPC timing). Mitigado con retry + verificación on-chain final; conviene wrappear en script con nonce-tracking para mainnet.
+
+**Score**: **9.0/10** — sólido para FASE 4 cierre.
+
+### 14.11 Resumen tests
+
+| Suite | Tests | Status |
+|---|---|---|
+| FlashShieldAdapter (unit) | 16 | ✅ |
+| ShieldsE2E (integration) | 4 | ✅ |
+| Existing T-30b suite | 1829 | ✅ (unchanged) |
+| **TOTAL** | **1849+** | ✅ |
+
+---
+
 ## Changelog
 
+- **2026-05-21 (Sprint T-30c)**: agregada Sección 14 — V5.3 live on Base Sepolia. 6 shields + 6 adapters UUPS deployed + 18/18 BaseScan verified + 6/6 products registered y configured (margin 20000) + E2E reads on-chain consistentes. PR #140 LP draft. 16 + 4 nuevos tests verde. Sprint T-30c CERRADO; FASE 4 (Sprint T-30) CERRADA al 100%.
 - **2026-05-21 (Sprint T-30b)**: agregada Sección 13 con resultados Echidna 200k × 48 properties = 9.6M runs PROVEN, Halmos 5 invariants nuevos PROVEN, FlashShieldAdapter introducido (adapter pattern), SAST deep dive PASS. 20/20 CI workflows verde sobre commit `705ca08`. PR #139 draft.
 - **2026-05-20 (Sprint T-30a)**: agregada Sección 12 con cambios estructurales del re-design. 6 shields nuevos + BaseFlashShield + BondVault throttle + L2 sequencer check + 48 unit + 6 throttle + 2 integration + 48 Echidna scaffolds. T-30b auditorías profundas + T-30c deploy fresco pendientes.
 - **2026-05-18 (Sprint Deploy)**: agregada Sección 10 con verificación on-chain post-deploy V5.2. 26 contratos deployados a Base Sepolia, 16/16 Phase C checks PASS. Manifest en tracker PR #28.

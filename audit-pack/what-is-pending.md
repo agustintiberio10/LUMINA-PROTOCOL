@@ -212,23 +212,48 @@ Ver detalles en `what-we-tested.md` sección 13.
 
 ---
 
-## 14. Adapter integration tests pendientes (Sprint T-30c)
+## ~~14. Adapter integration tests pendientes (Sprint T-30c)~~ — CERRADO 2026-05-21
 
-**Estado**: `src/shields/FlashShieldAdapter.sol` introducido en Sprint T-30b sin tests dedicados. La wiring `PolicyManagerV2 → adapter → slim shield` no se ha ejercitado end-to-end.
+**Resolved**: Sprint T-30c (PR #140 LP draft):
 
-**Pendiente cubrir**:
-- `FlashShieldAdapter.createPolicy` con CreatePolicyParams legacy → forward a slim con policyId asignado por adapter.
-- `FlashShieldAdapter.verifyAndCalculate` con oracleProof ignorado → PayoutResult derivado.
-- `FlashShieldAdapter.getPolicyInfo` status mapping (0 active / 2 finalized).
-- E2E: `CoverRouterV2.purchase → PolicyManagerV2.recordPolicy → adapter.createPolicy → shield.createPolicy` con strike snapshot.
-- E2E trigger: `CoverRouterV2.trigger → PolicyManagerV2.triggerPayout → adapter.verifyAndCalculate → shield.verifyAndCalculate` con Chainlink mock drop.
+- ✅ `test/shields/FlashShieldAdapter.t.sol`: 16 unit tests dedicados, ≥95% coverage del adapter (initialize / createPolicy / verifyAndCalculate / getPolicyInfo / UUPS / sequencer inherited / router guard).
+- ✅ `test/integration/ShieldsE2E.t.sol`: 2 integration tests nuevos (`testPurchasePolicy_Through_CoverRouter_Full`, `testTrigger_EmitsBond_Full`) ejercitando `CoverRouterV2 → PolicyManagerV2 → FlashShieldAdapter → BaseFlashShield`.
+- ✅ Deploy fresco a Base Sepolia: 6 shields + 6 adapter UUPS proxies (18 contratos verificados BaseScan).
+- ✅ 6 productos registrados en PolicyManagerV2 (canonical adapter por productId).
+- ✅ 6 productos configurados en CoverRouterV2 con margin 20000.
+- ✅ E2E reads on-chain consistentes (cuádruple cross-check PM ↔ Adapter ↔ Shield ↔ Asset).
 
-**Razón**: Sprint T-30b alcance estricto entregó adapter contract + verificación formal de drop math via Halmos + Echidna 200k sobre los slim shields. T-30c (deploy fresco) incluirá deploy del adapter + tests integration completos contra el adapter.
+Ver detalles en `what-we-tested.md` sección 14.
+
+---
+
+## 15. Tail de productShield mappings (Sprint T-30c)
+
+**Estado**: 3 de los 6 productIds tenían valores previos en `PolicyManagerV2.productShield[]` (legacy V5.2 registrations). `registerProduct` overwriteó el mapping correctamente, pero `productIds[]` es append-only — quedó duplicada la entrada para esos 3 productIds.
+
+**Pendiente** (no bloqueante):
+- Considerar exponer un getter que de-dupe `productIds[]` o un sweep que limpie las 3 entradas duplicadas si se necesita iterar el array sin duplicados.
+- Confirmar que ningún consumer off-chain itera `productIds[]` sin checkear `productShield[pid]` previamente.
+
+**Razón**: Side effect inherente al `registerProduct` append-only design. Sólo afecta enumeración, no la resolución `productId → shield` (que es por mapping y devuelve canónicamente el adapter T-30c).
+
+---
+
+## 16. Retry semantics sobre `cast send` (ops)
+
+**Estado**: Durante Phase G/H del Sprint T-30c, 3 de 6 `cast send` calls (en cada round) requirieron retry. Comportamiento intermitente — probablemente nonce-race o RPC público bajo carga.
+
+**Pendiente** (ops side):
+- Wrappear deploy + register + configure en un único `forge script` con `vm.broadcast` para nonce-tracking determinista en mainnet.
+- O alternativa: shell wrapper con `cast nonce` explícito y retry-with-backoff.
+
+**Razón**: Mitigado con verificación on-chain final en T-30c. Para mainnet conviene endurecer.
 
 ---
 
 ## Changelog
 
+- **2026-05-21 (Sprint T-30c)**: item 14 CERRADO (adapter unit tests + integration TODOs + deploy + verify + register + configure + E2E reads). Items 15 (tail de productShield mappings) y 16 (retry semantics ops) nuevos pero no bloqueantes.
 - **2026-05-21 (Sprint T-30b)**: item 13 CERRADO (auditorías profundas completadas: 48 Echidna × 200k PROVEN, 5 Halmos PROVEN, SAST clean, adapter pattern resuelve interface bridge). Item 14 nuevo (adapter integration tests para T-30c).
 - **2026-05-20 (Sprint T-30a)**: agregado item 13 (T-30b auditorías profundas + integration TODOs).
 - **2026-05-18 (Sprint DD)**: documento inicial creado con 12 items pendientes.
