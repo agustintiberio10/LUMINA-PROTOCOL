@@ -1,6 +1,6 @@
 # Audit Pack — Lumina V5.1
 
-**Última actualización**: 2026-05-21 (Sprint T-30c)
+**Última actualización**: 2026-05-22 (Sprint Cleanup ProductIds)
 **Status**: ACTIVO — documento vivo, se actualiza en cada sprint. **FASE 4 CERRADA al 100%.**
 
 ## Propósito
@@ -68,6 +68,7 @@ Cada sprint que toque el audit-pack debe:
 - **Sprint T-30a re-implementación shields** 2026-05-20: 7 shields V5.2 + RateShock borrados (75 archivos); 6 shields nuevos con drop-from-purchase + sequencer L2 check; BondVault throttle 1.08%/sem FIFO; 48 unit + 6 throttle + 2 integration + 48 Echidna scaffolds (testLimit=1000). T-30b auditorías + T-30c deploy pendientes.
 - **Sprint T-30b auditorías profundas** 2026-05-21: 48 Echidna properties × 200k × 6 shields = 9.6M PROVEN; 5 Halmos invariants nuevos PROVEN (`SprintT30bHalmos`); Aderyn + Mythril clean sobre código nuevo; FlashShieldAdapter (UUPS, ~125 LOC) resuelve interface bridge via adapter pattern (Opción B). 20/20 CI workflows verde commit `705ca08`. PR #139 draft.
 - **Sprint T-30c deploy live V5.3** 2026-05-21: 16 unit tests FlashShieldAdapter + 2 integration E2E full-stack (testPurchasePolicy_Through_CoverRouter_Full / testTrigger_EmitsBond_Full); 6 shields + 6 adapter UUPS proxies deployados a Base Sepolia (18 contratos verificados BaseScan); 6 productos registrados en PolicyManagerV2 + 6 productos configurados en CoverRouterV2 con margin 20000; E2E reads on-chain cuádruple cross-check (PM ↔ Adapter ↔ Shield ↔ Asset) sin reverts. SDK 0.6.0 + API + Landing PRs draft. PR #140 LP. **FASE 4 CERRADA**.
+- **Sprint Cleanup productIds** 2026-05-22: UUPS upgrade del proxy PM con `removeProduct` + `removeProductBatch` (11 unit tests passing); nueva impl `0xdE41D414…Be22F` verified BaseScan; 6 productIds duplicados limpiados (12 txs remove+register); array on-chain final 7 entries únicos (6 flash + 1 RateShock pausado); API `/products` count 7 (alineado). PR #141 LP draft.
 
 ### Pendiente ⏳ (12 items abiertos del backlog histórico + 2 nuevos T-30c)
 
@@ -83,11 +84,12 @@ Cada sprint que toque el audit-pack debe:
 10. Stress testing con flash loans reales.
 11. Multi-block sequences extensas en Echidna (`seqLen > 100`).
 12. Gas optimization analysis dirigida.
-13. (T-30c) Tail de `productShield` mappings duplicados en `productIds[]` (no bloqueante).
+13. ~~(T-30c) Tail de `productShield` mappings duplicados en `productIds[]`~~ — **CERRADO 2026-05-22** vía Sprint Cleanup (PR #141).
 14. (T-30c) Retry semantics sobre `cast send` — wrappear en forge script con nonce-tracking para mainnet.
 
 ## Changelog del audit-pack
 
+- **2026-05-22 (Sprint Cleanup productIds)**: Sección 15 agregada a `what-we-tested.md` con UUPS upgrade del PM + 6 productIds limpiados (12 txs); item 15 (tail mappings) en `what-is-pending.md` CERRADO; item 16 (retry semantics) sigue abierto. Nueva impl `0xdE41…Be22F` verified.
 - **2026-05-21 (Sprint T-30c)**: Sección 14 agregada a `what-we-tested.md` con deploy live V5.3 (18 BaseScan-verified + 6 register + 6 configure margin 20000 + E2E reads on-chain); item 14 en `what-is-pending.md` CERRADO; items 15 (tail mappings) y 16 (retry semantics) abiertos pero no bloqueantes. **FASE 4 CERRADA**.
 - **2026-05-21 (Sprint T-30b)**: Sección 13 agregada a `what-we-tested.md` con auditorías profundas completadas (9.6M Echidna runs + 5 Halmos invariants + adapter pattern + SAST clean). Item 13 en `what-is-pending.md` CERRADO; item 14 nuevo (FlashShieldAdapter integration tests para T-30c).
 - **2026-05-20 (Sprint T-30a)**: Sección 12 agregada a `what-we-tested.md` con re-implementación shields + BondVault throttle + Sequencer L2 check + 48 unit + 6 throttle + 2 integration + 48 Echidna scaffolds. Item 13 nuevo en `what-is-pending.md` (T-30b auditorías + integration TODOs).

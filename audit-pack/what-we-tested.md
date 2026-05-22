@@ -594,8 +594,102 @@ Re-leído `products(pid)` por cada productId — todos confirmados con margin `2
 
 ---
 
+## 15. Sprint Cleanup — UUPS upgrade PolicyManagerV2 para `productIds[]` (2026-05-22)
+
+**Status: CLOSED ✅ — array `productIds[]` compactado de 13 a 7 entries (0 duplicados).**
+
+### 15.1 Scope
+
+1. Agregar `removeProduct(bytes32)` + `removeProductBatch(bytes32[])` a `PolicyManagerV2` (swap-and-pop, owner-only, todas las ocurrencias del `productId`).
+2. UUPS upgrade del proxy live sin redeploy fresco (preservar address `0x546C…cDd8`).
+3. Limpiar 6 productIds duplicados (1 ocurrencia legacy + 1 T-30c por cada flash shield).
+4. Re-register canónico de cada uno con su adapter T-30c — array final 7 entries únicos.
+
+### 15.2 Contract changes
+
+`src/core/PolicyManagerV2.sol`:
+- Nuevo `event ProductRemoved(bytes32 indexed productId)`.
+- `removeProduct(bytes32)` external, `onlyOwner`. While-loop con swap-and-pop, strip **todas** las ocurrencias. Revierte si `found == false`.
+- `removeProductBatch(bytes32[])` external, `onlyOwner`. All-or-nothing.
+- Internal `_removeProduct` helper compartido (evita la trampa `this.fn()` que perdería msg.sender de owner en el batch).
+- **No storage layout change** — sólo funciones + 1 event appended. UUPS upgrade-safe sin gap reshuffle.
+- Mappings `productShield` / `productActive` intencionalmente NO se limpian — caller responsable de `deactivateProduct` antes si quiere bloquear la compra.
+
+### 15.3 Tests
+
+`test/PolicyManagerV2.removeProduct.t.sol` — 11 tests, todos PASS:
+
+| Test | Verifica |
+|---|---|
+| `testRemoveProduct_SingleEntry` | base case |
+| `testRemoveProduct_AllDuplicates` | 3 dupes del mismo pid mezcladas → todas borradas en 1 call |
+| `testRemoveProduct_RevertIfNotInArray` | revert path |
+| `testRemoveProduct_OnlyOwner` | `OwnableUnauthorizedAccount` |
+| `testRemoveProduct_PreservesProductShieldMapping` | mapping intacto post-removal |
+| `testRemoveProductBatch_MultiplePids` | 2 pids removidos en 1 tx |
+| `testRemoveProductBatch_PartialFailureRevertsAll` | atomicidad |
+| `testRemoveProduct_EmitsEvent` | 1 event por call (no por dupe) |
+| `testRemoveProduct_ArraySwapAndPop_NoGap` | no leaves holes |
+| `testRemoveProduct_LastElementOnly` | tail removal no toca el resto |
+| `testRemoveProduct_OnlyEntryEmptiesArray` | OOB después de strip único |
+
+### 15.4 UUPS upgrade live
+
+- Proxy: `0x546C07e07DeBCdbf7a2A7Ef12C38c8c8fcAFcDd8`
+- **Nueva impl**: `0xdE41D414eD191A1090546078DF8e120c196Be22F` (verified BaseScan)
+- Impl deploy tx: `0x3c9300c5307b55784eab2b2439072c07a5c92ad90073fc897b17c618a4f71f7d`
+- `upgradeToAndCall` tx: `0xde9edeb7550937f47600ea2ba1998483a2626620249a5d420cc75c05062002f8`
+- Gas spent: ~0.000030 ETH
+
+Post-upgrade: ERC1967 impl slot lee `0xde41…be22f` ✓ · `removeProduct` selector present in bytecode (revierte con `OwnableUnauthorizedAccount` cuando llamado sin owner = confirma fn existe).
+
+### 15.5 On-chain cleanup (6 ciclos remove+register)
+
+| Producto | removeProduct tx | registerProduct tx |
+|---|---|---|
+| FLASHBTC1H-001 | `0xa563557d…2631d` | `0x61f0c409…5a40f` |
+| FLASHBTC24-001 | `0x1605a138…4253c` | `0x5af8ddc3…2fbb` |
+| FLASHBTC48-001 | `0x5688dc58…5fdf` | `0x463b2e3d…354b` |
+| FLASHETH1H-001 | `0x9c22cb45…c739` | `0x0ee7df14…c8c2` |
+| FLASHETH24-001 | `0x15b0d315…5ce8` | `0x7d981855…2805` |
+| FLASHETH48-001 | `0x91e0b0e7…f042` | `0x775dd64b…cdd0` |
+
+12/12 tx con `status=1`. Cada ciclo: `removeProduct` strip ambas ocurrencias (-2), `registerProduct` push canónico (+1), net -1.
+
+Verificación on-chain final:
+- `getProductCount()` = **7**
+- Iteración productIds[0..6] = 7 únicos (6 flash + RateShock)
+- `productIds[7]` revierte (OOB)
+- Todos `productShield[pid]` canónicos hacia adapter T-30c (cross-check 4-tuple intacto)
+- API `/products` retorna `count: 7` — alineado.
+
+### 15.6 Resumen tests
+
+| Suite | Tests | Status |
+|---|---|---|
+| `PolicyManagerV2.removeProduct.t.sol` (Phase C, new) | 11 | ✅ |
+| Existing suite (T-30c + T-30b + T-30a + earlier) | 1849+ | ✅ |
+| **TOTAL** | **1860+** | ✅ |
+
+### 15.7 Reverse audit /10
+
+**Pros (5)**:
+1. Zero-storage-change UUPS upgrade — máxima safety, no gap reshuffle.
+2. while-loop con conditional increment evita underflow del `i--` (bug latente del snippet original — corregido en implementación final).
+3. `_removeProduct` internal helper resuelve el `this.fn() onlyOwner` trap en `removeProductBatch`.
+4. Cross-check on-chain + API: 7 entries on-chain = 7 productos API.
+5. 11 tests directos + 1860+ del existing suite tras el upgrade — sin regressions.
+
+**Con (1)**:
+1. `cast call getProductCount()` mostró read lag durante los 6 ciclos (cada lectura interim daba count 1 menor del esperado). RPC público + tx no fully propagated. Mitigado con `Start-Sleep 2` entre ciclos + read final con sleep que estabilizó en 7. Coincide con la observación del Sprint T-30c sobre nonce-tracking; refuerza el follow-up de wrappar deploy/admin ops en forge script con vm.broadcast determinístico.
+
+**Score**: **9.5/10**.
+
+---
+
 ## Changelog
 
+- **2026-05-22 (Sprint Cleanup)**: agregada Sección 15 — UUPS upgrade del PM con `removeProduct` + `removeProductBatch`. 6 productIds limpiados; array on-chain final 7 entries únicos (verified vs API count 7). Nueva impl `0xdE41…Be22F` verified BaseScan. PR #141 draft.
 - **2026-05-21 (Sprint T-30c)**: agregada Sección 14 — V5.3 live on Base Sepolia. 6 shields + 6 adapters UUPS deployed + 18/18 BaseScan verified + 6/6 products registered y configured (margin 20000) + E2E reads on-chain consistentes. PR #140 LP draft. 16 + 4 nuevos tests verde. Sprint T-30c CERRADO; FASE 4 (Sprint T-30) CERRADA al 100%.
 - **2026-05-21 (Sprint T-30b)**: agregada Sección 13 con resultados Echidna 200k × 48 properties = 9.6M runs PROVEN, Halmos 5 invariants nuevos PROVEN, FlashShieldAdapter introducido (adapter pattern), SAST deep dive PASS. 20/20 CI workflows verde sobre commit `705ca08`. PR #139 draft.
 - **2026-05-20 (Sprint T-30a)**: agregada Sección 12 con cambios estructurales del re-design. 6 shields nuevos + BaseFlashShield + BondVault throttle + L2 sequencer check + 48 unit + 6 throttle + 2 integration + 48 Echidna scaffolds. T-30b auditorías profundas + T-30c deploy fresco pendientes.

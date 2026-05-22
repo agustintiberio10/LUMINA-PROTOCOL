@@ -227,15 +227,11 @@ Ver detalles en `what-we-tested.md` sección 14.
 
 ---
 
-## 15. Tail de productShield mappings (Sprint T-30c)
+## ~~15. Tail de productShield mappings (Sprint T-30c)~~ — CERRADO 2026-05-22
 
-**Estado**: 3 de los 6 productIds tenían valores previos en `PolicyManagerV2.productShield[]` (legacy V5.2 registrations). `registerProduct` overwriteó el mapping correctamente, pero `productIds[]` es append-only — quedó duplicada la entrada para esos 3 productIds.
+**Resolved**: Sprint Cleanup (PR #141 LP draft) — UUPS upgrade del proxy `PolicyManagerV2` agregó `removeProduct(bytes32)` + `removeProductBatch(bytes32[])` con swap-and-pop. 6 productIds limpiados on-chain via 12 txs (remove + register × 6); array final tiene 7 entries únicos (6 flash + 1 RateShock). API `/products` y PM `productIds[]` ambos retornan count 7. Nueva impl `0xdE41D414eD191A1090546078DF8e120c196Be22F` verified BaseScan.
 
-**Pendiente** (no bloqueante):
-- Considerar exponer un getter que de-dupe `productIds[]` o un sweep que limpie las 3 entradas duplicadas si se necesita iterar el array sin duplicados.
-- Confirmar que ningún consumer off-chain itera `productIds[]` sin checkear `productShield[pid]` previamente.
-
-**Razón**: Side effect inherente al `registerProduct` append-only design. Sólo afecta enumeración, no la resolución `productId → shield` (que es por mapping y devuelve canónicamente el adapter T-30c).
+Ver detalles en `what-we-tested.md` sección 15.
 
 ---
 
