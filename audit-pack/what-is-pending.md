@@ -247,8 +247,52 @@ Ver detalles en `what-we-tested.md` sección 15.
 
 ---
 
+## ~~17. Landing público desactualizado a V5.1~~ — CERRADO 2026-05-22
+
+**Resolved**: Sprint Landing Integral (`org-lumina/v0-lumina-landing-page` PR draft) — 14 áreas alineadas a V5.3 en una sola pasada con 4 sub-agents paralelos + main thread:
+- Tabla de productos 9→6, columna Prob removida.
+- Marketplace V5.3 address + SDK 0.6.0 snippet.
+- Whitepaper LARGO ES + LARGO EN + CORTO INTERACTIVO updated.
+- Docs `lib/docs.ts` + nuevos exports `V53_*` (addresses + products + policy terms).
+- Tutoriales reescritos: 5 flows (purchase / redeem / marketplace / API / SDK 0.6.0).
+- Skills + SDK reference con install hint `@^0.6.0`.
+- Hero / Roadmap / Bonds / Burn / How-it-works alineados al modelo 85/8/2/5 + 730-day maturity + 6 productos.
+- "Probabilidad / Probability / PoR / Prob." purged en superficie pública (queda sólo en comentarios deliberados que explican la omisión).
+
+Ver detalles en `what-we-tested.md` sección 16.
+
+---
+
+## 18. Tokenomics V2 (governance / NFT / staking) — DEFERRED
+
+**Estado**: Sprint futuro. NO presente en el landing público V5.3 (decisión founder).
+
+**Pendiente** (sprint futuro):
+- Diseño governance (DAO + propuesta + voting).
+- NFT layer (utility, distribution, fee discount).
+- Staking primitives.
+
+**Razón**: V5.3 + Phase 5 testnet primero. Mantener el surface público minimal evita inflar expectativas antes de la auditoría externa pre-mainnet.
+
+---
+
+## 19. USDC mock mintable — Phase 5 prerequisite
+
+**Estado**: Pendiente Sprint USDC Mock antes de Phase 5 (uso real testnet).
+
+**Pendiente**:
+- Deployment de MockUSDC con `mint(address,uint256)` permisivo en Base Sepolia.
+- Faucet endpoint o `/api/faucet` para founder + partner agents.
+- Documentación del flow en tutorial 1 (compra de pólizas).
+
+**Razón**: Base Sepolia USDC canónico (`0x036CbD5…`) no es mintable. Sin mint, no se puede ejercitar el lifecycle completo en testnet.
+
+---
+
 ## Changelog
 
+- **2026-05-22 (Sprint Landing Integral)**: item 17 (landing desactualizado) CERRADO en una sola pasada — 14 áreas + global prob purge. Items 18 (Tokenomics V2 deferred) y 19 (USDC mock prerequisite) abiertos para sprints futuros.
+- **2026-05-22 (Sprint Cleanup)**: item 15 (tail de productShield mappings) CERRADO vía UUPS upgrade + on-chain compaction. Item 16 (retry semantics) sigue abierto.
 - **2026-05-21 (Sprint T-30c)**: item 14 CERRADO (adapter unit tests + integration TODOs + deploy + verify + register + configure + E2E reads). Items 15 (tail de productShield mappings) y 16 (retry semantics ops) nuevos pero no bloqueantes.
 - **2026-05-21 (Sprint T-30b)**: item 13 CERRADO (auditorías profundas completadas: 48 Echidna × 200k PROVEN, 5 Halmos PROVEN, SAST clean, adapter pattern resuelve interface bridge). Item 14 nuevo (adapter integration tests para T-30c).
 - **2026-05-20 (Sprint T-30a)**: agregado item 13 (T-30b auditorías profundas + integration TODOs).

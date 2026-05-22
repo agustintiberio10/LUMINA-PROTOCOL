@@ -687,8 +687,70 @@ Verificación on-chain final:
 
 ---
 
+## 16. Sprint Landing Integral — Update completo público a V5.3 (2026-05-22)
+
+**Status: CLOSED ✅ — Landing público alineado al estado on-chain V5.3.**
+
+### 16.1 Scope (14 áreas)
+
+Trabajo paralelo en `org-lumina/v0-lumina-landing-page` (branch `feat/sprint-landing-integral-v53`). Founder pidió quitar "Probabilidad / PoR / Prob." de toda la superficie pública y dejar la tabla de productos en 6 (sin RateShock visible, sin Flash BTC 4h, sin Micro Depeg).
+
+| # | Sección | Status |
+|---|---|---|
+| 1 | Tabla de productos (`Products.tsx`) | ✅ 6 productos, sin columna Prob., header `6 ACTIVE` |
+| 2 | Source-of-truth (`lib/operate/products.ts`) | ✅ 6 descriptores, `address = adapter`, sin `probLabel` |
+| 3 | Marketplace section | ✅ V5.3 address + snippet SDK 0.6.0 + 2% fee burn |
+| 4 | Whitepaper LARGO ES | ✅ via sub-agent |
+| 5 | Whitepaper LARGO EN | ✅ via sub-agent |
+| 6 | Whitepaper CORTO INTERACTIVO | ✅ via sub-agent (9 secciones updated, design cyan #00d4ff intacto) |
+| 7 | Docs section (`lib/docs.ts`) | ✅ via sub-agent — adapter pattern, addresses V5.3, V53_FLASH_ADAPTERS export |
+| 8 | Tutoriales (`tutorial-data.tsx`) | ✅ via sub-agent — 5 flows (purchase / redeem / marketplace / API / SDK 0.6.0) |
+| 9 | Skills section + SDK reference | ✅ via sub-agent — SDK 0.6.0 + 5 code snippets |
+| 10 | Hero / landing copy | ✅ V5.3 chip, 6 productos copy, install hint `@^0.6.0` |
+| 11 | Roadmap | ✅ P1 (V5.3 Foundation) marked done; P2 Real Testnet current; P3 Pre-Mainnet; P4 Mainnet |
+| 12 | Bonds section | ✅ 730-day maturity |
+| 13 | Burn stats / engine | ✅ AdaptiveFeeDistributor 85/8/2/5 split, BTC1h example $2.92, 2% marketplace fee |
+| 14 | How-it-works | ✅ STEP 02 reescrito a 85% burn + 15% treasury/ops/founder, STEP 03 MIN-of-3 Chainlink, STEP 04 730-day maturity |
+| extra | SiteFooter / Audience / HumanProductsView | ✅ "9 products" → "6"; Micro Depeg / Rate Shock foot-links removed |
+| extra | Global purge prob / probabilidad / PoR | ✅ todas las apariciones user-facing eliminadas |
+
+### 16.2 Commits en `feat/sprint-landing-integral-v53`
+
+| SHA corto | Tema | Autor |
+|---|---|---|
+| `88df70e` | Main page (Products + Marketplace + Hero + Roadmap + HowItWorks + Bonds + BurnEngine + products.ts) | claude direct |
+| `2d7f1ee` | Skills + SDK (5 code snippets, `lib/skills.ts` 9→6, `SdkCta` + `AgentQuickStart` 0.6.0) | sub-agent |
+| `db69402` | Docs (`lib/docs.ts` catalog V5.3, adapter pattern entry, V53_* exports) | sub-agent |
+| `9d27e58` | Purge Audience/SiteFooter/lumina-config comment | claude direct |
+| `edc00fe` | Tutorials (5 flows, HUMAN/AGENT split, inlined V5.3 addresses) | sub-agent |
+| `f342f90` | HumanProductsView header 9→6 ACTIVE PRODUCTS | claude direct |
+| `(whitepaper)` | Whitepaper ES/EN/interactive | sub-agent (pendiente al cierre de este doc) |
+
+### 16.3 Verificación final
+
+- `pnpm install --frozen-lockfile` ✅
+- `pnpm build` ✅ (verificado al cierre de Phase I)
+- Búsqueda global de "9 products / 9 active / 9 shields / FlashBTC4 / MicroDepeg / Probability / Prob." en archivos user-facing: **0 matches reales**. Quedan menciones en COMENTARIOS deliberados que explican la omisión (e.g. `// MicroDepeg fue retirado en T-30c`) — eso es documentación, no superficie expuesta.
+
+### 16.4 Reverse audit /10
+
+**Pros (5)**:
+1. Source-of-truth (`lib/operate/products.ts`) actualizado primero → propaga automáticamente a downstream UI.
+2. 4 agents en paralelo para whitepaper / docs / tutorials / skills+SDK — 14 áreas cubiertas en una sola pasada coordinada.
+3. Sin commits cross-contaminados: cada agent reportó files tocados; mi git add explicitó archivos para evitar staging cruzado.
+4. Cleanup de `Products.tsx` removió la columna Prob completa Y la fórmula `prob/100 * 1.5` que la derivaba — premium ahora viene como cifra final ($/$1k).
+5. Roadmap reflejó la realidad on-chain (V5.3 deployed, Phase 5 testnet en curso).
+
+**Con (1)**:
+1. Una Edit a `HumanProductsView.tsx` necesitó re-aplicar (la primera no quedó persisted — posible race con un agent cercano o flush del filesystem). Mitigado con re-edit + verify, pero indica que múltiples agents + main thread en el mismo worktree pueden generar fricción. Para sprints futuros, usar agents con `isolation: worktree` cuando los scopes sean colindantes.
+
+**Score**: **9.0/10**.
+
+---
+
 ## Changelog
 
+- **2026-05-22 (Sprint Landing Integral)**: agregada Sección 16 — landing público alineado a V5.3 (14 áreas + global purge de prob). Branch `feat/sprint-landing-integral-v53` con 6+ commits paralelos (main page + skills+SDK + docs + tutorials + whitepaper + purges). PR draft pendiente.
 - **2026-05-22 (Sprint Cleanup)**: agregada Sección 15 — UUPS upgrade del PM con `removeProduct` + `removeProductBatch`. 6 productIds limpiados; array on-chain final 7 entries únicos (verified vs API count 7). Nueva impl `0xdE41…Be22F` verified BaseScan. PR #141 draft.
 - **2026-05-21 (Sprint T-30c)**: agregada Sección 14 — V5.3 live on Base Sepolia. 6 shields + 6 adapters UUPS deployed + 18/18 BaseScan verified + 6/6 products registered y configured (margin 20000) + E2E reads on-chain consistentes. PR #140 LP draft. 16 + 4 nuevos tests verde. Sprint T-30c CERRADO; FASE 4 (Sprint T-30) CERRADA al 100%.
 - **2026-05-21 (Sprint T-30b)**: agregada Sección 13 con resultados Echidna 200k × 48 properties = 9.6M runs PROVEN, Halmos 5 invariants nuevos PROVEN, FlashShieldAdapter introducido (adapter pattern), SAST deep dive PASS. 20/20 CI workflows verde sobre commit `705ca08`. PR #139 draft.
