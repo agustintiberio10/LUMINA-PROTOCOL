@@ -11,6 +11,7 @@ and recommendations.
 |---|---|---|
 | 2026-05-22 | UX/DevEx V1 | [2026-05-22-ux-devex-v1.md](./2026-05-22-ux-devex-v1.md) |
 | 2026-05-23 | UX/DevEx V2 | [2026-05-23-ux-devex-v2.md](./2026-05-23-ux-devex-v2.md) |
+| 2026-05-23 | Economic Audit V5.3 V1 (pre-Fase 5) | [2026-05-23-economic-audit-v53-v1.md](./2026-05-23-economic-audit-v53-v1.md) |
 
 ## Convention
 
