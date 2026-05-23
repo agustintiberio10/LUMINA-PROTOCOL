@@ -247,8 +247,27 @@ Ver detalles en `what-we-tested.md` sección 15.
 
 ---
 
+## ~~20. Docs Mintlify desactualizado (audit UX/DevEx 2026-05-22)~~ — CERRADO 2026-05-22
+
+**Resolved**: Sprint Docs Mintlify Integral (org-lumina/docs PR draft). 14 áreas alineadas a V5.3 en una sola pasada con 3 sub-agents paralelos + main thread:
+
+- Homepage (`index.mdx`) + Quickstart (`quickstart.mdx`) reescritas con tabla de 6 productos, sandbox-first Step 1, install `@^0.6.0`.
+- Navigation (`docs.json`) expone 3 páginas nuevas: `concepts/adapters`, `concepts/bondvault-throttle`, `agents/sandbox-first`.
+- 10 Core Concepts pages updated (8 existentes + 2 new) — sub-agent.
+- 7 For AI agents pages updated (6 + 1 new) — sub-agent.
+- 5 SDK reference pages aligned al v0.6.0 + migration guide v0.5.x→v0.6.0 — sub-agent.
+- Contracts reference (deployed.mdx + architecture.mdx) con V5.3 adapter + shield maps + BaseScan links + audit-fix map updated.
+- Global purge `prob/probabilidad/PoR` en surface user-facing.
+- Cleanup retired products (FlashBTC4h/MicroDepeg/RateShock) — RateShock referenciado sólo como paused.
+
+Ver detalles en `what-we-tested.md` sección 17.
+
+---
+
 ## Changelog
 
+- **2026-05-22 (Sprint Docs Mintlify Integral)**: item 20 CERRADO (docs Mintlify desactualizado del audit UX/DevEx). Sección 17 nueva en `what-we-tested.md`.
+- **2026-05-22 (Sprint Fix Critical+High, post-audit UX/DevEx)**: items #18 (Tokenomics V2 deferred) y #19 (USDC mock prerequisite Phase 5) remain abiertos. SDK 0.6.0 publicado en npm (cierra issue #1 del audit UX/DevEx). llms.txt mergeado (cierra issue #2). PRs sdk #13 + docs #15 merged.
 - **2026-05-21 (Sprint T-30c)**: item 14 CERRADO (adapter unit tests + integration TODOs + deploy + verify + register + configure + E2E reads). Items 15 (tail de productShield mappings) y 16 (retry semantics ops) nuevos pero no bloqueantes.
 - **2026-05-21 (Sprint T-30b)**: item 13 CERRADO (auditorías profundas completadas: 48 Echidna × 200k PROVEN, 5 Halmos PROVEN, SAST clean, adapter pattern resuelve interface bridge). Item 14 nuevo (adapter integration tests para T-30c).
 - **2026-05-20 (Sprint T-30a)**: agregado item 13 (T-30b auditorías profundas + integration TODOs).
