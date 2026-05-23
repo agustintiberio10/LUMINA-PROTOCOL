@@ -247,6 +247,27 @@ Ver detalles en `what-we-tested.md` sección 15.
 
 ---
 
+## Mainnet Blockers
+
+Items que NO bloquean testnet pero **deben** resolverse antes del primer deploy de mainnet. Estos no son gaps de auditoría sino state on-chain o configuración que se cambió para uso testnet.
+
+### BL-USDC — CoverRouterV2 + TWAPBurner apuntan a MockUSDC en Sepolia
+
+**Estado**: Abierto (deliberadamente, para Sepolia).
+
+**Detalle**: durante Sprint CR-USDC-Reconfig (2026-05-23) se agregó `setUsdc(address)` onlyOwner a `CoverRouterV2` y `TWAPBurner`, y ambos proxies se repointaron a `MockUSDC` (`0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`) para desbloquear el flujo faucet → buy policy. Los setters quedan en la codebase con NatSpec `[Sprint CR-USDC-Reconfig]`.
+
+**Acción mainnet runbook**:
+1. Después de `forge script DeployLuminaV5Mainnet.s.sol --broadcast`, **antes** de cualquier `purchasePolicy` en mainnet:
+   - `cast send <CoverRouterV2 proxy> "setUsdc(address)" 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (Base mainnet Circle USDC).
+   - `cast send <TWAPBurner proxy> "setUsdc(address)" 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`.
+2. Verificar `usdc()` en ambos proxies devuelve la address mainnet de Circle.
+3. (Opcional, defensa adicional) renounceOwnership o Gnosis Safe transfer una vez confirmado.
+
+**Por qué se mantienen los setters en código**: por simetría con los otros admin setters del contrato (`setPolicyManager`, `setTwapBurner`, `setCapacityOracle`) — el owner ya puede modificar dependencias críticas; un setter más del mismo nivel de riesgo no degrada el threat model. Si se prefiere remover post-mainnet, alternativa es un UUPS upgrade de cleanup que elimine los setters.
+
+---
+
 ## ~~20. Docs Mintlify desactualizado (audit UX/DevEx 2026-05-22)~~ — CERRADO 2026-05-22
 
 **Resolved**: Sprint Docs Mintlify Integral (org-lumina/docs PR draft). 14 áreas alineadas a V5.3 en una sola pasada con 3 sub-agents paralelos + main thread:
@@ -265,6 +286,8 @@ Ver detalles en `what-we-tested.md` sección 17.
 ---
 
 ## Changelog
+
+- **2026-05-23 (Sprint CR-USDC-Reconfig)**: UUPS upgrades en `CoverRouterV2` + `TWAPBurner` agregando `setUsdc(address)` onlyOwner; ambos proxies repointados a MockUSDC en Sepolia para cerrar gap arquitectural Sprint USDC Mock. Smoke e2e on-chain `policyId=1` con premium pulled de mUSDC. Nuevo item **BL-USDC** en sección Mainnet Blockers con runbook revert a Circle USDC mainnet. Sección 20 nueva en `what-we-tested.md`.
 
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: item 20 CERRADO (docs Mintlify desactualizado del audit UX/DevEx). Sección 17 nueva en `what-we-tested.md`.
 - **2026-05-22 (Sprint Fix Critical+High, post-audit UX/DevEx)**: items #18 (Tokenomics V2 deferred) y #19 (USDC mock prerequisite Phase 5) remain abiertos. SDK 0.6.0 publicado en npm (cierra issue #1 del audit UX/DevEx). llms.txt mergeado (cierra issue #2). PRs sdk #13 + docs #15 merged.
