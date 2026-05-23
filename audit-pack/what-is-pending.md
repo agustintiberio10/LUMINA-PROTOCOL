@@ -264,8 +264,31 @@ Ver detalles en `what-we-tested.md` sección 17.
 
 ---
 
+## ~~21. Footer landing "9 PRODUCTS" leak (audit V2)~~ — CERRADO 2026-05-23
+**Resolved**: Sprint Polish Final, `landing#41` — `SiteFooter.tsx` + `whitepaper/page.tsx` toc string actualizados a "6 PRODUCTS".
+
+## ~~22. Drift static $2.92 vs live API $2.88 (audit V2)~~ — CERRADO 2026-05-23
+**Resolved**: Sprint Polish Final, `landing#41` — `app/page.tsx` async server component fetch `/products` + `/quote` y pasa `livePremiums` a `<Products />` con fallback al hardcoded source-of-truth si la API cae.
+
+## ~~23. lumina-org.com/llms.txt 307 (audit V2)~~ — CERRADO 2026-05-23
+**Resolved**: Sprint Polish Final, `landing#41` — `next.config.mjs` rewrites 200 a `docs.lumina-org.com` para `/llms.txt`, `/llms-full.txt`, `/agent.md`, `/.well-known/ai-plugin.json`.
+
+## ~~24. 3 vulns moderate SDK deps (audit V2)~~ — CERRADO 2026-05-23
+**Resolved**: Sprint Polish Final, `sdk#14` — `npm audit fix` aplicado en bump a v0.6.1; vulns residuales documentadas en `SECURITY.md` con razón de aceptación.
+
+## ~~25. No /examples/ en npm package (audit V2)~~ — CERRADO 2026-05-23
+**Resolved**: Sprint Polish Final, `sdk#14` — v0.6.1 agrega `examples/` con `sandbox-quickstart.ts`, `buy-policy.ts`, `redeem-bond.ts`, `README.md`; `files` allowlist en `package.json` extendido. **Publish requiere founder action** (`npm publish --access public --otp=...`).
+
+## ~~26. Catálogo de errores faltante en docs (audit V2)~~ — CERRADO 2026-05-23
+**Resolved**: Sprint Polish Final, `docs#17` — nuevo `api-reference/errors.mdx` con HTTP envelope + application codes + on-chain reverts (CoverRouter / BaseFlashShield / BondVault / Marketplace / LuminaTokenV2) + retry strategy + webhook delivery semantics. Registrado en `docs.json` sidebar.
+
+Ver detalles en `what-we-tested.md` sección 18.
+
+---
+
 ## Changelog
 
+- **2026-05-23 (Sprint Polish Final)**: 6 items cerrados — #21 footer, #22 drift, #23 llms.txt mirror, #24 audit fix SDK, #25 examples dir, #26 errors catalog. Sección 18 nueva en `what-we-tested.md`. PRs paralelos: `landing#41` + `sdk#14` + `docs#17` + `LP#144` (audit-pack). Score proyectado post-merge: 10/10.
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: item 20 CERRADO (docs Mintlify desactualizado del audit UX/DevEx). Sección 17 nueva en `what-we-tested.md`.
 - **2026-05-22 (Sprint Fix Critical+High, post-audit UX/DevEx)**: items #18 (Tokenomics V2 deferred) y #19 (USDC mock prerequisite Phase 5) remain abiertos. SDK 0.6.0 publicado en npm (cierra issue #1 del audit UX/DevEx). llms.txt mergeado (cierra issue #2). PRs sdk #13 + docs #15 merged.
 - **2026-05-21 (Sprint T-30c)**: item 14 CERRADO (adapter unit tests + integration TODOs + deploy + verify + register + configure + E2E reads). Items 15 (tail de productShield mappings) y 16 (retry semantics ops) nuevos pero no bloqueantes.
