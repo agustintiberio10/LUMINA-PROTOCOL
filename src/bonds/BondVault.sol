@@ -28,6 +28,13 @@ interface IClaimBond {
     function balanceOf(address account, uint256 id) external view returns (uint256);
 }
 
+/// @notice [Sprint Fix Audit Economic — R1] Minimal hook into CEXLiquidityReserve
+///         so BondVault can pull emergency liquidity when capacity dips below
+///         the safety threshold. Read-side helpers come from `lumina.balanceOf`.
+interface ICexReserveInjector {
+    function injectToVault(uint256 amount) external;
+}
+
 contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
@@ -60,6 +67,20 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///         vault drains at most ~13% in 12 weeks (12 * 1.08% ~= 12.96%).
     uint16 public constant MAX_REDEMPTION_PER_EPOCH_BPS = 108; // 1.08% of vault per epoch
     uint32 public constant EPOCH_DURATION = 7 days; // 604800 seconds
+
+    // ═══════ AUTO-INJECTION + FLOOR (Sprint Fix Audit Economic — R1) ═══════
+    /// @notice Threshold (bps of max-capacity) at-or-below which CEX Reserve
+    ///         auto-injection is triggered. 5000 = 50% available capacity.
+    uint16 public constant CAPACITY_RATIO_THRESHOLD_BPS = 5000;
+    /// @notice LUMINA spot price (USD, 18-dec) at-or-below which `policiesPaused`
+    ///         is set. Mirrors `MIN_PRICE_FOR_NEW_POLICIES` in CoverRouterV2.
+    uint256 public constant LUMINA_FLOOR_PRICE = 5e15; // $0.005
+    /// @notice Hysteresis multiplier (bps) on `LUMINA_FLOOR_PRICE` for unpause.
+    ///         12000 = price must recover to 120% of floor (= $0.006) to unpause.
+    uint16 public constant FLOOR_RECOVERY_HYSTERESIS_BPS = 12000;
+    /// @notice Fraction (bps) of the CEX Reserve's current LUMINA balance pulled
+    ///         per auto-injection trigger. 1000 = 10%.
+    uint16 public constant INJECTION_AMOUNT_BPS = 1000;
 
     // ═══════ STATE ═══════
     uint256 public totalCommittedUSD; // total USD value of active bonds (18-dec USD-wei)
@@ -96,6 +117,25 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @notice Next index to process in `queueByEpoch[epoch]`.
     mapping(uint256 => uint256) public queueProcessedIndex;
 
+    // ═══════ AUTO-INJECTION + FLOOR STORAGE (Sprint Fix Audit Economic — R1) ═══════
+    /// @notice CEXLiquidityReserve authorized to push emergency liquidity here.
+    ///         Set by admin via `setCexReserve(address)`. When unset (address(0))
+    ///         the auto-injection branch of `_checkAndInject` is a no-op so the
+    ///         feature is opt-in per deployment.
+    address public cexReserve;
+
+    /// @notice Soft-pause flag flipped when the LUMINA spot price crosses the
+    ///         `LUMINA_FLOOR_PRICE` floor (with hysteresis on recovery). NOT
+    ///         enforced inside BondVault itself — exposed for the SDK / dashboards
+    ///         / CoverRouter to query before allowing new policies. Off-chain
+    ///         enforcement is deliberate: Sprint Fix Audit Economic explicitly
+    ///         keeps CoverRouterV2 out of scope.
+    bool public policiesPaused;
+
+    /// @notice Cumulative LUMINA (18-dec wei) pulled from `cexReserve` via the
+    ///         auto-injection mechanism. Tracked for post-hoc accounting.
+    uint256 public totalInjectedFromCex;
+
     // ═══════ EVENTS ═══════
     event BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount);
     event BondRedeemed(
@@ -128,6 +168,18 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @param  throttleEpoch  Throttle-epoch processed.
     /// @param  count          Number of queue entries drained in this call.
     event QueueProcessed(uint256 indexed throttleEpoch, uint256 count);
+
+    /// @notice [Sprint Fix Audit Economic — R1] CEX Reserve wired/rotated.
+    event CexReserveSet(address indexed oldReserve, address indexed newReserve);
+    /// @notice [Sprint Fix Audit Economic — R1] Capacity dropped under threshold;
+    ///         emergency LUMINA pulled from CEX Reserve.
+    event AutoInjectionTriggered(uint256 availableCapacityBps, uint256 amountInjected);
+    /// @notice [Sprint Fix Audit Economic — R1] Spot LUMINA price crossed the
+    ///         floor; `policiesPaused` set true.
+    event FloorPriceBreached(uint256 luminaPrice);
+    /// @notice [Sprint Fix Audit Economic — R1] `policiesPaused` flipped (true =
+    ///         soft-pause active, false = recovered past hysteresis).
+    event PoliciesPausedSet(bool paused);
 
     // ═══════ ERRORS (rescue) ═══════
     error CoreTokenProtected(address token);
@@ -246,6 +298,10 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
         claimBond.mint(to, epochId, usdPayout);
         emit BondIssued(to, epochId, usdPayout);
+
+        // [Sprint Fix Audit Economic - R1] A new commitment may have moved the
+        // available-capacity ratio under threshold even without a payout.
+        _checkAndInject(currentPrice);
     }
 
     // ═══════ REDEEM BONDS (called by holder at maturity) ═══════
@@ -313,6 +369,11 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         require(lumina.transfer(msg.sender, luminaAmount), "Transfer failed");
 
         emit BondRedeemed(msg.sender, epochId, usdAmount, luminaAmount, currentPrice);
+
+        // [Sprint Fix Audit Economic - R1] After a payout the vault balance just
+        // dropped; check whether we should pull liquidity from CEX Reserve and
+        // whether the price floor still holds.
+        _checkAndInject(currentPrice);
     }
 
     // ═══════ THROTTLE — PUBLIC VIEW HELPERS (Sprint T-30a, Phase D) ═══════
@@ -388,6 +449,10 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         redeemedInEpoch[throttleEpoch] = already;
         queueProcessedIndex[throttleEpoch] = idx;
         emit QueueProcessed(throttleEpoch, processed);
+
+        // [Sprint Fix Audit Economic - R1] Queue processing drains the vault in
+        // batches; mirror the redeemBond hook so capacity / floor stay in sync.
+        _checkAndInject(currentPrice);
     }
 
     // ═══════ VIEW FUNCTIONS ═══════
@@ -486,6 +551,87 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit AuthorizedCallerUpdated(caller, authorized);
     }
 
+    // ═══════ AUTO-INJECTION + FLOOR (Sprint Fix Audit Economic - R1) ═══════
+
+    /// @notice Admin: wire (or rotate) the CEXLiquidityReserve authorized to
+    ///         push emergency LUMINA into this vault. Setting `address(0)` is
+    ///         allowed and turns the auto-injection branch into a no-op (the
+    ///         floor-price branch keeps working independently).
+    function setCexReserve(address _cexReserve) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        address old = cexReserve;
+        cexReserve = _cexReserve;
+        emit CexReserveSet(old, _cexReserve);
+    }
+
+    /// @notice Available-capacity ratio in bps (10000 = 100% available, 0 = full).
+    /// @dev    Defined as `(maxCommitUSD18 - totalUsed) / maxCommitUSD18 * 10000`
+    ///         with `totalUsed = totalCommittedUSD + totalReservedUSD`. Returns
+    ///         0 when fully committed or when maxCommitUSD18 is 0 (degenerate).
+    function availableCapacityRatioBps() external view returns (uint256) {
+        return _availableCapacityRatioBps(_getSafePrice());
+    }
+
+    function _availableCapacityRatioBps(uint256 currentPrice) internal view returns (uint256) {
+        uint256 reserveBalance = lumina.balanceOf(address(this));
+        uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
+        uint256 maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
+        if (maxCommitUSD18 == 0) return 0;
+        uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
+        if (totalUsed >= maxCommitUSD18) return 0;
+        return ((maxCommitUSD18 - totalUsed) * 10000) / maxCommitUSD18;
+    }
+
+    /// @notice [Sprint Fix Audit Economic - R1] Two-branch safety hook:
+    ///         (1) if available capacity dips at/under `CAPACITY_RATIO_THRESHOLD_BPS`
+    ///             and a CEX Reserve is wired with non-zero LUMINA balance, pull
+    ///             `INJECTION_AMOUNT_BPS` of that balance into this vault;
+    ///         (2) if spot LUMINA price is at/under `LUMINA_FLOOR_PRICE` and we
+    ///             are not already paused, flip `policiesPaused = true`. On
+    ///             recovery (`price >= floor * hysteresis`) flip back to false.
+    /// @dev    No-throws: failures (insufficient reserve, oracle revert) MUST
+    ///         NOT bubble back into the calling business path (redeem, processQueue,
+    ///         issueBond). Hence the try/catch on injectToVault.
+    function _checkAndInject(uint256 currentPrice) internal {
+        // (1) Capacity check + injection
+        if (cexReserve != address(0)) {
+            uint256 ratioBps = _availableCapacityRatioBps(currentPrice);
+            if (ratioBps <= CAPACITY_RATIO_THRESHOLD_BPS) {
+                uint256 reserveBalance = lumina.balanceOf(cexReserve);
+                uint256 injectAmount = (reserveBalance * uint256(INJECTION_AMOUNT_BPS)) / 10000;
+                if (injectAmount > 0) {
+                    try ICexReserveInjector(cexReserve).injectToVault(injectAmount) {
+                        totalInjectedFromCex += injectAmount;
+                        emit AutoInjectionTriggered(ratioBps, injectAmount);
+                    } catch {
+                        // Swallow: emergency liquidity is best-effort. The
+                        // floor-price branch below still runs.
+                    }
+                }
+            }
+        }
+
+        // (2) Floor-price check with hysteresis
+        if (currentPrice <= LUMINA_FLOOR_PRICE && !policiesPaused) {
+            policiesPaused = true;
+            emit FloorPriceBreached(currentPrice);
+            emit PoliciesPausedSet(true);
+        } else if (policiesPaused) {
+            uint256 recoveryThreshold = (LUMINA_FLOOR_PRICE * uint256(FLOOR_RECOVERY_HYSTERESIS_BPS)) / 10000;
+            if (currentPrice >= recoveryThreshold) {
+                policiesPaused = false;
+                emit PoliciesPausedSet(false);
+            }
+        }
+    }
+
+    /// @notice Permissionless: re-evaluate the auto-injection + floor flags
+    ///         without going through a business action. Useful for keepers /
+    ///         the SDK to nudge the vault into sync when no organic call has
+    ///         happened recently.
+    function pokeCheckAndInject() external {
+        _checkAndInject(_getSafePrice());
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     // ═══════ BOND MATURITY (Sprint T, ADR-009) ═══════
@@ -551,5 +697,8 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     // for three new mapping slots (`redeemedInEpoch`, `queueByEpoch`,
     // `queueProcessedIndex`). Mappings consume one slot each regardless of
     // value-type size (the QueuedRedemption struct lives in dynamic storage).
-    uint256[46] private __gap;
+    // [Sprint Fix Audit Economic - R1] Gap reduced from 46 to 43 to make room
+    // for `cexReserve` (slot), `policiesPaused` (slot), `totalInjectedFromCex`
+    // (slot).
+    uint256[43] private __gap;
 }
