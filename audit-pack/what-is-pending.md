@@ -259,9 +259,30 @@ Ver detalles en `what-we-tested.md` sección 19.
 
 ## ~~28. CoverRouter USDC config no alineada con la mUSDC faucet~~ — CERRADO 2026-05-23
 
-**Resolved**: Sprint CR USDC Reconfig (Opción A elegida) — ver [`audit-pack/sprints/2026-05-23-sprint-cr-usdc-reconfig.md`](./sprints/2026-05-23-sprint-cr-usdc-reconfig.md). UUPS upgrade de `CoverRouterV2` + `TWAPBurner` agregó `setUsdc(address) onlyOwner`. Ambos contratos ahora apuntan a `mUSDC` (`0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`). Smoke test exitoso con `policyId=1`. 4 txs on-chain (2 `upgradeTo` + 2 `setUsdc`).
+**Resolved**: Sprint CR USDC Reconfig (Opción A elegida) — ver [`audit-pack/sprints/2026-05-23-sprint-cr-usdc-reconfig.md`](./sprints/2026-05-23-sprint-cr-usdc-reconfig.md) y `what-we-tested.md` sección 20. UUPS upgrade de `CoverRouterV2` + `TWAPBurner` agregó `setUsdc(address) onlyOwner`. Ambos contratos ahora apuntan a `mUSDC` (`0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`). Smoke test exitoso con `policyId=1`. 4 txs on-chain (2 `upgradeTo` + 2 `setUsdc`).
 
-**Pre-mainnet blocker creado:** `BL-USDC` — antes de cualquier deploy a mainnet, ambos contratos deben re-apuntar a Circle USDC mainnet (`0xa0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`), NO al MockUSDC de Sepolia. Procedimiento documentado en el archivo del sprint.
+**Pre-mainnet blocker creado:** `BL-USDC` — ver sección Mainnet Blockers abajo.
+
+---
+
+## Mainnet Blockers
+
+Items que NO bloquean testnet pero **deben** resolverse antes del primer deploy de mainnet. Estos no son gaps de auditoría sino state on-chain o configuración que se cambió para uso testnet.
+
+### BL-USDC — CoverRouterV2 + TWAPBurner apuntan a MockUSDC en Sepolia
+
+**Estado**: Abierto (deliberadamente, para Sepolia).
+
+**Detalle**: durante Sprint CR-USDC-Reconfig (2026-05-23) se agregó `setUsdc(address)` onlyOwner a `CoverRouterV2` y `TWAPBurner`, y ambos proxies se repointaron a `MockUSDC` (`0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`) para desbloquear el flujo faucet → buy policy. Los setters quedan en la codebase con NatSpec `[Sprint CR-USDC-Reconfig]`.
+
+**Acción mainnet runbook**:
+1. Después de `forge script DeployLuminaV5Mainnet.s.sol --broadcast`, **antes** de cualquier `purchasePolicy` en mainnet:
+   - `cast send <CoverRouterV2 proxy> "setUsdc(address)" 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (Base mainnet Circle USDC).
+   - `cast send <TWAPBurner proxy> "setUsdc(address)" 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`.
+2. Verificar `usdc()` en ambos proxies devuelve la address mainnet de Circle.
+3. (Opcional, defensa adicional) renounceOwnership o Gnosis Safe transfer una vez confirmado.
+
+**Por qué se mantienen los setters en código**: por simetría con los otros admin setters del contrato (`setPolicyManager`, `setTwapBurner`, `setCapacityOracle`) — el owner ya puede modificar dependencias críticas; un setter más del mismo nivel de riesgo no degrada el threat model. Si se prefiere remover post-mainnet, alternativa es un UUPS upgrade de cleanup que elimine los setters.
 
 ---
 
@@ -284,6 +305,7 @@ Ver detalles en `what-we-tested.md` sección 17.
 
 ## Changelog
 
+- **2026-05-23 (Sprint CR-USDC-Reconfig)**: UUPS upgrades en `CoverRouterV2` + `TWAPBurner` agregando `setUsdc(address)` onlyOwner; ambos proxies repointados a MockUSDC en Sepolia para cerrar gap arquitectural Sprint USDC Mock. Smoke e2e on-chain `policyId=1` con premium pulled de mUSDC. Nuevo item **BL-USDC** en sección Mainnet Blockers con runbook revert a Circle USDC mainnet. Sección 20 nueva en `what-we-tested.md`.
 - **2026-05-23 (Sprint USDC Mock — Fase 5 prerequisite)**: item #27 CERRADO (faucet migrado a `mint` sobre MockUSDC permissionless). Item #28 nuevo (CoverRouter USDC config no alineada con mUSDC — contract-side follow-up).
 
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: item 20 CERRADO (docs Mintlify desactualizado del audit UX/DevEx). Sección 17 nueva en `what-we-tested.md`.

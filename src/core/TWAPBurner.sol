@@ -79,6 +79,8 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     );
     /// @notice [Fix audit #27 INFO-3] Emitted when adaptive mode is toggled.
     event AdaptiveModeUpdated(bool enabled);
+    /// @notice [Sprint CR-USDC-Reconfig] Emitted when the premium token (USDC) is updated.
+    event UsdcUpdated(address indexed oldUsdc, address indexed newUsdc);
 
     // ═══════ AUTHORIZED SENDERS ═══════
     mapping(address => bool) public authorizedSenders;
@@ -311,6 +313,19 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
         require(_oracle != address(0), "Zero oracle");
         capacityOracle = _oracle;
         emit ConfigUpdated("capacityOracle", uint256(uint160(_oracle)));
+    }
+
+    /// @notice [Sprint CR-USDC-Reconfig] Re-point the premium token address.
+    /// @dev    Mirrors `CoverRouterV2.setUsdc` — needed so the burner pulls
+    ///         the same token the router collects. Auto-burn is gated by
+    ///         `maxPurchasesBeforeBurn` (currently 0 on Sepolia), so this
+    ///         setter does NOT touch DEX wiring. On mainnet this MUST be
+    ///         reverted alongside the router (audit-pack item BL-USDC).
+    function setUsdc(address _usdc) external onlyOwner {
+        require(_usdc != address(0), "Zero USDC");
+        address old = address(usdc);
+        usdc = IERC20(_usdc);
+        emit UsdcUpdated(old, _usdc);
     }
 
     // ═══════ V5.0: MULTI-DEX ROUTER CONFIG ═══════

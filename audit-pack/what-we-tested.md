@@ -748,6 +748,99 @@ Trabajo en `org-lumina/docs` (Mintlify, branch `feat/sprint-docs-integral-v53`).
 
 ---
 
+## 20. Sprint CR-USDC-Reconfig — On-chain reconfig de premium token (2026-05-23)
+
+### 20.1 Objetivo
+
+Cerrar el gap arquitectural item #28 dejado por Sprint USDC Mock: `CoverRouterV2.usdc` (y el burner) apuntaban a la canonical Circle USDC `0x036C…CF7e`, pero el faucet entrega mUSDC `0xD944…6AE`. Sin esto, el flujo faucet → buy revertía.
+
+### 20.2 Estrategia + diagnóstico
+
+Diagnóstico Phase A:
+- `CoverRouterV2` es UUPS upgradeable. `usdc` es storage normal (no immutable). NO había setter público.
+- Owner del proxy: `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8` (founder EOA).
+- Sequencer feed = 0 (no-op modifier en Sepolia).
+- Por simetría, `TWAPBurner.usdc` también referenciaba Circle USDC — y `TWAPBurner.receivePremium` hace `usdc.safeTransferFrom(router, ...)` con su propio `usdc`. Por lo tanto el flow necesitaba arreglar **ambos**.
+- `maxPurchasesBeforeBurn = 0` en TWAPBurner ⇒ auto-burn off ⇒ ningún DEX swap se dispara desde `receivePremium`. Por lo tanto cambiar la `usdc` del burner no rompe wiring del swap.
+
+Estrategia: UUPS upgrade mínimo en ambos proxies, agregando un único setter `setUsdc(address)` onlyOwner + un evento. Cero cambios en storage layout.
+
+### 20.3 Cambios de código
+
+| Archivo | Cambio |
+|---|---|
+| `src/core/CoverRouterV2.sol` | +`event UsdcUpdated(address,address)` + `function setUsdc(address)` (~10 LOC). |
+| `src/core/TWAPBurner.sol` | Mismos +event +setUsdc, mismo patrón. |
+| `script/deploy/UpgradeCoverRouterV2.s.sol` | Forge script para deploy de la nueva impl + `upgradeToAndCall(impl, "")` sobre el proxy. |
+| `script/deploy/UpgradeTWAPBurner.s.sol` | Idem para TWAPBurner. |
+| `test/core/CoverRouterV2.reconfigUsdc.t.sol` | 5 tests: revert non-owner, revert zero-addr, happy update + event, e2e antes (pulls old) y después (pulls new) del setUsdc — verifica que `purchasePolicy` re-routea premium correctamente. |
+
+### 20.4 Tests
+
+- Suite nueva `CoverRouterV2ReconfigUsdcTest`: **5/5 PASS**.
+- Suite `CoverRouterV2Test` existente (regresión): **9/9 PASS**.
+- Sin tests TWAPBurner agregados (mismo patrón ya cubierto en CoverRouter; cambio es 1:1).
+
+### 20.5 Ejecución on-chain (Base Sepolia 84532)
+
+| Step | Tx | Detalle |
+|---|---|---|
+| Deploy CoverRouter impl + `upgradeToAndCall` | `0xb36eac20…c465a22f` (deploy) + `0x573e0cfb…5e0f1970307a65f` (upgrade) | nueva impl `0xeF3f18057f0787602997279e3F3C1d2145e0F9Da` |
+| `CoverRouter.setUsdc(mUSDC)` | `0x3d3b3d52…35279487d3f` | event `UsdcUpdated(0x036C…, 0xD944…)` ✅ |
+| Deploy TWAPBurner impl + `upgradeToAndCall` | `0x2c224154…4c3a21cd` (deploy) + `0xc99770a3…aca1bc8d8e` (upgrade) | nueva impl `0xb0a36ce3527f3142af82adfae8f8dd6de8b869dc` |
+| `TWAPBurner.setUsdc(mUSDC)` | `0xa4ab0062…b36156467e` | event `UsdcUpdated(0x036C…, 0xD944…)` ✅ |
+
+Verificación post: `CoverRouterV2.usdc() = 0xD944…6AE` ✅; `TWAPBurner.usdc() = 0xD944…6AE` ✅; resto de storage (owner, policyManager, twapBurner ref, paused, productCount=7) intacto.
+
+### 20.6 Smoke test e2e on-chain
+
+Wallet `0x25D245F735Ab6Ba178E258e1FcEB02F15Cf6dc3d` (ya tenía 4993 mUSDC pre-existentes + 0.05 ETH):
+
+1. `mUSDC.approve(router, 1e9)` — tx `0x35701a76…d6204b096f` ✅.
+2. `router.purchasePolicy(keccak("FLASHBTC1H-001"), 100e6, bytes32("BTC"))` — tx `0x445b948cdffaaf99b86290806cf7e02bdd936291a59e3d6a831dfe698275569a` ✅.
+
+Eventos decoded:
+- `TWAPBurner.PremiumReceived(router, 288000)` ⇒ $0.288 USDC pulled vía mUSDC.
+- `ClaimBond.BondMinted(bondId=1, owner=0x25d2…dc3d, coverage=$100, ...)`.
+- `PolicyManager.PolicyRecorded(productId=0xe876…, policyId=1, buyer=0x25d2…dc3d, coverage=$100, premium=$0.288, payout=$80)`.
+- `CoverRouter.PolicyPurchased(productId, policyId=1, buyer, $100, $0.288, $80, payer=buyer)`.
+
+End-to-end faucet (mUSDC) → router → TWAP → PM → ClaimBond **VERDE**.
+
+### 20.7 PRs
+
+| Repo | Branch | PR | Estado |
+|---|---|---|---|
+| `LUMINA-PROTOCOL` | `feat/cr-usdc-reconfig-mock` | LP #(este) | Draft (NO merged — founder action) |
+
+### 20.8 Mainnet revert checklist (item BL-USDC)
+
+Antes del primer `purchasePolicy` en mainnet, runbook obliga:
+
+```bash
+cast send <CoverRouterV2 mainnet proxy> "setUsdc(address)" 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 --rpc-url https://mainnet.base.org --private-key $OWNER_PK
+cast send <TWAPBurner mainnet proxy> "setUsdc(address)" 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 --rpc-url https://mainnet.base.org --private-key $OWNER_PK
+```
+
+Documentado también en `what-is-pending.md#mainnet-blockers`.
+
+### 20.9 Reverse audit /10
+
+**Pros (5)**:
+1. **Scope strictly minimal**: solo 1 setter + 1 event por contrato (~10 LOC cada uno). No tocó storage layout, ni lógica de purchase, ni DEX wiring.
+2. **Dual-contract coordination**: detecté en pre-flight que TWAPBurner referenciaba la `usdc` aparte y resolví antes del smoke (en vez de durante).
+3. **Symmetry-justified**: el setter mainline-style hereda el threat model existente (owner ya puede setPolicyManager / setTwapBurner / setCapacityOracle).
+4. **Live smoke proof**: policyId=1 emitida con premium real pulled vía mUSDC. No es test simulado — es on-chain Base Sepolia.
+5. **Mainnet revert explicit**: el sprint cierra testnet pero deja BL-USDC documentado con runbook concreto para mainnet (no oculta el riesgo).
+
+**Con (2)**:
+1. Setter queda permanente en el bytecode mainnet — defensa: mismo trust level que setPolicyManager etc. Cleanup opcional vía future UUPS upgrade. Decisión documentada.
+2. No agregué Echidna/Halmos invariant `usdc != address(0)` post-setter (podría ser invariant trivial). Para mainnet sería defense-in-depth; en testnet redundante con el require.
+
+**Score**: **9/10**.
+
+---
+
 ## 19. Sprint USDC Mock — Faucet API + UI + docs (2026-05-23)
 
 > Continuidad: secciones 16 (Sprint Landing Integral, PR #142) y 18 (Sprint Polish Final, PR #144) llegan vía PRs separados al `audit-pack` paralelos a este sprint; numeración salta hasta que founder mergee. No bloqueante.
@@ -811,6 +904,7 @@ Tracker: item #20 en `what-is-pending.md` (sprint próximo).
 
 ## Changelog
 
+- **2026-05-23 (Sprint CR-USDC-Reconfig)**: agregada Sección 20 — UUPS upgrades en CoverRouterV2 + TWAPBurner agregando `setUsdc(address)` onlyOwner, ambos repointados a mUSDC (`0xD944…6AE`). 5 tests reconfig + 9 regresión verde. Smoke e2e on-chain policyId=1 con premium $0.288 pulled de mUSDC. Item BL-USDC nuevo en `what-is-pending.md#mainnet-blockers` con runbook revert a Circle USDC mainnet.
 - **2026-05-23 (Sprint USDC Mock)**: agregada Sección 19 — faucet API migra a `mint` sobre MockUSDC permissionless (10,000 mUSDC + 0.05 ETH por claim, mismo rate-limit Sprint L). PRs: api #39 + landing #(sub-agent) + docs #(sub-agent) + LP #(este). Item #19 CERRADO. Known follow-up: CoverRouter USDC config (item #20 nuevo).
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: agregada Sección 17 — `docs.lumina-org.com` alineado a V5.3 en una sola pasada (14 áreas). 3 sub-agents en paralelo (Concepts + Agents + SDK) cubrieron 22 páginas heavy-content; main thread hizo homepage + quickstart + contracts + api + nav. 3 páginas nuevas (`concepts/adapters`, `concepts/bondvault-throttle`, `agents/sandbox-first`). SDK migration guide v0.5.x→v0.6.0 añadida. PR docs draft.
 - **2026-05-22 (Sprint Cleanup)**: agregada Sección 15 — UUPS upgrade del PM con `removeProduct` + `removeProductBatch`. 6 productIds limpiados; array on-chain final 7 entries únicos (verified vs API count 7). Nueva impl `0xdE41…Be22F` verified BaseScan. PR #141 draft.

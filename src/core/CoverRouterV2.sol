@@ -117,6 +117,8 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     event AutoPauseDeactivated(uint256 priceWei);
     /// @notice [Sprint T-30a Phase E] Emitted when the L2 sequencer feed is set/updated.
     event SequencerFeedUpdated(address indexed oldFeed, address indexed newFeed);
+    /// @notice [Sprint CR-USDC-Reconfig] Emitted when the premium token (USDC) is updated.
+    event UsdcUpdated(address indexed oldUsdc, address indexed newUsdc);
 
     // ═══════ ERRORS ═══════
     error ContractPaused();
@@ -302,6 +304,18 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         address old = address(capacityOracle);
         capacityOracle = IPriceOracleForRouter(_oracle);
         emit CapacityOracleUpdated(old, _oracle);
+    }
+
+    /// @notice [Sprint CR-USDC-Reconfig] Re-point the premium token address.
+    /// @dev    On Sepolia we move from Circle bridged USDC (0x036C…CF7e) to
+    ///         MockUSDC (0xD944…6AE) so the testnet faucet end-to-end flow
+    ///         closes. On mainnet this MUST be reverted to canonical Circle
+    ///         USDC before any user-facing release (audit-pack item BL-USDC).
+    function setUsdc(address _usdc) external onlyOwner {
+        require(_usdc != address(0), "Zero USDC");
+        address old = address(usdc);
+        usdc = IERC20(_usdc);
+        emit UsdcUpdated(old, _usdc);
     }
 
     /// @notice [Sprint T-30a Phase E] Set or clear the L2 sequencer uptime feed.
