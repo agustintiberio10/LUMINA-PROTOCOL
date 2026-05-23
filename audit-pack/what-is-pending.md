@@ -257,16 +257,11 @@ Ver detalles en `what-we-tested.md` sección 19.
 
 ---
 
-## 28. CoverRouter USDC config no alineada con la mUSDC faucet
+## ~~28. CoverRouter USDC config no alineada con la mUSDC faucet~~ — CERRADO 2026-05-23
 
-**Estado**: el faucet ahora mintea mUSDC en `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`, pero `CoverRouterV2.usdc` sigue apuntando a la canonical Circle USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`. Esto significa que un user que recibe mUSDC del faucet NO puede pagar el premium con ella — el `purchasePolicy` revierte porque `usdc.transferFrom(buyer, ...)` se ejecuta sobre Circle USDC, no sobre mUSDC.
+**Resolved**: Sprint CR USDC Reconfig (Opción A elegida) — ver [`audit-pack/sprints/2026-05-23-sprint-cr-usdc-reconfig.md`](./sprints/2026-05-23-sprint-cr-usdc-reconfig.md). UUPS upgrade de `CoverRouterV2` + `TWAPBurner` agregó `setUsdc(address) onlyOwner`. Ambos contratos ahora apuntan a `mUSDC` (`0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`). Smoke test exitoso con `policyId=1`. 4 txs on-chain (2 `upgradeTo` + 2 `setUsdc`).
 
-**Pendiente** (smart-contract side):
-- Opción A: `CoverRouterV2.setUsdc(MOCK_USDC_ADDRESS)` — si la función existe y la cuenta deployer es owner.
-- Opción B: UUPS upgrade que reemplace la USDC immutable o storage var.
-- Opción C: redeploy fresco del CoverRouter con MockUSDC.
-
-**Razón**: out-of-scope para este sprint (hard-stop: NO modificar smart contracts). El faucet entrega mUSDC válida y rate-limit correctos; sólo falta que el protocolo la acepte. Workaround interino: usar `faucet.circle.com` o el faucet equivalente para Circle USDC.
+**Pre-mainnet blocker creado:** `BL-USDC` — antes de cualquier deploy a mainnet, ambos contratos deben re-apuntar a Circle USDC mainnet (`0xa0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`), NO al MockUSDC de Sepolia. Procedimiento documentado en el archivo del sprint.
 
 ---
 
@@ -292,6 +287,7 @@ Ver detalles en `what-we-tested.md` sección 17.
 - **2026-05-23 (Sprint USDC Mock — Fase 5 prerequisite)**: item #27 CERRADO (faucet migrado a `mint` sobre MockUSDC permissionless). Item #28 nuevo (CoverRouter USDC config no alineada con mUSDC — contract-side follow-up).
 
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: item 20 CERRADO (docs Mintlify desactualizado del audit UX/DevEx). Sección 17 nueva en `what-we-tested.md`.
+- **2026-05-23 (Sprint Recovery)**: item #28 (CR USDC config) CERRADO — Sprint CR USDC Reconfig (Opción A, setter + UUPS upgrade) archivado en `audit-pack/sprints/2026-05-23-sprint-cr-usdc-reconfig.md`. Pre-mainnet blocker `BL-USDC` documentado para mainnet re-config a Circle USDC canonical.
 - **2026-05-22 (Sprint Fix Critical+High, post-audit UX/DevEx)**: items #18 (Tokenomics V2 deferred) y #19 (USDC mock prerequisite Phase 5) remain abiertos. SDK 0.6.0 publicado en npm (cierra issue #1 del audit UX/DevEx). llms.txt mergeado (cierra issue #2). PRs sdk #13 + docs #15 merged.
 - **2026-05-21 (Sprint T-30c)**: item 14 CERRADO (adapter unit tests + integration TODOs + deploy + verify + register + configure + E2E reads). Items 15 (tail de productShield mappings) y 16 (retry semantics ops) nuevos pero no bloqueantes.
 - **2026-05-21 (Sprint T-30b)**: item 13 CERRADO (auditorías profundas completadas: 48 Echidna × 200k PROVEN, 5 Halmos PROVEN, SAST clean, adapter pattern resuelve interface bridge). Item 14 nuevo (adapter integration tests para T-30c).

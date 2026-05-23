@@ -6,6 +6,9 @@
 
 Documento vivo. Refleja TODO lo que está auditado al día de hoy, con números verificables en CI (PR #130 mergeado a `main`).
 
+> 📂 **Detailed audit reports live in [`audit-pack/audits/`](./audits/)** — un archivo `.md` por cada audit ejecutado (findings + severity + scores).
+> 📂 **Detailed sprint reports for sprints without a dedicated section here: [`audit-pack/sprints/`](./sprints/)** — típicamente sprints off-chain (SDK, docs, ops) que no movieron números de tests/Echidna/Halmos.
+
 ---
 
 ## 1. Tests unitarios (forge test)
