@@ -14,10 +14,12 @@ El audit-pack es la "fuente de verdad" del estado de aseguramiento del protocolo
 
 ## Estructura
 
-| Archivo | Contenido | Actualización |
+| Path | Contenido | Actualización |
 |---|---|---|
-| [`what-we-tested.md`](./what-we-tested.md) | Todo lo auditado al día de hoy (9 categorías) | Cada sprint que agregue tests o suba números |
-| [`what-is-pending.md`](./what-is-pending.md) | Lo que NO está cubierto y por qué (12 items abiertos) | Cada sprint que cierre o agregue gaps |
+| [`what-we-tested.md`](./what-we-tested.md) | Todo lo auditado al día de hoy (9 categorías + secciones por sprint con cambios on-chain materiales) | Cada sprint que agregue tests o suba números |
+| [`what-is-pending.md`](./what-is-pending.md) | Lo que NO está cubierto y por qué (items abiertos) | Cada sprint que cierre o agregue gaps |
+| [`audits/`](./audits/) | Reportes completos de cada audit ejecutado (findings, severity, scores, recomendaciones, veredicto). 1 archivo `.md` por audit. | Cada audit nuevo agrega un archivo + entry en `audits/README.md` |
+| [`sprints/`](./sprints/) | Reportes completos de sprints sin sección dedicada en `what-we-tested.md` (típicamente off-chain: SDK, docs, ops, setter swaps). | Cada sprint sin sección agrega un archivo + entry en `sprints/README.md` |
 
 ## Política de mantenimiento
 
@@ -90,6 +92,7 @@ Cada sprint que toque el audit-pack debe:
 ## Changelog del audit-pack
 
 - **2026-05-22 (Sprint Cleanup productIds)**: Sección 15 agregada a `what-we-tested.md` con UUPS upgrade del PM + 6 productIds limpiados (12 txs); item 15 (tail mappings) en `what-is-pending.md` CERRADO; item 16 (retry semantics) sigue abierto. Nueva impl `0xdE41…Be22F` verified.
+- **2026-05-23 (Sprint Recovery)**: creadas subdirs `audit-pack/audits/` + `audit-pack/sprints/` para preservar reportes completos por audit/sprint. Archivados 2 audits (UX/DevEx V1 + V2) y 2 sprints (Fix Critical+High + CR USDC Reconfig) que vivían solo en chat. Item #28 (CR USDC) en `what-is-pending.md` CERRADO con referencia al sprint archivado.
 - **2026-05-21 (Sprint T-30c)**: Sección 14 agregada a `what-we-tested.md` con deploy live V5.3 (18 BaseScan-verified + 6 register + 6 configure margin 20000 + E2E reads on-chain); item 14 en `what-is-pending.md` CERRADO; items 15 (tail mappings) y 16 (retry semantics) abiertos pero no bloqueantes. **FASE 4 CERRADA**.
 - **2026-05-21 (Sprint T-30b)**: Sección 13 agregada a `what-we-tested.md` con auditorías profundas completadas (9.6M Echidna runs + 5 Halmos invariants + adapter pattern + SAST clean). Item 13 en `what-is-pending.md` CERRADO; item 14 nuevo (FlashShieldAdapter integration tests para T-30c).
 - **2026-05-20 (Sprint T-30a)**: Sección 12 agregada a `what-we-tested.md` con re-implementación shields + BondVault throttle + Sequencer L2 check + 48 unit + 6 throttle + 2 integration + 48 Echidna scaffolds. Item 13 nuevo en `what-is-pending.md` (T-30b auditorías + integration TODOs).
