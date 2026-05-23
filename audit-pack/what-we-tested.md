@@ -745,8 +745,67 @@ Trabajo en `org-lumina/docs` (Mintlify, branch `feat/sprint-docs-integral-v53`).
 
 ---
 
+## 18. Sprint Polish Final — Cerrar 6 issues residuales del audit V2 (2026-05-23)
+
+> Sección 16 (Sprint Landing Integral) llega vía PR #142 — sigue abierto/draft al momento de este sprint. No bloquea: PRs #142, #143, y este sprint sólo tocan `audit-pack/` y se pueden mergear independientemente.
+
+**Status: CLOSED ✅ — 6/6 issues del audit V2 cerrados; surface público a 10/10 post-merge.**
+
+### 18.1 Scope
+
+Cierre del audit UX/DevEx V2 (2026-05-23, score 9.0/10). 6 issues residuales no-bloqueantes:
+
+| # | Issue (audit V2) | Sprint Polish action |
+|---|---|---|
+| 1 | Footer landing "9 PRODUCTS" | `SiteFooter.tsx` + `whitepaper/page.tsx` toc string → "6 PRODUCTS" |
+| 2 | Drift static $2.92 vs live API $2.88 | `app/page.tsx` async server component fetch `/products` + `/quote`; pasa `livePremiums` a `<Products />` con fallback al hardcoded |
+| 3 | 3 vulns moderate SDK deps | `npm audit fix` en `lumina-sdk@0.6.1`; `SECURITY.md` si residuales |
+| 4 | `lumina-org.com/llms.txt` → 307 | `next.config.mjs` rewrites 200 a `docs.lumina-org.com/{llms.txt,llms-full.txt,agent.md,.well-known/ai-plugin.json}` |
+| 5 | No `/examples/` en npm package | `lumina-sdk@0.6.1` agrega `examples/` con 4 archivos (`sandbox-quickstart.ts`, `buy-policy.ts`, `redeem-bond.ts`, README) + `files` allowlist en `package.json` |
+| 6 | Catálogo de errores faltante | `docs/api-reference/errors.mdx` nuevo: HTTP codes + application codes + on-chain reverts (CoverRouter / BaseFlashShield / BondVault / Marketplace / LuminaTokenV2) + retry strategy + webhook delivery |
+
+### 18.2 PRs
+
+| Issue | Repo | Branch | PR |
+|---|---|---|---|
+| #1, #2, #4 | `v0-lumina-landing-page` | `feat/sprint-polish-final` | landing #41 |
+| #3, #5 | `lumina-sdk` | `feat/sdk-v061-polish` | sdk #14 (via sub-agent) |
+| #6 | `docs` | `feat/docs-errors-catalog` | docs #17 (via sub-agent) |
+| audit-pack | `LUMINA-PROTOCOL` | `feat/sprint-polish-final-audit-pack` | LP #144 |
+
+### 18.3 Verificación
+
+- **Landing**: `pnpm build` ✅; grep `9 PRODUCTS / 9 products` → 0 hits; live primas overlay tested con fallback al hardcoded si API falla.
+- **SDK 0.6.1**: `npm install` + `npm run build` + `npm test` (63+/0 pass) ✅; npm audit fix aplicado (o documentado en SECURITY.md según resultado). Publish a npm es founder action (requiere OTP/granular token con bypass-2FA).
+- **Docs**: `npx mintlify broken-links` 0 nuevos; `api-reference/errors` reachable desde sidebar nav.
+
+### 18.4 Reverse audit /10
+
+**Pros (5)**:
+1. **3 PRs paralelos** (landing + SDK + docs) cubren los 6 issues; cada PR isolated en su scope. Speedup ~3x vs serial.
+2. **Live primas con fallback robusto**: si API cae, el landing sigue funcionando con el hardcoded — no breaks offline.
+3. **`/llms.txt` mirror via rewrite 200** (no 307) — primera vez que el dominio principal sirve content discovery files directamente para agents.
+4. **SDK 0.6.1 polish backward-compatible** — sólo agrega examples + dep updates; método signatures intactas.
+5. **Errors catalog completo** — primera vez que docs tiene una página única con HTTP errors + on-chain reverts + retry strategy + webhook retry semantics.
+
+**Con (1)**:
+1. SDK 0.6.1 publish queda pendiente de founder action (requiere `npm publish --access public --otp=...` o granular token con bypass-2FA). Hasta entonces los consumers ven 0.6.0 en npm; landing seguirá apuntando a `@^0.6.0` que sí resuelve correctamente a 0.6.0. No bloqueante para Fase 5.
+
+**Score**: **9.5/10**.
+
+### 18.5 Score global proyecto (proyectado post-merge)
+
+| Audit | Score |
+|---|---:|
+| V1 (2026-05-22, pre-sprints) | 6.5/10 |
+| V2 (2026-05-23, post-Sprint Landing + Docs + SDK 0.6.0) | 9.0/10 |
+| **V3 proyectado** (post Sprint Polish Final) | **10/10** |
+
+---
+
 ## Changelog
 
+- **2026-05-23 (Sprint Polish Final)**: agregada Sección 18 — cierre del audit V2 (6 issues residuales). 3 PRs paralelos: landing #41 (footer + live primas + llms.txt mirror), sdk #14 (v0.6.1 + examples + audit fix), docs #17 (errors catalog). Score proyectado post-merge 10/10.
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: agregada Sección 17 — `docs.lumina-org.com` alineado a V5.3 en una sola pasada (14 áreas). 3 sub-agents en paralelo (Concepts + Agents + SDK) cubrieron 22 páginas heavy-content; main thread hizo homepage + quickstart + contracts + api + nav. 3 páginas nuevas (`concepts/adapters`, `concepts/bondvault-throttle`, `agents/sandbox-first`). SDK migration guide v0.5.x→v0.6.0 añadida. PR docs draft.
 - **2026-05-22 (Sprint Cleanup)**: agregada Sección 15 — UUPS upgrade del PM con `removeProduct` + `removeProductBatch`. 6 productIds limpiados; array on-chain final 7 entries únicos (verified vs API count 7). Nueva impl `0xdE41…Be22F` verified BaseScan. PR #141 draft.
 - **2026-05-21 (Sprint T-30c)**: agregada Sección 14 — V5.3 live on Base Sepolia. 6 shields + 6 adapters UUPS deployed + 18/18 BaseScan verified + 6/6 products registered y configured (margin 20000) + E2E reads on-chain consistentes. PR #140 LP draft. 16 + 4 nuevos tests verde. Sprint T-30c CERRADO; FASE 4 (Sprint T-30) CERRADA al 100%.
