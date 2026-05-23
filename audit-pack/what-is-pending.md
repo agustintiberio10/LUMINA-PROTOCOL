@@ -305,6 +305,7 @@ Ver detalles en `what-we-tested.md` sección 17.
 
 ## Changelog
 
+- **2026-05-23 (Sprint Fix Audit Economic Complete)**: cerrados R1 (CEX auto-injection + LUMINA floor pause con hysteresis), R2 (BondVault.redeem semantics verified, no bug) y R3 (SDK v0.7.0 throttle + docs Mintlify) del Audit Economic V1. Re-auditoría Economic V2 produce score 8.4/10 (vs V1 6.4) y verdict **SOUND** — ver `audit-pack/audits/2026-05-23-economic-audit-v53-v2.md`. Residuales documentados en el reporte V2 (no items nuevos abiertos aquí: `policiesPaused` no enforced en CoverRouterV2 [LOW, fuera de scope post BL-USDC], Halmos `_checkAndInject` deferido [item #1 ya existente], actuarial validation [item #7 ya existente]).
 - **2026-05-23 (Sprint CR-USDC-Reconfig)**: UUPS upgrades en `CoverRouterV2` + `TWAPBurner` agregando `setUsdc(address)` onlyOwner; ambos proxies repointados a MockUSDC en Sepolia para cerrar gap arquitectural Sprint USDC Mock. Smoke e2e on-chain `policyId=1` con premium pulled de mUSDC. Nuevo item **BL-USDC** en sección Mainnet Blockers con runbook revert a Circle USDC mainnet. Sección 20 nueva en `what-we-tested.md`.
 - **2026-05-23 (Sprint USDC Mock — Fase 5 prerequisite)**: item #27 CERRADO (faucet migrado a `mint` sobre MockUSDC permissionless). Item #28 nuevo (CoverRouter USDC config no alineada con mUSDC — contract-side follow-up).
 

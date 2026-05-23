@@ -39,6 +39,17 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
 
     IERC20 public lumina;
     uint256 public deploymentTimestamp;
+
+    /// @notice [Sprint Fix Audit Economic — R1] BondVault address authorized
+    ///         to pull emergency liquidity via `injectToVault`. Set once after
+    ///         deployment by admin; can be rotated if the vault is upgraded.
+    address public bondVault;
+
+    /// @notice [Sprint Fix Audit Economic — R1] Cumulative LUMINA pushed out via
+    ///         `injectToVault` (NOT counted in any allocation sub-bucket — this
+    ///         is emergency liquidity outside the normal CEX-listing allocator
+    ///         flow). Tracked for transparency and post-hoc accounting.
+    uint256 public totalInjected;
     uint256 public constant TOTAL_AMOUNT = 14_000_000 * 1e18;
     uint256 public constant IMMEDIATE_AMOUNT = 2_800_000 * 1e18;
     uint256 public constant VESTING_AMOUNT = 8_400_000 * 1e18;
@@ -63,6 +74,10 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
     event MonthlyCapWarning(uint256 month, uint256 spent, uint256 cap);
     /// @notice [LOW-2 fix] Emitted on successful non-core token rescue.
     event TokenRecovered(address indexed token, uint256 amount, address indexed to);
+    /// @notice [Sprint Fix Audit Economic — R1] BondVault wired/rotated.
+    event BondVaultSet(address indexed oldVault, address indexed newVault);
+    /// @notice [Sprint Fix Audit Economic — R1] Emergency LUMINA injected into BondVault.
+    event InjectedToVault(uint256 amount, uint256 totalInjected);
 
     // ═══════ ERRORS (rescue) ═══════
     error CoreTokenProtected(address token);
@@ -167,6 +182,34 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
         return MONTHLY_CAP - spent;
     }
 
+    // ═══════ AUTO-INJECTION TO BOND VAULT (Sprint Fix Audit Economic — R1) ═══════
+
+    /// @notice Admin-only: wire (or rotate) the BondVault that may pull
+    ///         emergency liquidity via `injectToVault`. Setting to address(0)
+    ///         is forbidden — use a UUPS upgrade to remove the feature.
+    function setBondVault(address _bondVault) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_bondVault == address(0)) revert ZeroAddressNotAllowed();
+        address old = bondVault;
+        bondVault = _bondVault;
+        emit BondVaultSet(old, _bondVault);
+    }
+
+    /// @notice [Sprint Fix Audit Economic — R1] Emergency liquidity push to BondVault.
+    /// @dev    Callable ONLY by the wired BondVault. Bypasses the bucket / monthly-cap
+    ///         allocator path — this is deliberately outside the CEX-listing budget
+    ///         model. Use is gated upstream by BondVault's capacity-ratio threshold,
+    ///         so casual triggers are not possible.
+    /// @param  amount LUMINA (18-dec wei) to transfer to BondVault.
+    function injectToVault(uint256 amount) external nonReentrant {
+        require(msg.sender == bondVault, "Not BondVault");
+        require(amount > 0, "Zero injection");
+        require(lumina.balanceOf(address(this)) >= amount, "Insufficient reserve");
+
+        totalInjected += amount;
+        lumina.safeTransfer(bondVault, amount);
+        emit InjectedToVault(amount, totalInjected);
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     // ═══════ RESCUE (LOW-2 fix, audit #26) ═══════
@@ -186,5 +229,7 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
         emit TokenRecovered(token, amount, to);
     }
 
-    uint256[50] private __gap;
+    // [Sprint Fix Audit Economic — R1] Gap reduced from 50 to 48 to make room
+    // for `bondVault` (slot) + `totalInjected` (slot).
+    uint256[48] private __gap;
 }
