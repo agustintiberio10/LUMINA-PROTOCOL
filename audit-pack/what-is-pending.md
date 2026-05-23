@@ -1,6 +1,6 @@
 # What Is Pending — Lumina V5.1
 
-**Última actualización**: 2026-05-18 (Sprint DD)
+**Última actualización**: 2026-05-23 (Sprint 7.5 — Economic Audit V5.3 V1)
 **Próxima actualización esperada**: cada sprint futuro
 **Política**: cuando un item se complete, se mueve a `what-we-tested.md` con fecha de cierre.
 
@@ -282,8 +282,27 @@ Ver detalles en `what-we-tested.md` sección 17.
 
 ---
 
+## 29. Sprint 7.5 V2 — Economic Audit V5.3 V2 (post-Fase 5 testnet)
+
+**Estado**: Pendiente — re-auditoría programada post-Fase 5 con data empírica de testnet.
+
+**Trigger:** Sprint 7.5 V1 (2026-05-23) cerró con veredicto **NEEDS ADJUSTMENT (6.4/10)** y 3 findings CRITICAL (B-1 throttle Black Swan, F-1 LUMINA price floor, D-1 BondVault.redeem semantics). Ver [`audits/2026-05-23-economic-audit-v53-v1.md`](./audits/2026-05-23-economic-audit-v53-v1.md) sección 9 (recomendaciones R1–R10) y sección 11 (veredicto).
+
+**Pendiente cubrir en V2 (post-Fase 5):**
+
+- (a) **Data empírica testnet** — volumen real de pólizas, distribución entre productos, hit rate observado vs PoR Poisson teórico, latencia real de payouts.
+- (b) **Verificación R2** (CRITICAL del V1) — `BondVault.redeem()` burn-vs-transfer semantics. Si es burn (no transfer), recalibrar invariante deflation D-1.
+- (c) **Cierre cross-ref** items pendientes #5 (LBP testing), #7 (análisis actuarial externo), #8 (FV game theory) — todos relevantes al modelo económico V5.3.
+- (d) **Validación post-implementación R1** — si R1 (CEX auto-injection trigger) se implementa pre-V2, validar matemáticamente que cierra el Black Swan soft default.
+- (e) **Pricing UX adoption** — medir si la economía tactical-only (R4) fue absorbida por buyers o si requiere reducción margin 2.00× → 1.50× (R7).
+
+**Razón pre-Fase 5 no se cierra:** sin data empírica de uso real testnet, todos los stress tests son analíticos (asunción 1000 pól/mes, $5K cobertura uniformes). Una re-auditoría V2 con observaciones testnet calibra los parámetros.
+
+---
+
 ## Changelog
 
+- **2026-05-23 (Sprint 7.5 — Economic Audit V5.3 V1)**: item #29 nuevo — re-auditoría V2 programada post-Fase 5 testnet con data empírica + verificación R2 + cierre items #5/#7/#8 cross-ref. Reporte físico en `audits/2026-05-23-economic-audit-v53-v1.md`.
 - **2026-05-23 (Sprint USDC Mock — Fase 5 prerequisite)**: item #27 CERRADO (faucet migrado a `mint` sobre MockUSDC permissionless). Item #28 nuevo (CoverRouter USDC config no alineada con mUSDC — contract-side follow-up).
 
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: item 20 CERRADO (docs Mintlify desactualizado del audit UX/DevEx). Sección 17 nueva en `what-we-tested.md`.

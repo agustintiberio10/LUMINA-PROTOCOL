@@ -1,8 +1,8 @@
 # What We Tested — Lumina V5.1
 
-**Última actualización**: 2026-05-18 (Sprint DD)
+**Última actualización**: 2026-05-23 (Sprint 7.5 — Economic Audit V5.3 V1)
 **Última verificación de números**: 2026-05-18 (post Sprint EE-FIX merge a `main`)
-**Próxima actualización esperada**: Sprint Deploy / Sprint HH
+**Próxima actualización esperada**: Sprint post Fase 5 testnet
 
 Documento vivo. Refleja TODO lo que está auditado al día de hoy, con números verificables en CI (PR #130 mergeado a `main`).
 
@@ -809,8 +809,59 @@ Tracker: item #20 en `what-is-pending.md` (sprint próximo).
 
 ---
 
+## 20. Sprint 7.5 — Economic Audit V5.3 V1 (pre-Fase 5 testnet) (2026-05-23)
+
+> Reporte completo: [`audits/2026-05-23-economic-audit-v53-v1.md`](./audits/2026-05-23-economic-audit-v53-v1.md)
+
+### 20.1 Scope
+
+Validación matemática y económica del modelo Lumina V5.3 (NO código — código ya cubierto por T-30b/T-30c). 8 phases (A–H + Phase I archive). Methodología: first-principles + stress analítico (6 escenarios) + benchmarking competitivo + análisis incentivos + edge cases + runway.
+
+### 20.2 Veredicto
+
+**NEEDS ADJUSTMENT** — **6.4 / 10**.
+
+Modelo matemáticamente correcto y estructuralmente coherente en steady state. 3 findings críticos en tail risk:
+
+- 🔴 **B-1 CRITICAL** — Throttle BondVault crea "soft default" 2+ años en Black Swan BTC -20%/24h con LUMINA $0.10.
+- 🔴 **F-1 CRITICAL** — Sin floor / circuit breaker on-chain para precio LUMINA. Capacity colapsa linealmente.
+- 🔴 **D-1 CRITICAL pendiente** — Verificar semantics `BondVault.redeem()` (burn vs transfer). Si burn, recalibración deflation urgente.
+
+### 20.3 Scores por dimensión
+
+| Dimensión | Score |
+|---|---|
+| A · Validación matemática | 8.5 |
+| B · Stress testing (6 escenarios) | 5.0 |
+| C · Competencia | 7.0 |
+| D · Deflation invariant | 7.0 |
+| E · Incentive alignment | 6.0 |
+| F · Edge cases | 5.0 |
+| G · Runway | 7.0 |
+| **Promedio** | **6.4** |
+
+### 20.4 Top 3 recomendaciones
+
+1. **R1 CRITICAL** — CEX Liquidity Reserve auto-injection trigger si `capacityRatio < 0.50`.
+2. **R2 CRITICAL** — Verificar `BondVault.redeem()` burn-vs-transfer (1 día effort, blocking).
+3. **R3 HIGH** — SDK + docs comunican throttle latencia dinámicamente.
+
+### 20.5 Recomendación operativa
+
+Proceder a Fase 5 testnet con R2 resuelto antes; R1 + R3 + R4 en sprint inmediato post-Fase 5; R5–R8 iterativos. Re-auditoría Sprint 7.5 V2 con data empírica testnet (item nuevo en `what-is-pending.md`).
+
+### 20.6 Outputs físicos
+
+- `audit-pack/audits/2026-05-23-economic-audit-v53-v1.md` (~52 KB)
+- `audit-pack/audits/README.md` index actualizado (entry + 1)
+- `audit-pack/what-is-pending.md` item nuevo #29 (Sprint 7.5 V2 post-Fase 5)
+- PR draft `feat/audit-7-5-economic-v1` (este sprint)
+
+---
+
 ## Changelog
 
+- **2026-05-23 (Sprint 7.5 — Economic Audit V5.3 V1)**: agregada Sección 20 — audit doc físico en `audits/2026-05-23-economic-audit-v53-v1.md`, índice `audits/README.md` actualizado, item #29 nuevo en `what-is-pending.md` (Sprint 7.5 V2 post-Fase 5). Veredicto NEEDS ADJUSTMENT (6.4/10) con 3 findings CRITICAL. Hard-stops respetados (NO modificar contratos, NO mergear PR).
 - **2026-05-23 (Sprint USDC Mock)**: agregada Sección 19 — faucet API migra a `mint` sobre MockUSDC permissionless (10,000 mUSDC + 0.05 ETH por claim, mismo rate-limit Sprint L). PRs: api #39 + landing #(sub-agent) + docs #(sub-agent) + LP #(este). Item #19 CERRADO. Known follow-up: CoverRouter USDC config (item #20 nuevo).
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: agregada Sección 17 — `docs.lumina-org.com` alineado a V5.3 en una sola pasada (14 áreas). 3 sub-agents en paralelo (Concepts + Agents + SDK) cubrieron 22 páginas heavy-content; main thread hizo homepage + quickstart + contracts + api + nav. 3 páginas nuevas (`concepts/adapters`, `concepts/bondvault-throttle`, `agents/sandbox-first`). SDK migration guide v0.5.x→v0.6.0 añadida. PR docs draft.
 - **2026-05-22 (Sprint Cleanup)**: agregada Sección 15 — UUPS upgrade del PM con `removeProduct` + `removeProductBatch`. 6 productIds limpiados; array on-chain final 7 entries únicos (verified vs API count 7). Nueva impl `0xdE41…Be22F` verified BaseScan. PR #141 draft.
