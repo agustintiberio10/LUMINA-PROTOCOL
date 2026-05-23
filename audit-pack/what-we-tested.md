@@ -687,8 +687,67 @@ Verificación on-chain final:
 
 ---
 
+## 17. Sprint Docs Mintlify Integral — Update completo docs.lumina-org.com a V5.3 (2026-05-22)
+
+> Sección 16 (Sprint Landing Integral) llega vía PR #142 en paralelo a este sprint; ambos PRs cambian sólo audit-pack y se pueden mergear independientemente.
+
+**Status: CLOSED ✅ — `docs.lumina-org.com` alineado a V5.3 en una sola pasada.**
+
+### 17.1 Scope (14 áreas)
+
+Trabajo en `org-lumina/docs` (Mintlify, branch `feat/sprint-docs-integral-v53`). Founder pidió cerrar el último gap del audit UX/DevEx (audit 2026-05-22) donde `llms.txt` ya estaba a V5.3 (PR #15 merged) pero el resto del sitio seguía mostrando productos V5.1/V5.2.
+
+| # | Sección | Status |
+|---|---|---|
+| 1 | Navigation tree (`docs.json`) | ✅ added `concepts/adapters`, `concepts/bondvault-throttle`, `agents/sandbox-first` |
+| 2 | Homepage (`index.mdx`) | ✅ 6-product table, V5.3 chip, sandbox-first hint, install `@^0.6.0` |
+| 3 | Quickstart (`quickstart.mdx`) | ✅ sandbox-first como Step 1, SDK install `@^0.6.0`, full TS flow con FLASHBTC24-001 |
+| 4 | Concepts (10 pages) | ✅ via sub-agent — 8 updates + 2 NEW (adapters.mdx + bondvault-throttle.mdx) |
+| 5 | For AI agents (7 pages) | ✅ via sub-agent — 6 updates + 1 NEW (sandbox-first.mdx) |
+| 6 | SDK reference (5 pages) | ✅ via sub-agent — v0.6.0 + migration guide v0.5.x→v0.6.0 |
+| 7 | Contracts reference (`deployed.mdx`, `architecture.mdx`) | ✅ V5.3 addresses + adapter map + BaseScan links + audit-fix map updated |
+| 8 | API reference (`introduction.mdx`, `sandbox.mdx`) | ✅ sandbox cleanup, retired-product callout |
+| 9 | NEW page: `concepts/adapters.mdx` | ✅ FlashShieldAdapter bridge pattern |
+| 10 | NEW page: `concepts/bondvault-throttle.mdx` | ✅ 1.08%/week + FIFO queue + processQueue() |
+| 11 | NEW page: `agents/sandbox-first.mdx` | ✅ zero-wallet first-contact for LLMs |
+| 12 | Global purge prob/probabilidad/PoR | ✅ surface user-facing libre |
+| 13 | Retired product cleanup | ✅ FlashBTC4h / MicroDepeg / RateShock removidos del surface (RateShock referenciado sólo como paused) |
+| 14 | SDK v0.6.0 alignment | ✅ install command + import examples + types consistentes |
+
+### 17.2 Commits en `feat/sprint-docs-integral-v53`
+
+| SHA | Tema | Autor |
+|---|---|---|
+| `4c4527c` | SDK reference (5 pages + migration guide) | sub-agent |
+| `532cab5` | Homepage + Quickstart + Contracts (deployed + architecture) + API sandbox + docs.json nav | claude direct |
+| `(concepts agent)` | 10 concepts pages (8 updates + 2 new) | sub-agent |
+| `(agents agent)` | 7 agents pages (6 updates + 1 new) | sub-agent |
+
+### 17.3 Build status
+
+- `npm install` ✅
+- `npx mintlify dev` ✅ (build pasa local)
+- `npx mintlify broken-links` ✅ 0 broken
+
+### 17.4 Reverse audit /10
+
+**Pros (5)**:
+1. Source-of-truth nav (`docs.json`) actualizado primero → 3 nuevas páginas correctamente expuestas en la sidebar antes de ser escritas.
+2. 3 agents en paralelo (Concepts / Agents / SDK) cubrieron las 22 páginas heavy-content; main thread hizo homepage + contracts + api-reference + nav.
+3. SDK migration guide v0.5.x → v0.6.0 ahora vive en `sdk/installation.mdx` — el primer lugar donde un upgrade-er busca.
+4. Sandbox-first promovido a Step 1 del quickstart + página dedicada en agents/ — implementación de la recomendación #5 + #8 del audit UX/DevEx anterior.
+5. Adapter pattern documentado explícitamente en `concepts/adapters.mdx` — primera vez que el surface público explica por qué `PolicyManagerV2.productShield(pid)` devuelve la adapter y no el shield directo.
+
+**Con (1)**:
+1. La numeración de las secciones en `what-we-tested.md` salta de 15 → 17 porque PR #142 (Sprint Landing Integral, agregando Sección 16) aún no estaba mergeado a `main` al momento de empezar este sprint. Una vez ambos PRs mergeen, la numeración será continua. No afecta legibilidad del documento.
+
+**Score**: **9.0/10**.
+
+---
+
 ## Changelog
 
+- **2026-05-22 (Sprint Docs Mintlify Integral)**: agregada Sección 17 — `docs.lumina-org.com` alineado a V5.3 en una sola pasada (14 áreas). 3 sub-agents en paralelo (Concepts + Agents + SDK) cubrieron 22 páginas heavy-content; main thread hizo homepage + quickstart + contracts + api + nav. 3 páginas nuevas (`concepts/adapters`, `concepts/bondvault-throttle`, `agents/sandbox-first`). SDK migration guide v0.5.x→v0.6.0 añadida. PR docs draft.
 - **2026-05-22 (Sprint Cleanup)**: agregada Sección 15 — UUPS upgrade del PM con `removeProduct` + `removeProductBatch`. 6 productIds limpiados; array on-chain final 7 entries únicos (verified vs API count 7). Nueva impl `0xdE41…Be22F` verified BaseScan. PR #141 draft.
 - **2026-05-21 (Sprint T-30c)**: agregada Sección 14 — V5.3 live on Base Sepolia. 6 shields + 6 adapters UUPS deployed + 18/18 BaseScan verified + 6/6 products registered y configured (margin 20000) + E2E reads on-chain consistentes. PR #140 LP draft. 16 + 4 nuevos tests verde. Sprint T-30c CERRADO; FASE 4 (Sprint T-30) CERRADA al 100%.
 - **2026-05-21 (Sprint T-30b)**: agregada Sección 13 con resultados Echidna 200k × 48 properties = 9.6M runs PROVEN, Halmos 5 invariants nuevos PROVEN, FlashShieldAdapter introducido (adapter pattern), SAST deep dive PASS. 20/20 CI workflows verde sobre commit `705ca08`. PR #139 draft.
