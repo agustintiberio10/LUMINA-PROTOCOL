@@ -745,8 +745,70 @@ Trabajo en `org-lumina/docs` (Mintlify, branch `feat/sprint-docs-integral-v53`).
 
 ---
 
+## 19. Sprint USDC Mock — Faucet API + UI + docs (2026-05-23)
+
+> Continuidad: secciones 16 (Sprint Landing Integral, PR #142) y 18 (Sprint Polish Final, PR #144) llegan vía PRs separados al `audit-pack` paralelos a este sprint; numeración salta hasta que founder mergee. No bloqueante.
+
+**Status: CLOSED ✅ — Phase 5 prerequisite #19 (USDC mock prerequisite) cerrado.**
+
+### 19.1 Scope
+
+Habilitar el flow `connect wallet → Get test USDC → buy policy` sin dependencia externa (Circle faucet, founder transfer manual). Cierra item #19 del audit-pack ("USDC mock mintable" como prerequisite de Fase 5).
+
+### 19.2 Diagnóstico Phase A — MockUSDC
+
+- **Address**: `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE` (Base Sepolia, 84532).
+- **Symbol** "mUSDC", **decimals** 6, **totalSupply** 1.006e12 (= 1,006,000 mUSDC).
+- **owner()** revierte (sin Ownable).
+- **mint(address,uint256)** PÚBLICA — `cast call --from <random>` no revierte. Permissionless mintable.
+- Relayer (`0x168dC7…7E4a`) tiene 0.0199 ETH (suficiente para muchos tx) pero `relayerUsdcBalance: 0` — el faucet Sprint L original con path `transfer` estaba blocked (`enabled: false` en `/faucet/status`).
+
+### 19.3 PRs
+
+| Repo | Branch | PR | Cambio |
+|---|---|---|---|
+| `lumina-api` | `feat/usdc-faucet` | api #39 | Faucet migra de `transfer` a `mint` sobre `MOCK_USDC_ADDRESS`; bump a 10,000 mUSDC/claim; nuevos env vars `MOCK_USDC_ADDRESS` + `FAUCET_USDC_AMOUNT`. |
+| `v0-lumina-landing-page` | `feat/usdc-faucet-ui` | landing #(pending sub-agent) | `FaucetButton` component + `/faucet` page + tutorial step 1 enrichment. |
+| `docs` | `feat/docs-usdc-faucet` | docs #(pending sub-agent) | `agents/get-test-usdc.mdx` nuevo + cross-links + sidebar nav. |
+| `LUMINA-PROTOCOL` (audit-pack) | `feat/usdc-faucet-audit-pack` | LP #(este PR) | Sección 19 + item #19 CERRADO. |
+
+### 19.4 Cambios en lumina-api (PR #39)
+
+- `src/utils/config.ts`: nuevos env `MOCK_USDC_ADDRESS` (default `0xD944…6AE`) + `FAUCET_USDC_AMOUNT` (default `10000000000` = 10,000 mUSDC con 6 decimales).
+- `src/utils/usdcContract.ts`: agregado `getMockUsdcContract(runner)`. `getUsdcContract` sin cambios — sigue apuntando al canonical USDC del protocolo (Circle bridged `0x036C…CF7e`).
+- `src/routes/faucet.ts`: dispatch via `mockUsdc.mint(wallet, USDC_PER_CLAIM)` en vez de `transfer`. Removido pre-check de `balanceOf(relayer)` para USDC — la mint es permissionless. Response incluye `mockUsdcAddress` + `nextEligibleAt`. `/faucet/status` reporta `relayerUsdcBalance: null` + nuevos campos (`mockUsdcAddress`, `usdcPerClaim`, `ethPerClaim`, `cooldownHours`).
+- Existing rate-limit intacto: 24h cooldown por wallet, 24h por IP, 50 claims/día global, global lock HIGH-1.
+- Tests: 216/216 pass (8 skipped pre-existentes), tsc clean.
+
+### 19.5 Known follow-up — CoverRouter USDC config
+
+Para que el flow e2e (faucet → buy policy) cierre completamente, `CoverRouterV2.usdc` debe apuntar a la mintable mUSDC, NO a la Circle USDC (`0x036C…CF7e`). Eso es un cambio on-chain (`setUsdc` o upgrade) **fuera del scope de este sprint** (hard-stop: NO modificar smart contracts). Mientras tanto:
+
+- La mUSDC del faucet es útil para **smoke tests / SDK testing / agentes que tooleen su propio flow**.
+- El premium real on-chain sigue requiriendo Circle USDC (que tiene su propio faucet público en `faucet.circle.com`).
+- Documentado en docs faucet tutorial (callout "Important known issue").
+
+Tracker: item #20 en `what-is-pending.md` (sprint próximo).
+
+### 19.6 Reverse audit /10
+
+**Pros (5)**:
+1. **Faucet pre-existente bien diseñado**: encontré Sprint L ya implementado con SQLite-backed rate limiting, global lock HIGH-1, pre-flight balance checks. Sólo necesité migrar el path `transfer → mint` y agregar 2 env vars. Reuso > rebuild.
+2. **No-pre-fund con mintable**: switching a `mint` elimina la dependencia de pre-fundeo del relayer con USDC. La única constraint sigue siendo ETH (que tiene faucet público) + el rate-limit del 50/día.
+3. **Backwards-compatible**: `getUsdcContract` sin cambios — `services/policies.ts` y resto del API siguen usando Circle USDC para premiums. La nueva surface `getMockUsdcContract` es aislada.
+4. **3-prong delivery**: API + landing UI + docs tutorial en una sola pasada (3 PRs paralelos vía sub-agents). Closes audit-pack item #19 completo.
+5. **Explicit follow-up documented**: el address gap CoverRouter↔mUSDC queda flagged y trackeado, no oculto. Honest.
+
+**Con (1)**:
+1. El sprint cierra "Phase 5 puede dar USDC a los users" pero NO cierra "los users pueden comprar pólizas con esa USDC" — para eso falta reconfigurar el CoverRouter (smart contract work, out-of-scope hard-stop). Phase 5 sólo puede empezar con un workaround (alt USDC source) o esperar a un sprint contract-side antes.
+
+**Score**: **8.5/10** (sólido pero el e2e flow no cierra hasta el contract follow-up).
+
+---
+
 ## Changelog
 
+- **2026-05-23 (Sprint USDC Mock)**: agregada Sección 19 — faucet API migra a `mint` sobre MockUSDC permissionless (10,000 mUSDC + 0.05 ETH por claim, mismo rate-limit Sprint L). PRs: api #39 + landing #(sub-agent) + docs #(sub-agent) + LP #(este). Item #19 CERRADO. Known follow-up: CoverRouter USDC config (item #20 nuevo).
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: agregada Sección 17 — `docs.lumina-org.com` alineado a V5.3 en una sola pasada (14 áreas). 3 sub-agents en paralelo (Concepts + Agents + SDK) cubrieron 22 páginas heavy-content; main thread hizo homepage + quickstart + contracts + api + nav. 3 páginas nuevas (`concepts/adapters`, `concepts/bondvault-throttle`, `agents/sandbox-first`). SDK migration guide v0.5.x→v0.6.0 añadida. PR docs draft.
 - **2026-05-22 (Sprint Cleanup)**: agregada Sección 15 — UUPS upgrade del PM con `removeProduct` + `removeProductBatch`. 6 productIds limpiados; array on-chain final 7 entries únicos (verified vs API count 7). Nueva impl `0xdE41…Be22F` verified BaseScan. PR #141 draft.
 - **2026-05-21 (Sprint T-30c)**: agregada Sección 14 — V5.3 live on Base Sepolia. 6 shields + 6 adapters UUPS deployed + 18/18 BaseScan verified + 6/6 products registered y configured (margin 20000) + E2E reads on-chain consistentes. PR #140 LP draft. 16 + 4 nuevos tests verde. Sprint T-30c CERRADO; FASE 4 (Sprint T-30) CERRADA al 100%.

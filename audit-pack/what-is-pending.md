@@ -247,6 +247,29 @@ Ver detalles en `what-we-tested.md` sección 15.
 
 ---
 
+## ~~27. USDC mock prerequisite (Fase 5)~~ — CERRADO 2026-05-23
+
+**Resolved**: Sprint USDC Mock — la faucet existente `POST /api/v1/faucet/claim` (Sprint L) fue migrada de `usdc.transfer` (que requería pre-fundeo del relayer con USDC, live `/faucet/status` mostraba `enabled:false`) a `mockUsdc.mint` contra `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE` (MockUSDC permissionless mintable, verificada vía `cast call --from <random>` que no revierte). 10,000 mUSDC + 0.05 ETH por claim, mismo rate-limit Sprint L (24h cooldown wallet+IP, 50/día global, global lock HIGH-1).
+
+PRs: `lumina-api#39` + `v0-lumina-landing-page#(sub-agent)` + `docs#(sub-agent)` + `LP#(este)`.
+
+Ver detalles en `what-we-tested.md` sección 19.
+
+---
+
+## 28. CoverRouter USDC config no alineada con la mUSDC faucet
+
+**Estado**: el faucet ahora mintea mUSDC en `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`, pero `CoverRouterV2.usdc` sigue apuntando a la canonical Circle USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`. Esto significa que un user que recibe mUSDC del faucet NO puede pagar el premium con ella — el `purchasePolicy` revierte porque `usdc.transferFrom(buyer, ...)` se ejecuta sobre Circle USDC, no sobre mUSDC.
+
+**Pendiente** (smart-contract side):
+- Opción A: `CoverRouterV2.setUsdc(MOCK_USDC_ADDRESS)` — si la función existe y la cuenta deployer es owner.
+- Opción B: UUPS upgrade que reemplace la USDC immutable o storage var.
+- Opción C: redeploy fresco del CoverRouter con MockUSDC.
+
+**Razón**: out-of-scope para este sprint (hard-stop: NO modificar smart contracts). El faucet entrega mUSDC válida y rate-limit correctos; sólo falta que el protocolo la acepte. Workaround interino: usar `faucet.circle.com` o el faucet equivalente para Circle USDC.
+
+---
+
 ## ~~20. Docs Mintlify desactualizado (audit UX/DevEx 2026-05-22)~~ — CERRADO 2026-05-22
 
 **Resolved**: Sprint Docs Mintlify Integral (org-lumina/docs PR draft). 14 áreas alineadas a V5.3 en una sola pasada con 3 sub-agents paralelos + main thread:
@@ -265,6 +288,8 @@ Ver detalles en `what-we-tested.md` sección 17.
 ---
 
 ## Changelog
+
+- **2026-05-23 (Sprint USDC Mock — Fase 5 prerequisite)**: item #27 CERRADO (faucet migrado a `mint` sobre MockUSDC permissionless). Item #28 nuevo (CoverRouter USDC config no alineada con mUSDC — contract-side follow-up).
 
 - **2026-05-22 (Sprint Docs Mintlify Integral)**: item 20 CERRADO (docs Mintlify desactualizado del audit UX/DevEx). Sección 17 nueva en `what-we-tested.md`.
 - **2026-05-22 (Sprint Fix Critical+High, post-audit UX/DevEx)**: items #18 (Tokenomics V2 deferred) y #19 (USDC mock prerequisite Phase 5) remain abiertos. SDK 0.6.0 publicado en npm (cierra issue #1 del audit UX/DevEx). llms.txt mergeado (cierra issue #2). PRs sdk #13 + docs #15 merged.
