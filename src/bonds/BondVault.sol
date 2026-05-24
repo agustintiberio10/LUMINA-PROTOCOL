@@ -51,7 +51,14 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant SAFETY_FACTOR_BPS = 5000; // 50% — max commitment
-    uint256 public constant MIN_REDEEM_PRICE = 0.001e18; // absolute floor for redemption
+    /// @notice Absolute floor for redemption pricing.
+    /// @dev    [F-02 fix] Raised from 0.001e18 -> 0.005e18. This is a HARD STOP,
+    ///         not a settleable value: the redeem path requires `currentPrice >
+    ///         MIN_REDEEM_PRICE` (strict), and `_getSafePrice()` is split into a
+    ///         fail-closed variant (`_redeemPrice()`) that REVERTS with
+    ///         `ORACLE_UNAVAILABLE` on oracle revert/zero rather than flooring.
+    ///         Display/view paths may still use the floored `_getSafePrice()`.
+    uint256 public constant MIN_REDEEM_PRICE = 0.005e18; // absolute floor for redemption ($0.005)
 
     /// @notice Bounds for `bondMaturitySeconds` setter (Sprint T, ADR-009).
     /// @dev MIN allows Sepolia E2E testing (≥60s); MAX caps at 10 years to
@@ -67,6 +74,28 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///         vault drains at most ~13% in 12 weeks (12 * 1.08% ~= 12.96%).
     uint16 public constant MAX_REDEMPTION_PER_EPOCH_BPS = 108; // 1.08% of vault per epoch
     uint32 public constant EPOCH_DURATION = 7 days; // 604800 seconds
+
+    // ═══════ QUEUE BOUNDS + PER-USER THROTTLE (F-10 fix) ═══════
+    /// @notice [F-10 fix] Cap a single user's redemption per throttle-epoch at
+    ///         10% of that epoch's cap, to deter a whale from monopolizing the
+    ///         throttle window (immediate + queued combined).
+    uint16 public constant MAX_USER_REDEEM_BPS = 1000; // 10% of epoch cap per user
+    /// @notice [F-10 fix] Hard bound on queued entries per throttle-epoch to
+    ///         prevent unbounded-array griefing / gas exhaustion on processQueue.
+    uint256 public constant MAX_QUEUE_PER_EPOCH = 10_000;
+    /// @notice [F-10 fix] Max queue entries drained in a single processQueue call
+    ///         (paginated draining — keeps gas bounded, anyone can call again).
+    uint256 public constant MAX_PROCESS_PER_CALL = 20;
+    /// @notice [F-10 fix] Minimum queued entry size (integer USD) to deter dust
+    ///         spam that would inflate the queue toward MAX_QUEUE_PER_EPOCH.
+    uint256 public constant MIN_QUEUED_USD = 1; // $1 minimum to queue
+
+    // ═══════ AUTO-INJECTION COOLDOWN (F-07 fix) ═══════
+    /// @notice [F-07 fix] Minimum interval between CEX-reserve auto-injections.
+    ///         A price-only capacity dip cannot fire injection more than once
+    ///         per cooldown, so a manipulated TWAP cannot force-drain the CEX
+    ///         reserve over a short window.
+    uint256 public constant INJECTION_COOLDOWN = 1 days;
 
     // ═══════ AUTO-INJECTION + FLOOR (Sprint Fix Audit Economic — R1) ═══════
     /// @notice Threshold (bps of max-capacity) at-or-below which CEX Reserve
@@ -136,6 +165,27 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///         auto-injection mechanism. Tracked for post-hoc accounting.
     uint256 public totalInjectedFromCex;
 
+    // ═══════ RED-TEAM FIX STORAGE (APPEND-ONLY — must stay last before __gap) ═══════
+    // These slots are appended AFTER all previously-deployed storage so the live
+    // UUPS layout (BondVault gap was [43]) stays compatible. Do NOT reorder.
+
+    /// @notice [F-04 fix] USD-value (18-dec USD-wei) of redemptions QUEUED but not
+    ///         yet paid in LUMINA. Queued entries are reclassified from
+    ///         `totalCommittedUSD` into this bucket at queue time and only leave
+    ///         the vault's accounting at pay time in `processQueue`.
+    ///         `availableCapacityUSD()` subtracts this so queued debt cannot be
+    ///         counted as free backing (solvency-ceiling fix).
+    uint256 public totalQueuedUSD;
+
+    /// @notice [F-10 fix] Cumulative USD-value (18-dec USD-wei) a given user has
+    ///         redeemed-or-queued within a throttle-epoch. Enforces
+    ///         `MAX_USER_REDEEM_BPS` so no single account monopolizes the window.
+    mapping(uint256 => mapping(address => uint256)) public redeemedByUserInEpoch;
+
+    /// @notice [F-07 fix] Unix timestamp of the last auto-injection attempt.
+    ///         Injection is gated to once per `INJECTION_COOLDOWN`.
+    uint256 public lastInjectionTimestamp;
+
     // ═══════ EVENTS ═══════
     event BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount);
     event BondRedeemed(
@@ -185,6 +235,9 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     error CoreTokenProtected(address token);
     error ZeroAddressNotAllowed();
     error RecoverAmountZero();
+    /// @notice [F-02 fix] Thrown on the redeem/processQueue settlement path when
+    ///         the oracle reverts or returns a price at/under the redemption floor.
+    error ORACLE_UNAVAILABLE();
 
     // ═══════ MODIFIERS ═══════
     modifier onlyAuthorized() {
@@ -230,9 +283,13 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /// @notice One-shot setter for PolicyManager (resolves circular deploy dependency).
-    /// @dev Only callable by the original deployer, and only once.
-    function setPolicyManager(address _pm) external {
-        require(msg.sender == _deployer, "Only deployer");
+    /// @dev [F-16 fix] Gated on `DEFAULT_ADMIN_ROLE` instead of the deployer EOA.
+    ///      Binding to the deployer EOA was fragile (lost if the deployer key is
+    ///      rotated/compromised, and not transferable to a Gnosis Safe admin).
+    ///      The one-shot `!_policyManagerSet` guard is preserved so this remains
+    ///      a single wiring step; rotation post-set is intentionally NOT allowed
+    ///      here (kept minimal, matching prior semantics).
+    function setPolicyManager(address _pm) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(!_policyManagerSet, "PolicyManager already set");
         require(_pm != address(0), "Zero address");
         policyManager = _pm;
@@ -324,8 +381,11 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         require(claimBond.isMatured(epochId), "Not matured");
         require(claimBond.balanceOf(msg.sender, epochId) >= usdAmount, "Insufficient bonds");
 
-        uint256 currentPrice = _getSafePrice();
-        require(currentPrice >= MIN_REDEEM_PRICE, "Price too low");
+        // [F-02 fix] Fail-closed price: reverts ORACLE_UNAVAILABLE on oracle
+        // revert/zero rather than flooring, and the floor is a strict hard stop
+        // (`> MIN_REDEEM_PRICE`), not a settleable value.
+        uint256 currentPrice = _redeemPrice();
+        require(currentPrice > MIN_REDEEM_PRICE, "Price too low");
 
         // [Sprint T-30a, Phase D] Throttle check. Compute cap in 18-dec USD-wei
         // so it can be compared directly to `redeemedInEpoch`.
@@ -333,22 +393,36 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 capUSD18 = _maxRedeemUSD18ThisEpoch(currentPrice);
         uint256 requestedUSD18 = usdAmount * 1e18;
 
-        // [V3/SR2] totalCommittedUSD is in 18-dec USD-wei. Decrement up-front in
-        // BOTH the immediate-redeem and the queued path — the obligation is no
-        // longer "in flight as a bond" after this call.
-        uint256 commitmentToRemove = requestedUSD18;
-        if (totalCommittedUSD >= commitmentToRemove) {
-            totalCommittedUSD -= commitmentToRemove;
-        } else {
-            totalCommittedUSD = 0;
-        }
+        // [F-10 fix] Per-user throttle: a single account may redeem-or-queue at
+        // most MAX_USER_REDEEM_BPS of the epoch cap. Counts immediate + queued.
+        uint256 userCapUSD18 = (capUSD18 * uint256(MAX_USER_REDEEM_BPS)) / 10_000;
+        require(redeemedByUserInEpoch[throttleEpoch][msg.sender] + requestedUSD18 <= userCapUSD18, "User epoch limit");
+        redeemedByUserInEpoch[throttleEpoch][msg.sender] += requestedUSD18;
 
         if (redeemedInEpoch[throttleEpoch] + requestedUSD18 > capUSD18) {
             // Over cap: burn the bonds from the holder (custody-by-debt) and
             // enqueue for the NEXT throttle-epoch. LUMINA is paid out when
             // `processQueue()` is called against the target epoch.
-            claimBond.burn(msg.sender, epochId, usdAmount);
+            //
+            // [F-10 fix] Enforce a minimum queued size (anti-dust) and a hard
+            // per-epoch queue-length bound (anti-griefing).
+            require(usdAmount >= MIN_QUEUED_USD, "Below min queue size");
             uint256 target = throttleEpoch + 1;
+            require(queueByEpoch[target].length < MAX_QUEUE_PER_EPOCH, "Queue full");
+
+            // [F-04 fix] DO NOT decrement totalCommittedUSD here. The obligation
+            // is still backed by LUMINA that has NOT yet left the vault; moving
+            // it out of `committed` now would free capacity before payment and
+            // overstate available backing. Instead reclassify committed->queued.
+            if (totalCommittedUSD >= requestedUSD18) {
+                totalCommittedUSD -= requestedUSD18;
+            } else {
+                requestedUSD18 = totalCommittedUSD; // clamp (shouldn't happen in practice)
+                totalCommittedUSD = 0;
+            }
+            totalQueuedUSD += requestedUSD18;
+
+            claimBond.burn(msg.sender, epochId, usdAmount);
             queueByEpoch[target].push(
                 QueuedRedemption({
                     holder: msg.sender, epochIdBond: epochId, usdAmount: usdAmount, queuedAt: uint64(block.timestamp)
@@ -360,6 +434,14 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
         // Within cap: redeem immediately.
         redeemedInEpoch[throttleEpoch] += requestedUSD18;
+
+        // [F-04] Immediate path: LUMINA leaves the vault NOW, so decrement the
+        // committed obligation at pay time (matches the cash outflow).
+        if (totalCommittedUSD >= requestedUSD18) {
+            totalCommittedUSD -= requestedUSD18;
+        } else {
+            totalCommittedUSD = 0;
+        }
 
         // [V2/SR2] Pay LUMINA in 18-decimal wei.
         uint256 luminaAmount = (usdAmount * 1e36) / currentPrice;
@@ -380,6 +462,13 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     /// @notice Current 7-day throttle epoch index (block.timestamp / EPOCH_DURATION).
     /// @dev    This is independent of ClaimBond's monthly `epochId` (YYYYMM).
+    /// @dev    [F-27] block.timestamp boundary gaming: a validator can nudge the
+    ///         timestamp by at most ~±15s (Ethereum) / sub-second (L2 sequencer).
+    ///         Against a 7-day (604800s) throttle epoch and a 730-day bond
+    ///         maturity, a ±15s drift is economically negligible (≈0.0025% of an
+    ///         epoch) and cannot meaningfully shift which epoch/maturity bucket a
+    ///         redemption lands in. Accepted as documented tolerance — no
+    ///         additional grace window is warranted.
     function currentEpoch() public view returns (uint256) {
         return block.timestamp / EPOCH_DURATION;
     }
@@ -417,32 +506,88 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///         AT PROCESSING TIME — same model as the immediate-redeem path.
     function processQueue() external nonReentrant {
         uint256 throttleEpoch = currentEpoch();
-        uint256 currentPrice = _getSafePrice();
-        require(currentPrice >= MIN_REDEEM_PRICE, "Price too low");
+        // [F-02 fix] Fail-closed price (reverts ORACLE_UNAVAILABLE) + strict floor.
+        uint256 currentPrice = _redeemPrice();
+        require(currentPrice > MIN_REDEEM_PRICE, "Price too low");
 
         uint256 capUSD18 = _maxRedeemUSD18ThisEpoch(currentPrice);
         uint256 already = redeemedInEpoch[throttleEpoch];
         uint256 idx = queueProcessedIndex[throttleEpoch];
         QueuedRedemption[] storage queue = queueByEpoch[throttleEpoch];
         uint256 processed = 0;
+        // [F-10 fix] Track how many leading entries are fully drained so we can
+        // advance the processed index past them, while NON-fatally skipping a
+        // single over-cap "fat" entry (no head-of-line block).
+        bool headContiguous = true;
 
-        while (idx < queue.length) {
-            QueuedRedemption storage q = queue[idx];
+        // [F-10 fix] Bound the number of entries scanned per call (paginated).
+        uint256 scanned = 0;
+        while (idx + scanned < queue.length && scanned < MAX_PROCESS_PER_CALL) {
+            uint256 cursor = idx + scanned;
+            QueuedRedemption storage q = queue[cursor];
             uint256 needUSD18 = q.usdAmount * 1e18;
-            if (already + needUSD18 > capUSD18) break;
+
+            // [F-10 fix] Already-drained sentinel (paid on a prior call while a
+            // preceding fat entry blocked the head pointer from advancing).
+            if (q.usdAmount == 0) {
+                if (headContiguous) {
+                    unchecked {
+                        ++idx;
+                    }
+                }
+                unchecked {
+                    ++scanned;
+                }
+                continue;
+            }
+
+            // [F-10 fix] Skip-and-advance instead of hard-break: an entry that
+            // doesn't fit the remaining cap is left in place; we keep scanning so
+            // a fat entry can't block smaller ones behind it. Only the leading
+            // run of fully-paid entries advances `queueProcessedIndex`.
+            if (already + needUSD18 > capUSD18) {
+                headContiguous = false;
+                unchecked {
+                    ++scanned;
+                }
+                continue;
+            }
 
             uint256 luminaAmount = (q.usdAmount * 1e36) / currentPrice;
             require(lumina.balanceOf(address(this)) >= luminaAmount, "Insufficient reserve");
 
             already += needUSD18;
+
+            // [F-04 fix] Pay time: the queued obligation now leaves the vault, so
+            // move it out of BOTH `totalQueuedUSD` and `totalCommittedUSD`
+            // (it was reclassified committed->queued at queue time).
+            if (totalQueuedUSD >= needUSD18) {
+                totalQueuedUSD -= needUSD18;
+            } else {
+                totalQueuedUSD = 0;
+            }
+            if (totalCommittedUSD >= needUSD18) {
+                totalCommittedUSD -= needUSD18;
+            } else {
+                totalCommittedUSD = 0;
+            }
+
             // Bonds were already burned at queue time — only LUMINA is moved here.
             require(lumina.transfer(q.holder, luminaAmount), "Transfer failed");
 
             emit BondRedeemed(q.holder, q.epochIdBond, q.usdAmount, luminaAmount, currentPrice);
 
+            // [F-10 fix] Mark drained so a later scan won't re-pay it. usdAmount=0
+            // is an unambiguous "already paid" sentinel for skipped-over entries.
+            q.usdAmount = 0;
+            if (headContiguous) {
+                unchecked {
+                    ++idx;
+                }
+            }
             unchecked {
-                ++idx;
                 ++processed;
+                ++scanned;
             }
         }
 
@@ -463,8 +608,11 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 reserveBalance = lumina.balanceOf(address(this));
         uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
         uint256 maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
-        // [V5/M-RACE] Subtract BOTH committed and reserved to prevent race condition
-        uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
+        // [V5/M-RACE] Subtract BOTH committed and reserved to prevent race condition.
+        // [F-04 fix] Also subtract `totalQueuedUSD`: queued redemptions are backed
+        // by LUMINA still in the vault but already owed — counting that backing as
+        // "free" would let new bonds breach the solvency ceiling before payout.
+        uint256 totalUsed = totalCommittedUSD + totalReservedUSD + totalQueuedUSD;
         if (maxCommitUSD18 <= totalUsed) return 0;
         return (maxCommitUSD18 - totalUsed) / 1e18; // return integer dollars
     }
@@ -493,18 +641,38 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 maxCommit18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
         reserveValueUSD = reserveValueUSD18 / 1e18;
         committed = totalCommittedUSD / 1e18;
-        // [V5/M-RACE] Account for reserved capacity in available calculation
-        uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
+        // [V5/M-RACE] Account for reserved capacity in available calculation.
+        // [F-04 fix] Include `totalQueuedUSD` (queued-but-unpaid obligations).
+        uint256 totalUsed = totalCommittedUSD + totalReservedUSD + totalQueuedUSD;
         availableUSD = maxCommit18 > totalUsed ? (maxCommit18 - totalUsed) / 1e18 : 0;
     }
 
     // ═══════ INTERNAL ═══════
 
+    /// @notice [F-02] Defensive (display) price: floors to MIN_REDEEM_PRICE on
+    ///         oracle revert/zero. Used ONLY by view/display paths
+    ///         (availableCapacityUSD, getStatus, previewRedemption, throttle cap
+    ///         views). MUST NOT be used to settle a redemption — see `_redeemPrice`.
     function _getSafePrice() internal view returns (uint256) {
         try priceOracle.getLuminaPrice() returns (uint256 p) {
             return p > 0 ? p : MIN_REDEEM_PRICE;
         } catch {
             return MIN_REDEEM_PRICE;
+        }
+    }
+
+    /// @notice [F-02 fix] Fail-closed price used to SETTLE redemptions.
+    /// @dev    On oracle revert OR a zero/below-floor reading we REVERT
+    ///         (`ORACLE_UNAVAILABLE`) rather than flooring — an oracle-unavailable
+    ///         or attacker-pushed-to-floor condition must NOT allow redemption at
+    ///         an attacker-favorable price. Callers additionally require the
+    ///         returned price be strictly `> MIN_REDEEM_PRICE`.
+    function _redeemPrice() internal view returns (uint256) {
+        try priceOracle.getLuminaPrice() returns (uint256 p) {
+            if (p <= MIN_REDEEM_PRICE) revert ORACLE_UNAVAILABLE();
+            return p;
+        } catch {
+            revert ORACLE_UNAVAILABLE();
         }
     }
 
@@ -576,7 +744,8 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 reserveValueUSD18 = (reserveBalance * currentPrice) / 1e18;
         uint256 maxCommitUSD18 = (reserveValueUSD18 * SAFETY_FACTOR_BPS) / 10000;
         if (maxCommitUSD18 == 0) return 0;
-        uint256 totalUsed = totalCommittedUSD + totalReservedUSD;
+        // [F-04 fix] Mirror availableCapacityUSD: include queued obligations.
+        uint256 totalUsed = totalCommittedUSD + totalReservedUSD + totalQueuedUSD;
         if (totalUsed >= maxCommitUSD18) return 0;
         return ((maxCommitUSD18 - totalUsed) * 10000) / maxCommitUSD18;
     }
@@ -593,18 +762,35 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///         issueBond). Hence the try/catch on injectToVault.
     function _checkAndInject(uint256 currentPrice) internal {
         // (1) Capacity check + injection
+        //
+        // [F-07 fix] Cooldown gate: a price-only capacity dip (the ratio is
+        // computed against the SAME TWAP price the rest of the system uses — no
+        // second oracle) cannot fire injection more than once per
+        // INJECTION_COOLDOWN. This caps the per-window LUMINA that a manipulated
+        // TWAP could force out of the CEX reserve. Final hardening (per-window
+        // cumulative cap on injected amount) completes when `cexReserve` is wired
+        // — it is currently address(0) (dormant), so this branch is a no-op today.
         if (cexReserve != address(0)) {
             uint256 ratioBps = _availableCapacityRatioBps(currentPrice);
-            if (ratioBps <= CAPACITY_RATIO_THRESHOLD_BPS) {
+            if (
+                ratioBps <= CAPACITY_RATIO_THRESHOLD_BPS
+                    && block.timestamp >= lastInjectionTimestamp + INJECTION_COOLDOWN
+            ) {
                 uint256 reserveBalance = lumina.balanceOf(cexReserve);
                 uint256 injectAmount = (reserveBalance * uint256(INJECTION_AMOUNT_BPS)) / 10000;
                 if (injectAmount > 0) {
+                    // Set the cooldown BEFORE the external call (CEI) so a
+                    // re-entrant injectToVault cannot bypass the once-per-window
+                    // guard even if the external reserve is malicious.
+                    lastInjectionTimestamp = block.timestamp;
                     try ICexReserveInjector(cexReserve).injectToVault(injectAmount) {
                         totalInjectedFromCex += injectAmount;
                         emit AutoInjectionTriggered(ratioBps, injectAmount);
                     } catch {
                         // Swallow: emergency liquidity is best-effort. The
-                        // floor-price branch below still runs.
+                        // floor-price branch below still runs. (Cooldown stays
+                        // set; a failed pull still consumes the window — that is
+                        // the conservative choice for F-07.)
                     }
                 }
             }
@@ -700,5 +886,11 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     // [Sprint Fix Audit Economic - R1] Gap reduced from 46 to 43 to make room
     // for `cexReserve` (slot), `policiesPaused` (slot), `totalInjectedFromCex`
     // (slot).
-    uint256[43] private __gap;
+    // [Red-team fixes] Gap reduced from 43 to 40 to make room for three new
+    // APPENDED storage slots (declared above the auto-injection storage block,
+    // but slots are allocated in declaration order so layout stays append-only):
+    //   - `totalQueuedUSD`          (F-04, 1 slot)
+    //   - `redeemedByUserInEpoch`   (F-10, 1 mapping slot)
+    //   - `lastInjectionTimestamp`  (F-07, 1 slot)
+    uint256[40] private __gap;
 }

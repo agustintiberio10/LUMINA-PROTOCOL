@@ -10,6 +10,7 @@ import {FlashETHShield1h} from "../../src/products/FlashETHShield1h.sol";
 import {FlashETHShield24h} from "../../src/products/FlashETHShield24h.sol";
 import {FlashETHShield48h} from "../../src/products/FlashETHShield48h.sol";
 import {FlashShieldAdapter} from "../../src/shields/FlashShieldAdapter.sol";
+import {AtomicShieldPairDeployer} from "./AtomicShieldPairDeployer.sol";
 
 /// @title DeployFlashShieldsT30c
 /// @notice Sprint T-30c Phase E: fresh deploy of the 6 flash-shield products
@@ -40,14 +41,21 @@ contract DeployFlashShieldsT30c is Script {
         address ethFeed = vm.envAddress("CHAINLINK_ETH_USD");
         address sequencerFeed = vm.envAddress("CHAINLINK_SEQUENCER");
 
+        // F-05 fix: the final owner is the broadcaster (founder Safe/EOA). Each
+        // pair is built atomically by the helper so the proxy is never left
+        // uninitialized across a tx boundary (no init front-run window).
+        address finalOwner = vm.addr(pk);
+
         vm.startBroadcast(pk);
 
-        records[0] = _deployPair("FlashBTCShield1h", keccak256("FLASHBTC1H-001"), btcFeed, sequencerFeed, 1);
-        records[1] = _deployPair("FlashBTCShield24h", keccak256("FLASHBTC24-001"), btcFeed, sequencerFeed, 24);
-        records[2] = _deployPair("FlashBTCShield48h", keccak256("FLASHBTC48-001"), btcFeed, sequencerFeed, 48);
-        records[3] = _deployPair("FlashETHShield1h", keccak256("FLASHETH1H-001"), ethFeed, sequencerFeed, 101);
-        records[4] = _deployPair("FlashETHShield24h", keccak256("FLASHETH24-001"), ethFeed, sequencerFeed, 124);
-        records[5] = _deployPair("FlashETHShield48h", keccak256("FLASHETH48-001"), ethFeed, sequencerFeed, 148);
+        AtomicShieldPairDeployer deployer = new AtomicShieldPairDeployer();
+
+        records[0] = _deployPair(deployer, "FlashBTCShield1h", keccak256("FLASHBTC1H-001"), btcFeed, sequencerFeed, 1, finalOwner);
+        records[1] = _deployPair(deployer, "FlashBTCShield24h", keccak256("FLASHBTC24-001"), btcFeed, sequencerFeed, 24, finalOwner);
+        records[2] = _deployPair(deployer, "FlashBTCShield48h", keccak256("FLASHBTC48-001"), btcFeed, sequencerFeed, 48, finalOwner);
+        records[3] = _deployPair(deployer, "FlashETHShield1h", keccak256("FLASHETH1H-001"), ethFeed, sequencerFeed, 101, finalOwner);
+        records[4] = _deployPair(deployer, "FlashETHShield24h", keccak256("FLASHETH24-001"), ethFeed, sequencerFeed, 124, finalOwner);
+        records[5] = _deployPair(deployer, "FlashETHShield48h", keccak256("FLASHETH48-001"), ethFeed, sequencerFeed, 148, finalOwner);
 
         vm.stopBroadcast();
 
@@ -59,35 +67,19 @@ contract DeployFlashShieldsT30c is Script {
         }
     }
 
-    function _deployPair(string memory name, bytes32 productId, address priceFeed, address sequencer, uint256 variant)
-        internal
-        returns (ShieldRecord memory rec)
-    {
-        // 1. Deploy adapter impl + proxy (uninitialized).
-        FlashShieldAdapter adapterImpl = new FlashShieldAdapter();
-        ERC1967Proxy proxy = new ERC1967Proxy(address(adapterImpl), "");
-        address adapterAddr = address(proxy);
-
-        // 2. Deploy slim shield with adapter as router.
-        address shieldAddr;
-        if (variant == 1) {
-            shieldAddr = address(new FlashBTCShield1h(adapterAddr, priceFeed, sequencer));
-        } else if (variant == 24) {
-            shieldAddr = address(new FlashBTCShield24h(adapterAddr, priceFeed, sequencer));
-        } else if (variant == 48) {
-            shieldAddr = address(new FlashBTCShield48h(adapterAddr, priceFeed, sequencer));
-        } else if (variant == 101) {
-            shieldAddr = address(new FlashETHShield1h(adapterAddr, priceFeed, sequencer));
-        } else if (variant == 124) {
-            shieldAddr = address(new FlashETHShield24h(adapterAddr, priceFeed, sequencer));
-        } else if (variant == 148) {
-            shieldAddr = address(new FlashETHShield48h(adapterAddr, priceFeed, sequencer));
-        } else {
-            revert("Unknown variant");
-        }
-
-        // 3. Initialize adapter with the new shield.
-        FlashShieldAdapter(adapterAddr).initialize(shieldAddr, productId);
+    function _deployPair(
+        AtomicShieldPairDeployer deployer,
+        string memory name,
+        bytes32 productId,
+        address priceFeed,
+        address sequencer,
+        uint256 variant,
+        address finalOwner
+    ) internal returns (ShieldRecord memory rec) {
+        // F-05 fix: a single atomic call builds proxy + shield + init + owner
+        // transfer. No uninitialized-proxy window exists across transactions.
+        (address shieldAddr, address adapterAddr) =
+            deployer.deployPair(variant, priceFeed, sequencer, productId, finalOwner);
 
         rec = ShieldRecord({name: name, shield: shieldAddr, adapter: adapterAddr});
     }

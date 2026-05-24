@@ -125,6 +125,15 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     error ProductNotFound(bytes32 productId);
     error ProductNotActive(bytes32 productId);
     error InsufficientCapacity(uint256 required, uint256 available);
+    /// @notice [F-03 fix] markExpired refused to finalize-as-untriggered because
+    ///         a fresh shield evaluation reverted as oracle-unavailable. The
+    ///         policy stays pending; retry once the oracle/sequencer recovers.
+    error OracleUnavailableRetry(bytes32 productId, uint256 policyId);
+    /// @notice [F-03 fix] markExpired refused to finalize-as-untriggered because
+    ///         a fresh shield evaluation reports the policy DID trigger. Route
+    ///         the settlement through the trigger path (submitTrigger /
+    ///         checkAndSettlePolicy) instead of expiring it.
+    error PolicyTriggerable(bytes32 productId, uint256 policyId);
 
     modifier onlyRouter() {
         if (msg.sender != router) revert OnlyRouter();
@@ -397,6 +406,34 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ═══════ CORE: markExpired ═══════
 
     /// @notice Mark a policy as expired (no trigger within window).
+    /// @dev    [F-03 fix] A policy may only be finalized-as-untriggered when a
+    ///         FRESH shield evaluation confirms the oracle was usable during the
+    ///         window AND reports no trigger. Previously this finalized blindly
+    ///         on `block.timestamp > expiresAt`, so a policy whose oracle was
+    ///         unavailable during a true depeg could be expired with no payout
+    ///         (silent loss for the insured).
+    ///
+    ///         New flow:
+    ///         - Call the shield's `verifyAndCalculate`. The flash shields
+    ///           settle false ONLY when the oracle is evaluable under the
+    ///           settlement-staleness tolerance; otherwise they revert
+    ///           `ORACLE_UNAVAILABLE`.
+    ///         - If evaluation reverts oracle-unavailable → revert
+    ///           `OracleUnavailableRetry`; the policy stays pending for retry
+    ///           once the feed/sequencer recovers (NOT silently expired).
+    ///         - If evaluation reports `triggered == true` → revert
+    ///           `PolicyTriggerable`; settlement must go through the trigger
+    ///           path so the bond is issued (markExpired must never bury a
+    ///           genuine trigger).
+    ///         - Only if evaluation succeeds with no trigger do we finalize as
+    ///           expired and release the reservation.
+    ///
+    ///         Signature unchanged. Permissionless like before — the safety
+    ///         comes from the oracle gate, not the caller set. Reentrancy is a
+    ///         non-issue: effects (`expired`, `activePolicies`, reservation
+    ///         clear) precede the only external call (`releaseReservation`),
+    ///         and the shield evaluation is a finalizing call guarded by the
+    ///         shield's own `ALREADY_FINALIZED` check.
     function markExpired(bytes32 productId, uint256 policyId) external {
         PolicyRecord storage pr = policies[productId][policyId];
         require(pr.buyer != address(0), "Policy not found");
@@ -404,6 +441,30 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         require(!pr.expired, "Already expired");
         require(block.timestamp > pr.expiresAt, "Not expired yet");
 
+        // [F-03 fix] Gate on a fresh shield evaluation. The shield reverts
+        // ORACLE_UNAVAILABLE (or oracle-staleness reasons) when it cannot prove
+        // the window outcome; in that case we MUST NOT finalize-as-untriggered.
+        address shield = pr.shield;
+        try IShieldV2(shield).verifyAndCalculate(policyId, "") returns (IShieldV2.PayoutResult memory result) {
+            if (result.triggered) {
+                // A genuine trigger exists — do not bury it under an expiry.
+                revert PolicyTriggerable(productId, policyId);
+            }
+            // Evaluation succeeded with no trigger: safe to finalize-untriggered.
+        } catch Error(string memory reason) {
+            if (_isOracleUnavailable(reason)) {
+                revert OracleUnavailableRetry(productId, policyId);
+            }
+            // Any other string revert is unexpected for an expired-window
+            // evaluation; surface it rather than silently expiring.
+            revert(reason);
+        } catch (bytes memory) {
+            // Non-string (custom error / panic) revert: treat conservatively as
+            // not-evaluable and leave the policy pending for retry.
+            revert OracleUnavailableRetry(productId, policyId);
+        }
+
+        // [M-1] CEI: effects before the external releaseReservation interaction.
         pr.expired = true;
         activePolicies--;
 
@@ -415,6 +476,16 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
 
         emit PolicyExpired(productId, policyId);
+    }
+
+    /// @dev [F-03 fix] Matches the shield's oracle-unavailability revert reasons.
+    ///      Kept permissive across the family the shields stream emits
+    ///      (`ORACLE_UNAVAILABLE`, `ORACLE_STALE`, `SEQUENCER_DOWN`) so a feed
+    ///      outage during the window can never finalize a policy as untriggered.
+    function _isOracleUnavailable(string memory reason) internal pure returns (bool) {
+        bytes32 h = keccak256(bytes(reason));
+        return h == keccak256(bytes("ORACLE_UNAVAILABLE")) || h == keccak256(bytes("ORACLE_STALE"))
+            || h == keccak256(bytes("SEQUENCER_DOWN"));
     }
 
     // ═══════ VIEW ═══════
