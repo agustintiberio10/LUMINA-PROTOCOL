@@ -125,17 +125,18 @@ contract BondVaultAutoInjectionTest is Test {
         // Push capacity ratio at-or-under 50% by committing ~50% of maxCapacity.
         // maxCommit at $0.036 over 70M LUMINA = 70M * 0.036 * 0.5 = $1.26M.
         // Committing $700k puts available capacity at ~$560k → ratio ≈ 44%.
-        vault.issueBond(user, 700_000);
-
+        // Capture BEFORE issueBond — its hook runs the (first) injection.
         uint256 reserveBalBefore = token.balanceOf(address(cexReserve));
         uint256 vaultBalBefore = token.balanceOf(address(vault));
 
-        // Trigger a second hook via pokeCheckAndInject (the issueBond above
-        // already ran the hook, so this verifies idempotency / repeat behavior).
-        vault.pokeCheckAndInject();
+        vault.issueBond(user, 700_000);
 
-        // After the first issueBond, an injection of 10% of reserve = 1.4M LUMINA
-        // should already have happened. We just check the cumulative state.
+        // [F-07] The first injection fires (lastInjectionTimestamp == 0, so the
+        // 1-day cooldown is satisfied). A subsequent pokeCheckAndInject within
+        // the cooldown is now correctly a NO-OP, so we assert the single
+        // injection's cumulative effect rather than a repeat.
+        vault.pokeCheckAndInject(); // no-op under INJECTION_COOLDOWN
+
         assertGt(vault.totalInjectedFromCex(), 0, "Injection did not fire");
         assertLt(token.balanceOf(address(cexReserve)), reserveBalBefore, "CEX reserve did not decrease");
         assertGt(token.balanceOf(address(vault)), vaultBalBefore, "Vault did not receive injection");

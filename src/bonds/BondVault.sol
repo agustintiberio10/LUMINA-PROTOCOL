@@ -512,41 +512,23 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
         uint256 capUSD18 = _maxRedeemUSD18ThisEpoch(currentPrice);
         uint256 already = redeemedInEpoch[throttleEpoch];
-        uint256 idx = queueProcessedIndex[throttleEpoch];
+        uint256 startIdx = queueProcessedIndex[throttleEpoch];
         QueuedRedemption[] storage queue = queueByEpoch[throttleEpoch];
         uint256 processed = 0;
-        // [F-10 fix] Track how many leading entries are fully drained so we can
-        // advance the processed index past them, while NON-fatally skipping a
-        // single over-cap "fat" entry (no head-of-line block).
-        bool headContiguous = true;
 
-        // [F-10 fix] Bound the number of entries scanned per call (paginated).
+        // [F-10 fix] Paginated skip-and-advance scan. `cursor` advances by EXACTLY
+        // one per iteration (only `scanned` increments in the loop) so entries are
+        // never skipped; an over-cap "fat" entry is left in place (no head-of-line
+        // block) and `queueProcessedIndex` is advanced past the leading run of
+        // fully-paid (usdAmount==0) entries AFTER the loop.
         uint256 scanned = 0;
-        while (idx + scanned < queue.length && scanned < MAX_PROCESS_PER_CALL) {
-            uint256 cursor = idx + scanned;
-            QueuedRedemption storage q = queue[cursor];
+        while (startIdx + scanned < queue.length && scanned < MAX_PROCESS_PER_CALL) {
+            QueuedRedemption storage q = queue[startIdx + scanned];
             uint256 needUSD18 = q.usdAmount * 1e18;
 
-            // [F-10 fix] Already-drained sentinel (paid on a prior call while a
-            // preceding fat entry blocked the head pointer from advancing).
-            if (q.usdAmount == 0) {
-                if (headContiguous) {
-                    unchecked {
-                        ++idx;
-                    }
-                }
-                unchecked {
-                    ++scanned;
-                }
-                continue;
-            }
-
-            // [F-10 fix] Skip-and-advance instead of hard-break: an entry that
-            // doesn't fit the remaining cap is left in place; we keep scanning so
-            // a fat entry can't block smaller ones behind it. Only the leading
-            // run of fully-paid entries advances `queueProcessedIndex`.
-            if (already + needUSD18 > capUSD18) {
-                headContiguous = false;
+            // Already-drained sentinel, or an entry that doesn't fit the remaining
+            // cap → skip (leave in place) and keep scanning.
+            if (q.usdAmount == 0 || already + needUSD18 > capUSD18) {
                 unchecked {
                     ++scanned;
                 }
@@ -577,17 +559,22 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
             emit BondRedeemed(q.holder, q.epochIdBond, q.usdAmount, luminaAmount, currentPrice);
 
-            // [F-10 fix] Mark drained so a later scan won't re-pay it. usdAmount=0
-            // is an unambiguous "already paid" sentinel for skipped-over entries.
+            // Mark drained so a later scan won't re-pay it. usdAmount==0 is an
+            // unambiguous "already paid" sentinel for skipped-over entries.
             q.usdAmount = 0;
-            if (headContiguous) {
-                unchecked {
-                    ++idx;
-                }
-            }
             unchecked {
                 ++processed;
                 ++scanned;
+            }
+        }
+
+        // [F-10 fix] Advance the persistent processed index over the leading run
+        // of fully-paid entries (so a skipped fat entry stays at the head for a
+        // later call, but everything paid before it is accounted for).
+        uint256 idx = startIdx;
+        while (idx < queue.length && queue[idx].usdAmount == 0) {
+            unchecked {
+                ++idx;
             }
         }
 
