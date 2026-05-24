@@ -286,6 +286,24 @@ Items que NO bloquean testnet pero **deben** resolverse antes del primer deploy 
 
 ---
 
+### BL-SANDBOX — Sandbox wallet separado pre-mainnet
+
+**Estado**: Abierto (deliberadamente, post-Fase 5 / pre-Fase 6 mainnet).
+
+**Detalle**: en testnet (Sprint 2026-05-24) se reusó el founder wallet `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8` como `SANDBOX_WALLET` porque la priv-key del sandboxWallet original (`0xC1631716…5B79`) no estaba accesible. Es aceptable en Sepolia porque los fondos son mUSDC mock (sin valor económico) y la rate-limit (10/h/IP) acota el blast radius. En mainnet **NO** es aceptable: cualquier visitante del `/sandbox/try` puede drenar el founder wallet hasta el límite de coverage cap (`SANDBOX_COVER_USDC=100e6`) × rate-limit.
+
+**Acción mainnet runbook**:
+
+1. Generar wallet sandbox nuevo: `cast wallet new` → guardar priv-key en password manager + Railway env var `SANDBOX_PRIVATE_KEY` (variable nueva, no commiteable).
+2. Modificar `lumina-api/src/routes/sandbox.ts` para que el approve inicial al CoverRouter se haga programáticamente al primer call (o via cron init), usando `SANDBOX_PRIVATE_KEY`.
+3. Fundear sandbox con mUSDC desde el faucet (no founder treasury) + Sepolia ETH para gas si fuera necesario (en mainnet: ETH real).
+4. Update `SANDBOX_WALLET` env var en Railway a la nueva address.
+5. Verificar `/sandbox/info` + `/sandbox/try` post-deploy mainnet.
+
+**Por qué se difiere**: requiere cambio de código en `lumina-api` + redeploy + new wallet + funding pipeline. No bloqueante para Fase 5 testnet (mUSDC mock); sí bloqueante pre-Fase 6 mainnet release.
+
+---
+
 ### CEX-RESERVE-DEFERRED — CEXLiquidityReserve V5.1+ deploy diferido
 
 **Estado**: Abierto (deliberadamente, post-Fase 5 o descartado).
@@ -345,22 +363,30 @@ Ver detalles en `what-we-tested.md` sección 17.
 
 ---
 
-### FA-V1-C2-FOLLOWUP — sandboxWallet sin allowance al CoverRouter
+### ~~FA-V1-C2-FOLLOWUP — sandboxWallet sin allowance~~ — CERRADO 2026-05-24 (vía reuse founder wallet)
 
-**Estado**: Abierto, severidad HIGH.
+**Resolved**: la priv-key del `0xC1631716e3EE5EB8092927680a1c9A49C8D55B79` no estaba accesible (no en lumina-api repo, no en `.env` local, no derivable de seed — confirmado via grep `SANDBOX_PRIVATE\|deriveWallet\|HDNodeWallet\|fromMnemonic` sobre `lumina-api/src` = 0 matches). Founder decisión: **reusar el founder wallet `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8` como sandboxWallet en testnet**.
 
-**Detalle**: post-`setRelayer`, `/sandbox/try` retorna `internal_error` en lugar de respuesta exitosa. Root cause: `allowance(sandboxWallet=0xC1631716e3EE5EB8092927680a1c9A49C8D55B79, coverRouter=0xcdB70B40e6a3DEac3189185d947A0e458518F566) = 0`. SandboxWallet tiene 999.36 mUSDC + 0.015 ETH, pero nunca aprobó al CoverRouter para tirar el premium.
+**Approve ejecutado (founder wallet → CoverRouter, MAX_UINT256)**:
 
-**Fix (founder action — privkey del sandboxWallet está API-side)**:
+| Item | Valor |
+|---|---|
+| Token | mUSDC `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE` |
+| Spender | CoverRouter `0xcdB70B40e6a3DEac3189185d947A0e458518F566` |
+| Allowance pre | 94,736,000 (~$94.736 — leftover del smoke test policyId=1) |
+| Allowance post | `115792089237316195423570985008687907853269984665640564039457584007913129639935` (MAX_UINT256) |
+| Tx hash | `0xdd8174d782c2fc35e826606d9cf1cf1e531c00fa85567b17b185f310b1ccb87c` |
+| Block | 41912206, gas 27,371 |
 
-```bash
-cast send 0xD944d8e5D8329994D83950872Ec210891d3Ab6AE \
-  "approve(address,uint256)" 0xcdB70B40e6a3DEac3189185d947A0e458518F566 \
-  115792089237316195423570985008687907853269984665640564039457584007913129639935 \
-  --private-key $SANDBOX_WALLET_PK --rpc-url $BASE_SEPOLIA_RPC
-```
+**Founder action pendiente (Railway UI — CLI no autenticado)**: cambiar env var `SANDBOX_WALLET` en el servicio `lumina-api-production-ac85`:
 
-(Approve MAX_UINT256 — gas one-shot.) Re-test `/sandbox/try` esperando respuesta exitosa con `policyId`.
+1. Railway → project `lumina-api` → service `lumina-api-production-ac85` → Variables.
+2. Editar `SANDBOX_WALLET`: `0xC1631716e3EE5EB8092927680a1c9A49C8D55B79` → `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8`.
+3. Save → trigger redeploy (~1-2 min).
+4. Verificar via `curl https://lumina-api-production-ac85.up.railway.app/sandbox/info` → `sandboxWallet` debe reflejar la address nueva.
+5. Smoke test: `curl -X POST .../sandbox/try -d '{"productName":"FLASHBTC1H-001"}'` → esperar `policyId` retornado.
+
+**Pre-mainnet (Fase 6)**: ver `BL-SANDBOX` en Mainnet Blockers — generar wallet sandbox separado con priv-key custodiada (Railway env var) para no exponer fondos del founder en sandbox público.
 
 ---
 
@@ -386,6 +412,7 @@ Opcional post-publish: `git tag v0.7.0 && git push origin v0.7.0`.
 
 ## Changelog
 
+- **2026-05-24 (Sprint Sandbox Wallet Reuse Founder)**: cerrado `FA-V1-C2-FOLLOWUP` reusando founder wallet `0xe585e76A…BfDa8` como `SANDBOX_WALLET` en testnet. `mUSDC.approve(coverRouter, MAX_UINT256)` ejecutado tx `0xdd8174d782c2fc35e826606d9cf1cf1e531c00fa85567b17b185f310b1ccb87c` (block 41912206). Allowance post = MAX_UINT256 ✅. Founder action pendiente: cambiar env var `SANDBOX_WALLET` en Railway UI (CLI no autenticado en este ambiente). Nuevo Mainnet Blocker `BL-SANDBOX` (generar wallet sandbox separado pre-Fase 6).
 - **2026-05-23 (Sprint Fix 7.4 CRITICAL)**: cerrados `FA-V1-C1` (UUPS upgrade 6 FlashShieldAdapter agregando `checkAndSettlePolicy(uint256)` + `setPolicyManager`; new impl `0xc92F034442B918C0392bcc357D995D7e0439Bad8`; 13 tx on-chain; 11/11 tests PASS) y `FA-V1-C2` parcial (`coverRouter.setRelayer(0x168dC7…, true)` ejecutado, tx `0x1d91e3d2…cec`). Abierto `FA-V1-C2-FOLLOWUP` (sandboxWallet sin allowance — founder API-side). Validado `FA-V1-I3` (SDK 0.7.0 ready, founder pending `npm publish`). Sprint detalle en `audit-pack/sprints/2026-05-23-sprint-fix-7-4-critical.md`.
 - **2026-05-23 (Sprint 7.4 Functional Audit V5.3 V1)**: ejecutado audit funcional testnet — veredicto NEEDS-ADJUSTMENT, score 7.7/10. Report archivado en `audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`. 3 críticos nuevos: `FA-V1-C1` (ShieldKeeper interface), `FA-V1-C2` (sandbox relayer no autorizado), `FA-V1-I3` (SDK 0.7.0 unpublished). Sección 22 nueva en `what-we-tested.md`.
 - **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: R1 (PR #149) aplicado on-chain vía UUPS upgrade del BondVault proxy `0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC` → nueva impl `0x6BBDE25a235DC07c0145A8a1A1d570E4f7ABdFaA` (tx `0xa395c8b6…03a477`). Storage layout compatible (slots 12/13 ocupados de `__gap`, gap 46→43). Selectors R1 (`policiesPaused`, `cexReserve`, `totalInjectedFromCex`, `availableCapacityRatioBps`) responden. Floor pause + hysteresis **ACTIVOS**; CEX auto-injection **INACTIVO** por decisión founder (`cexReserve = 0x0`, no se desplegó CEXLiquidityReserve fresca). Smoke test e2e post-upgrade exitoso (`policyId=1` minted en CoverRouter, BondVault.reserveCapacity ejecutó normalmente). Nuevo item **CEX-RESERVE-DEFERRED** en Mainnet Blockers. Sprint archivado en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`.
