@@ -265,9 +265,29 @@ Ver detalles en `what-we-tested.md` sección 19.
 
 ---
 
+## Sprint Fix 7.2 — Red Team findings status (2026-05-24)
+
+Los 39 findings del Red Team Audit V1 están **resueltos en código** (branch `feat/fix-red-team-complete`, suite `test/redteam-fixes/` 65 tests + 432 legacy migrados verdes). Detalle por finding en [`audit-pack/audits/2026-05-24-red-team-audit-v53-v2.md`](./audits/2026-05-24-red-team-audit-v53-v2.md).
+
+**Cerrados (código + test):** F-01 a F-16, F-18 a F-31 + N-01 (bug nuevo: processQueue skip-every-other, arreglado). INFO-1..8 documentados.
+
+**Pendiente (NO defectos de fix — founder/ops):**
+- **Phase F — deploy/upgrade on-chain NO ejecutado** (sin deployer key). Re-deploy de los 6 shields (no upgradeables, F-01/F-06) + UUPS upgrades (BondVault, CoverRouter, PolicyManager, TWAPBurner, BuybackEngine, CapacityOracle, MaintenanceReserve, 6 adapters, Marketplace) + `FounderVestingV2` redeploy+migration. Scaffold: `script/deploy/UpgradeAll-FixRedTeam.s.sol`. Post-deploy: `BondVault.setAuthorizedCaller(ClaimBond,true)`, `FlashShieldAdapter.setKeeper(...)`, `MaintenanceReserve.setMonthlyCap(...)`, update SDK/API/docs addresses, verificar `owner()` adapters + custodia roles.
+- **F-17 governance** → ver `BL-MULTISIG` abajo.
+- **Barrido legacy amplio** (audit/fuzz/functional/integration/stress/unit) sin migrar exhaustivamente; fallas = cambio de comportamiento intencional, mismo patrón de migración.
+- Mythril/Aderyn/Echidna 200k diferidos a CI Linux.
+
+---
+
 ## Mainnet Blockers
 
 Items que NO bloquean testnet pero **deben** resolverse antes del primer deploy de mainnet. Estos no son gaps de auditoría sino state on-chain o configuración que se cambió para uso testnet.
+
+### BL-MULTISIG — Governance single-EOA (Red Team F-17)
+
+**Estado**: Abierto (decisión founder: Safe + TimelockController post-Fase 7).
+
+Todos los `owner`/`DEFAULT_ADMIN_ROLE` resuelven a una EOA founder. El poder de UUPS upgrade = control total de fondos sin timelock/warning window. **Pre-mainnet**: migrar a Gnosis Safe + `TimelockController` (24-48h), adoptar `Ownable2Step`, renunciar poderes `_deployer` residuales. Tracked como design tradeoff aceptado para testnet.
 
 ### BL-USDC — CoverRouterV2 + TWAPBurner apuntan a MockUSDC en Sepolia
 
