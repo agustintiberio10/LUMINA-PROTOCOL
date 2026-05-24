@@ -286,6 +286,34 @@ Items que NO bloquean testnet pero **deben** resolverse antes del primer deploy 
 
 ---
 
+### CEX-RESERVE-DEFERRED — CEXLiquidityReserve V5.1+ deploy diferido
+
+**Estado**: Abierto (deliberadamente, post-Fase 5 o descartado).
+
+**Detalle**: el Sprint Upgrade BondVault On-Chain (2026-05-23) aplicó R1
+on-chain (PR #149) pero **no** desplegó una `CEXLiquidityReserve` fresca ni
+invocó `bondVault.setCexReserve(<address>)`. Resultado: la rama
+**auto-injection** del `BondVault._checkAndInject` (10% del balance de la
+reserva CEX → BondVault si `availableCapacityRatioBps < 5000`) queda
+INACTIVA en Sepolia — gate `cexReserve != address(0)` salta. La rama
+**LUMINA floor pause** (independiente del CEX reserve) sí queda activa.
+
+**Acción mainnet runbook** (opcional, sólo si se decide reactivar
+auto-injection):
+
+1. `forge script DeployCEXLiquidityReserve.s.sol --broadcast` o equivalente.
+2. Fundear con LUMINA del treasury (porcentaje a decidir según tokenomics).
+3. `cast send <BondVault proxy> "setCexReserve(address)" <reserveAddress>` —
+   gateado por `DEFAULT_ADMIN_ROLE`. No requiere otro UUPS upgrade del
+   BondVault — el código R1 ya está on-chain.
+
+**Por qué se difiere**: el ROI testnet de redeployar la reserva CEX +
+mover LUMINA no justifica el cost; el floor pause + hysteresis cubre el
+caso de protección crítica (LUMINA < $0.005). Auto-injection es nice-to-have
+para suavizar drawdowns de capacidad, no protección estructural.
+
+---
+
 ## ~~20. Docs Mintlify desactualizado (audit UX/DevEx 2026-05-22)~~ — CERRADO 2026-05-22
 
 **Resolved**: Sprint Docs Mintlify Integral (org-lumina/docs PR draft). 14 áreas alineadas a V5.3 en una sola pasada con 3 sub-agents paralelos + main thread:
@@ -305,6 +333,7 @@ Ver detalles en `what-we-tested.md` sección 17.
 
 ## Changelog
 
+- **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: R1 (PR #149) aplicado on-chain vía UUPS upgrade del BondVault proxy `0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC` → nueva impl `0x6BBDE25a235DC07c0145A8a1A1d570E4f7ABdFaA` (tx `0xa395c8b6…03a477`). Storage layout compatible (slots 12/13 ocupados de `__gap`, gap 46→43). Selectors R1 (`policiesPaused`, `cexReserve`, `totalInjectedFromCex`, `availableCapacityRatioBps`) responden. Floor pause + hysteresis **ACTIVOS**; CEX auto-injection **INACTIVO** por decisión founder (`cexReserve = 0x0`, no se desplegó CEXLiquidityReserve fresca). Smoke test e2e post-upgrade exitoso (`policyId=1` minted en CoverRouter, BondVault.reserveCapacity ejecutó normalmente). Nuevo item **CEX-RESERVE-DEFERRED** en Mainnet Blockers. Sprint archivado en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`.
 - **2026-05-23 (Sprint Fix Audit Economic Complete)**: cerrados R1 (CEX auto-injection + LUMINA floor pause con hysteresis), R2 (BondVault.redeem semantics verified, no bug) y R3 (SDK v0.7.0 throttle + docs Mintlify) del Audit Economic V1. Re-auditoría Economic V2 produce score 8.4/10 (vs V1 6.4) y verdict **SOUND** — ver `audit-pack/audits/2026-05-23-economic-audit-v53-v2.md`. Residuales documentados en el reporte V2 (no items nuevos abiertos aquí: `policiesPaused` no enforced en CoverRouterV2 [LOW, fuera de scope post BL-USDC], Halmos `_checkAndInject` deferido [item #1 ya existente], actuarial validation [item #7 ya existente]).
 - **2026-05-23 (Sprint CR-USDC-Reconfig)**: UUPS upgrades en `CoverRouterV2` + `TWAPBurner` agregando `setUsdc(address)` onlyOwner; ambos proxies repointados a MockUSDC en Sepolia para cerrar gap arquitectural Sprint USDC Mock. Smoke e2e on-chain `policyId=1` con premium pulled de mUSDC. Nuevo item **BL-USDC** en sección Mainnet Blockers con runbook revert a Circle USDC mainnet. Sección 20 nueva en `what-we-tested.md`.
 - **2026-05-23 (Sprint USDC Mock — Fase 5 prerequisite)**: item #27 CERRADO (faucet migrado a `mint` sobre MockUSDC permissionless). Item #28 nuevo (CoverRouter USDC config no alineada con mUSDC — contract-side follow-up).
