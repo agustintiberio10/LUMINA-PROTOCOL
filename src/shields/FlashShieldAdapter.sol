@@ -25,6 +25,11 @@ interface ISlimShield {
         );
 }
 
+/// @notice Subset of PolicyManagerV2 used by the adapter for keeper-driven settlement.
+interface IPolicyManagerSettle {
+    function settlePolicy(bytes32 productId, uint256 policyId, bool triggered) external;
+}
+
 /// @title FlashShieldAdapter
 /// @notice Sprint T-30b bridge: makes a slim T-30a flash shield speak the legacy
 ///         IShieldV2 surface that PolicyManagerV2 still expects (struct-based
@@ -38,6 +43,15 @@ contract FlashShieldAdapter is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     ISlimShield public shield;
     bytes32 public productIdLocal;
     uint256 public nextPolicyId;
+
+    /// @notice PolicyManagerV2 reference used by `checkAndSettlePolicy`. Optional —
+    ///         if unset, the keeper-driven flow is disabled and only the legacy
+    ///         router-driven `verifyAndCalculate` path remains usable. Set via
+    ///         `setPolicyManager(address)` after the upgrade.
+    address public policyManager;
+
+    event PolicySettled(uint256 indexed policyId, bool triggered, bytes32 reason);
+    event PolicyManagerUpdated(address indexed old, address indexed current);
 
     struct LegacyCreatePolicyParams {
         address buyer;
@@ -119,7 +133,47 @@ contract FlashShieldAdapter is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         status = finalized ? 2 : 0;
     }
 
+    /// @notice Permissionless settlement entrypoint expected by ShieldKeeper.
+    /// @dev    Calls `shield.verifyAndCalculate(policyId)` to obtain the
+    ///         trigger decision and route the outcome to
+    ///         `policyManager.settlePolicy(productId, policyId, triggered)`.
+    ///         The PM gates that call on `msg.sender == pr.shield`, and the
+    ///         policy was registered against this adapter address — so this
+    ///         adapter is the only authorised settler from the PM's POV.
+    ///
+    ///         When the window has elapsed, `verifyAndCalculate` reverts with
+    ///         "WINDOW_EXPIRED"; this method catches that specific reason and
+    ///         settles the policy as `triggered=false` so the BondVault
+    ///         reservation is released. Any other revert (sequencer down,
+    ///         oracle stale, already finalized, policy not found) bubbles up.
+    function checkAndSettlePolicy(uint256 policyId) external {
+        require(policyManager != address(0), "Policy manager unset");
+        bool triggered;
+        bytes32 reason;
+        try shield.verifyAndCalculate(policyId) returns (bool t, uint256, address, bytes32 r) {
+            triggered = t;
+            reason = r;
+        } catch Error(string memory err) {
+            if (keccak256(bytes(err)) == keccak256(bytes("WINDOW_EXPIRED"))) {
+                triggered = false;
+                reason = bytes32("WINDOW_EXPIRED");
+            } else {
+                revert(err);
+            }
+        }
+        IPolicyManagerSettle(policyManager).settlePolicy(productIdLocal, policyId, triggered);
+        emit PolicySettled(policyId, triggered, reason);
+    }
+
+    /// @notice Wire the PolicyManagerV2 reference. One-shot in practice (idempotent).
+    function setPolicyManager(address _pm) external onlyOwner {
+        require(_pm != address(0), "Zero PM");
+        address old = policyManager;
+        policyManager = _pm;
+        emit PolicyManagerUpdated(old, _pm);
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 }

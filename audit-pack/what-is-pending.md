@@ -331,40 +331,62 @@ Ver detalles en `what-we-tested.md` sección 17.
 
 ---
 
-### FA-V1-C1 — ShieldKeeper.checkAndSettlePolicy no implementado en BaseFlashShield
+### ~~FA-V1-C1 — ShieldKeeper.checkAndSettlePolicy no implementado~~ — CERRADO 2026-05-23
 
-**Estado**: Abierto, severidad CRITICAL (descubierto en Sprint 7.4 Functional Audit V5.3 V1).
-
-**Detalle**: `ShieldKeeper.performUpkeep` (línea 119) invoca `IShieldSettleable(shield).checkAndSettlePolicy(policyId)`, pero `BaseFlashShield` no implementa ese método. `IShieldV2` solo expone `createPolicy`, `verifyAndCalculate`, `getPolicyInfo`. Resultado: la automatización Chainlink Upkeep para auto-settler pólizas flash **NO funciona** — settlement queda manual hasta fix.
-
-**Fix sugerido**: agregar `checkAndSettlePolicy(uint256)` a `BaseFlashShield` con ruteo a `PolicyManagerV2.settlePolicy` (o equivalente), seguido de UUPS upgrade de los 6 shields live. Estimar: 0.5 día code + tests + 6 upgrades + 6 BaseScan verifies.
+**Resolved**: Sprint Fix 7.4 CRITICAL — ver [`audit-pack/sprints/2026-05-23-sprint-fix-7-4-critical.md`](./sprints/2026-05-23-sprint-fix-7-4-critical.md). El método se agregó al `FlashShieldAdapter` (los slim shields no son upgradeables — solo los adapters son UUPS). 13 txs on-chain: 1 deploy de nueva impl (`0xc92F034442B918C0392bcc357D995D7e0439Bad8`) + 6 `upgradeToAndCall` + 6 `setPolicyManager(0x546C07…cDd8)`. 11/11 tests PASS. Verificación on-chain: los 6 adapters revertan `checkAndSettlePolicy(999)` con `POLICY_NOT_FOUND` (selector presente + policyManager seteado + delegación a shield OK). ShieldKeeper automation ahora funcional.
 
 ---
 
-### FA-V1-C2 — Sandbox `/sandbox/try` roto (relayer no autorizado on-chain)
+### ~~FA-V1-C2 — Sandbox roto (relayer no autorizado)~~ — CERRADO 2026-05-23 (parcial)
 
-**Estado**: Abierto, severidad CRITICAL (descubierto en Sprint 7.4 Functional Audit V5.3 V1).
+**Resolved on-chain**: `coverRouter.setRelayer(0x168dC7105e907294f9d066cee24f30caa5A17E4a, true)` ejecutado en tx `0x1d91e3d22d6fcc11b909d374572940cc61bc5b94be8b2e33b36f55e31c135cec` (block 41908739). Verificación post-block: `authorizedRelayers(0x168dC7…) = true`. El smoke test `/sandbox/try` ya NO retorna `relayer_unauthorized` — el gate del relayer está OK. Sprint detalle en [`audit-pack/sprints/2026-05-23-sprint-fix-7-4-critical.md`](./sprints/2026-05-23-sprint-fix-7-4-critical.md).
 
-**Detalle**: `POST /sandbox/try` retorna `{"error":"relayer_unauthorized","message":"Relayer 0x168dC7105e907294f9d066cee24f30caa5A17E4a is not authorized in CoverRouter. Owner must call setRelayer(...)."}`. Verificación on-chain: `cast call CoverRouter authorizedRelayers(0x168dC7…) → false`. Owner del CoverRouter = `0xe585e76A…BfDa8` (founder).
-
-**Fix**: 1 tx desde founder owner: `cast send 0xcdB70B40e6a3DEac3189185d947A0e458518F566 "setRelayer(address,bool)" 0x168dC7105e907294f9d066cee24f30caa5A17E4a true --private-key $PK --rpc-url $RPC`.
-
-**Impacto**: cualquier AI agent siguiendo quickstart de docs.lumina-org.com/agents/sandbox-first falla en el primer call.
+**Follow-up abierto**: `FA-V1-C2-FOLLOWUP` (ver abajo).
 
 ---
 
-### FA-V1-I3 — SDK 0.7.0 con throttle API no publicado en npm
+### FA-V1-C2-FOLLOWUP — sandboxWallet sin allowance al CoverRouter
 
-**Estado**: Abierto, severidad HIGH (descubierto en Sprint 7.4 Functional Audit V5.3 V1).
+**Estado**: Abierto, severidad HIGH.
 
-**Detalle**: `npm view @lumina-org/sdk version` retorna `0.6.0`. SDK 0.7.0 con throttle API documentada en Sprint Fix Audit Economic R3 (memoria `lumina_sprint_fix_audit_economic`) tiene PR draft en `sdk#15` pero no fue publicado a npm.
+**Detalle**: post-`setRelayer`, `/sandbox/try` retorna `internal_error` en lugar de respuesta exitosa. Root cause: `allowance(sandboxWallet=0xC1631716e3EE5EB8092927680a1c9A49C8D55B79, coverRouter=0xcdB70B40e6a3DEac3189185d947A0e458518F566) = 0`. SandboxWallet tiene 999.36 mUSDC + 0.015 ETH, pero nunca aprobó al CoverRouter para tirar el premium.
 
-**Fix**: founder publish manual desde repo `lumina-sdk` (`npm publish --access public` después de bump y merge sdk#15).
+**Fix (founder action — privkey del sandboxWallet está API-side)**:
+
+```bash
+cast send 0xD944d8e5D8329994D83950872Ec210891d3Ab6AE \
+  "approve(address,uint256)" 0xcdB70B40e6a3DEac3189185d947A0e458518F566 \
+  115792089237316195423570985008687907853269984665640564039457584007913129639935 \
+  --private-key $SANDBOX_WALLET_PK --rpc-url $BASE_SEPOLIA_RPC
+```
+
+(Approve MAX_UINT256 — gas one-shot.) Re-test `/sandbox/try` esperando respuesta exitosa con `policyId`.
+
+---
+
+### FA-V1-I3 — SDK 0.7.0 listo para publish (founder action pending)
+
+**Estado**: Abierto pero ready, severidad HIGH (validado en Sprint Fix 7.4 CRITICAL).
+
+**Detalle validado**: `@lumina-org/sdk` `0.7.0` mergeado a `main` del repo `lumina-sdk` (commit `612de98`, PR `sdk#15` merged). Build clean (`tsc` sin diagnostics), tests `71 passing / 0 failing / 1 skipped`, throttle API (R3) presente en `src/bonds/throttle.ts` (`BondQueue`, `getRedemptionStatus`, `ThrottleInfo`, constants), exports OK en `dist/index.d.ts`. `package.json` publish manifest válido (`name`, `version`, `main`, `types`, `files`, `publishConfig.access: public`, `prepublishOnly` re-runs build+test).
+
+**Action pending (founder, fuera de scope on-chain)**:
+
+```bash
+cd /c/tmp/lumina-sdk
+git checkout main && git pull   # ensure at 612de98 (PR sdk#15 merge)
+npm ci
+npm publish --access public
+# Si 2FA habilitado: agregar --otp=<6-digit-code>
+```
+
+Opcional post-publish: `git tag v0.7.0 && git push origin v0.7.0`.
 
 ---
 
 ## Changelog
 
+- **2026-05-23 (Sprint Fix 7.4 CRITICAL)**: cerrados `FA-V1-C1` (UUPS upgrade 6 FlashShieldAdapter agregando `checkAndSettlePolicy(uint256)` + `setPolicyManager`; new impl `0xc92F034442B918C0392bcc357D995D7e0439Bad8`; 13 tx on-chain; 11/11 tests PASS) y `FA-V1-C2` parcial (`coverRouter.setRelayer(0x168dC7…, true)` ejecutado, tx `0x1d91e3d2…cec`). Abierto `FA-V1-C2-FOLLOWUP` (sandboxWallet sin allowance — founder API-side). Validado `FA-V1-I3` (SDK 0.7.0 ready, founder pending `npm publish`). Sprint detalle en `audit-pack/sprints/2026-05-23-sprint-fix-7-4-critical.md`.
 - **2026-05-23 (Sprint 7.4 Functional Audit V5.3 V1)**: ejecutado audit funcional testnet — veredicto NEEDS-ADJUSTMENT, score 7.7/10. Report archivado en `audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`. 3 críticos nuevos: `FA-V1-C1` (ShieldKeeper interface), `FA-V1-C2` (sandbox relayer no autorizado), `FA-V1-I3` (SDK 0.7.0 unpublished). Sección 22 nueva en `what-we-tested.md`.
 - **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: R1 (PR #149) aplicado on-chain vía UUPS upgrade del BondVault proxy `0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC` → nueva impl `0x6BBDE25a235DC07c0145A8a1A1d570E4f7ABdFaA` (tx `0xa395c8b6…03a477`). Storage layout compatible (slots 12/13 ocupados de `__gap`, gap 46→43). Selectors R1 (`policiesPaused`, `cexReserve`, `totalInjectedFromCex`, `availableCapacityRatioBps`) responden. Floor pause + hysteresis **ACTIVOS**; CEX auto-injection **INACTIVO** por decisión founder (`cexReserve = 0x0`, no se desplegó CEXLiquidityReserve fresca). Smoke test e2e post-upgrade exitoso (`policyId=1` minted en CoverRouter, BondVault.reserveCapacity ejecutó normalmente). Nuevo item **CEX-RESERVE-DEFERRED** en Mainnet Blockers. Sprint archivado en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`.
 - **2026-05-23 (Sprint Fix Audit Economic Complete)**: cerrados R1 (CEX auto-injection + LUMINA floor pause con hysteresis), R2 (BondVault.redeem semantics verified, no bug) y R3 (SDK v0.7.0 throttle + docs Mintlify) del Audit Economic V1. Re-auditoría Economic V2 produce score 8.4/10 (vs V1 6.4) y verdict **SOUND** — ver `audit-pack/audits/2026-05-23-economic-audit-v53-v2.md`. Residuales documentados en el reporte V2 (no items nuevos abiertos aquí: `policiesPaused` no enforced en CoverRouterV2 [LOW, fuera de scope post BL-USDC], Halmos `_checkAndInject` deferido [item #1 ya existente], actuarial validation [item #7 ya existente]).
