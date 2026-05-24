@@ -331,8 +331,41 @@ Ver detalles en `what-we-tested.md` sección 17.
 
 ---
 
+### FA-V1-C1 — ShieldKeeper.checkAndSettlePolicy no implementado en BaseFlashShield
+
+**Estado**: Abierto, severidad CRITICAL (descubierto en Sprint 7.4 Functional Audit V5.3 V1).
+
+**Detalle**: `ShieldKeeper.performUpkeep` (línea 119) invoca `IShieldSettleable(shield).checkAndSettlePolicy(policyId)`, pero `BaseFlashShield` no implementa ese método. `IShieldV2` solo expone `createPolicy`, `verifyAndCalculate`, `getPolicyInfo`. Resultado: la automatización Chainlink Upkeep para auto-settler pólizas flash **NO funciona** — settlement queda manual hasta fix.
+
+**Fix sugerido**: agregar `checkAndSettlePolicy(uint256)` a `BaseFlashShield` con ruteo a `PolicyManagerV2.settlePolicy` (o equivalente), seguido de UUPS upgrade de los 6 shields live. Estimar: 0.5 día code + tests + 6 upgrades + 6 BaseScan verifies.
+
+---
+
+### FA-V1-C2 — Sandbox `/sandbox/try` roto (relayer no autorizado on-chain)
+
+**Estado**: Abierto, severidad CRITICAL (descubierto en Sprint 7.4 Functional Audit V5.3 V1).
+
+**Detalle**: `POST /sandbox/try` retorna `{"error":"relayer_unauthorized","message":"Relayer 0x168dC7105e907294f9d066cee24f30caa5A17E4a is not authorized in CoverRouter. Owner must call setRelayer(...)."}`. Verificación on-chain: `cast call CoverRouter authorizedRelayers(0x168dC7…) → false`. Owner del CoverRouter = `0xe585e76A…BfDa8` (founder).
+
+**Fix**: 1 tx desde founder owner: `cast send 0xcdB70B40e6a3DEac3189185d947A0e458518F566 "setRelayer(address,bool)" 0x168dC7105e907294f9d066cee24f30caa5A17E4a true --private-key $PK --rpc-url $RPC`.
+
+**Impacto**: cualquier AI agent siguiendo quickstart de docs.lumina-org.com/agents/sandbox-first falla en el primer call.
+
+---
+
+### FA-V1-I3 — SDK 0.7.0 con throttle API no publicado en npm
+
+**Estado**: Abierto, severidad HIGH (descubierto en Sprint 7.4 Functional Audit V5.3 V1).
+
+**Detalle**: `npm view @lumina-org/sdk version` retorna `0.6.0`. SDK 0.7.0 con throttle API documentada en Sprint Fix Audit Economic R3 (memoria `lumina_sprint_fix_audit_economic`) tiene PR draft en `sdk#15` pero no fue publicado a npm.
+
+**Fix**: founder publish manual desde repo `lumina-sdk` (`npm publish --access public` después de bump y merge sdk#15).
+
+---
+
 ## Changelog
 
+- **2026-05-23 (Sprint 7.4 Functional Audit V5.3 V1)**: ejecutado audit funcional testnet — veredicto NEEDS-ADJUSTMENT, score 7.7/10. Report archivado en `audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`. 3 críticos nuevos: `FA-V1-C1` (ShieldKeeper interface), `FA-V1-C2` (sandbox relayer no autorizado), `FA-V1-I3` (SDK 0.7.0 unpublished). Sección 22 nueva en `what-we-tested.md`.
 - **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: R1 (PR #149) aplicado on-chain vía UUPS upgrade del BondVault proxy `0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC` → nueva impl `0x6BBDE25a235DC07c0145A8a1A1d570E4f7ABdFaA` (tx `0xa395c8b6…03a477`). Storage layout compatible (slots 12/13 ocupados de `__gap`, gap 46→43). Selectors R1 (`policiesPaused`, `cexReserve`, `totalInjectedFromCex`, `availableCapacityRatioBps`) responden. Floor pause + hysteresis **ACTIVOS**; CEX auto-injection **INACTIVO** por decisión founder (`cexReserve = 0x0`, no se desplegó CEXLiquidityReserve fresca). Smoke test e2e post-upgrade exitoso (`policyId=1` minted en CoverRouter, BondVault.reserveCapacity ejecutó normalmente). Nuevo item **CEX-RESERVE-DEFERRED** en Mainnet Blockers. Sprint archivado en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`.
 - **2026-05-23 (Sprint Fix Audit Economic Complete)**: cerrados R1 (CEX auto-injection + LUMINA floor pause con hysteresis), R2 (BondVault.redeem semantics verified, no bug) y R3 (SDK v0.7.0 throttle + docs Mintlify) del Audit Economic V1. Re-auditoría Economic V2 produce score 8.4/10 (vs V1 6.4) y verdict **SOUND** — ver `audit-pack/audits/2026-05-23-economic-audit-v53-v2.md`. Residuales documentados en el reporte V2 (no items nuevos abiertos aquí: `policiesPaused` no enforced en CoverRouterV2 [LOW, fuera de scope post BL-USDC], Halmos `_checkAndInject` deferido [item #1 ya existente], actuarial validation [item #7 ya existente]).
 - **2026-05-23 (Sprint CR-USDC-Reconfig)**: UUPS upgrades en `CoverRouterV2` + `TWAPBurner` agregando `setUsdc(address)` onlyOwner; ambos proxies repointados a MockUSDC en Sepolia para cerrar gap arquitectural Sprint USDC Mock. Smoke e2e on-chain `policyId=1` con premium pulled de mUSDC. Nuevo item **BL-USDC** en sección Mainnet Blockers con runbook revert a Circle USDC mainnet. Sección 20 nueva en `what-we-tested.md`.

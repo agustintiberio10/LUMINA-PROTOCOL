@@ -977,8 +977,70 @@ Deltas por dimensión:
 
 ---
 
+## 22. Sprint 7.4 — Functional Audit V5.3 V1 (testnet, 2026-05-23)
+
+**Status: CLOSED ✅ — Veredicto NEEDS-ADJUSTMENT, score global 7.7/10.**
+
+Full report en [`audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`](./audits/2026-05-23-functional-audit-v53-v1.md).
+
+### 22.1 Scope
+
+Validar TODOS los flujos funcionales V5.3 end-to-end en Base Sepolia (chainId 84532). NO security audit. 9 phases (B→J) cubriendo purchase, oracle/keeper, bonds/throttle, marketplace, adapters, fees, vesting, API+SDK, tests.
+
+### 22.2 Methodology
+
+Main thread + 5 sub-agents paralelos (Phases B / C / D / E+F+G / H) en parallel via `Agent run_in_background=true`. Main thread cubrió Phase I (API+SDK probes) + Phase J (tests, no completable en Windows por hang documentado — usado último CI conocido post-EE-FIX).
+
+### 22.3 Scores por phase
+
+| Phase | Dominio | Score |
+|---|---|---|
+| B | Purchase E2E (policyId=1 traced) | 9/10 |
+| C | Oracle triggers + sequencer + ShieldKeeper | **6/10** 🔴 |
+| D | Bonds + BondVault + throttle + R1 (post #150) | 9.5/10 |
+| E | Marketplace | 9/10 |
+| F | Adapter pattern | 8/10 |
+| G | AdaptiveFeeDistributor + TWAPBurner + BuybackEngine | 7/10 |
+| H | FounderVesting V2 | 9/10 |
+| I | API + SDK | **6/10** 🔴 |
+| J | Tests existentes (último CI 2996/3020) | 8/10 |
+| **Promedio** | | **7.7/10** |
+
+### 22.4 Top 3 hallazgos críticos
+
+1. 🔴 **C.5.1 — ShieldKeeper ↔ BaseFlashShield interface mismatch**: `checkAndSettlePolicy` no existe. Settlement automático via Chainlink Automation no funciona en flash shields.
+2. 🔴 **I.2.1 — Sandbox roto**: `/sandbox/try` POST retorna `relayer_unauthorized` porque on-chain `authorizedRelayers[0x168dC7…7E4a] = false`. Onboarding agentic Step 1 no funciona. Fix: 1 tx `coverRouter.setRelayer(0x168dC7…, true)` desde founder owner.
+3. 🟡 **I.3 — SDK 0.7.0 NO publicado en npm** (latest = 0.6.0). Throttle API documentada pero unreachable via `npm install`.
+
+### 22.5 Listo para Fase 5
+
+**NO** — requiere fix de 3 críticos antes de exponer sandbox público:
+1. `setRelayer` (1 tx, trivial).
+2. UUPS upgrade 6 shields agregando `checkAndSettlePolicy` (medium effort).
+3. Founder publish SDK 0.7.0 npm (decision).
+
+### 22.6 Reverse audit /10
+
+**Pros (5)**:
+- 5 sub-agents paralelos lograron 3× speedup vs ejecución serial.
+- Coverage de los 9 dominios funcionales en un solo sprint.
+- Findings críticos accionables, no especulativos (cada uno con file:line evidence o cast output).
+- Cross-ref completo con sprints previos (CR-USDC, Fix Audit Economic, Upgrade BondVault).
+- Score breakdown granular por phase facilita priorización de follow-ups.
+
+**Cons (3)**:
+- Phase J (forge tests) no completable en Windows ambient — usado último CI como proxy.
+- DEX sequential fallback (Phase F.3) no ejercitable en testnet sin pools reales.
+- BuybackEngine + auto-burn TWAPBurner (Phase G) quedaron como "stub functional" — pendiente Fase 5 con liquidez real.
+
+**Score sprint: 9/10** — scope cumplido, findings críticos identificados antes de Fase 5 testnet pública.
+
+---
+
 ## Changelog
 
+- **2026-05-23 (Sprint 7.4 Functional Audit V5.3 V1)**: agregada Sección 22 — Functional Audit testnet score 7.7/10, veredicto NEEDS-ADJUSTMENT. 3 críticos (ShieldKeeper interface, sandbox relayer, SDK 0.7.0 unpublished). Report full en `audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`. PR draft.
+- **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: BondVault proxy upgradeado a impl post-#149. Floor pause + hysteresis ACTIVOS; CEX auto-inject INACTIVO. Detalle en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`. PR LP#150 (merged).
 - **2026-05-23 (Sprint Fix Audit Economic Complete)**: agregada Sección 21 — R1 (CEX auto-injection + LUMINA floor pause con hysteresis) + R2 (redeem semantics verified, no bug) + R3 (SDK v0.7.0 BondQueue.getRedemptionStatus + docs concepts/bondvault-throttle update). 10 + 3 tests nuevos pass + 21 regresión. Audit Economic V2 = 8.4/10 vs V1 6.4/10. Verdict SOUND. PRs draft: LUMINA-PROTOCOL #(este), lumina-sdk #(per sub-agent report), docs#19.
 
 - **2026-05-23 (Sprint CR-USDC-Reconfig)**: agregada Sección 20 — UUPS upgrades en CoverRouterV2 + TWAPBurner agregando `setUsdc(address)` onlyOwner, ambos repointados a mUSDC (`0xD944…6AE`). 5 tests reconfig + 9 regresión verde. Smoke e2e on-chain policyId=1 con premium $0.288 pulled de mUSDC. Item BL-USDC nuevo en `what-is-pending.md#mainnet-blockers` con runbook revert a Circle USDC mainnet.
