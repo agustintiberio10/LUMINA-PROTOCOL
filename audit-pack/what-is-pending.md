@@ -287,7 +287,7 @@ Todos los findings de la auditoría 7.2 quedan **abiertos / sin fix** (el sprint
 ### Diferidos por ambiente (no findings, gaps de tooling)
 - **Mythril** symbolic exec sobre 5 contratos críticos — DNS-blocked en este entorno → CI Linux.
 - **Aderyn** — npm install roto (`MODULE_NOT_FOUND`) → CI Linux.
-- **Echidna 200k** red-team invariants custom — Echidna no instalable en Windows; suite invariant de Foundry corrida como proxy (17/0-fail, full-config hace hang en Windows).
+- **Echidna 200k** red-team invariants custom — Echidna no instalable en Windows; suite invariant de Foundry corrida como proxy a full-config (1000×500 = 500k calls/invariant, 17/0-fail, ~30 min).
 - Verificación on-chain RPC de `owner()` adapters (F-05) y custodia `BURNER_ROLE`/`DEFAULT_ADMIN_ROLE` (F-17/F-21).
 - Modelado de costo real de manipulación TWAP (F-02/F-07) requiere pool LUMINA/USDC mainnet con liquidez.
 

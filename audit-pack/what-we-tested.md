@@ -1049,7 +1049,7 @@ Main thread + 5 sub-agents paralelos (Phases B / C / D / E+F+G / H) en parallel 
 - **H Logic / K Chains**: accounting invariants, oracle-floor chain, sybil, wash-trade.
 - **L API**: helmet/CORS/rate-limit/input-validation baseline fuerte; sandbox gas-drain DoS.
 - **M Static**: Slither (4 High / 64 Medium triaged); Aderyn npm roto (`MODULE_NOT_FOUND`) y Mythril DNS-blocked → diferidos a CI Linux.
-- **N Fuzzing**: suite invariant repo ejecutada (17 tests / 0 fail; full-config hace hang en Windows → bounded run). Echidna 14-prop review estático.
+- **N Fuzzing**: suite invariant repo ejecutada a full-config (`runs=1000, depth=500` = 500k calls/invariant): 17 tests / 0 fail / 0 reverts (~30 min). Echidna 14-prop review estático.
 
 **Resultado**: **1 CRITICAL + 6 HIGH + 13 MEDIUM + 11 LOW + 8 INFO = 39 findings**. Root cause cross-cutting: un único price read (spot / TWAP 1800s en pool fino) sin segunda referencia ni deviation-breaker para decisiones value-bearing (trigger, redemption, capacity, burn, auto-inject).
 
