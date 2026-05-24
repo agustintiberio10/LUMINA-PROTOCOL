@@ -1037,8 +1037,37 @@ Main thread + 5 sub-agents paralelos (Phases B / C / D / E+F+G / H) en parallel 
 
 ---
 
+## 23. Sprint 7.2 — Red Team Adversarial Audit V5.3 (CertiK-style, 2026-05-24)
+
+**Qué**: auditoría adversarial exhaustiva de los 27 contratos V5.3 (40 `.sol`, ~6,250 LOC) sobre clone fresco de `main` (commit `b885d16`). Metodología: STRIDE + manual review en 5 streams paralelos (oracle / reentrancy+DoS / access-control+upgrade+gov / economic+MEV / logic+chains) + Slither 0.11.5 (377 results) + Foundry invariants ejecutados + API probing en vivo.
+
+**Cobertura (Phases A–P del prompt 7.2)**:
+- **B Oracle**: trigger path flash-shields, Chainlink validation, CapacityOracle TWAP, sequencer L2 grace. **→ 1 CRITICAL.**
+- **C Reentrancy / G DoS**: todos los `safeTransfer`/`call{value:}`; CEI + `nonReentrant` confirmados sin fund-theft reentrancy; riesgo concentrado en settlement availability.
+- **D Access / I Upgrade / J Gov**: matriz de modifiers, 13 UUPS (todos con `_authorizeUpgrade` gated + `_disableInitializers` + `__gap` correctos), tabla de admin powers, centralización single-EOA.
+- **E Economic / F MEV**: redemption pricing, throttle/queue, FounderVesting paths, burn mechanics, auto-injection (dormant), sandwich.
+- **H Logic / K Chains**: accounting invariants, oracle-floor chain, sybil, wash-trade.
+- **L API**: helmet/CORS/rate-limit/input-validation baseline fuerte; sandbox gas-drain DoS.
+- **M Static**: Slither (4 High / 64 Medium triaged); Aderyn npm roto (`MODULE_NOT_FOUND`) y Mythril DNS-blocked → diferidos a CI Linux.
+- **N Fuzzing**: suite invariant repo ejecutada a full-config (`runs=1000, depth=500` = 500k calls/invariant): 17 tests / 0 fail / 0 reverts (~30 min). Echidna 14-prop review estático.
+
+**Resultado**: **1 CRITICAL + 6 HIGH + 13 MEDIUM + 11 LOW + 8 INFO = 39 findings**. Root cause cross-cutting: un único price read (spot / TWAP 1800s en pool fino) sin segunda referencia ni deviation-breaker para decisiones value-bearing (trigger, redemption, capacity, burn, auto-inject).
+
+**Headline CRITICAL (F-01)**: las "3 confirmaciones 60s apart" de los flash-shields **no existen on-chain** (3 reads en una tx) y ambos entrypoints de settle son permissionless ⇒ cada póliza es una barrier-option harvestable (~333× ROI). **Explotable AHORA en el producto live de testnet** — reportado, NO explotado.
+
+**Veredicto**: ⚠️ NEEDS-FIXES, score **6.0/10**. Fase 5 testnet: CONDITIONAL YES (fix F-01 primero; sin fondos reales en Sepolia/mUSDC). Fase 7 mainnet: NO hasta cerrar F-01…F-07 + governance Safe+Timelock (F-17) + re-audit de features dormant (F-07 auto-inject, F-13 auto-burn) al armarlas.
+
+**Cons / pending**: verificación on-chain de `owner()` de los 6 adapters (F-05) y custodia de roles (F-17/F-21) requiere lecturas RPC; Mythril + Aderyn + Echidna 200k diferidos a Linux; modelado de costo de manipulación TWAP requiere pool real mainnet.
+
+**Report full**: `audit-pack/audits/2026-05-24-red-team-audit-v53.md`. PR draft `feat/audit-7-2-red-team-v1`.
+
+**Score sprint: 9/10** — scope 7.2 cumplido en una pasada con agentes paralelos; CRITICAL live detectado antes de Fase 5 pública.
+
+---
+
 ## Changelog
 
+- **2026-05-24 (Sprint 7.2 Red Team Adversarial Audit V5.3)**: agregada Sección 23 — auditoría CertiK-style sobre 27 contratos V5.3. 1 CRITICAL (F-01 flash-shield barrier-option, live testnet) + 6 HIGH + 13 MEDIUM + 11 LOW + 8 INFO. Score 6.0/10, veredicto NEEDS-FIXES. Slither 377 results, invariants 17/0-fail. Report full en `audit-pack/audits/2026-05-24-red-team-audit-v53.md`. Findings sin fix → `what-is-pending.md`. PR draft `feat/audit-7-2-red-team-v1`.
 - **2026-05-23 (Sprint 7.4 Functional Audit V5.3 V1)**: agregada Sección 22 — Functional Audit testnet score 7.7/10, veredicto NEEDS-ADJUSTMENT. 3 críticos (ShieldKeeper interface, sandbox relayer, SDK 0.7.0 unpublished). Report full en `audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`. PR draft.
 - **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: BondVault proxy upgradeado a impl post-#149. Floor pause + hysteresis ACTIVOS; CEX auto-inject INACTIVO. Detalle en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`. PR LP#150 (merged).
 - **2026-05-23 (Sprint Fix Audit Economic Complete)**: agregada Sección 21 — R1 (CEX auto-injection + LUMINA floor pause con hysteresis) + R2 (redeem semantics verified, no bug) + R3 (SDK v0.7.0 BondQueue.getRedemptionStatus + docs concepts/bondvault-throttle update). 10 + 3 tests nuevos pass + 21 regresión. Audit Economic V2 = 8.4/10 vs V1 6.4/10. Verdict SOUND. PRs draft: LUMINA-PROTOCOL #(este), lumina-sdk #(per sub-agent report), docs#19.
