@@ -265,6 +265,34 @@ Ver detalles en `what-we-tested.md` sección 19.
 
 ---
 
+## Sprint 7.2 — Red Team Adversarial Audit V5.3 findings (2026-05-24, sin fix)
+
+Todos los findings de la auditoría 7.2 quedan **abiertos / sin fix** (el sprint produjo solo el reporte, no PRs de fix). Detalle completo + CVSS + PoC + recomendación en [`audit-pack/audits/2026-05-24-red-team-audit-v53.md`](./audits/2026-05-24-red-team-audit-v53.md). Resumen accionable:
+
+### CRITICAL — fix antes de Fase 5 con valor
+- **F-01 (CVSS 9.3)** — Flash-shield trigger es una barrier-option harvestable: las "3 confirmaciones 60s apart" no existen on-chain (3 reads en una tx) + ambos entrypoints de settle permissionless ⇒ ~333× ROI. **Explotable AHORA en testnet live.** Fix: confirmación multi-block/time-spaced on-chain + min dwell + re-pricing de primas. `BaseFlashShield.sol:131-172`.
+
+### HIGH — fix pre-mainnet (Fase 7)
+- **F-02 (7.5)** — Redemption a precio manipulable/floored ($0.001) ⇒ hasta 10× LUMINA. Dual-source + deviation-breaker + fail-closed. `BondVault.sol:365,503-509` + `CapacityOracle.sol:82-123`.
+- **F-03 (6.8)** — Shield oracle revert sin fallback ⇒ payouts legítimos denegados permanentemente (auto-expire como no-triggered). Fallback + estado "oracle-unavailable" + gate `markExpired`. `BaseFlashShield.sol:102-107`, `FlashShieldAdapter.sol:149-166`, `PolicyManagerV2.sol:400`.
+- **F-04 (7.1)** — `redeemBond` over-cap libera `totalCommittedUSD` antes de pagar ⇒ over-issuance / breach del techo 50%. Introducir `totalQueuedUSD`. `BondVault.sol:339-359,461-470`.
+- **F-05 (7.9)** — 6 FlashShieldAdapter proxies con init separado (front-run/takeover); regresión del deploy script T-30c. Init atómico + **verificar `owner()` on-chain de los 6 adapters**. `DeployFlashShieldsT30c.s.sol:67-90`.
+- **F-06 (6.8)** — Flash shields omiten `answeredInRound`/round-completeness. Agregar 3 require / reader compartido. `BaseFlashShield.sol:102-107`.
+- **F-07 (6.8, DORMANT)** — Auto-injection force-trigger vía capacity ratio manipulable (`cexReserve=0x0` hoy). Re-auditar al cablear `cexReserve`. `BondVault.sol:594-633`.
+
+### MEDIUM (13) / LOW (11) / INFO (8)
+- Ver tablas completas en el reporte. Destacados accionables: **F-17** (governance single-EOA → Gnosis Safe + TimelockController, **must-fix pre-mainnet**), F-15 (MaintenanceReserve `monthlyCap=0`=unlimited), F-08 (adapter `createPolicy`/`verifyAndCalculate` sin auth), F-12 (FounderVesting unlock prematuro 8M LUMINA con 2 snapshots), F-20 (sandbox API gas-drain multi-IP).
+- **INFO-7 doc fix**: el fee de marketplace es **3% (1.5%+1.5%)**, no "2%" como dicen brief/docs antiguos — corregir documentación.
+
+### Diferidos por ambiente (no findings, gaps de tooling)
+- **Mythril** symbolic exec sobre 5 contratos críticos — DNS-blocked en este entorno → CI Linux.
+- **Aderyn** — npm install roto (`MODULE_NOT_FOUND`) → CI Linux.
+- **Echidna 200k** red-team invariants custom — Echidna no instalable en Windows; suite invariant de Foundry corrida como proxy (17/0-fail, full-config hace hang en Windows).
+- Verificación on-chain RPC de `owner()` adapters (F-05) y custodia `BURNER_ROLE`/`DEFAULT_ADMIN_ROLE` (F-17/F-21).
+- Modelado de costo real de manipulación TWAP (F-02/F-07) requiere pool LUMINA/USDC mainnet con liquidez.
+
+---
+
 ## Mainnet Blockers
 
 Items que NO bloquean testnet pero **deben** resolverse antes del primer deploy de mainnet. Estos no son gaps de auditoría sino state on-chain o configuración que se cambió para uso testnet.
