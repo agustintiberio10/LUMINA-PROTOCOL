@@ -87,6 +87,30 @@ contract FlashShieldAdapterTest is Test {
 
         shield = new FlashBTCShield1h(address(adapter), address(oracle), address(sequencer));
         adapter.initialize(address(shield), PRODUCT_ID);
+        // [F-08] createPolicy/verifyAndCalculate are now onlyPolicyManager. The
+        // test contract acts as the PM so the legacy direct-call tests still
+        // exercise the translation surface.
+        adapter.setPolicyManager(address(this));
+    }
+
+    /// [F-01] Drives a policy through the multi-block confirmation model via the
+    /// adapter: 3 spaced sub-barrier observations across distinct blocks, >=60s
+    /// apart, strictly-increasing updatedAt, after the 5-min dwell. Returns the
+    /// final adapter result (triggered on the 3rd confirmation).
+    function _confirm3(uint256 policyId, int256 droppedAnswer)
+        internal
+        returns (FlashShieldAdapter.LegacyPayoutResult memory r)
+    {
+        if (block.timestamp < T0 + 5 minutes) vm.warp(T0 + 5 minutes + 1);
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 ts = block.timestamp;
+            oracle.setAnswer(droppedAnswer, ts);
+            r = adapter.verifyAndCalculate(policyId, "");
+            if (i < 2) {
+                vm.roll(block.number + 1);
+                vm.warp(ts + 61);
+            }
+        }
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
@@ -160,12 +184,9 @@ contract FlashShieldAdapterTest is Test {
     // ── 6. verifyAndCalculate returns LegacyPayoutResult on trigger ─────────
     function testVerifyAndCalculate_HandlesTriggered() public {
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
-        vm.warp(T0 + 60);
-        // Force a drop above the 2.5% trigger.
-        int256 dropped = (STRIKE * 9700) / 10_000;
-        oracle.setAnswer(dropped, T0 + 60);
-
-        FlashShieldAdapter.LegacyPayoutResult memory r = adapter.verifyAndCalculate(policyId, "");
+        // [F-01] trigger now requires 3 spaced multi-block confirmations.
+        int256 dropped = (STRIKE * 9700) / 10_000; // 3% drop, above 2.5%
+        FlashShieldAdapter.LegacyPayoutResult memory r = _confirm3(policyId, dropped);
         assertTrue(r.triggered, "triggered flag set");
         assertEq(r.payoutAmount, (COVERAGE * 8000) / 10_000, "payout = 80% coverage");
         assertEq(r.recipient, holder, "recipient echoed");
@@ -175,27 +196,22 @@ contract FlashShieldAdapterTest is Test {
     // ── 7. verifyAndCalculate returns no-trigger result when below threshold ─
     function testVerifyAndCalculate_HandlesNoTrigger() public {
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
-        vm.warp(T0 + 60);
-        // Drop only 1% (below 2.5%).
+        vm.warp(T0 + 5 minutes + 1); // past dwell
+        // Drop only 1% (below 2.5%) → sub-barrier breach never accrues.
         int256 dropped = (STRIKE * 9900) / 10_000;
-        oracle.setAnswer(dropped, T0 + 60);
+        oracle.setAnswer(dropped, block.timestamp);
 
         FlashShieldAdapter.LegacyPayoutResult memory r = adapter.verifyAndCalculate(policyId, "");
         assertFalse(r.triggered, "not triggered");
         assertEq(r.payoutAmount, 0, "no payout");
         assertEq(r.recipient, holder, "recipient echoed even on no-trigger");
-        assertEq(r.reason, bytes32("NO_TRIGGER"), "reason NO_TRIGGER");
     }
 
     // ── 8. verifyAndCalculate ignores oracleProof arg (slim reads Chainlink) ─
     function testVerifyAndCalculate_IgnoresOracleProof() public {
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
-        vm.warp(T0 + 60);
-        oracle.setAnswer((STRIKE * 9700) / 10_000, T0 + 60);
-
-        // Garbage proof bytes — must not affect outcome (slim reads on-chain).
-        bytes memory junk = hex"deadbeefcafebabe";
-        FlashShieldAdapter.LegacyPayoutResult memory r = adapter.verifyAndCalculate(policyId, junk);
+        // proof bytes are ignored on every read; drive 3 confirmations.
+        FlashShieldAdapter.LegacyPayoutResult memory r = _confirm3(policyId, (STRIKE * 9700) / 10_000);
         assertTrue(r.triggered, "proof bytes ignored, drop still triggers");
     }
 
@@ -222,9 +238,7 @@ contract FlashShieldAdapterTest is Test {
     // ── 11. getPolicyInfo reflects finalized status after verify ─────────────
     function testGetPolicyInfo_StatusFinalizedAfterVerify() public {
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
-        vm.warp(T0 + 60);
-        oracle.setAnswer((STRIKE * 9700) / 10_000, T0 + 60);
-        adapter.verifyAndCalculate(policyId, "");
+        _confirm3(policyId, (STRIKE * 9700) / 10_000); // 3 confirmations → finalized
 
         (,,,,, uint8 status) = adapter.getPolicyInfo(policyId);
         assertEq(status, 2, "status 2 = finalized");

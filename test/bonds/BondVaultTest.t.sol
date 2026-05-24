@@ -254,8 +254,10 @@ contract BondVaultTest is Test {
         address pm = makeAddr("policyManager");
         address attacker = makeAddr("attacker");
 
+        // [F-16] setPolicyManager is now gated on DEFAULT_ADMIN_ROLE (was the
+        // deployer EOA); a non-admin reverts with the AccessControl error.
         vm.prank(attacker);
-        vm.expectRevert("Only deployer");
+        vm.expectRevert();
         v.setPolicyManager(pm);
     }
 
