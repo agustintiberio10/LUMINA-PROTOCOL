@@ -9,17 +9,25 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 /// @notice Provides $LUMINA price and capacity calculations for BondVault.
 /// @dev [V5.1] UUPS upgradeable proxy pattern.
 ///
-/// @dev [F-02 fix] PRICE TRUST MODEL — read this before consuming getLuminaPrice():
+/// @dev [F-02 / MR-H01 fix] PRICE TRUST MODEL — read before consuming getLuminaPrice():
 ///      When a pool is configured, `getLuminaPrice()` is NOT a silent best-effort
-///      read. It computes TWO Uniswap-V3 TWAPs from the SAME pool — the primary
-///      short window (`twapWindow`, 1800s default) and a longer `LONG_TWAP_WINDOW`
-///      (7200s) — and REVERTS (fail-closed) with `PriceDeviationTooHigh` if they
-///      diverge by more than `MAX_DEVIATION_BPS`. Downstream value-bearing reads
-///      (e.g. BondVault redemption pricing) are expected to be fail-closed: a
-///      revert here is the intended signal to halt the value-bearing action
-///      rather than transact on a manipulated price. emergencyPrice is NEVER a
-///      silent override when a pool is set — it only acts as a deviation-bounded
-///      floor for the zero/observation-missing edge.
+///      read. It enforces, in order:
+///        1. [MR-H01] FRESHNESS (fail-closed): reverts `OracleStale` if the pool's
+///           latest observation is older than `maxObservationAge`, or
+///           `OracleInsufficientCardinality` if cardinality < `minCardinality`. A
+///           frozen/idle pool would otherwise return a stale extrapolated price
+///           that BOTH windows agree on (deviation 0), silently defeating step 2.
+///        2. [F-02] DEVIATION (fail-closed): computes two TWAPs from the SAME pool
+///           — the short `twapWindow` (1800s) and the long `LONG_TWAP_WINDOW`
+///           (7200s) — and reverts `PriceDeviationTooHigh` if they diverge beyond
+///           `MAX_DEVIATION_BPS`.
+///      Downstream value-bearing reads (e.g. BondVault redemption pricing) MUST
+///      treat any revert here as "halt the value-bearing action".
+///      HONEST CAVEAT (not a guarantee of "always revert-or-trustworthy"): the
+///      narrow young-pool edge where `observe()` itself REVERTS or returns a zero
+///      tick still falls back to the deviation-bounded `emergencyPrice` floor (a
+///      pool that cannot serve the requested window at all). The staleness gate
+///      above is what closes the frozen-but-deep-pool hole that MR-H01 found.
 ///
 /// @dev [F-09 / DEPLOY REVIEW] The no-pool path (`pool == address(0)`) returns
 ///      `emergencyPrice` directly with NO TWAP cross-check and NO timelock on the
@@ -46,6 +54,11 @@ interface IUniswapV3Pool {
         );
     function token0() external view returns (address);
     function token1() external view returns (address);
+    /// @notice [MR-H01] Raw observation accessor — used for the staleness gate.
+    function observations(uint256 index)
+        external
+        view
+        returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized);
 }
 
 contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
@@ -63,6 +76,16 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     ///         can only land it after EMERGENCY_PRICE_TIMELOCK has elapsed.
     uint256 public pendingEmergencyPrice; // slot: appended (was __gap[0])
     uint256 public pendingEmergencyPriceTimestamp; // slot: appended (was __gap[1])
+
+    // ═══════ STORAGE [MR-H01 fix — APPEND-ONLY] ═══════
+    /// @notice [MR-H01] Max age (seconds) of the pool's latest Uniswap observation
+    ///         before `getLuminaPrice()` treats the TWAP as STALE and reverts
+    ///         (fail-closed). 0 ⇒ use `DEFAULT_MAX_OBSERVATION_AGE` (handles the
+    ///         UUPS-upgrade case where this slot initializes to zero).
+    uint256 public maxObservationAge; // slot: appended (was __gap[2])
+    /// @notice [MR-H01] Minimum Uniswap `observationCardinality` required for a
+    ///         value-bearing read. 0 ⇒ use `DEFAULT_MIN_CARDINALITY`.
+    uint256 public minCardinality; // slot: appended (was __gap[3])
 
     // ═══════ CONSTANTS ═══════
     uint256 public constant BOND_RESERVE = 70_000_000 * 1e18;
@@ -90,6 +113,25 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @notice [F-09] Timelock that gates emergencyPrice changes once a pool is set.
     uint256 public constant EMERGENCY_PRICE_TIMELOCK = 24 hours;
 
+    // ═══════ CONSTANTS [MR-H01 fix] ═══════
+    /// @notice [MR-H01] Default staleness threshold used when `maxObservationAge`
+    ///         is unset (0). 1 hour — conservative against denial-of-redemption on
+    ///         a low-volume settlement pool while still rejecting a multi-hour
+    ///         frozen pool. Ops may tighten via `setFreshnessParams` once the live
+    ///         pool's trade frequency is known. (Founder spec suggested 300s; that
+    ///         is left as the tunable floor — a hard 300s constant would brick
+    ///         redemptions during any 5-minute trading lull, a self-inflicted DoS.)
+    uint256 public constant DEFAULT_MAX_OBSERVATION_AGE = 1 hours;
+    /// @notice [MR-H01] Default minimum observation cardinality used when
+    ///         `minCardinality` is unset (0). A `window`-second TWAP backed by
+    ///         fewer observations is silently extrapolated by Uniswap from the last
+    ///         tick — exactly the staleness MR-H01 exploits.
+    uint256 public constant DEFAULT_MIN_CARDINALITY = 10;
+    /// @notice [MR-H01] Bounds for `setFreshnessParams` so ops cannot misconfigure
+    ///         into a permanent DoS or disable the gate entirely.
+    uint256 public constant MAX_OBSERVATION_AGE_CEILING = 24 hours;
+    uint256 public constant MIN_OBSERVATION_AGE_FLOOR = 60; // 1 min
+
     // ═══════ EVENTS ═══════
     event PoolUpdated(address oldPool, address newPool);
     event TwapWindowUpdated(uint32 oldWindow, uint32 newWindow);
@@ -100,6 +142,15 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @notice [F-02] Reverted by `getLuminaPrice()` when the short and long TWAP
     ///         windows diverge beyond `MAX_DEVIATION_BPS` (fail-closed signal).
     error PriceDeviationTooHigh(uint256 shortTwap, uint256 longTwap, uint256 deviationBps);
+    /// @notice [MR-H01] Reverted by `getLuminaPrice()` when the pool's latest
+    ///         observation is older than the staleness threshold (frozen/idle pool).
+    error OracleStale(uint256 observationAge, uint256 maxAge);
+    /// @notice [MR-H01] Reverted when the pool's observation cardinality is below
+    ///         the minimum required to back a `window`-second TWAP without silent
+    ///         extrapolation.
+    error OracleInsufficientCardinality(uint256 cardinality, uint256 minRequired);
+    /// @notice [MR-H01] Emitted when the freshness parameters are updated.
+    event FreshnessParamsUpdated(uint256 maxObservationAge, uint256 minCardinality);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -122,6 +173,12 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emergencyPrice = _emergencyPrice;
         twapWindow = 1800;
 
+        // [MR-H01] Freshness gate defaults (fresh deploys). Upgrades of an
+        // already-initialized proxy keep these at 0 and the gate falls back to the
+        // DEFAULT_* constants — see `_effectiveMaxObservationAge`/`_effectiveMinCardinality`.
+        maxObservationAge = DEFAULT_MAX_OBSERVATION_AGE;
+        minCardinality = DEFAULT_MIN_CARDINALITY;
+
         if (_pool != address(0)) {
             _setPool(_pool);
         }
@@ -132,12 +189,22 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @notice $LUMINA price (18-dec), TWAP-derived with a deviation circuit-breaker.
     /// @dev    [F-02] When a pool is set this REVERTS with `PriceDeviationTooHigh`
     ///         if the short and long TWAP windows diverge > MAX_DEVIATION_BPS.
+    ///         [MR-H01] It ALSO reverts (`OracleStale` / `OracleInsufficientCardinality`)
+    ///         if the pool is idle/thin (latest observation older than
+    ///         `maxObservationAge`, or cardinality below `minCardinality`) — a
+    ///         frozen pool would otherwise serve a stale extrapolated price that
+    ///         both TWAP windows agree on (deviation 0), defeating the F-02 breaker.
     ///         Signature unchanged — callers (BondVault, SolvencyOracle,
-    ///         BuybackEngine, TWAPBurner) see either a trustworthy price or a
+    ///         BuybackEngine, TWAPBurner) see either a trustworthy, FRESH price or a
     ///         revert; fail-closed consumers must treat the revert as "halt".
     function getLuminaPrice() external view returns (uint256 price) {
         // [F-09] Bootstrap-only path. MUST NOT be live on mainnet — see header.
         if (pool == address(0)) return emergencyPrice;
+
+        // [MR-H01] Freshness gate FIRST, OUTSIDE the TWAP try/catch, so a stale or
+        // thin pool fails CLOSED (revert) rather than silently falling back to
+        // emergencyPrice the way an `observe()` revert does.
+        _requireFreshPool();
 
         // Primary (short) window.
         uint256 shortTwap;
@@ -354,7 +421,56 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
+    /// @notice [MR-H01] Update the freshness-gate parameters. Bounded so ops
+    ///         cannot brick redemptions (age too low) or disable the gate (age too
+    ///         high / cardinality 0).
+    function setFreshnessParams(uint256 _maxObservationAge, uint256 _minCardinality) external onlyOwner {
+        require(
+            _maxObservationAge >= MIN_OBSERVATION_AGE_FLOOR && _maxObservationAge <= MAX_OBSERVATION_AGE_CEILING,
+            "age out of bounds"
+        );
+        require(_minCardinality >= 1, "cardinality >= 1");
+        maxObservationAge = _maxObservationAge;
+        minCardinality = _minCardinality;
+        emit FreshnessParamsUpdated(_maxObservationAge, _minCardinality);
+    }
+
+    /// @dev [MR-H01] Effective params, falling back to DEFAULT_* when unset (0) so
+    ///      a UUPS upgrade that zero-initializes these slots is never bricked.
+    function _effectiveMaxObservationAge() internal view returns (uint256) {
+        return maxObservationAge == 0 ? DEFAULT_MAX_OBSERVATION_AGE : maxObservationAge;
+    }
+
+    function _effectiveMinCardinality() internal view returns (uint256) {
+        return minCardinality == 0 ? DEFAULT_MIN_CARDINALITY : minCardinality;
+    }
+
     // ═══════ INTERNAL ═══════
+
+    /// @dev [MR-H01] Reverts unless the pool can back a value-bearing TWAP: the
+    ///      latest observation must be recent (not a frozen/idle pool) and the
+    ///      observation cardinality must be deep enough that the window TWAP is not
+    ///      silently extrapolated from a single stale tick. Reverts (fail-closed),
+    ///      and is intentionally OUTSIDE getLuminaPrice's TWAP try/catch.
+    function _requireFreshPool() internal view {
+        (, , uint16 observationIndex, uint16 observationCardinality, , ,) = IUniswapV3Pool(pool).slot0();
+
+        uint256 minCard = _effectiveMinCardinality();
+        if (observationCardinality < minCard) {
+            revert OracleInsufficientCardinality(observationCardinality, minCard);
+        }
+
+        // Latest observation lives at `observationIndex`. Its blockTimestamp is the
+        // last block in which a swap touched the pool; an idle pool's stays put.
+        (uint32 lastObsTs, , , bool initialized) = IUniswapV3Pool(pool).observations(observationIndex);
+        if (!initialized) revert OracleStale(type(uint256).max, _effectiveMaxObservationAge());
+
+        // Uniswap stores uint32 timestamps; the subtraction is overflow-safe mod
+        // 2^32 for any age below ~136 years.
+        uint256 age = uint256(uint32(block.timestamp) - lastObsTs);
+        uint256 maxAge = _effectiveMaxObservationAge();
+        if (age > maxAge) revert OracleStale(age, maxAge);
+    }
 
     function _setPool(address _pool) internal {
         require(_pool != address(0), "Zero pool");
@@ -407,8 +523,8 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // Storage gap for future upgrades.
-    // [F-09 fix] Shrunk 50 -> 48: two new slots appended above
-    // (pendingEmergencyPrice, pendingEmergencyPriceTimestamp) consume the first
-    // two former gap slots, preserving the overall storage layout.
-    uint256[48] private __gap;
+    // [F-09 fix] Shrunk 50 -> 48: pendingEmergencyPrice + pendingEmergencyPriceTimestamp.
+    // [MR-H01 fix] Shrunk 48 -> 46: maxObservationAge + minCardinality appended
+    // above consume the next two former gap slots, preserving storage layout.
+    uint256[46] private __gap;
 }

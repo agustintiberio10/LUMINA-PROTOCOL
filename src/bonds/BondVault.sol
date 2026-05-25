@@ -417,7 +417,17 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             if (totalCommittedUSD >= requestedUSD18) {
                 totalCommittedUSD -= requestedUSD18;
             } else {
-                requestedUSD18 = totalCommittedUSD; // clamp (shouldn't happen in practice)
+                // [MR-L04 fix] Clamp edge (shouldn't happen in practice). The
+                // per-user counter was charged the UNCLAMPED requestedUSD18 above;
+                // refund the clamped-off portion so the user's epoch window
+                // allowance is not over-debited for value that was never queued.
+                uint256 clampedOff = requestedUSD18 - totalCommittedUSD;
+                if (redeemedByUserInEpoch[throttleEpoch][msg.sender] >= clampedOff) {
+                    redeemedByUserInEpoch[throttleEpoch][msg.sender] -= clampedOff;
+                } else {
+                    redeemedByUserInEpoch[throttleEpoch][msg.sender] = 0;
+                }
+                requestedUSD18 = totalCommittedUSD; // clamp
                 totalCommittedUSD = 0;
             }
             totalQueuedUSD += requestedUSD18;
@@ -540,18 +550,29 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
             already += needUSD18;
 
-            // [F-04 fix] Pay time: the queued obligation now leaves the vault, so
-            // move it out of BOTH `totalQueuedUSD` and `totalCommittedUSD`
-            // (it was reclassified committed->queued at queue time).
+            // [MR-M02 fix] Attribute this queued payout to the holder's per-user
+            // counter for the PROCESSING epoch. The per-user cap was charged in the
+            // QUEUE epoch at queue time, but the LUMINA actually leaves the vault
+            // now (epoch `throttleEpoch`); without this, a holder could draw a fresh
+            // full per-user amount via redeemBond in the same processing epoch while
+            // their queued payout also consumed the epoch's global cap — ~2x the
+            // intended per-user share. Charging it here reduces their fresh-redeem
+            // headroom by exactly the queued amount. We only ATTRIBUTE (never revert):
+            // the entry already passed the per-user cap at queue time.
+            redeemedByUserInEpoch[throttleEpoch][q.holder] += needUSD18;
+
+            // [MR-L10 fix] Pay time: the queued obligation leaves the vault now, so
+            // remove it ONLY from `totalQueuedUSD`. It was already moved OUT of
+            // `totalCommittedUSD` at queue time (committed -= x; queued += x). The
+            // previous code ALSO decremented `totalCommittedUSD` here — a DOUBLE
+            // decrement that, when other holders still had committed obligations,
+            // wrongly wiped their committed value, understating `totalUsed` and
+            // OVERSTATING `availableCapacityUSD` (over-issuance / under-collateral).
+            // Decrement queued only.
             if (totalQueuedUSD >= needUSD18) {
                 totalQueuedUSD -= needUSD18;
             } else {
                 totalQueuedUSD = 0;
-            }
-            if (totalCommittedUSD >= needUSD18) {
-                totalCommittedUSD -= needUSD18;
-            } else {
-                totalCommittedUSD = 0;
             }
 
             // Bonds were already burned at queue time — only LUMINA is moved here.
@@ -750,17 +771,29 @@ contract BondVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     function _checkAndInject(uint256 currentPrice) internal {
         // (1) Capacity check + injection
         //
-        // [F-07 fix] Cooldown gate: a price-only capacity dip (the ratio is
-        // computed against the SAME TWAP price the rest of the system uses — no
-        // second oracle) cannot fire injection more than once per
-        // INJECTION_COOLDOWN. This caps the per-window LUMINA that a manipulated
-        // TWAP could force out of the CEX reserve. Final hardening (per-window
-        // cumulative cap on injected amount) completes when `cexReserve` is wired
-        // — it is currently address(0) (dormant), so this branch is a no-op today.
+        // [F-07 fix] Cooldown gate: a price-only capacity dip cannot fire injection
+        // more than once per INJECTION_COOLDOWN, capping per-window LUMINA pulled
+        // from the CEX reserve. Per-window cumulative cap now also enforced
+        // reserve-side (MR-M03). cexReserve is address(0) today (dormant).
+        //
+        // [MR-M03 fix] The injection DECISION must use a FAIL-CLOSED price, never
+        // the floored/synthesized `_getSafePrice()` that `pokeCheckAndInject` may
+        // pass. A floored price understates capacity and could synthesize a
+        // capacity breach during an oracle outage, force-pulling reserve on a price
+        // the settlement path explicitly rejects. So we RE-READ the oracle here and
+        // SKIP injection entirely unless we get a real reading > MIN_REDEEM_PRICE.
+        // (The floor-pause branch below intentionally keeps using `currentPrice` —
+        // pausing on a low/uncertain price is the conservative action.)
         if (cexReserve != address(0)) {
-            uint256 ratioBps = _availableCapacityRatioBps(currentPrice);
+            uint256 injectionPrice = 0;
+            try priceOracle.getLuminaPrice() returns (uint256 p) {
+                if (p > MIN_REDEEM_PRICE) injectionPrice = p;
+            } catch {
+                // leave injectionPrice == 0 → skip injection (oracle unavailable)
+            }
+            uint256 ratioBps = injectionPrice == 0 ? 10001 : _availableCapacityRatioBps(injectionPrice);
             if (
-                ratioBps <= CAPACITY_RATIO_THRESHOLD_BPS
+                injectionPrice > 0 && ratioBps <= CAPACITY_RATIO_THRESHOLD_BPS
                     && block.timestamp >= lastInjectionTimestamp + INJECTION_COOLDOWN
             ) {
                 uint256 reserveBalance = lumina.balanceOf(cexReserve);

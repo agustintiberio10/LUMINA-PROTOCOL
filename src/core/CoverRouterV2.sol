@@ -54,6 +54,17 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     ///         bounds the premium/payout math. Enforced in `_purchase`.
     uint256 public constant MAX_COVERAGE_PER_POLICY = 10_000e6;
 
+    /// @notice [MR-M01 fix] The only payout ratio the rest of the system can
+    ///         honor. `PolicyManagerV2.recordPolicy` hardcodes the reserved
+    ///         payout at `coverage * 8000 / 10000`, and `BaseFlashShield` pays
+    ///         `coverage * (10000 - DEDUCTIBLE_BPS) / 10000` with
+    ///         `DEDUCTIBLE_BPS = 2000`. Therefore this constant MUST equal
+    ///         `10000 - BaseFlashShield.DEDUCTIBLE_BPS == 8000`. Any other
+    ///         configured `payoutRatioBps` would decouple the router's premium
+    ///         pricing / emitted payout from the actual on-chain reserve & shield
+    ///         payout. `configureProduct` enforces this invariant.
+    uint256 public constant REQUIRED_PAYOUT_RATIO_BPS = 8000;
+
     // ═══════ STATE ═══════
     IPolicyManagerV2 public policyManager;
     ITWAPBurner public twapBurner;
@@ -290,6 +301,11 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         bool _active
     ) external onlyOwner {
         require(_durationSeconds > 0, "Duration must be > 0");
+        // [MR-M01 fix] Enforce payout-ratio coupling: the reserved payout
+        // (PolicyManagerV2: coverage*8000/10000) and the shield payout
+        // (BaseFlashShield: coverage*(10000-DEDUCTIBLE_BPS)/10000, DEDUCTIBLE_BPS=2000)
+        // are both fixed at 80%, so the only consistent config value is 8000.
+        require(_payoutRatioBps == REQUIRED_PAYOUT_RATIO_BPS, "payoutRatioBps must be 8000 (==10000-deductible)");
         if (products[_productId].durationSeconds == 0) {
             productList.push(_productId);
         }

@@ -74,11 +74,22 @@ contract BuybackEngine is
     uint256 public constant DOUBLE_BURN_MAX_MULTIPLE_BPS = 20000; // 2.00x
     uint256 public constant BPS_DENOM = 10000;
 
+    /// @dev [MR-L11] Despite the "daily"/"today" naming, this budget is
+    ///      PER-CONFIG-WINDOW, NOT per-calendar-day. A window opened by
+    ///      `setDailyBuyback` lasts up to `_durationHours` (max 72h, see
+    ///      `validUntil`). `dailyBudget` is the total spend allowed across the
+    ///      ENTIRE window (which may span up to 3 days), and `spentToday` is the
+    ///      running total spent within THAT window — it is only ever reset to 0
+    ///      by a fresh `setDailyBuyback` call, never on a midnight/day boundary.
+    ///      Re-calling `setDailyBuyback` mid-window therefore starts a brand-new
+    ///      window and resets the spend counter (intentional; see that fn's
+    ///      NatSpec). The storage field names are retained for ABI/storage-layout
+    ///      stability; `spentThisWindow()` is provided as a clearer alias view.
     struct DailyConfig {
-        uint256 dailyBudget;
+        uint256 dailyBudget; // [MR-L11] total budget for the whole config window (NOT per-day)
         uint256 maxPricePercent;
         uint256 validUntil;
-        uint256 spentToday;
+        uint256 spentToday; // [MR-L11] cumulative spend within the current window (NOT per-day)
     }
 
     DailyConfig public dailyConfig;
@@ -135,6 +146,18 @@ contract BuybackEngine is
         _grantRole(BUYBACK_OPERATOR_ROLE, _multisigOwner);
     }
 
+    /// @notice Open a fresh buyback budget window.
+    /// @dev [MR-L11] The "daily" naming is historical and MISLEADING: this does
+    ///      NOT create a per-calendar-day budget. It opens a single config window
+    ///      that lives until `block.timestamp + _durationHours` (`_durationHours`
+    ///      may be 1..72, so a window can span up to 3 days). `_budget` is the
+    ///      TOTAL amount spendable across that entire window — there is no daily
+    ///      sub-cap and no day-boundary reset. The `spentToday`/`spentThisWindow`
+    ///      counter is reset to 0 here and ONLY here; calling this function again
+    ///      mid-window discards the previous window and starts a fresh budget from
+    ///      zero. Operators should be aware that a mid-window reconfig wipes the
+    ///      prior spend accounting. Budget-enforcement behaviour is unchanged by
+    ///      this documentation fix.
     function setDailyBuyback(uint256 _budget, uint256 _maxPricePercent, uint256 _durationHours)
         external
         onlyRole(BUYBACK_OPERATOR_ROLE)
@@ -153,7 +176,24 @@ contract BuybackEngine is
         emit DailyBuybackConfigured(_budget, _maxPricePercent, _durationHours);
     }
 
-    function executeOffer(uint256 listingId) external nonReentrant {
+    /// @notice [MR-L11 fix] Clearer alias for `dailyConfig.spentToday`: the
+    ///         cumulative amount spent in the CURRENT config window (NOT today).
+    ///         Read-only; does not change storage layout (the underlying field
+    ///         is unchanged for ABI/upgrade stability).
+    function spentThisWindow() external view returns (uint256) {
+        return dailyConfig.spentToday;
+    }
+
+    // [MR-M04 fix] Gate executeOffer behind BUYBACK_OPERATOR_ROLE. Previously
+    // this was permissionless: any seller could list their own bonds at the cap
+    // and self-execute, steering the daily buyback budget and triggering reserve
+    // (double) burns at will. We reuse the EXISTING BUYBACK_OPERATOR_ROLE — the
+    // same authority that configures the budget via setDailyBuyback — because
+    // budget-steering and budget-spending are the same trust domain. A dedicated
+    // EXECUTOR_ROLE would be over-engineering; it can be introduced later via a
+    // UUPS upgrade if keeper/operator separation is ever required. nonReentrant
+    // is preserved.
+    function executeOffer(uint256 listingId) external onlyRole(BUYBACK_OPERATOR_ROLE) nonReentrant {
         require(block.timestamp <= dailyConfig.validUntil, "Daily offer expired");
 
         // [Sprint X.1] `seller` is intentionally unused: non-existent listings

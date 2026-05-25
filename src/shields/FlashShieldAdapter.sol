@@ -200,8 +200,11 @@ contract FlashShieldAdapter is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     ///           WAS evaluable at/after expiry and no sustained barrier breach
     ///           accrued → settle FALSE (release reservation). This is the ONLY
     ///           path that finalizes a non-triggered policy.
-    ///         - "NEEDS_MORE_CONFIRMATIONS" / "DWELL_NOT_ELAPSED" → not yet
-    ///           settleable; the policy stays PENDING (revert NOT_SETTLEABLE_YET
+    ///         - [INFO-3 fix] accrual-in-progress / not-yet-settleable: the shield
+    ///           returns "ACCRUING" or "RESET" (no revert) — or reverts with
+    ///           "SAME_BLOCK_OBSERVATION" / "STALE_ROUND_OBSERVATION" /
+    ///           "CONFIRMATION_TOO_SOON" — meaning the multi-block observation has
+    ///           not yet matured. The policy stays PENDING (revert NOT_SETTLEABLE_YET
     ///           so the keeper retries). NEVER settled false here.
     ///         - "ORACLE_UNAVAILABLE" / "ORACLE_STALE" / "SEQUENCER_DOWN" /
     ///           "ORACLE_INVALID" / round-completeness reverts → oracle is down;

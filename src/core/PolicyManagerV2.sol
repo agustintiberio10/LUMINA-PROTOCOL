@@ -258,6 +258,13 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Check BondVault capacity (can we back this policy if it triggers?)
         uint256 payoutAmount = (coverageAmount * 8000) / 10000; // 6-dec USDC
         uint256 payoutUSD = payoutAmount / 1e6; // integer dollars
+        // [MR-L01 fix] Fail fast if the integer-dollar truncation collapses the
+        // payout to zero. A policy recorded with payoutUSD == 0 reserves no
+        // capacity and can never issue a bond on trigger (triggerPayout /
+        // settlePolicy both require payoutUSD > 0), leaving an un-settleable
+        // policy on-chain. Reject it here, before any state change / external
+        // call, so every recorded policy is always settleable.
+        require(payoutUSD > 0, "PM: payout truncates to zero");
         uint256 available = bondVault.availableCapacityUSD(); // integer dollars
         if (available < payoutUSD) revert InsufficientCapacity(payoutUSD, available);
 
@@ -444,6 +451,16 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // [F-03 fix] Gate on a fresh shield evaluation. The shield reverts
         // ORACLE_UNAVAILABLE (or oracle-staleness reasons) when it cannot prove
         // the window outcome; in that case we MUST NOT finalize-as-untriggered.
+        //
+        // [MR-L03 note] This gate call is STATE-MUTATING on the shield
+        // (`verifyAndCalculate` finalizes the policy on a trigger). Correctness of
+        // the `result.triggered` branch below relies on TX-ATOMIC ROLLBACK: when we
+        // `revert PolicyTriggerable`, the shield's finalization is rolled back with
+        // it, so the policy stays settleable via the trigger path. DO NOT refactor
+        // this into a low-level call that swallows the inner error — doing so would
+        // leave the shield finalized while the PM record stays open, stranding the
+        // reservation. A future hardening is a dedicated side-effect-free view probe
+        // on the shield; until then, the atomicity requirement is load-bearing.
         address shield = pr.shield;
         try IShieldV2(shield).verifyAndCalculate(policyId, "") returns (IShieldV2.PayoutResult memory result) {
             if (result.triggered) {
@@ -499,6 +516,15 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     /// @notice Get all active policy IDs for a given product (for keeper iteration).
+    /// @dev [MR-L02] The loop uses the GLOBAL `totalPolicies` as a loose upper
+    ///      bound on the per-product policyId space. This is correct only
+    ///      because per-product policyIds are dense and 1-based (the shield's
+    ///      `createPolicy` assigns sequential ids starting at 1), so every valid
+    ///      id for `productId` falls within `[1, totalPolicies]`. The bound is
+    ///      intentionally loose: it over-scans slots belonging to other products
+    ///      (which read back as empty `PolicyRecord`s and are skipped). A future
+    ///      per-product active-count / per-product id counter would give a
+    ///      tighter, cheaper bound. Logic is unchanged here.
     function getActivePolicyIds(bytes32 productId, uint256 maxResults)
         external
         view

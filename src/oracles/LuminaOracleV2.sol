@@ -474,6 +474,12 @@ contract LuminaOracleV2 is IOracleV2, Ownable {
 
         if (status != 0) revert SequencerDown();
 
+        // [MR-L07 fix] Guard the uninitialized-round case (startedAt == 0) BEFORE the
+        // grace comparison, matching the Chainlink reference implementation. Without
+        // this, startedAt == 0 makes (block.timestamp - 0) huge and silently passes
+        // the grace window even though the round is invalid.
+        if (startedAt == 0) revert SequencerGracePeriodNotOver();
+
         if (block.timestamp - startedAt <= SEQUENCER_GRACE_PERIOD) {
             revert SequencerGracePeriodNotOver();
         }

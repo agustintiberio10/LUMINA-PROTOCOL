@@ -64,7 +64,19 @@ contract MockDualWindowPool {
     }
 
     function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
-        return (0, shortTick, 0, 0, 0, 0, true);
+        // [MR-H01] Report a healthy observation cardinality so the freshness gate
+        // (which now runs before the deviation logic these tests exercise) passes.
+        return (0, shortTick, 0, 100, 100, 0, true);
+    }
+
+    // [MR-H01] Fresh latest observation so the staleness gate passes; these tests
+    // target the deviation breaker, not freshness.
+    function observations(uint256)
+        external
+        view
+        returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized)
+    {
+        return (uint32(block.timestamp), 0, 0, true);
     }
 }
 

@@ -164,14 +164,17 @@ contract F04_QueueAccountingTest is Test {
         uint256 committedBeforeProcess = vault.totalCommittedUSD();
         vault.processQueue();
 
-        // user2 paid out, and BOTH queued and committed buckets decremented by
-        // the processed (paid) amount. Since processQueue may pay multiple
-        // entries, assert the buckets dropped by the same total and that user2
-        // received LUMINA.
+        // [MR-L10 fix] user2 paid out. The paid obligations were already moved
+        // committed -> queued at QUEUE time (see test_OverCapQueueDoesNotFreeCapacity),
+        // so at PAY time they leave ONLY the `queued` bucket. `committed` must NOT
+        // drop for the paid entries — the previous code's matching `committed`
+        // decrement was a DOUBLE decrement that wiped OTHER holders' committed
+        // obligations (overstating availableCapacityUSD). So: queued drains by the
+        // paid amount, committed is unchanged.
         assertGt(token.balanceOf(user2), u2Before, "user2 not paid");
         uint256 queuedDrained = queuedBeforeProcess - vault.totalQueuedUSD();
         uint256 committedDrained = committedBeforeProcess - vault.totalCommittedUSD();
         assertGt(queuedDrained, 0, "queued bucket must decrease on pay");
-        assertEq(committedDrained, queuedDrained, "committed and queued must drop in lockstep on pay");
+        assertEq(committedDrained, 0, "[MR-L10] committed must NOT drop on pay (already reclassified at queue time)");
     }
 }

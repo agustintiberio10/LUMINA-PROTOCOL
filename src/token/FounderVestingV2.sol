@@ -13,7 +13,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 ///        A: ETH/BTC > 0.050
 ///        B: ETH > $4,000           (now computed INDEPENDENT of the BTC feed — see F-12)
 ///        C: Aave V3 USDC borrow rate > 7% APY
-///      PATH 2 — ETH > $5,000 USD, GENUINELY sustained 1 day (independent of PATH 1)
+///      PATH 2 — ETH > $5,000 USD, GENUINELY sustained: at least 24h AND at least 24 spaced
+///               observations, whichever is later (independent of PATH 1) — [INFO-6 fix]
 ///      PATH 3 — Fallback after 1095 days (3 years) from deploy
 ///      Release: 3 tranches every 31 days after trigger.
 ///
@@ -56,7 +57,9 @@ contract FounderVestingV2 is Ownable {
     uint256 public constant ETH_OVERRIDE_THRESHOLD = 500_000_000_000; // $5,000 USD * 1e8
 
     /// @notice [F-12] Minimum number of spaced TRUE observations required before a path can trigger.
-    ///         24 hourly observations across a >= 24h window genuinely demonstrate persistence.
+    /// @dev    [INFO-6 fix] A path triggers only after at least 24h AND at least 24 spaced
+    ///         observations, whichever is later — not exactly "24 hourly" snapshots. The
+    ///         window matures on wall-clock time while spacing throttles the observation count.
     uint256 public constant MIN_OBSERVATIONS = 24;
     /// @notice [F-12] Minimum spacing between counted observations. Observations closer than this
     ///         are ignored for counting (but still re-validate the condition / can reset it),
