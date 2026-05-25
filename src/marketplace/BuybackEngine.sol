@@ -64,6 +64,16 @@ contract BuybackEngine is
 
     uint256 public constant MIN_SOLVENCY_FOR_DOUBLE_BURN = 15000; // 150%
 
+    /// @notice [F-11 fix] Slippage tolerance applied to the oracle-derived
+    ///         reference burn size (basis points). The double-burn may exceed
+    ///         the reference by at most this, on top of the hard cap below.
+    uint256 public constant DOUBLE_BURN_SLIPPAGE_BPS = 200; // 2%
+    /// @notice [F-11 fix] Hard cap multiple (in bps) on the reference burn size.
+    ///         `luminaToBurn` is capped at 2x the oracle-implied amount so a
+    ///         depressed/manipulated price reading cannot blow up the burn.
+    uint256 public constant DOUBLE_BURN_MAX_MULTIPLE_BPS = 20000; // 2.00x
+    uint256 public constant BPS_DENOM = 10000;
+
     struct DailyConfig {
         uint256 dailyBudget;
         uint256 maxPricePercent;
@@ -179,19 +189,48 @@ contract BuybackEngine is
         emit OfferExecuted(listingId, epochId, amount, priceUSDC);
     }
 
+    /// @dev [F-11 fix] Sizes the double-burn from the deviation-guarded oracle
+    ///      price (CapacityOracle.getLuminaPrice() is now a 30-min TWAP that
+    ///      REVERTS on cross-window deviation > 5%, i.e. fail-closed) instead of
+    ///      a manipulable spot read. The burn is then HARD-CAPPED at
+    ///      `DOUBLE_BURN_MAX_MULTIPLE_BPS` (2x) of the reference amount so even
+    ///      if the guarded price drifts to the low edge of its tolerance the
+    ///      protocol cannot over-burn its reserves. A 2% slippage allowance is
+    ///      layered onto the reference before the hard cap. The 5%/tx behaviour
+    ///      and solvency circuit-breaker are preserved.
     function _executeDoubleBurn(uint256 epochId, uint256 amount, uint256 faceValueUSD) internal {
+        // [F-18 coordination] `ClaimBond.burnByHolder` now decrements BondVault
+        // obligations itself (by `amount * 1e18`, identical to `faceValueUSD`
+        // here since 1 bond == $1). The previously-separate
+        // `bondVault.decreaseObligations(faceValueUSD)` call was therefore a
+        // DOUBLE decrement and has been removed. REQUIRES ClaimBond to be an
+        // authorized caller on BondVault (BondVault.setAuthorizedCaller) — see
+        // the deploy/runbook; otherwise burnByHolder's sync degrades gracefully
+        // and obligations would not be reduced for buybacks.
         claimBond.burnByHolder(address(this), epochId, amount);
-        bondVault.decreaseObligations(faceValueUSD);
 
         uint256 currentSolvency = solvencyOracle.getSolvencyRatio();
         if (currentSolvency >= MIN_SOLVENCY_FOR_DOUBLE_BURN) {
-            uint256 spotPrice = capacityOracle.getLuminaPrice();
-            if (spotPrice > 0) {
-                uint256 luminaToBurn = (faceValueUSD * 1e18) / spotPrice;
-                bondVault.burnFromReserves(luminaToBurn);
-                emit DoubleBurnExecuted(epochId, faceValueUSD, luminaToBurn);
-                return;
+            // Deviation-guarded reference price. Reverts (fail-closed) if the
+            // oracle cannot produce a within-tolerance TWAP; we do NOT fall back
+            // to any spot/unguarded source.
+            uint256 refPrice = capacityOracle.getLuminaPrice();
+            require(refPrice > 0, "BuybackEngine: oracle price zero");
+
+            // Reference burn size implied by the guarded oracle price.
+            uint256 referenceBurn = (faceValueUSD * 1e18) / refPrice;
+
+            // Allow up to +2% slippage on the reference, then hard-cap the
+            // result at 2x the reference so a low-edge price cannot over-burn.
+            uint256 luminaToBurn = (referenceBurn * (BPS_DENOM + DOUBLE_BURN_SLIPPAGE_BPS)) / BPS_DENOM;
+            uint256 maxBurn = (referenceBurn * DOUBLE_BURN_MAX_MULTIPLE_BPS) / BPS_DENOM;
+            if (luminaToBurn > maxBurn) {
+                luminaToBurn = maxBurn;
             }
+
+            bondVault.burnFromReserves(luminaToBurn);
+            emit DoubleBurnExecuted(epochId, faceValueUSD, luminaToBurn);
+            return;
         }
 
         emit CircuitBreakerTriggered(currentSolvency, MIN_SOLVENCY_FOR_DOUBLE_BURN);

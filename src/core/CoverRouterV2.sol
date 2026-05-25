@@ -49,6 +49,11 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     uint256 public constant MIN_PRICE_FOR_NEW_POLICIES = 5e15; // 0.005 USD in 18 dec
     uint256 public constant RESET_PRICE_FOR_NEW_POLICIES = 8e15; // 0.008 USD in 18 dec
 
+    /// @notice [F-23 fix] Hard upper bound on coverage per policy ($10,000 in
+    ///         6-dec USDC). Caps single-policy tail risk on the BondVault and
+    ///         bounds the premium/payout math. Enforced in `_purchase`.
+    uint256 public constant MAX_COVERAGE_PER_POLICY = 10_000e6;
+
     // ═══════ STATE ═══════
     IPolicyManagerV2 public policyManager;
     ITWAPBurner public twapBurner;
@@ -137,6 +142,16 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         _;
     }
 
+    /// @notice [F-01 fix] Restricts settlement entrypoints to authorized
+    ///         relayers (the same set managed by `setRelayer`). The owner is
+    ///         also permitted so governance can always force-settle.
+    modifier onlyRelayer() {
+        if (!authorizedRelayers[msg.sender] && msg.sender != owner()) {
+            revert NotAuthorizedRelayer(msg.sender);
+        }
+        _;
+    }
+
     /// @notice [Sprint T-30a Phase E] Reverts when the configured L2 sequencer
     ///         is down or within the grace period after recovery. No-op when
     ///         the feed is unset (address(0)).
@@ -195,8 +210,20 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     // ═══════ TRIGGER: Submit oracle proof ═══════
 
-    /// @notice Submit a trigger proof. Anyone can call (permissionless).
-    function submitTrigger(bytes32 productId, uint256 policyId, bytes calldata oracleProof) external nonReentrant {
+    /// @notice Submit a trigger proof to finalize a policy payout.
+    /// @dev    [F-01 fix] Restricted to authorized relayers (or the owner) via
+    ///         `onlyRelayer`. Previously permissionless, which let anyone drive
+    ///         settlement timing. Settlement authority is now: (1) addresses
+    ///         flagged through `setRelayer(addr, true)`, and (2) the contract
+    ///         owner (Gnosis Safe / Timelock in prod). The multi-block
+    ///         confirmation that makes the trigger economically safe lives in
+    ///         the shield's `verifyAndCalculate`; this gate only controls WHO
+    ///         may push the on-chain settlement transaction.
+    function submitTrigger(bytes32 productId, uint256 policyId, bytes calldata oracleProof)
+        external
+        nonReentrant
+        onlyRelayer
+    {
         ChainGuard.requireValidChain();
         policyManager.triggerPayout(productId, policyId, oracleProof);
         emit TriggerSubmitted(productId, policyId, msg.sender);
@@ -224,6 +251,8 @@ contract CoverRouterV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         if (config.durationSeconds == 0) revert ProductNotConfigured(productId);
         if (!config.active) revert ProductInactive(productId);
         if (coverageAmount < 100e6) revert InvalidCoverage(coverageAmount); // min $100
+        // [F-23 fix] Hard ceiling on coverage per policy ($10,000).
+        if (coverageAmount > MAX_COVERAGE_PER_POLICY) revert InvalidCoverage(coverageAmount);
 
         // Calculate premium: coverage × payoutRatio × triggerProb × margin / (10000^3)
         uint256 premium = (coverageAmount * config.payoutRatioBps * config.triggerProbBps * config.marginBps)

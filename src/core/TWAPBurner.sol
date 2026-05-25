@@ -117,24 +117,28 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
 
     // ═══════ RECEIVE FUNDS ═══════
 
+    /// @notice Receive premium USDC from the router and ACCRUE it toward an
+    ///         auto-burn. Burning is NEVER performed synchronously here.
+    /// @dev    [F-13 fix] The previous implementation ran a full DEX swap inside
+    ///         the buyer's purchase transaction once a threshold was hit. That
+    ///         (a) exposed the buyer to swap/MEV failure and unbounded gas, and
+    ///         (b) let a buyer time their purchase to front-run/sandwich the
+    ///         protocol's own burn. `receivePremium` now ONLY pulls funds and
+    ///         bumps counters; the actual burn is executed asynchronously and
+    ///         permissionlessly via `executeBurn()` (cooldown-gated, F-24), so
+    ///         the burn is decoupled from any single user's transaction.
+    ///         [F-22 fix] `tx.origin` is gone entirely — no recipient is derived
+    ///         from the transaction origin anywhere in the burn path.
     function receivePremium(uint256 amount) external nonReentrant {
         require(amount > 0, "Zero amount");
         usdc.safeTransferFrom(msg.sender, address(this), amount);
         totalUSDCReceived += amount;
         emit PremiumReceived(msg.sender, amount);
 
-        // [V2] Auto-burn: increment counters and trigger when thresholds reached.
-        // The `maxPurchasesBeforeBurn != 0` guard avoids triggering before initializeV2 runs.
+        // [F-13 fix] Accrue only. Counters drive `autoBurnReady()` for keepers;
+        // no swap is triggered in the buyer's tx.
         purchaseCounter += 1;
         accumulatedUSDCSinceBurn += amount;
-
-        if (
-            maxPurchasesBeforeBurn != 0
-                && (purchaseCounter >= maxPurchasesBeforeBurn
-                    || accumulatedUSDCSinceBurn >= maxAccumulatedUSDCBeforeBurn)
-        ) {
-            _autoBurn(tx.origin);
-        }
     }
 
     function receiveMarketplaceFee(uint256 amount) external {
@@ -146,6 +150,12 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
 
     // ═══════ EXECUTE BURN ═══════
 
+    /// @notice Permissionless, cooldown-gated buy & burn. Also the async
+    ///         settlement point for premium-driven auto-burn accrual.
+    /// @dev    [F-13/F-24 fix] Single burn path for both manual and auto-burn.
+    ///         Always respects `burnCooldown`. Resets the auto-burn accrual
+    ///         counters so threshold accounting stays consistent regardless of
+    ///         whether the burn was keeper- or threshold-motivated.
     function executeBurn() external nonReentrant {
         ChainGuard.requireValidChain();
         require(block.timestamp >= lastBurnTimestamp + burnCooldown, "Cooldown active");
@@ -156,11 +166,28 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
         uint256 amount = usdcBalance > maxBurnAmount ? maxBurnAmount : usdcBalance;
         lastBurnTimestamp = block.timestamp;
 
+        // [F-13 fix] Clear premium-driven accrual counters on every burn.
+        purchaseCounter = 0;
+        accumulatedUSDCSinceBurn = 0;
+
         if (adaptiveModeEnabled) {
             _executeAdaptive(amount);
         } else {
             _executeLegacyBurn(amount);
         }
+    }
+
+    /// @notice [F-13 fix] True when the premium-driven auto-burn thresholds are
+    ///         met AND the cooldown has elapsed AND there is enough USDC. Lets
+    ///         keepers (or anyone) know `executeBurn()` should be called. This
+    ///         replaces the synchronous in-purchase trigger.
+    function autoBurnReady() public view returns (bool) {
+        if (maxPurchasesBeforeBurn == 0) return false; // dormant
+        bool thresholdHit =
+            purchaseCounter >= maxPurchasesBeforeBurn || accumulatedUSDCSinceBurn >= maxAccumulatedUSDCBeforeBurn;
+        if (!thresholdHit) return false;
+        if (block.timestamp < lastBurnTimestamp + burnCooldown) return false;
+        return usdc.balanceOf(address(this)) >= minBurnAmount;
     }
 
     // ═══════ V5.0: ADAPTIVE DISTRIBUTION INTERNALS ═══════
@@ -219,6 +246,11 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     function _swapAndBurn(uint256 usdcAmount) internal {
         require(dexRouters.length > 0, "No DEX routers configured");
 
+        // [F-19 fix] Pick the executing router by its quote (best execution),
+        // but DERIVE the protective `minOut` exclusively from the INDEPENDENT,
+        // deviation-guarded oracle — never from the executing pool's own quote.
+        // Sourcing minOut from the pool a sandwicher controls makes the floor
+        // move with the manipulation; the oracle is the only trust anchor here.
         IDexRouter bestRouter = dexRouters[0];
         uint256 bestQuote = 0;
 
@@ -231,25 +263,20 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
             } catch {}
         }
 
-        uint256 minOut = 0;
-        if (bestQuote > 0) {
-            minOut = (bestQuote * (10_000 - maxSlippageBps)) / 10_000;
-        }
-        if (capacityOracle != address(0)) {
-            try IPriceOracle(capacityOracle).getLuminaPrice() returns (uint256 oraclePrice) {
-                if (oraclePrice > 0) {
-                    uint256 expectedOut = (usdcAmount * 1e12 * 1e18) / oraclePrice;
-                    uint256 oracleMin = (expectedOut * (10_000 - maxSlippageBps)) / 10_000;
-                    if (oracleMin > minOut) {
-                        minOut = oracleMin;
-                    }
-                }
-            } catch {}
-        }
+        // [F-19 fix] minOut comes from the oracle price ONLY. If the oracle is
+        // unset or unavailable (it now reverts fail-closed on cross-window
+        // deviation > 5%), we REVERT rather than fall back to the manipulable
+        // pool quote. This preserves the `minOut > 0` invariant by construction.
+        require(capacityOracle != address(0), "TWAPBurner: oracle unset");
+        uint256 oraclePrice = IPriceOracle(capacityOracle).getLuminaPrice();
+        require(oraclePrice > 0, "TWAPBurner: oracle price zero");
 
-        // [M-02 fix] Defense-in-depth: refuse to swap without a protective
-        // minOut floor. If quote+oracle both fail we would otherwise accept
-        // any 1-wei return, enabling sandwich attacks.
+        // usdcAmount is 6-dec; *1e12 lifts to 18-dec USD, *1e18 / price(18-dec)
+        // yields the expected LUMINA out in 18-dec.
+        uint256 expectedOut = (usdcAmount * 1e12 * 1e18) / oraclePrice;
+        uint256 minOut = (expectedOut * (10_000 - maxSlippageBps)) / 10_000;
+
+        // [M-02 fix] Defense-in-depth: never swap without a protective floor.
         require(minOut > 0, "TWAPBurner: minOut must be > 0");
 
         usdc.forceApprove(address(bestRouter), usdcAmount);
@@ -468,6 +495,14 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
         emit GasRefundConfigUpdated(_gasRefundEnabled, _gasRefundCap, _gasRefundTreasury);
     }
 
+    /// @notice Configure the premium-driven auto-burn thresholds.
+    /// @dev    [F-13(d)] Owner-gated with an `AutoBurnConfigUpdated` event. The
+    ///         production owner is the Gnosis Safe (a TimelockController in
+    ///         prod), so threshold changes are effectively timelock-gated at the
+    ///         ownership layer. Setting `_maxPurchases = 0` disables auto-burn
+    ///         entirely (`autoBurnReady()` returns false). These thresholds only
+    ///         influence WHEN `autoBurnReady()` flips true for keepers; they
+    ///         never trigger a swap inside a user transaction (see F-13).
     function setAutoBurnConfig(uint256 _maxPurchases, uint256 _maxAccumulatedUSDC) external onlyOwner {
         maxPurchasesBeforeBurn = _maxPurchases;
         maxAccumulatedUSDCBeforeBurn = _maxAccumulatedUSDC;
@@ -482,59 +517,21 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     }
 
     /// @notice Accept ETH for gas-refund pre-funding.
+    /// @dev    Retained for storage/ABI continuity. As of the F-13/F-22 fix the
+    ///         synchronous in-purchase auto-burn (and its `tx.origin` gas refund)
+    ///         was removed, so the `gasRefund*` storage vars are now DORMANT —
+    ///         no code path pays a gas refund. They are intentionally NOT removed
+    ///         (storage is append-only for the UUPS proxy) and may be repurposed
+    ///         by a future keeper-incentive mechanism.
     receive() external payable {}
 
-    /// @dev Internal: invoked from `receivePremium` when a threshold is reached.
-    ///      Resets counters before attempting the burn (CEI). The burn runs in a
-    ///      try/catch self-call so a swap failure cannot revert the parent purchase.
-    ///      `tx.origin` is used as the refund recipient: the worst case is that a
-    ///      contract-wrapped buyer's EOA receives up to `gasRefundCap` wei — bounded
-    ///      and benign, not an attack vector.
-    function _autoBurn(address gasRefundRecipient) internal {
-        uint256 gasStart = gasleft();
-
-        uint256 usdcBalance = usdc.balanceOf(address(this));
-        if (usdcBalance < minBurnAmount) {
-            // Skip silently; counters retained so the next premium retries immediately.
-            return;
-        }
-
-        uint256 amount = usdcBalance > maxBurnAmount ? maxBurnAmount : usdcBalance;
-        lastBurnTimestamp = block.timestamp;
-        purchaseCounter = 0;
-        accumulatedUSDCSinceBurn = 0;
-
-        emit AutoBurnTriggered(amount, msg.sender, gasRefundRecipient);
-
-        try this._executeBurnExternal(amount) {
-        // success
-        }
-        catch (bytes memory reason) {
-            emit AutoBurnFailed(amount, reason);
-            return;
-        }
-
-        if (gasRefundEnabled && gasRefundTreasury != address(0)) {
-            uint256 gasUsed = gasStart - gasleft();
-            uint256 refundAmount = gasUsed * tx.gasprice;
-            if (refundAmount > gasRefundCap) refundAmount = gasRefundCap;
-
-            if (refundAmount > 0 && address(this).balance >= refundAmount) {
-                (bool ok,) = gasRefundRecipient.call{value: refundAmount}("");
-                if (ok) emit GasRefunded(gasRefundRecipient, refundAmount);
-            }
-        }
-    }
-
-    /// @dev External self-call entrypoint for the auto-burn try/catch wrapper.
-    ///      Restricted to self-calls only; no `nonReentrant` because the parent
-    ///      `receivePremium` already holds the guard.
-    function _executeBurnExternal(uint256 amount) external {
-        require(msg.sender == address(this), "Only self");
-        if (adaptiveModeEnabled) _executeAdaptive(amount);
-        else _executeLegacyBurn(amount);
-    }
+    // [F-13/F-22 fix] Removed `_autoBurn(address)` and `_executeBurnExternal`.
+    // The synchronous, `tx.origin`-based, cooldown-ignoring in-purchase burn is
+    // gone; all burns now flow through the permissionless, cooldown-gated
+    // `executeBurn()`. Keepers poll `autoBurnReady()` to decide when to call it.
 
     // Storage gap for future upgrades (was 50; reduced by 7 V2 vars).
+    // [F-13/F-22 fix] No storage added/removed by the auto-burn rework — the
+    // gap stays at 43 (the 7 V2 vars, incl. the now-dormant gasRefund*, persist).
     uint256[43] private __gap;
 }

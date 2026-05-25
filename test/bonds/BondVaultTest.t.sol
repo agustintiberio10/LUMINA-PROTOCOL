@@ -122,16 +122,20 @@ contract BondVaultTest is Test {
     }
 
     function test_redeemBond_price_down() public {
-        vault.issueBond(user, 800);
+        // [F-10] At $0.01 the epoch cap is ~$7,560 and the per-user limit is 10%
+        // (~$756), so redeem $700 (within the per-user cap) to exercise the
+        // price-down → more-tokens economics.
+        uint256 amt = 700;
+        vault.issueBond(user, amt);
         uint256 epoch = _currentEpochPlus24();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
         // $LUMINA went DOWN to $0.01 → agent gets MORE tokens
         oracle.setPrice(0.01e18);
-        uint256 expected = (800 * 1e36) / 0.01e18; // 80,000 * 1e18 wei
+        uint256 expected = (amt * 1e36) / 0.01e18;
 
         vm.prank(user);
-        vault.redeemBond(epoch, 800);
+        vault.redeemBond(epoch, amt);
 
         assertEq(token.balanceOf(user), expected);
     }
@@ -164,8 +168,11 @@ contract BondVaultTest is Test {
         vm.warp(claimBond.maturityDate(epoch) + 1);
         oracle.setPrice(0.0005e18); // below MIN_REDEEM_PRICE
 
+        // [F-02] fail-closed: a price at/below MIN_REDEEM_PRICE reverts with the
+        // ORACLE_UNAVAILABLE() custom error (was the "Price too low" string),
+        // so a depressed/zero oracle can never settle a redemption at the floor.
         vm.prank(user);
-        vm.expectRevert("Price too low");
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
         vault.redeemBond(epoch, 800);
 
         oracle.setPrice(0.05e18);
@@ -254,8 +261,10 @@ contract BondVaultTest is Test {
         address pm = makeAddr("policyManager");
         address attacker = makeAddr("attacker");
 
+        // [F-16] setPolicyManager is now gated on DEFAULT_ADMIN_ROLE (was the
+        // deployer EOA); a non-admin reverts with the AccessControl error.
         vm.prank(attacker);
-        vm.expectRevert("Only deployer");
+        vm.expectRevert();
         v.setPolicyManager(pm);
     }
 

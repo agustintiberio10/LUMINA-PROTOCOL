@@ -10,6 +10,13 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
+/// @notice [F-18 fix] Minimal hook into BondVault so holder-initiated burns
+///         decrement the vault's USD obligation accounting. Signature matches
+///         BondVault.decreaseObligations(uint256) exactly (18-dec USD-wei).
+interface IBondVaultObligations {
+    function decreaseObligations(uint256 amount) external;
+}
+
 /// @title ClaimBond
 /// @notice ERC-1155 bond tokens grouped by monthly maturity epoch.
 /// @dev Each token represents $1 USD of claim at maturity.
@@ -37,6 +44,10 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
     /// @notice [Sprint V-A] Emitted when bondVault is re-wired via updateBondVault.
     event BondVaultUpdated(address indexed oldVault, address indexed newVault);
     event BondsBurnedByHolder(address indexed holder, uint256 indexed epochId, uint256 amount);
+    /// @notice [F-18 fix] Emitted when the post-burn BondVault obligation sync
+    ///         could not be applied (ClaimBond not yet authorized on the vault,
+    ///         or committed total below the burn amount). Off-chain reconciles.
+    event ObligationsSyncSkipped(address indexed holder, uint256 indexed epochId, uint256 amount);
     event BaseURIUpdated(string oldBaseURI, string newBaseURI);
     event OperatorAuthorized(address indexed operator, bool authorized);
 
@@ -63,7 +74,13 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
     /// @notice [FIX-#18] One-shot reinitializer for proxies upgraded from a
     ///         pre-fix implementation. Seeds `_baseURI` to the canonical default.
     ///         Use `version = 2` for the initial post-fix upgrade.
-    function reinitializeURI(uint64 version) external reinitializer(version) {
+    /// @dev [F-26 fix] Added `onlyOwner` on top of `reinitializer(version)`.
+    ///      Although `reinitializer` already bounds this to once per version,
+    ///      leaving it permissionless let any address front-run the post-upgrade
+    ///      reinit and force the canonical baseURI (or, combined with a future
+    ///      version bump, grief the reinit window). Gating to the owner closes
+    ///      that vector and matches every other state-changing admin entrypoint.
+    function reinitializeURI(uint64 version) external onlyOwner reinitializer(version) {
         _baseURI = "https://api.lumina-org.com/metadata/bond/";
     }
 
@@ -122,12 +139,35 @@ contract ClaimBond is Initializable, UUPSUpgradeable, ERC1155Upgradeable, ERC115
     /// @notice [V5.0] Public burn for holders (for BuybackEngine double-burn).
     /// @param account Holder address
     /// @param epochId Epoch ID
-    /// @param amount Amount to burn
+    /// @param amount Amount to burn (token units; 1 token = $1 face value).
+    /// @dev [F-18 fix] Destroying bonds without telling BondVault left
+    ///      `totalCommittedUSD` permanently inflated (the burned obligation was
+    ///      still counted as backed debt → overstated solvency, understated
+    ///      available capacity). We now decrement the vault's obligation by the
+    ///      USD face value (`amount * 1e18`, since 1 token = $1 in 18-dec USD-wei).
+    ///
+    ///      AUTHORIZATION: ClaimBond must be an authorized caller on BondVault
+    ///      (`BondVault.setAuthorizedCaller(claimBond, true)` post-deploy). The
+    ///      call is wrapped in try/catch so a not-yet-authorized vault (or a
+    ///      vault whose committed total is below `amount`) does NOT brick holder
+    ///      burns — it degrades to the prior behavior and emits
+    ///      `ObligationsSyncSkipped` for off-chain reconciliation. The intended
+    ///      production end-state is: ClaimBond authorized + this call succeeds.
     function burnByHolder(address account, uint256 epochId, uint256 amount) external {
         require(msg.sender == account || isApprovedForAll(account, msg.sender), "Not holder or approved");
         require(balanceOf(account, epochId) >= amount, "Insufficient balance");
         _burn(account, epochId, amount);
         emit BondsBurnedByHolder(account, epochId, amount);
+
+        // [F-18 fix] Keep BondVault.totalCommittedUSD in sync with the burn.
+        if (_bondVaultSet && bondVault != address(0)) {
+            try IBondVaultObligations(bondVault).decreaseObligations(amount * 1e18) {
+            // synced
+            }
+            catch {
+                emit ObligationsSyncSkipped(account, epochId, amount);
+            }
+        }
     }
 
     /// @notice Face value per token (1 token = $1 USD)

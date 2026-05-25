@@ -222,13 +222,24 @@ contract MaintenanceReserveTest is Test {
         assertEq(usdc.balanceOf(recipient), 8000e6);
     }
 
-    function test_MonthlyCap_UnlimitedWhenZero() public {
+    function test_MonthlyCap_ZeroDisablesSpending() public {
+        // [F-15] cap == 0 now means spending DISABLED (was "unlimited").
         vm.startPrank(admin);
-        // monthlyCap defaults to 0 (unlimited)
-        reserve.spend(recipient, 50_000e6, MaintenanceReserve.SpendCategory.Infrastructure, "Large spend");
+        reserve.setMonthlyCap(0);
+        vm.expectRevert(bytes("Spending disabled (cap=0)"));
+        reserve.spend(recipient, 1e6, MaintenanceReserve.SpendCategory.Infrastructure, "blocked");
         vm.stopPrank();
+    }
 
-        assertEq(usdc.balanceOf(recipient), 50_000e6);
+    function test_MonthlyCap_DefaultSeededAtInit() public {
+        // [F-15] initialize seeds DEFAULT_MONTHLY_CAP; a spend within it succeeds,
+        // a spend exceeding it reverts.
+        vm.startPrank(admin);
+        reserve.spend(recipient, 8_000e6, MaintenanceReserve.SpendCategory.Infrastructure, "within default");
+        vm.expectRevert(bytes("Monthly cap exceeded"));
+        reserve.spend(recipient, 5_000e6, MaintenanceReserve.SpendCategory.Infrastructure, "over default");
+        vm.stopPrank();
+        assertEq(reserve.monthlyCap(), reserve.DEFAULT_MONTHLY_CAP());
     }
 
     // ═══════ CATEGORIES ═══════
@@ -257,8 +268,10 @@ contract MaintenanceReserveTest is Test {
 
     // ═══════ MONTHLY REMAINING ═══════
 
-    function test_MonthlyRemaining_UnlimitedWhenNoCap() public view {
-        assertEq(reserve.monthlyRemaining(), type(uint256).max);
+    function test_MonthlyRemaining_DefaultCapAtInit() public view {
+        // [F-15] initialize seeds DEFAULT_MONTHLY_CAP, so remaining == default
+        // (not type(uint256).max as in the old "0 = unlimited" model).
+        assertEq(reserve.monthlyRemaining(), reserve.DEFAULT_MONTHLY_CAP());
     }
 
     function test_MonthlyRemaining_TracksSpending() public {

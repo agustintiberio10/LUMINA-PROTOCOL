@@ -95,6 +95,17 @@ contract LuminaTokenV2 is
     /// @notice Allows BURNER_ROLE to burn tokens from any address (for TWAPBurner)
     /// @param account The address to burn from
     /// @param amount The amount to burn
+    /// @dev [F-21 / H-1] By DESIGN this override does NOT consume an ERC-20 allowance: it overrides
+    ///      OpenZeppelin's `ERC20Burnable.burnFrom` (which would `_spendAllowance`) to let the
+    ///      protocol burner reduce supply without the holder pre-approving each burn. Consequently
+    ///      BURNER_ROLE is a CONFISCATION-CAPABLE role: any holder of it can unilaterally destroy
+    ///      tokens from ANY account with no allowance and no consent.
+    ///
+    ///      SECURITY REQUIREMENT: BURNER_ROLE MUST be held ONLY by an audited, immutable/UUPS burner
+    ///      contract (e.g. TWAPBurner) operated behind a multisig (Gnosis Safe) and/or timelock.
+    ///      It MUST NEVER be granted to an EOA, an upgradeable contract with a mutable burn path, or
+    ///      any address that can be socially-engineered. Treat granting BURNER_ROLE with the same
+    ///      gravity as granting DEFAULT_ADMIN_ROLE. See ADR on H-1 (burnFrom allowance removal).
     function burnFrom(address account, uint256 amount) public override onlyRole(BURNER_ROLE) {
         _burn(account, amount);
         emit BurnedFromHolder(msg.sender, account, amount);

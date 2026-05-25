@@ -13,6 +13,7 @@ and recommendations.
 | 2026-05-23 | UX/DevEx V2 | [2026-05-23-ux-devex-v2.md](./2026-05-23-ux-devex-v2.md) |
 | 2026-05-23 | Economic V5.3 V2 (post-fix) | [2026-05-23-economic-audit-v53-v2.md](./2026-05-23-economic-audit-v53-v2.md) |
 | 2026-05-23 | Functional V5.3 V1 (testnet) | [2026-05-23-functional-audit-v53-v1.md](./2026-05-23-functional-audit-v53-v1.md) |
+| 2026-05-24 | Red Team Adversarial V5.3 V2 (post-fix, Sprint Fix 7.2) | [2026-05-24-red-team-audit-v53-v2.md](./2026-05-24-red-team-audit-v53-v2.md) |
 
 ## Convention
 

@@ -47,6 +47,22 @@ contract MockDexRouter is IDexRouter {
     }
 }
 
+/// [F-19] Minimal capacity-oracle mock. minOut is now derived from this oracle
+/// (not the executing pool's quote). Priced slightly ABOVE the router's implied
+/// $0.037 so the oracle-derived minOut stays below the router's delivered output
+/// even at zero slippage, keeping the legacy swap tests green.
+contract MockCapacityOracle {
+    uint256 public price = 0.04e18; // $0.04 / LUMINA (18-dec)
+
+    function setPrice(uint256 p) external {
+        price = p;
+    }
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
+}
+
 contract TWAPBurnerTest is Test {
     using ProxyDeployer for *;
 
@@ -80,6 +96,11 @@ contract TWAPBurnerTest is Test {
 
         // Deploy burner
         burner = ProxyDeployer.deployTWAPBurner(usdc, address(token), address(router));
+
+        // [F-19] minOut is now oracle-derived; wire a capacity oracle or every
+        // executeBurn reverts "TWAPBurner: oracle unset".
+        MockCapacityOracle oracle = new MockCapacityOracle();
+        burner.setCapacityOracle(address(oracle));
 
         // Grant BURNER_ROLE to the burner
         token.grantRole(token.BURNER_ROLE(), address(burner));

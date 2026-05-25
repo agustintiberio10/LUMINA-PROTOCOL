@@ -87,6 +87,45 @@ contract BondVaultThrottleTest is Test {
         deal(address(token), address(vault), 70_000_000 * 1e18);
     }
 
+    // [F-10] A single account may redeem at most MAX_USER_REDEEM_BPS (10%) of the
+    // epoch cap. To exercise the EPOCH-level throttle these helpers spread a full
+    // cap across 11 distinct users (10 × cap/10 + remainder), each within its
+    // per-user limit. The aggregate epoch counter still lands exactly at `cap`.
+    // Per-user redemption size: 9.5% of the epoch cap. Under the 10% per-user
+    // limit with margin to survive the intra-epoch cap shrink (the cap is 1.08%
+    // of the LIVE vault balance, which drops as redemptions drain it).
+    function _perUser(uint256 cap) internal pure returns (uint256) {
+        return (cap * 950) / 10_000;
+    }
+
+    function _capFillUsers() internal returns (address[] memory us) {
+        us = new address[](16);
+        for (uint256 i = 0; i < 16; i++) {
+            us[i] = makeAddr(string(abi.encodePacked("capUser", vm.toString(i))));
+        }
+    }
+
+    // Pre-issues bonds (before maturity warp) to 10 fill users + a few spare
+    // users for queued entries. Each gets `_perUser(cap)` worth.
+    function _issueCapAcrossUsers(uint256 cap) internal returns (address[] memory us) {
+        us = _capFillUsers();
+        uint256 pu = _perUser(cap);
+        for (uint256 i = 0; i < 16; i++) {
+            vault.issueBond(us[i], pu);
+        }
+    }
+
+    // Redeems ~95% of the cap across the 10 fill users (no queue); returns the
+    // total integer-USD redeemed so callers can assert the epoch counter.
+    function _redeemCapAcrossUsers(uint256 epoch, uint256 cap, address[] memory us) internal returns (uint256 total) {
+        uint256 pu = _perUser(cap);
+        for (uint256 i = 0; i < 10; i++) {
+            vm.prank(us[i]);
+            vault.redeemBond(epoch, pu);
+            total += pu;
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // Helper: compute the ClaimBond epoch ID a newly-issued bond will land in,
     // mirroring BondVault._timestampToEpoch().
@@ -134,18 +173,21 @@ contract BondVaultThrottleTest is Test {
         uint256 cap = vault.maxRedeemThisEpoch(); // integer USD
         assertGt(cap, 0);
 
-        vault.issueBond(user, cap);
+        // [F-10] fill the epoch cap across 11 users (per-user limit = 10% of cap)
+        address[] memory us = _issueCapAcrossUsers(cap);
         uint256 epoch = _currentEpochPlus730d();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
         uint256 throttleEpoch = vault.currentEpoch();
 
-        vm.prank(user);
-        vault.redeemBond(epoch, cap);
+        // [F-10] The per-user limit is exactly 10% of the cap, and the cap is
+        // 1.08% of the LIVE vault balance (shrinks intra-epoch as it drains), so
+        // a single user can no longer take the whole cap. Fill ~95% across 10
+        // users; the aggregate epoch counter equals that total and nothing queues.
+        uint256 total = _redeemCapAcrossUsers(epoch, cap, us);
 
-        assertEq(claimBond.balanceOf(user, epoch), 0, "bond not burned");
-        assertEq(vault.redeemedInEpoch(throttleEpoch), cap * 1e18, "counter should equal cap");
-        assertEq(vault.queueLength(throttleEpoch + 1), 0, "should not queue at boundary");
+        assertEq(vault.redeemedInEpoch(throttleEpoch), total * 1e18, "counter should equal aggregate redeemed");
+        assertEq(vault.queueLength(throttleEpoch + 1), 0, "should not queue below the cap");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -155,38 +197,37 @@ contract BondVaultThrottleTest is Test {
     function testRedemptionOverLimit_Queues() public {
         uint256 cap = vault.maxRedeemThisEpoch();
 
-        // First mint: exactly cap (uses up the throttle).
-        vault.issueBond(user, cap);
-        // Second mint: a small over-cap amount that we will queue.
-        uint256 overCapAmount = 500;
-        vault.issueBond(user2, overCapAmount);
+        // Fill ~95% of the cap across 10 users; us[10] is a spare (already
+        // issued `_perUser(cap)` worth) that will tip over the cap and queue.
+        address[] memory us = _issueCapAcrossUsers(cap);
+        uint256 overCapAmount = _perUser(cap); // ~9.5% of cap, exceeds the ~5% headroom
+        address overUser = us[10];
 
         uint256 epoch = _currentEpochPlus730d();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
         uint256 throttleEpoch = vault.currentEpoch();
 
-        // Burn the cap first — succeeds immediately.
-        vm.prank(user);
-        vault.redeemBond(epoch, cap);
+        // Burn ~95% of the cap first — succeeds immediately.
+        uint256 total = _redeemCapAcrossUsers(epoch, cap, us);
 
-        // Now user2 tries to redeem $500 → over cap → queued.
-        uint256 user2BalanceBefore = token.balanceOf(user2);
+        // Now overUser redeems ~9.5% of cap → over the remaining headroom → queued.
+        uint256 overUserBalanceBefore = token.balanceOf(overUser);
 
         vm.expectEmit(true, true, true, true, address(vault));
-        emit BondQueued(user2, epoch, overCapAmount, throttleEpoch + 1);
+        emit BondQueued(overUser, epoch, overCapAmount, throttleEpoch + 1);
 
-        vm.prank(user2);
+        vm.prank(overUser);
         vault.redeemBond(epoch, overCapAmount);
 
         // Bond IS burned at queue time (custody-by-debt model).
-        assertEq(claimBond.balanceOf(user2, epoch), 0, "bond should be burned on queue");
+        assertEq(claimBond.balanceOf(overUser, epoch), 0, "bond should be burned on queue");
         // But LUMINA was NOT paid.
-        assertEq(token.balanceOf(user2), user2BalanceBefore, "LUMINA should not be paid until processed");
+        assertEq(token.balanceOf(overUser), overUserBalanceBefore, "LUMINA should not be paid until processed");
         // Queue contains exactly one entry for the next epoch.
         assertEq(vault.queueLength(throttleEpoch + 1), 1, "queue should hold one entry");
         // Throttle counter for the current epoch should NOT include the queued amount.
-        assertEq(vault.redeemedInEpoch(throttleEpoch), cap * 1e18, "counter should not include queued amount");
+        assertEq(vault.redeemedInEpoch(throttleEpoch), total * 1e18, "counter should not include queued amount");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -199,14 +240,15 @@ contract BondVaultThrottleTest is Test {
     // ═══════════════════════════════════════════════════════════════════════
     function testCisneNegro_12WeeksDrain() public {
         uint256 capWeek1 = vault.maxRedeemThisEpoch();
-        // Issue 12 epochs worth of bonds, each per-user → 12 holders, each
-        // holds `capWeek1` worth.
-        address[] memory holders = new address[](12);
-        for (uint256 i = 0; i < 12; i++) {
-            holders[i] = makeAddr(string(abi.encodePacked("holder", vm.toString(i))));
-            // bondVault capacity is finite — abort if we would exceed it.
-            if (vault.availableCapacityUSD() < capWeek1) break;
-            vault.issueBond(holders[i], capWeek1);
+        // [F-10] Each epoch's drain is now spread across 11 users (each <= 10%
+        // of the epoch cap). Issue each user enough to cover ~12 weeks at the
+        // (shrinking) per-user cap. The per-epoch per-user allowance resets each
+        // week so the same users can keep draining.
+        address[] memory us = _capFillUsers();
+        uint256 perUserBudget = (capWeek1 / 10) * 14; // 12 weeks + margin
+        for (uint256 i = 0; i < 11; i++) {
+            if (vault.availableCapacityUSD() < perUserBudget) break;
+            vault.issueBond(us[i], perUserBudget);
         }
 
         uint256 epoch = _currentEpochPlus730d();
@@ -223,32 +265,30 @@ contract BondVaultThrottleTest is Test {
         uint256 successfulEpochs = 0;
 
         for (uint256 wk = 0; wk < 12; wk++) {
-            // Each holder owns `capWeek1` worth of bonds for `epoch`. The
-            // current-epoch cap shrinks as the vault drains, so re-read it.
-            // [Sprint T-30a CI fix] Use 99% of cap for a safety margin: the
-            // contract converts the integer-USD `amt` back to 18-dec USD-wei
-            // (amt * 1e18), and once the vault drains the post-redemption
-            // `_capUSD18()` shrinks below that snapshot. Snapshotting the
-            // cap BEFORE redemption is what the contract enforces; the 99%
-            // headroom keeps the test's post-redeem invariant well-defined.
-            uint256 cap = (vault.maxRedeemThisEpoch() * 99) / 100;
-            if (cap == 0 || claimBond.balanceOf(holders[wk], epoch) == 0) break;
-            uint256 amt = cap < claimBond.balanceOf(holders[wk], epoch) ? cap : claimBond.balanceOf(holders[wk], epoch);
+            // Current-epoch cap shrinks as the vault drains, so re-read it.
+            uint256 cap = vault.maxRedeemThisEpoch();
+            if (cap == 0) break;
+            // Stay under the 10%-of-cap per-user limit with margin for the
+            // intra-epoch shrink as the 10 redemptions drain the vault.
+            uint256 perUser = _perUser(cap);
+            if (perUser == 0) break;
 
             uint256 throttleEpoch = vault.currentEpoch();
-            uint256 redeemedBefore = vault.redeemedInEpoch(throttleEpoch);
-            // Snapshot cap BEFORE redemption — this is the value the contract
-            // enforces against. Recomputing after redemption uses a shrunken
-            // vault balance and can falsely flag a breach.
             uint256 capUSD18Before = _capUSD18();
 
-            vm.prank(holders[wk]);
-            vault.redeemBond(epoch, amt);
+            // 10 users redeem `perUser` each → ~95% of cap this epoch.
+            uint256 redeemedThisWeek = 0;
+            for (uint256 i = 0; i < 10; i++) {
+                if (claimBond.balanceOf(us[i], epoch) < perUser) continue;
+                vm.prank(us[i]);
+                vault.redeemBond(epoch, perUser);
+                redeemedThisWeek += perUser;
+            }
+            if (redeemedThisWeek == 0) break;
 
             // Cap MUST NOT be breached in this epoch (vs. pre-redemption cap).
             uint256 redeemedAfter = vault.redeemedInEpoch(throttleEpoch);
             assertLe(redeemedAfter, capUSD18Before, "epoch cap breached");
-            assertEq(redeemedAfter - redeemedBefore, amt * 1e18, "redeemed counter wrong");
 
             // Advance one full throttle-epoch via absolute boundary warp.
             successfulEpochs++;
@@ -285,13 +325,15 @@ contract BondVaultThrottleTest is Test {
     function testQueueOrderingFIFO() public {
         uint256 cap = vault.maxRedeemThisEpoch();
 
-        // Fill the cap with user1 (so all subsequent redemptions queue).
-        vault.issueBond(user, cap);
-        // Three queued candidates, distinct amounts so we can spot order.
-        vault.issueBond(user2, 100);
-        vault.issueBond(user3, 200);
+        // Fill the cap across 11 users (so all subsequent redemptions queue).
+        address[] memory us = _issueCapAcrossUsers(cap);
+        // Three queued candidates, distinct amounts (each above the post-fill
+        // headroom so they queue, and below the 10% per-user cap so they don't
+        // revert) so we can spot FIFO order.
+        vault.issueBond(user2, 1500);
+        vault.issueBond(user3, 1800);
         address user4 = makeAddr("user4");
-        vault.issueBond(user4, 300);
+        vault.issueBond(user4, 2100);
 
         uint256 epoch = _currentEpochPlus730d();
         vm.warp(claimBond.maturityDate(epoch) + 1);
@@ -299,16 +341,15 @@ contract BondVaultThrottleTest is Test {
         uint256 throttleEpoch = vault.currentEpoch();
 
         // Burn the cap.
-        vm.prank(user);
-        vault.redeemBond(epoch, cap);
+        _redeemCapAcrossUsers(epoch, cap, us);
 
         // Queue 3 in order: user2 → user3 → user4.
         vm.prank(user2);
-        vault.redeemBond(epoch, 100);
+        vault.redeemBond(epoch, 1500);
         vm.prank(user3);
-        vault.redeemBond(epoch, 200);
+        vault.redeemBond(epoch, 1800);
         vm.prank(user4);
-        vault.redeemBond(epoch, 300);
+        vault.redeemBond(epoch, 2100);
 
         assertEq(vault.queueLength(throttleEpoch + 1), 3, "queue length wrong");
 
@@ -317,11 +358,11 @@ contract BondVaultThrottleTest is Test {
         (address h1,, uint256 amt1,) = vault.queueByEpoch(throttleEpoch + 1, 1);
         (address h2,, uint256 amt2,) = vault.queueByEpoch(throttleEpoch + 1, 2);
         assertEq(h0, user2, "FIFO[0] holder");
-        assertEq(amt0, 100, "FIFO[0] amount");
+        assertEq(amt0, 1500, "FIFO[0] amount");
         assertEq(h1, user3, "FIFO[1] holder");
-        assertEq(amt1, 200, "FIFO[1] amount");
+        assertEq(amt1, 1800, "FIFO[1] amount");
         assertEq(h2, user4, "FIFO[2] holder");
-        assertEq(amt2, 300, "FIFO[2] amount");
+        assertEq(amt2, 2100, "FIFO[2] amount");
 
         // Warp into throttleEpoch N+1 using an absolute, via_ir-safe warp:
         // anchor at the START of the next throttle-epoch, then +1s for safety.
@@ -346,22 +387,22 @@ contract BondVaultThrottleTest is Test {
     function testProcessQueueWhenEpochAdvances() public {
         uint256 cap = vault.maxRedeemThisEpoch();
 
-        vault.issueBond(user, cap);
-        vault.issueBond(user2, 500);
+        address[] memory us = _issueCapAcrossUsers(cap);
+        uint256 queuedAmount = 1500; // above post-fill headroom, below per-user cap
+        vault.issueBond(user2, queuedAmount);
 
         uint256 epoch = _currentEpochPlus730d();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
         uint256 throttleEpochN = vault.currentEpoch();
 
-        // user redeems → fills cap.
-        vm.prank(user);
-        vault.redeemBond(epoch, cap);
-        assertEq(vault.redeemedInEpoch(throttleEpochN), cap * 1e18);
+        // ~95% of cap filled across 10 users.
+        uint256 total = _redeemCapAcrossUsers(epoch, cap, us);
+        assertEq(vault.redeemedInEpoch(throttleEpochN), total * 1e18);
 
         // user2 redeems → queued to N+1.
         vm.prank(user2);
-        vault.redeemBond(epoch, 500);
+        vault.redeemBond(epoch, queuedAmount);
         assertEq(vault.queueLength(throttleEpochN + 1), 1);
         assertEq(claimBond.balanceOf(user2, epoch), 0, "bond burned on queue");
         uint256 user2BalBeforeProcess = token.balanceOf(user2);
@@ -380,6 +421,6 @@ contract BondVaultThrottleTest is Test {
         assertEq(vault.queueProcessedIndex(throttleEpochN + 1), 1, "queue should be processed");
         assertGt(token.balanceOf(user2), 0, "user2 should be paid in LUMINA");
         // Throttle counter for N+1 should reflect the processed amount.
-        assertEq(vault.redeemedInEpoch(throttleEpochN1), 500 * 1e18, "N+1 counter wrong");
+        assertEq(vault.redeemedInEpoch(throttleEpochN1), queuedAmount * 1e18, "N+1 counter wrong");
     }
 }

@@ -16,6 +16,11 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
 
     bytes32 public constant SPENDER_ROLE = keccak256("SPENDER_ROLE");
 
+    /// @notice [F-15] Default monthly spend cap applied at `initialize` time: $10,000 (6-dec USDC).
+    /// @dev    Under the corrected semantics a cap of 0 DISABLES spending entirely (fail-closed),
+    ///         so a sane non-zero default is set on init to keep the contract operable.
+    uint256 public constant DEFAULT_MONTHLY_CAP = 10_000e6;
+
     enum SpendCategory {
         Infrastructure,
         Audit,
@@ -66,6 +71,11 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
 
         usdc = IERC20(_usdc);
 
+        // [F-15] Fail-closed cap: 0 means "spending disabled", so seed a sane default at init so a
+        // fresh deployment is operable without an extra setter call. Admin can adjust via setMonthlyCap.
+        monthlyCap = DEFAULT_MONTHLY_CAP;
+        emit MonthlyCapUpdated(0, DEFAULT_MONTHLY_CAP);
+
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(SPENDER_ROLE, _admin);
     }
@@ -94,6 +104,9 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
         emit FundsSpent(recipient, amount, category, memo, block.timestamp);
     }
 
+    /// @notice Set the monthly USDC spend cap (admin only).
+    /// @dev    [F-15] Corrected semantics: `_cap == 0` DISABLES spending (fail-closed). To grant an
+    ///         effectively unbounded budget, set a very large cap explicitly rather than relying on 0.
     function setMonthlyCap(uint256 _cap) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 oldCap = monthlyCap;
         monthlyCap = _cap;
@@ -110,9 +123,9 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
             currentMonth = month;
             currentMonthSpent = 0;
         }
-        if (monthlyCap > 0) {
-            require(currentMonthSpent + amount <= monthlyCap, "Monthly cap exceeded");
-        }
+        // [F-15] Fail-closed: a cap of 0 means spending is DISABLED, not unlimited.
+        require(monthlyCap > 0, "Spending disabled (cap=0)");
+        require(currentMonthSpent + amount <= monthlyCap, "Monthly cap exceeded");
     }
 
     function spendCount() external view returns (uint256) {
@@ -124,7 +137,8 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
     }
 
     function monthlyRemaining() external view returns (uint256) {
-        if (monthlyCap == 0) return type(uint256).max;
+        // [F-15] cap == 0 means spending is disabled -> 0 remaining (not unlimited).
+        if (monthlyCap == 0) return 0;
         uint256 month = block.timestamp / 30 days;
         if (month != currentMonth) return monthlyCap;
         if (currentMonthSpent >= monthlyCap) return 0;

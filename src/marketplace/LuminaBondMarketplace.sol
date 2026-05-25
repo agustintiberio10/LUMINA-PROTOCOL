@@ -62,6 +62,14 @@ contract LuminaBondMarketplace is
     ///         the UUPS layout used by the deployed proxy. __gap was reduced from 50 -> 49.
     uint256 public minPricePerUnit;
 
+    /// @notice [F-14] Pull-payment ledger. Seller USDC proceeds from `executeBuy` are credited
+    ///         here instead of being push-transferred, so a USDC-blacklisted (or otherwise
+    ///         transfer-reverting) seller can no longer brick a buyer's fill. Sellers pull their
+    ///         balance via `withdraw()`.
+    /// @dev    Storage slot appended AFTER `minPricePerUnit` and BEFORE __gap to preserve the
+    ///         UUPS layout used by the deployed proxy. __gap was reduced from 49 -> 48.
+    mapping(address => uint256) public pendingWithdrawals;
+
     event Listed(
         uint256 indexed listingId, address indexed seller, uint256 indexed epochId, uint256 amount, uint256 priceUSDC
     );
@@ -75,6 +83,10 @@ contract LuminaBondMarketplace is
         uint256 buyerFee
     );
     event TwapBurnerUpdated(address indexed newTwapBurner);
+    /// @notice [F-14] Emitted when a seller's proceeds are credited to the pull-payment ledger.
+    event WithdrawalCredited(address indexed seller, uint256 amount);
+    /// @notice [F-14] Emitted when a seller pulls their accrued proceeds.
+    event Withdrawn(address indexed seller, uint256 amount);
     /// @notice [LOW-2 fix] Emitted on successful non-core token rescue (ERC-20 or ERC-1155).
     event TokenRecovered(address indexed token, uint256 amount, address indexed to);
     /// @notice [M-3] Emitted when the anti-spam minimum price floor is updated.
@@ -155,9 +167,28 @@ contract LuminaBondMarketplace is
         emit Cancelled(listingId, msg.sender);
     }
 
+    /// @notice Fill an active listing: buyer pays USDC + buyer fee, receives the escrowed bonds.
+    /// @dev    [F-28] The ERC-1155 `safeTransferFrom` to the buyer at the end of this function can
+    ///         invoke `onERC1155Received` on a contract buyer. This is safe because:
+    ///           (1) `nonReentrant` blocks re-entry into any guarded function, and
+    ///           (2) strict CEI — the listing is marked `!active` and all accounting/effects are
+    ///               committed BEFORE the external bond transfer (the only callback vector).
+    ///         INVARIANT: no contract may price or settle off un-finalized marketplace listing
+    ///         state — by the time the ERC-1155 callback fires, the listing is fully de-activated
+    ///         and the seller's proceeds are already booked to `pendingWithdrawals`, so a callback
+    ///         observer can never see a half-filled listing.
+    /// @dev    [F-14] Pull-payment: the seller's net proceeds are credited to `pendingWithdrawals`
+    ///         instead of being push-transferred. A USDC-blacklisted seller can therefore no longer
+    ///         force-revert (brick) the buyer's fill; the seller simply cannot `withdraw()` until
+    ///         unblacklisted. The protocol fee leg is wrapped so a misbehaving `twapBurner` cannot
+    ///         brick fills either — on failure the fee is parked in the burner's withdrawal ledger.
     function executeBuy(uint256 listingId) external nonReentrant {
         Listing storage l = listings[listingId];
         require(l.active, "Not active");
+
+        // [F-25] Mirror the maturity guard that `list()` enforces. A bond that has matured must
+        // not be tradable on the secondary market (its redemption semantics have changed).
+        require(block.timestamp < claimBond.maturityDate(l.epochId), "BOND_MATURED");
 
         l.active = false;
 
@@ -165,13 +196,41 @@ contract LuminaBondMarketplace is
         uint256 buyerFee = (l.priceUSDC * BUYER_FEE_BPS) / BPS_DENOMINATOR;
         uint256 totalBuyerPays = l.priceUSDC + buyerFee;
         uint256 sellerReceives = l.priceUSDC - sellerFee;
+        uint256 totalFee = sellerFee + buyerFee;
 
+        // EFFECTS: pull buyer funds in, then book proceeds/fees before any push-out or callback.
         usdc.safeTransferFrom(msg.sender, address(this), totalBuyerPays);
-        usdc.safeTransfer(l.seller, sellerReceives);
-        usdc.safeTransfer(twapBurner, sellerFee + buyerFee);
 
+        // [F-14] Credit seller proceeds to the pull-payment ledger (no push-transfer to seller).
+        pendingWithdrawals[l.seller] += sellerReceives;
+        emit WithdrawalCredited(l.seller, sellerReceives);
+
+        // Protocol fee: attempt a direct push, but never let a misbehaving burner brick the fill.
+        // On failure the fee is parked in the burner's own pull-payment balance.
+        address burner = twapBurner;
+        try usdc.transfer(burner, totalFee) returns (bool ok) {
+            if (!ok) {
+                pendingWithdrawals[burner] += totalFee;
+                emit WithdrawalCredited(burner, totalFee);
+            }
+        } catch {
+            pendingWithdrawals[burner] += totalFee;
+            emit WithdrawalCredited(burner, totalFee);
+        }
+
+        // INTERACTION (last): deliver bonds to buyer. Only callback vector; state already final.
         claimBond.safeTransferFrom(address(this), msg.sender, l.epochId, l.amount, "");
         emit Bought(listingId, msg.sender, l.seller, l.priceUSDC, sellerFee, buyerFee);
+    }
+
+    /// @notice [F-14] Pull accrued USDC proceeds (seller fills, parked protocol fees).
+    /// @dev    nonReentrant + checks-effects-interactions: balance is zeroed before transfer.
+    function withdraw() external nonReentrant {
+        uint256 amount = pendingWithdrawals[msg.sender];
+        require(amount > 0, "Nothing to withdraw");
+        pendingWithdrawals[msg.sender] = 0;
+        usdc.safeTransfer(msg.sender, amount);
+        emit Withdrawn(msg.sender, amount);
     }
 
     function setTwapBurner(address _new) external onlyRole(FEE_MANAGER_ROLE) {
@@ -258,7 +317,8 @@ contract LuminaBondMarketplace is
         return token == address(usdc) || token == address(claimBond);
     }
 
-    // Storage gap for future upgrades. [M-3] Reduced from 50 -> 49 because
-    // `minPricePerUnit` was appended above; total reserved layout footprint is unchanged.
-    uint256[49] private __gap;
+    // Storage gap for future upgrades. [M-3] Reduced from 50 -> 49 (minPricePerUnit appended).
+    // [F-14] Reduced from 49 -> 48 (pendingWithdrawals mapping appended). Total reserved layout
+    // footprint is unchanged across both appends.
+    uint256[48] private __gap;
 }
