@@ -280,7 +280,7 @@ Los 39 findings del Red Team Audit V1 están **resueltos en código** (branch `f
 **Pendiente (NO defectos de fix — founder/ops):**
 - **Deploy/upgrade on-chain de los contratos NO-shield** (BondVault, CoverRouter, PolicyManager, TWAPBurner, BuybackEngine, CapacityOracle, MaintenanceReserve, Marketplace) + `FounderVestingV2`. Scaffold: `script/deploy/UpgradeAll-FixRedTeam.s.sol`. Post-deploy: `BondVault.setAuthorizedCaller(ClaimBond,true)`, `MaintenanceReserve.setMonthlyCap(...)`.
 - **F-17 governance** → ver `BL-MULTISIG` abajo.
-- **Barrido legacy amplio** (audit/fuzz/functional/integration/stress/unit) sin migrar exhaustivamente; fallas = cambio de comportamiento intencional, mismo patrón de migración.
+- ~~**Barrido legacy amplio** (audit/fuzz/functional/integration/stress/unit) sin migrar exhaustivamente~~ — **CERRADO 2026-05-25** (Sprint Migrate Legacy Tests): toda la suite no-Fork migrada y VERDE (~1,900 tests, 0 fails). Ver `audit-pack/sprints/2026-05-25-sprint-migrate-legacy-tests.md`. PR `feat/migrate-legacy-tests`.
 - Mythril/Aderyn/Echidna 200k diferidos a CI Linux.
 
 ---
