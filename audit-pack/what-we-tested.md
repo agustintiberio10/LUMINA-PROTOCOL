@@ -1037,37 +1037,43 @@ Main thread + 5 sub-agents paralelos (Phases B / C / D / E+F+G / H) en parallel 
 
 ---
 
+## 23. Sprint Shields UUPS Redeploy + F-01 (on-chain, 2026-05-24)
+
+**Qué**: 6 flash-shields → UUPS-upgradeable + fix F-01 (multi-block confirmation) aplicado **on-chain**. 6 shields + 6 adapters NUEVOS desplegados (adapters viejos no tenían `setShield`). Branch `feat/shields-uups-fix-f01`, PR LP#156.
+
+**Deploy (Base Sepolia)**: dry-run 100% limpio → broadcast `--slow` → **19 txs ONCHAIN SUCCESSFUL**. Atómico vía `ShieldAdapterFactory` (sin ventana F-05). PolicyManager re-apuntado (mismos productIds) a los 6 adapters nuevos.
+
+**Verificado on-chain**: adapter.shield/policyManager/owner ✓ · shield.router/owner ✓ · PM.productShield cutover en los 6 ✓ · settle `ONLY_KEEPER_OR_RELAYER` ✓. **Smoke e2e**: `/sandbox/try FLASHBTC1H-001` live → policyId=1 + txHash on-chain ✓.
+
+**Downstream**: addresses viejas actualizadas en docs (PR #20) y landing (PR #43) — 84 ocurrencias hardcodeadas (la verificación inicial "0 cambios" fue corregida tras grep manual). API/SDK ok (rutean por productId / getContracts runtime).
+
+**Pendiente**: verificación BaseScan (founder), cleanup productShield viejos, test-suite compile en CI Linux (via_ir OOMea local), BL-MULTISIG. Addresses en `deployments/sepolia/V5.4-shields-uups-2026-05-24.json`; detalle en `audit-pack/sprints/2026-05-24-sprint-shields-uups-redeploy.md`.
+
+**Score sprint: 9/10** — deploy on-chain real + cutover + e2e verificado; full test-suite compile diferido a CI.
+
 ## 24. Sprint Fix 7.2 — Red Team Complete + Audit V2 (2026-05-24)
 
-**Qué**: fix de los 39 findings del Red Team Audit V1 (1 CRIT + 6 HIGH + 13 MED + 11 LOW + 8 INFO) + re-auditoría V2. Branch `feat/fix-red-team-complete`.
+**Qué**: fix de los 39 findings del Red Team Audit V1 (1 CRIT + 6 HIGH + 13 MED + 11 LOW + 8 INFO) + re-auditoría V2. Branch `feat/fix-red-team-complete` (PR #155).
 
-**Resultado**: **39/39 findings resueltos en código** (12 MED + F-17 design `BL-MULTISIG`). Suite `test/redteam-fixes/` nueva (65 tests / 19 files) verde + suites legacy migradas al comportamiento nuevo. **432 tests verdes verificados** (redteam 65, products 48, shields 27, core 88, bonds 53, throttle 6, treasury 42, marketplace 33, oracles 37, token 33), 0 regresiones.
+**Resultado**: **39/39 findings resueltos en código**. Suite `test/redteam-fixes/` nueva + suites legacy migradas. Los fixes de SHIELDS (F-01/F-03/F-05/F-06/F-08) se desplegaron on-chain vía PR #156 (UUPS — ver Sección 23); PR #155 conserva los fixes NO-shield (F-02/F-04/F-07/F-09/F-10/F-11/F-12/F-13/F-14/F-15/F-16/F-18/F-19) + N-01.
 
-**Fixes destacados**:
-- F-01: confirmación multi-block/time-spaced on-chain + `MIN_DWELL_PERIOD` + settle `onlyKeeperOrRelayer`/`onlyRelayer`.
-- F-02: `_redeemPrice` fail-closed + floor $0.005 + `CapacityOracle` deviation breaker (cross-window, revierte).
-- F-03: estado terminal `ORACLE_UNAVAILABLE`, `markExpired` oracle-gated.
+**Fixes destacados (no-shield)**:
+- F-02: `_redeemPrice` fail-closed + floor $0.005 + `CapacityOracle` deviation breaker.
 - F-04: `totalQueuedUSD` accumulator (capacidad no sobre-estimada durante la cola).
-- F-05: `AtomicShieldPairDeployer` (deploy atómico, sin ventana de init front-run).
 - F-12: `FounderVestingV2` (sustained real + `condB` desacoplado del feed BTC).
 
-**Bug nuevo encontrado + arreglado durante los fixes (N-01)**: `processQueue` (fix F-10) tenía `cursor = idx + scanned` con doble avance → saltaba una entrada cada dos. Corregido (cursor +1/iteración, índice avanza sobre el head contiguo pagado al final). Detectado por el FIFO test migrado.
+**Bug nuevo encontrado + arreglado (N-01)**: `processQueue` (fix F-10) tenía `cursor = idx + scanned` con doble avance → saltaba una entrada cada dos. Corregido.
 
-**Pendiente (NO defectos)**:
-- **Phase F (deploy on-chain) NO ejecutada**: sin deployer key en el entorno. Es un re-deploy completo de la capa de shields (no upgradeables, F-01/F-06) + UUPS upgrades + FounderVestingV2 migration → runbook del founder. Scaffold en `script/deploy/UpgradeAll-FixRedTeam.s.sol`.
-- F-17 governance → `BL-MULTISIG` (Safe + Timelock pre-mainnet).
-- Barrido legacy amplio (audit/fuzz/functional/integration/stress/unit) no migrado exhaustivamente; fallas atribuibles al cambio de comportamiento intencional, mismo patrón de migración.
-- Mythril/Aderyn/Echidna 200k diferidos a CI Linux.
+**Nota merge con main (#156)**: los shields ahora son UUPS en main; PR #155 adopta los shields/tests de main (UUPS) y elimina sus tests de shield inmutables (F01/F06/F08 redteam-fixes), superseded por los UUPS de #156.
 
-**Veredicto Audit V2: 8.6/10 SOUND** (V1: 6.0). Report `audit-pack/audits/2026-05-24-red-team-audit-v53-v2.md`. API fixes F-20/F-30 en `lumina-api#41`. PR draft `feat/fix-red-team-complete`.
-
-**Score sprint: 9/10** — 39 findings cerrados + re-audit en una pasada; cola de regresión legacy y deploy on-chain documentados como follow-up/founder action.
+**Veredicto Audit V2: 8.6/10 SOUND** (V1: 6.0). Report `audit-pack/audits/2026-05-24-red-team-audit-v53-v2.md`. API fixes F-20/F-30 en `lumina-api#41`.
 
 ---
 
 ## Changelog
 
-- **2026-05-24 (Sprint Fix 7.2 Red Team Complete + Audit V2)**: agregada Sección 24 — 39/39 findings resueltos, suite redteam-fixes 65 tests + 432 tests legacy migrados verdes. Bug N-01 (processQueue skip-every-other) encontrado+arreglado. Audit V2 8.6/10 SOUND vs V1 6.0. Phase F (redeploy on-chain) pendiente founder (sin key); F-17 → BL-MULTISIG. Report `audit-pack/audits/2026-05-24-red-team-audit-v53-v2.md`. PR draft `feat/fix-red-team-complete`. API: lumina-api#41.
+- **2026-05-24 (Sprint Fix 7.2 Red Team Complete + Audit V2)**: agregada Sección 24 — 39/39 findings resueltos, suite redteam-fixes + suites legacy migradas. Bug N-01 (processQueue skip-every-other) encontrado+arreglado. Audit V2 8.6/10 SOUND vs V1 6.0. Shields desplegados vía #156; PR #155 conserva fixes no-shield. F-17 → BL-MULTISIG. Report `audit-pack/audits/2026-05-24-red-team-audit-v53-v2.md`. PR `feat/fix-red-team-complete`. API: lumina-api#41.
+- **2026-05-24 (Sprint Shields UUPS Redeploy + F-01)**: agregada Sección 23 — 6 shields UUPS + F-01 on-chain (19 txs Base Sepolia), 6 adapters nuevos, PolicyManager cutover, smoke e2e verde. Addresses actualizadas en docs (PR #20) + landing (PR #43). PR LP#156. Addresses V5.4-shields-uups-2026-05-24.json.
 - **2026-05-23 (Sprint 7.4 Functional Audit V5.3 V1)**: agregada Sección 22 — Functional Audit testnet score 7.7/10, veredicto NEEDS-ADJUSTMENT. 3 críticos (ShieldKeeper interface, sandbox relayer, SDK 0.7.0 unpublished). Report full en `audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`. PR draft.
 - **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: BondVault proxy upgradeado a impl post-#149. Floor pause + hysteresis ACTIVOS; CEX auto-inject INACTIVO. Detalle en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`. PR LP#150 (merged).
 - **2026-05-23 (Sprint Fix Audit Economic Complete)**: agregada Sección 21 — R1 (CEX auto-injection + LUMINA floor pause con hysteresis) + R2 (redeem semantics verified, no bug) + R3 (SDK v0.7.0 BondQueue.getRedemptionStatus + docs concepts/bondvault-throttle update). 10 + 3 tests nuevos pass + 21 regresión. Audit Economic V2 = 8.4/10 vs V1 6.4/10. Verdict SOUND. PRs draft: LUMINA-PROTOCOL #(este), lumina-sdk #(per sub-agent report), docs#19.

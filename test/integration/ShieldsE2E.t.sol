@@ -137,7 +137,7 @@ contract ShieldsE2ETest is Test {
         vm.warp(T0);
         oracle = new MockChainlinkAggregator(STRIKE, T0);
         sequencer = new MockSequencerFeed();
-        shield = new FlashBTCShield1h(router, address(oracle), address(sequencer));
+        shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (router, address(oracle), address(sequencer))))));
     }
 
     // ── 1. purchase-through-router happy path (slim shield, no adapter) ──────
@@ -236,7 +236,7 @@ contract ShieldsE2EFullTest is Test {
         adapterImpl = new FlashShieldAdapter();
         ERC1967Proxy adapterProxy = new ERC1967Proxy(address(adapterImpl), "");
         adapter = FlashShieldAdapter(address(adapterProxy));
-        shield = new FlashBTCShield1h(address(adapter), address(oracle), address(sequencer));
+        shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (address(adapter), address(oracle), address(sequencer))))));
         adapter.initialize(address(shield), PRODUCT_ID);
 
         // Register product in PM + configure premium params on CoverRouter

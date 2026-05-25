@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {FlashBTCShield48h} from "../../../src/products/FlashBTCShield48h.sol";
 
@@ -73,7 +74,7 @@ contract EchidnaFlashBTCShield48h {
     constructor() {
         oracle = new MockOracleE();
         sequencer = new MockSeqE();
-        shield = new FlashBTCShield48h(ROUTER, address(oracle), address(sequencer));
+        shield = FlashBTCShield48h(address(new ERC1967Proxy(address(new FlashBTCShield48h()), abi.encodeCall(FlashBTCShield48h.initialize, (ROUTER, address(oracle), address(sequencer))))));
     }
 
     function e_setPrice(int256 p) external {

@@ -265,14 +265,20 @@ Ver detalles en `what-we-tested.md` sección 19.
 
 ---
 
-## Sprint Fix 7.2 — Red Team findings status (2026-05-24)
+## Sprint Shields UUPS Redeploy (2026-05-24) — resuelto on-chain (PR #156, merged)
 
-Los 39 findings del Red Team Audit V1 están **resueltos en código** (branch `feat/fix-red-team-complete`, suite `test/redteam-fixes/` 65 tests + 432 legacy migrados verdes). Detalle por finding en [`audit-pack/audits/2026-05-24-red-team-audit-v53-v2.md`](./audits/2026-05-24-red-team-audit-v53-v2.md).
+- **Red-team F-01 (flash-shield barrier-option)** → **RESUELTO ON-CHAIN**: 6 shields nuevos UUPS desplegados con multi-block confirmation (3 obs espaciadas, distinto bloque + round más nuevo) + `MIN_DWELL_PERIOD` 5min + `checkAndSettlePolicy onlyKeeperOrRelayer`. PolicyManager cut over (mismos productIds). Verificado on-chain + smoke e2e. PR LP#156, addresses `deployments/sepolia/V5.4-shields-uups-2026-05-24.json`.
+- **N-02 (adapters sin `setShield`)** → **RESUELTO**: re-deploy completo de shields + adapters nuevos (en vez de re-pointing). Los nuevos shields son UUPS-upgradeable, así que futuros cambios de lógica de shield ya NO requieren re-deploy (se upgradean).
+- **Pendiente menor**: verificación BaseScan de los 12 nuevos (founder), deactivate/cleanup de los productShield viejos orphaned, compile de la test-suite completa en CI Linux (via_ir OOMea local; src + deploy compilan limpios).
 
-**Cerrados (código + test):** F-01 a F-16, F-18 a F-31 + N-01 (bug nuevo: processQueue skip-every-other, arreglado). INFO-1..8 documentados.
+## Sprint Fix 7.2 — Red Team findings status (2026-05-24, PR #155)
+
+Los 39 findings del Red Team Audit V1 están **resueltos en código** (branch `feat/fix-red-team-complete`, suite `test/redteam-fixes/`). Detalle por finding en [`audit-pack/audits/2026-05-24-red-team-audit-v53-v2.md`](./audits/2026-05-24-red-team-audit-v53-v2.md).
+
+**Cerrados (código + test):** F-01 a F-16, F-18 a F-31 + N-01 (bug nuevo: processQueue skip-every-other, arreglado). INFO-1..8 documentados. **Los fixes de shields (F-01/F-03/F-05/F-06/F-08) se desplegaron on-chain vía PR #156** (UUPS); PR #155 conserva los fixes NO-shield (F-02/F-04/F-07/F-09/F-10/F-11/F-12/F-13/F-14/F-15/F-16/F-18/F-19 + N-01).
 
 **Pendiente (NO defectos de fix — founder/ops):**
-- **Phase F — deploy/upgrade on-chain NO ejecutado** (sin deployer key). Re-deploy de los 6 shields (no upgradeables, F-01/F-06) + UUPS upgrades (BondVault, CoverRouter, PolicyManager, TWAPBurner, BuybackEngine, CapacityOracle, MaintenanceReserve, 6 adapters, Marketplace) + `FounderVestingV2` redeploy+migration. Scaffold: `script/deploy/UpgradeAll-FixRedTeam.s.sol`. Post-deploy: `BondVault.setAuthorizedCaller(ClaimBond,true)`, `FlashShieldAdapter.setKeeper(...)`, `MaintenanceReserve.setMonthlyCap(...)`, update SDK/API/docs addresses, verificar `owner()` adapters + custodia roles.
+- **Deploy/upgrade on-chain de los contratos NO-shield** (BondVault, CoverRouter, PolicyManager, TWAPBurner, BuybackEngine, CapacityOracle, MaintenanceReserve, Marketplace) + `FounderVestingV2`. Scaffold: `script/deploy/UpgradeAll-FixRedTeam.s.sol`. Post-deploy: `BondVault.setAuthorizedCaller(ClaimBond,true)`, `MaintenanceReserve.setMonthlyCap(...)`.
 - **F-17 governance** → ver `BL-MULTISIG` abajo.
 - **Barrido legacy amplio** (audit/fuzz/functional/integration/stress/unit) sin migrar exhaustivamente; fallas = cambio de comportamiento intencional, mismo patrón de migración.
 - Mythril/Aderyn/Echidna 200k diferidos a CI Linux.

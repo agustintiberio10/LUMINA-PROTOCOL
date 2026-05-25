@@ -4,6 +4,9 @@ pragma solidity ^0.8.20;
 import {IShieldV2} from "../interfaces/IShieldV2.sol";
 import {IChainlinkAggregator} from "../interfaces/IChainlinkAggregator.sol";
 import {IChainlinkL2SequencerUptimeFeed} from "../interfaces/IChainlinkL2SequencerUptimeFeed.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title BaseFlashShield
 /// @author Lumina Protocol
@@ -49,7 +52,7 @@ import {IChainlinkL2SequencerUptimeFeed} from "../interfaces/IChainlinkL2Sequenc
 ///         requires sustained sub-barrier dwell, the realized trigger rate is
 ///         lower than the naive single-read model — `triggerProbBps` may be
 ///         recalibrated 5-10% lower off-chain. (Comment only; no on-chain knob.)
-abstract contract BaseFlashShield is IShieldV2 {
+abstract contract BaseFlashShield is IShieldV2, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     // ═══════ TYPES ═══════
     struct Policy {
         address holder;
@@ -72,10 +75,10 @@ abstract contract BaseFlashShield is IShieldV2 {
         uint64 lastBlock; // block.number of last accepted observation
     }
 
-    // ═══════ IMMUTABLES ═══════
-    address public immutable router; // CoverRouterV2 / FlashShieldAdapter (onlyRouter)
-    IChainlinkAggregator public immutable priceFeed;
-    IChainlinkL2SequencerUptimeFeed public immutable sequencerFeed;
+    // ═══════ STORAGE (was immutable pre-UUPS; set in initialize) ═══════
+    address public router; // CoverRouterV2 / FlashShieldAdapter (onlyRouter)
+    IChainlinkAggregator public priceFeed;
+    IChainlinkL2SequencerUptimeFeed public sequencerFeed;
 
     // ═══════ CONSTANTS ═══════
     uint16 internal constant DEDUCTIBLE_BPS = 2000; // 20%
@@ -115,15 +118,27 @@ abstract contract BaseFlashShield is IShieldV2 {
         _;
     }
 
-    // ═══════ CONSTRUCTOR ═══════
-    constructor(address _router, address _priceFeed, address _sequencerFeed) {
+    // ═══════ INITIALIZER (UUPS) ═══════
+    /// @dev Called once by each concrete shield's `initialize`. Sets the wiring
+    ///      that used to be immutable, plus Ownable/UUPS. `_owner` becomes the
+    ///      upgrade authority (the deployer/founder via the deploy script).
+    function __BaseFlashShield_init(address _router, address _priceFeed, address _sequencerFeed, address _owner)
+        internal
+        onlyInitializing
+    {
         require(_router != address(0), "ZERO_ROUTER");
         require(_priceFeed != address(0), "ZERO_PRICE_FEED");
+        require(_owner != address(0), "ZERO_OWNER");
         // sequencerFeed can be address(0) on chains without one (Base mainnet has one)
+        __Ownable_init(_owner);
+        __UUPSUpgradeable_init();
         router = _router;
         priceFeed = IChainlinkAggregator(_priceFeed);
         sequencerFeed = IChainlinkL2SequencerUptimeFeed(_sequencerFeed);
     }
+
+    /// @dev UUPS upgrade authorization — only the owner may upgrade the shield.
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     // ═══════ ABSTRACT (per-shield) ═══════
     function _triggerDropBps() internal view virtual returns (uint16);
@@ -373,4 +388,8 @@ abstract contract BaseFlashShield is IShieldV2 {
         Confirmation storage c = confirmations[policyId];
         return (c.count, c.lastObsTimestamp);
     }
+
+    /// @dev Storage gap for future upgrades (UUPS). Account for the 3 wiring
+    ///      slots (router, priceFeed, sequencerFeed) + 2 mappings already declared.
+    uint256[47] private __gap;
 }
