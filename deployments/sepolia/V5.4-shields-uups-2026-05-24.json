@@ -1,0 +1,82 @@
+{
+  "_status": "LIVE -- Sprint Shields-UUPS redeploy (Base Sepolia)",
+  "_deployedAt": "2026-05-24",
+  "_sprint": "Shields UUPS + fix F-01",
+  "_summary": "6 NEW UUPS-upgradeable flash shields (with the F-01 multi-block confirmation + 5-min dwell) + 6 NEW UUPS adapters, deployed atomically via ShieldAdapterFactory (no uninitialized-proxy window, F-05). PolicyManagerV2 re-pointed (registerProduct) for all 6 productIds to the new adapters; old T-30c shields/adapters are orphaned/deprecated. productIds are UNCHANGED (same keccak labels) so only addresses change downstream.",
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "deployer": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+  "owner": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+  "policyManager": "0x546C07e07DeBCdbf7a2A7Ef12C38c8c8fcAFcDd8",
+  "relayer": "0x168dC7105e907294f9d066cee24f30caa5A17E4a",
+  "broadcastLog": "broadcast/DeployShieldsAndAdapters.s.sol/84532/run-latest.json",
+  "txCount": 19,
+  "oracles": {
+    "btcUsd": "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+    "ethUsd": "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1",
+    "sequencer": "0x0000000000000000000000000000000000000000"
+  },
+  "upgradeability": "UUPS (OwnableUpgradeable + UUPSUpgradeable, __gap[47]); F-05 atomic deploy via ShieldAdapterFactory",
+  "f01": "verifyAndCalculate now requires 3 spaced multi-block sub-barrier confirmations (CONFIRMATION_INTERVAL 60s, distinct block + newer round) + MIN_DWELL_PERIOD 5min; checkAndSettlePolicy is onlyKeeperOrRelayer (verified on-chain reverting ONLY_KEEPER_OR_RELAYER)",
+  "shields": {
+    "FlashBTCShield1h": {
+      "productIdString": "FLASHBTC1H-001",
+      "productId": "0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd",
+      "shield": "0x7d1615C90d01712a3b86Df26312aC6D8EFa0d0b3",
+      "adapter": "0x5d50310B9166184e822cD5368F51C1409713054f",
+      "oldShield": "0x06ED1ffB6bA493c036472bf1C58EC9301B5A2363",
+      "oldAdapter": "0x5fC732D28c09DfcA2e7eF0AAd6C9491c8474eAdB"
+    },
+    "FlashBTCShield24h": {
+      "productIdString": "FLASHBTC24-001",
+      "shield": "0x18e2D3b8Ff4D194CDB9862f8e6239E5e1145961d",
+      "adapter": "0x475b3F712707F61824122a94fE78b106260F8882",
+      "oldShield": "0x9E4C1E799AA41a36ae074768b33198b9D8aCC173",
+      "oldAdapter": "0x844A5fDb3C910DC33Eb720fDB5387C3d55eC867d"
+    },
+    "FlashBTCShield48h": {
+      "productIdString": "FLASHBTC48-001",
+      "shield": "0xe206dd8fb02b1C2A0507566c3d03a27554E8CBeB",
+      "adapter": "0xdc6387E86F7D852D1f99F4009cFd8AdC2d500298",
+      "oldShield": "0x815802E93cD7fB0C4Ce49f290F1A1Ee9473F0406",
+      "oldAdapter": "0x0840d638a3E79919afE3b1AB589E6D4b5E8C45Bb"
+    },
+    "FlashETHShield1h": {
+      "productIdString": "FLASHETH1H-001",
+      "shield": "0xfF1a1B20153019C22f97278204Ccfc1b1409a518",
+      "adapter": "0x57869AD3E7C56B0c96F357179DD231b407C88338",
+      "oldShield": "0xF858b572De264DF8980dF57A680762B7cb88E351",
+      "oldAdapter": "0xeC42c7169B4D80F4D8A113607367F75c2df02935"
+    },
+    "FlashETHShield24h": {
+      "productIdString": "FLASHETH24-001",
+      "shield": "0x2832b5543f6F2a055312654739F0ae03F5b0b582",
+      "adapter": "0x4fD09cF98F6814Cc8b33C2E491429f59d0bCf089",
+      "oldShield": "0x18ccC1eE644C8A79DD93D0F4694960FeC5348eFA",
+      "oldAdapter": ""
+    },
+    "FlashETHShield48h": {
+      "productIdString": "FLASHETH48-001",
+      "shield": "0x60dFC6610c64aC84e12afA943737Cf7733215B75",
+      "adapter": "0x9696CFFD7dE8B1e16F83Dcc798c5CE69a61C884C",
+      "oldShield": "0xC42360...",
+      "oldAdapter": ""
+    }
+  },
+  "onchainVerification": {
+    "adapterShieldWired": true,
+    "adapterPolicyManagerWired": true,
+    "adapterOwnerIsFounder": true,
+    "shieldRouterIsAdapter": true,
+    "shieldOwnerIsFounder": true,
+    "pmCutoverAll6": true,
+    "settleGatedOnlyKeeperOrRelayer": true
+  },
+  "founderActionsPending": [
+    "Update Railway env vars (lumina-api) with the 6 new shield + 6 new adapter addresses",
+    "npm publish @lumina-org/sdk 0.8.0 post-merge",
+    "Verify landing on Vercel after merge",
+    "setKeeper(ShieldKeeper) on each new adapter if a dedicated keeper (not the relayer) is used for settlement",
+    "Deactivate/cleanup the orphaned old T-30c products in PolicyManager (cosmetic productIds[] dedup)"
+  ]
+}

@@ -105,7 +105,7 @@ contract CheckAndSettlePolicyTest is Test {
         adapter = FlashShieldAdapter(address(proxy));
 
         // shield trusts the adapter as its `router`
-        shield = new FlashBTCShield24h(address(adapter), address(oracle), address(sequencer));
+        shield = FlashBTCShield24h(address(new ERC1967Proxy(address(new FlashBTCShield24h()), abi.encodeCall(FlashBTCShield24h.initialize, (address(adapter), address(oracle), address(sequencer))))));
 
         adapter.initialize(address(shield), PRODUCT_ID);
         adapter.setPolicyManager(address(pm));

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "forge-std/Test.sol";
 import {FlashBTCShield1h} from "../../src/products/FlashBTCShield1h.sol";
@@ -74,7 +75,7 @@ contract FlashBTCShield1hTest is Test {
         vm.warp(T0);
         oracle = new MockChainlinkAggregator(STRIKE, T0);
         sequencer = new MockSequencerFeed();
-        shield = new FlashBTCShield1h(router, address(oracle), address(sequencer));
+        shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (router, address(oracle), address(sequencer))))));
     }
 
     // ── 1. strike-price snapshot ───────────────────────────────────────────────
