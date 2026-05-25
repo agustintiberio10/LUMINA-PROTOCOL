@@ -285,6 +285,20 @@ Los 39 findings del Red Team Audit V1 están **resueltos en código** (branch `f
 
 ---
 
+## Sprint 7.3 — Manual Code Review findings (2026-05-25, sin fix)
+
+Hallazgos NUEVOS del manual review CertiK-level (report completo: [`audit-pack/audits/2026-05-25-manual-review-v53.md`](./audits/2026-05-25-manual-review-v53.md)). **NO fixeados** (sprint de solo-análisis). 0 CRITICAL.
+
+**HIGH:**
+- **MR-H01** [oracle freshness] `CapacityOracle._getTwapPriceForWindow` no tiene observation-age/cardinality gate → un pool LUMINA/USDC idle sirve precio stale a `_redeemPrice`/`issueBond`/TWAPBurner; breaker F-02 ciego a staleness (dev==0). **Mainnet blocker** (ver abajo). PoC: `test/manual-review-poc/MR_H01_OracleStaleness_PoC.t.sol`.
+- **MR-H02** [api] relayer purchase path (`lumina-api purchaseViaRelayer`) sin NonceManager/lock; el fix HIGH-1 del faucet no se propagó → colisión de nonce / DoS bajo concurrencia. Pre-launch blocker.
+
+**MEDIUM:** MR-M01 payout-ratio coupling no enforced (router `payoutRatioBps` vs PM hardcoded 8000 vs shield DEDUCTIBLE 2000; `configureProduct` sin bound); MR-M02 per-user throttle diluido cross-epoch (processQueue no carga `redeemedByUserInEpoch` en epoch de pago); MR-M03 injection sobre precio floored vía `pokeCheckAndInject` + reserva sin cap propio (**latente**, cexReserve==0); MR-M04 `executeOffer` permissionless; MR-M05 migración FounderVesting v1→V2 no enforced on-chain; MR-M06 DEX adapters `swap` permissionless con minOut del caller; MR-M07 `TWAPBurner.setUsdc` sin migración/decimals.
+
+**LOW (11) / INFO (8):** ver report. Incluye 2 *lying comments* confirmados (CapacityOracle + TWAPBurner "fail-closed") e invariante a testear (MR-L10 `committed+queued == Σ bonds`).
+
+---
+
 ## Mainnet Blockers
 
 Items que NO bloquean testnet pero **deben** resolverse antes del primer deploy de mainnet. Estos no son gaps de auditoría sino state on-chain o configuración que se cambió para uso testnet.
@@ -337,6 +351,18 @@ auto-injection):
 mover LUMINA no justifica el cost; el floor pause + hysteresis cubre el
 caso de protección crítica (LUMINA < $0.005). Auto-injection es nice-to-have
 para suavizar drawdowns de capacidad, no protección estructural.
+
+---
+
+### BL-ORACLE-FRESHNESS — CapacityOracle TWAP sin gate de staleness (Manual Review MR-H01)
+
+**Estado**: Abierto (HIGH, pre-mainnet). No bloquea testnet pero el síntoma es MÁS probable en testnet (pool thin/idle).
+
+**Detalle**: `CapacityOracle._getTwapPriceForWindow` lee sólo `IUniswapV3Pool.observe()`; nunca consulta `slot0()` (cardinality / timestamp de la última observación) y no hay un análogo del heartbeat de Chainlink. Un pool sin swaps recientes extrapola la última observación al `block.timestamp` con el último tick → `getLuminaPrice()` devuelve un precio stale, no-cero y "bien formado". El breaker F-02 compara dos ventanas del MISMO pool congelado (dev==0) → no detecta staleness. El precio fluye a `_redeemPrice` (settlement), `issueBond` (sizing), `TWAPBurner` (minOut) y `SolvencyOracle`.
+
+**Acción pre-mainnet**: agregar gate de freshness en CapacityOracle — leer `slot0()` para `observationCardinality`/timestamp de última observación, requerir `block.timestamp - lastObservationTs <= maxObservationAge` (heartbeat configurable) y `observationCardinality >= minCardinality`; **revert (fail-closed)** si stale. Reconciliar el NatSpec del header ("trustworthy price or revert" hoy es un *lying comment*). PoC: `test/manual-review-poc/MR_H01_OracleStaleness_PoC.t.sol`.
+
+**Nota Fase 5**: cualquier anomalía de precio de redención en testnet debe leerse contra este finding (pool thin) antes de buscar otra causa.
 
 ---
 
@@ -412,6 +438,7 @@ Opcional post-publish: `git tag v0.7.0 && git push origin v0.7.0`.
 
 ## Changelog
 
+- **2026-05-25 (Sprint 7.3 Manual Code Review V5.3)**: agregada sección "Sprint 7.3 — Manual Code Review findings" (2 HIGH / 7 MEDIUM / 11 LOW / 8 INFO, sin fix). Nuevo mainnet blocker **BL-ORACLE-FRESHNESS** (MR-H01 CapacityOracle TWAP staleness). MR-H02 (relayer nonce) pre-launch. Report `audit-pack/audits/2026-05-25-manual-review-v53.md`. PoCs en `test/manual-review-poc/`. Todos los F-01..F-31/N-01 verificados presentes (0 re-reportados). NO código modificado, NO PR merged.
 - **2026-05-23 (Sprint Fix 7.4 CRITICAL)**: cerrados `FA-V1-C1` (UUPS upgrade 6 FlashShieldAdapter agregando `checkAndSettlePolicy(uint256)` + `setPolicyManager`; new impl `0xc92F034442B918C0392bcc357D995D7e0439Bad8`; 13 tx on-chain; 11/11 tests PASS) y `FA-V1-C2` parcial (`coverRouter.setRelayer(0x168dC7…, true)` ejecutado, tx `0x1d91e3d2…cec`). Abierto `FA-V1-C2-FOLLOWUP` (sandboxWallet sin allowance — founder API-side). Validado `FA-V1-I3` (SDK 0.7.0 ready, founder pending `npm publish`). Sprint detalle en `audit-pack/sprints/2026-05-23-sprint-fix-7-4-critical.md`.
 - **2026-05-23 (Sprint 7.4 Functional Audit V5.3 V1)**: ejecutado audit funcional testnet — veredicto NEEDS-ADJUSTMENT, score 7.7/10. Report archivado en `audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`. 3 críticos nuevos: `FA-V1-C1` (ShieldKeeper interface), `FA-V1-C2` (sandbox relayer no autorizado), `FA-V1-I3` (SDK 0.7.0 unpublished). Sección 22 nueva en `what-we-tested.md`.
 - **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: R1 (PR #149) aplicado on-chain vía UUPS upgrade del BondVault proxy `0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC` → nueva impl `0x6BBDE25a235DC07c0145A8a1A1d570E4f7ABdFaA` (tx `0xa395c8b6…03a477`). Storage layout compatible (slots 12/13 ocupados de `__gap`, gap 46→43). Selectors R1 (`policiesPaused`, `cexReserve`, `totalInjectedFromCex`, `availableCapacityRatioBps`) responden. Floor pause + hysteresis **ACTIVOS**; CEX auto-injection **INACTIVO** por decisión founder (`cexReserve = 0x0`, no se desplegó CEXLiquidityReserve fresca). Smoke test e2e post-upgrade exitoso (`policyId=1` minted en CoverRouter, BondVault.reserveCapacity ejecutó normalmente). Nuevo item **CEX-RESERVE-DEFERRED** en Mainnet Blockers. Sprint archivado en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`.
