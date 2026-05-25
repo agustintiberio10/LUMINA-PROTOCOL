@@ -265,6 +265,14 @@ Ver detalles en `what-we-tested.md` sección 19.
 
 ---
 
+## Sprint Shields UUPS Redeploy (2026-05-24) — resuelto on-chain
+
+- **Red-team F-01 (flash-shield barrier-option)** → **RESUELTO ON-CHAIN**: 6 shields nuevos UUPS desplegados con multi-block confirmation (3 obs espaciadas, distinto bloque + round más nuevo) + `MIN_DWELL_PERIOD` 5min + `checkAndSettlePolicy onlyKeeperOrRelayer`. PolicyManager cut over (mismos productIds). Verificado on-chain + smoke e2e. PR LP#156, addresses `deployments/sepolia/V5.4-shields-uups-2026-05-24.json`.
+- **N-02 (adapters sin `setShield`)** → **RESUELTO**: re-deploy completo de shields + adapters nuevos (en vez de re-pointing). Los nuevos shields son UUPS-upgradeable, así que futuros cambios de lógica de shield ya NO requieren re-deploy (se upgradean).
+- **Pendiente menor**: verificación BaseScan de los 12 nuevos (founder), deactivate/cleanup de los productShield viejos orphaned, compile de la test-suite completa en CI Linux (via_ir OOMea local; src + deploy compilan limpios).
+
+---
+
 ## Mainnet Blockers
 
 Items que NO bloquean testnet pero **deben** resolverse antes del primer deploy de mainnet. Estos no son gaps de auditoría sino state on-chain o configuración que se cambió para uso testnet.

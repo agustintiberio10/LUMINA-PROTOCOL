@@ -1037,8 +1037,25 @@ Main thread + 5 sub-agents paralelos (Phases B / C / D / E+F+G / H) en parallel 
 
 ---
 
+## 23. Sprint Shields UUPS Redeploy + F-01 (on-chain, 2026-05-24)
+
+**Qué**: 6 flash-shields → UUPS-upgradeable + fix F-01 (multi-block confirmation) aplicado **on-chain**. 6 shields + 6 adapters NUEVOS desplegados (adapters viejos no tenían `setShield`). Branch `feat/shields-uups-fix-f01`, PR LP#156.
+
+**Deploy (Base Sepolia)**: dry-run 100% limpio → broadcast `--slow` → **19 txs ONCHAIN SUCCESSFUL**. Atómico vía `ShieldAdapterFactory` (sin ventana F-05). PolicyManager re-apuntado (mismos productIds) a los 6 adapters nuevos.
+
+**Verificado on-chain**: adapter.shield/policyManager/owner ✓ · shield.router/owner ✓ · PM.productShield cutover en los 6 ✓ · settle `ONLY_KEEPER_OR_RELAYER` ✓. **Smoke e2e**: `/sandbox/try FLASHBTC1H-001` live → policyId=1 + txHash on-chain ✓.
+
+**Downstream**: 0 cambios en API/SDK/docs/landing — redeploy-proof + mismos productIds → ruteo transparente vía PolicyManager. Sin PRs cross-repo ni env updates.
+
+**Pendiente**: verificación BaseScan (founder), cleanup productShield viejos, test-suite compile en CI Linux (via_ir OOMea local), BL-MULTISIG. Addresses en `deployments/sepolia/V5.4-shields-uups-2026-05-24.json`; detalle en `audit-pack/sprints/2026-05-24-sprint-shields-uups-redeploy.md`.
+
+**Score sprint: 9/10** — deploy on-chain real + cutover + e2e verificado; full test-suite compile diferido a CI.
+
+---
+
 ## Changelog
 
+- **2026-05-24 (Sprint Shields UUPS Redeploy + F-01)**: agregada Sección 23 — 6 shields UUPS + F-01 on-chain (19 txs Base Sepolia), 6 adapters nuevos, PolicyManager cutover, smoke e2e verde. Downstream redeploy-proof (0 cambios repos). PR LP#156. Addresses V5.4-shields-uups-2026-05-24.json.
 - **2026-05-23 (Sprint 7.4 Functional Audit V5.3 V1)**: agregada Sección 22 — Functional Audit testnet score 7.7/10, veredicto NEEDS-ADJUSTMENT. 3 críticos (ShieldKeeper interface, sandbox relayer, SDK 0.7.0 unpublished). Report full en `audit-pack/audits/2026-05-23-functional-audit-v53-v1.md`. PR draft.
 - **2026-05-23 (Sprint Upgrade BondVault On-Chain)**: BondVault proxy upgradeado a impl post-#149. Floor pause + hysteresis ACTIVOS; CEX auto-inject INACTIVO. Detalle en `audit-pack/sprints/2026-05-23-sprint-upgrade-bondvault-on-chain.md`. PR LP#150 (merged).
 - **2026-05-23 (Sprint Fix Audit Economic Complete)**: agregada Sección 21 — R1 (CEX auto-injection + LUMINA floor pause con hysteresis) + R2 (redeem semantics verified, no bug) + R3 (SDK v0.7.0 BondQueue.getRedemptionStatus + docs concepts/bondvault-throttle update). 10 + 3 tests nuevos pass + 21 regresión. Audit Economic V2 = 8.4/10 vs V1 6.4/10. Verdict SOUND. PRs draft: LUMINA-PROTOCOL #(este), lumina-sdk #(per sub-agent report), docs#19.
