@@ -74,7 +74,14 @@ contract EchidnaFlashBTCShield24h {
     constructor() {
         oracle = new MockOracleE();
         sequencer = new MockSeqE();
-        shield = FlashBTCShield24h(address(new ERC1967Proxy(address(new FlashBTCShield24h()), abi.encodeCall(FlashBTCShield24h.initialize, (ROUTER, address(oracle), address(sequencer))))));
+        shield = FlashBTCShield24h(
+            address(
+                new ERC1967Proxy(
+                    address(new FlashBTCShield24h()),
+                    abi.encodeCall(FlashBTCShield24h.initialize, (ROUTER, address(oracle), address(sequencer)))
+                )
+            )
+        );
     }
 
     function e_setPrice(int256 p) external {

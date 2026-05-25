@@ -140,7 +140,14 @@ contract ShieldsE2ETest is Test {
         vm.warp(T0);
         oracle = new MockChainlinkAggregator(STRIKE, T0);
         sequencer = new MockSequencerFeed();
-        shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (router, address(oracle), address(sequencer))))));
+        shield = FlashBTCShield1h(
+            address(
+                new ERC1967Proxy(
+                    address(new FlashBTCShield1h()),
+                    abi.encodeCall(FlashBTCShield1h.initialize, (router, address(oracle), address(sequencer)))
+                )
+            )
+        );
     }
 
     /// @dev [legacy-migration] F-01 requires THREE spaced sub-barrier observations
@@ -262,7 +269,14 @@ contract ShieldsE2EFullTest is Test {
         adapterImpl = new FlashShieldAdapter();
         ERC1967Proxy adapterProxy = new ERC1967Proxy(address(adapterImpl), "");
         adapter = FlashShieldAdapter(address(adapterProxy));
-        shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (address(adapter), address(oracle), address(sequencer))))));
+        shield = FlashBTCShield1h(
+            address(
+                new ERC1967Proxy(
+                    address(new FlashBTCShield1h()),
+                    abi.encodeCall(FlashBTCShield1h.initialize, (address(adapter), address(oracle), address(sequencer)))
+                )
+            )
+        );
         adapter.initialize(address(shield), PRODUCT_ID);
         // [legacy-migration] F-01.3 / F-03: flash-shield triggers now accrue across
         // blocks and settle through the adapter's keeper-gated checkAndSettlePolicy

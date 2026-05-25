@@ -216,9 +216,7 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
         // [MR-M03 fix] Independent (defense-in-depth) per-window cap + cooldown,
         // enforced by the reserve itself and NOT relying on the upgradeable caller.
         require(block.timestamp >= lastInjectionTimestamp + INJECTION_COOLDOWN, "CLR: injection cooldown");
-        require(
-            amount <= (lumina.balanceOf(address(this)) * MAX_INJECTION_BPS) / 10000, "CLR: exceeds per-window cap"
-        );
+        require(amount <= (lumina.balanceOf(address(this)) * MAX_INJECTION_BPS) / 10000, "CLR: exceeds per-window cap");
         // [MR-M03 fix] CEI: record the window before the external transfer.
         lastInjectionTimestamp = block.timestamp;
 

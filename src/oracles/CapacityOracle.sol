@@ -58,7 +58,12 @@ interface IUniswapV3Pool {
     function observations(uint256 index)
         external
         view
-        returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized);
+        returns (
+            uint32 blockTimestamp,
+            int56 tickCumulative,
+            uint160 secondsPerLiquidityCumulativeX128,
+            bool initialized
+        );
 }
 
 contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
@@ -453,7 +458,7 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     ///      silently extrapolated from a single stale tick. Reverts (fail-closed),
     ///      and is intentionally OUTSIDE getLuminaPrice's TWAP try/catch.
     function _requireFreshPool() internal view {
-        (, , uint16 observationIndex, uint16 observationCardinality, , ,) = IUniswapV3Pool(pool).slot0();
+        (,, uint16 observationIndex, uint16 observationCardinality,,,) = IUniswapV3Pool(pool).slot0();
 
         uint256 minCard = _effectiveMinCardinality();
         if (observationCardinality < minCard) {
@@ -462,7 +467,7 @@ contract CapacityOracle is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // Latest observation lives at `observationIndex`. Its blockTimestamp is the
         // last block in which a swap touched the pool; an idle pool's stays put.
-        (uint32 lastObsTs, , , bool initialized) = IUniswapV3Pool(pool).observations(observationIndex);
+        (uint32 lastObsTs,,, bool initialized) = IUniswapV3Pool(pool).observations(observationIndex);
         if (!initialized) revert OracleStale(type(uint256).max, _effectiveMaxObservationAge());
 
         // Uniswap stores uint32 timestamps; the subtraction is overflow-safe mod

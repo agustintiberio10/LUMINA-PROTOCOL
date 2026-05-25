@@ -49,7 +49,12 @@ contract MockUniswapPool {
     function observations(uint256)
         external
         view
-        returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized)
+        returns (
+            uint32 blockTimestamp,
+            int56 tickCumulative,
+            uint160 secondsPerLiquidityCumulativeX128,
+            bool initialized
+        )
     {
         return (uint32(block.timestamp), 0, 0, true);
     }

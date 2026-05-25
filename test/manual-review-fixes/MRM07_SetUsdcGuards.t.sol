@@ -126,10 +126,7 @@ contract MockDex is IDexRouter {
         return 1e18;
     }
 
-    function swap(address tokenIn, address, uint256 amountIn, uint256)
-        external
-        returns (uint256 amountOut)
-    {
+    function swap(address tokenIn, address, uint256 amountIn, uint256) external returns (uint256 amountOut) {
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
         amountOut = 1e18;
     }

@@ -9,8 +9,14 @@ import "../../src/bonds/BondVault.sol";
 
 contract MRM02Oracle {
     uint256 public price = 0.036e18;
-    function getLuminaPrice() external view returns (uint256) { return price; }
-    function setPrice(uint256 p) external { price = p; }
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
+
+    function setPrice(uint256 p) external {
+        price = p;
+    }
 }
 
 /// @title MR-M02 fix — per-user throttle is NOT diluted across the queue epoch.

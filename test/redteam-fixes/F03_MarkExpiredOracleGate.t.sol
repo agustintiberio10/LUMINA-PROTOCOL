@@ -59,19 +59,11 @@ contract F03MockShield {
         return nextId++;
     }
 
-    function getPolicyInfo(uint256)
-        external
-        pure
-        returns (address, uint256, uint256, uint256, uint256, uint8)
-    {
+    function getPolicyInfo(uint256) external pure returns (address, uint256, uint256, uint256, uint256, uint8) {
         return (address(0), 0, 0, 0, 0, 0);
     }
 
-    function verifyAndCalculate(uint256, bytes calldata)
-        external
-        view
-        returns (IShieldV2.PayoutResult memory r)
-    {
+    function verifyAndCalculate(uint256, bytes calldata) external view returns (IShieldV2.PayoutResult memory r) {
         if (mode == Mode.OracleUnavailable) revert("ORACLE_UNAVAILABLE");
         if (mode == Mode.OtherRevert) revert("SOME_OTHER_REASON");
         if (mode == Mode.CustomError) revert SomeCustomError();
@@ -98,8 +90,9 @@ contract F03MarkExpiredOracleGateTest is Test {
         shield = new F03MockShield();
 
         PolicyManagerV2 impl = new PolicyManagerV2();
-        ERC1967Proxy proxy =
-            new ERC1967Proxy(address(impl), abi.encodeWithSelector(PolicyManagerV2.initialize.selector, address(vault)));
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl), abi.encodeWithSelector(PolicyManagerV2.initialize.selector, address(vault))
+        );
         pm = PolicyManagerV2(address(proxy));
         pm.setRouter(address(this));
         pm.registerProduct(PID, address(shield));

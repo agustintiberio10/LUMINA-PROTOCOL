@@ -69,7 +69,14 @@ contract FlashBTCShield24hTest is Test {
         vm.warp(T0);
         oracle = new MockChainlinkAggregator(STRIKE, T0);
         sequencer = new MockSequencerFeed();
-        shield = FlashBTCShield24h(address(new ERC1967Proxy(address(new FlashBTCShield24h()), abi.encodeCall(FlashBTCShield24h.initialize, (router, address(oracle), address(sequencer))))));
+        shield = FlashBTCShield24h(
+            address(
+                new ERC1967Proxy(
+                    address(new FlashBTCShield24h()),
+                    abi.encodeCall(FlashBTCShield24h.initialize, (router, address(oracle), address(sequencer)))
+                )
+            )
+        );
     }
 
     /// @dev [legacy-migration] F-01 requires THREE sub-barrier observations,

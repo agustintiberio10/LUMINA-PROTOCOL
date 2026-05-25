@@ -111,7 +111,16 @@ contract CheckAndSettlePolicyTest is Test {
         adapter = FlashShieldAdapter(address(proxy));
 
         // shield trusts the adapter as its `router`
-        shield = FlashBTCShield24h(address(new ERC1967Proxy(address(new FlashBTCShield24h()), abi.encodeCall(FlashBTCShield24h.initialize, (address(adapter), address(oracle), address(sequencer))))));
+        shield = FlashBTCShield24h(
+            address(
+                new ERC1967Proxy(
+                    address(new FlashBTCShield24h()),
+                    abi.encodeCall(
+                        FlashBTCShield24h.initialize, (address(adapter), address(oracle), address(sequencer))
+                    )
+                )
+            )
+        );
 
         adapter.initialize(address(shield), PRODUCT_ID);
         adapter.setPolicyManager(address(pm));
@@ -290,14 +299,15 @@ contract CheckAndSettlePolicyTest is Test {
         // 3. A wired relayer is ALSO authorized (passes the gate). Use a fresh
         //    policy/adapter so we exercise the relayer branch on a live policy.
         FlashShieldAdapter adapterImpl3 = new FlashShieldAdapter();
-        FlashShieldAdapter adapter3 =
-            FlashShieldAdapter(address(new ERC1967Proxy(address(adapterImpl3), "")));
+        FlashShieldAdapter adapter3 = FlashShieldAdapter(address(new ERC1967Proxy(address(adapterImpl3), "")));
         MockChainlinkAggregator oracle3 = new MockChainlinkAggregator(STRIKE, block.timestamp);
         FlashBTCShield24h shield3 = FlashBTCShield24h(
             address(
                 new ERC1967Proxy(
                     address(new FlashBTCShield24h()),
-                    abi.encodeCall(FlashBTCShield24h.initialize, (address(adapter3), address(oracle3), address(sequencer)))
+                    abi.encodeCall(
+                        FlashBTCShield24h.initialize, (address(adapter3), address(oracle3), address(sequencer))
+                    )
                 )
             )
         );
