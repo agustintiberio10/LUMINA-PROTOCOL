@@ -50,12 +50,16 @@ contract DeployFlashShieldsT30c is Script {
 
         AtomicShieldPairDeployer deployer = new AtomicShieldPairDeployer();
 
-        records[0] = _deployPair(deployer, "FlashBTCShield1h", keccak256("FLASHBTC1H-001"), btcFeed, sequencerFeed, 1, finalOwner);
-        records[1] = _deployPair(deployer, "FlashBTCShield24h", keccak256("FLASHBTC24-001"), btcFeed, sequencerFeed, 24, finalOwner);
-        records[2] = _deployPair(deployer, "FlashBTCShield48h", keccak256("FLASHBTC48-001"), btcFeed, sequencerFeed, 48, finalOwner);
-        records[3] = _deployPair(deployer, "FlashETHShield1h", keccak256("FLASHETH1H-001"), ethFeed, sequencerFeed, 101, finalOwner);
-        records[4] = _deployPair(deployer, "FlashETHShield24h", keccak256("FLASHETH24-001"), ethFeed, sequencerFeed, 124, finalOwner);
-        records[5] = _deployPair(deployer, "FlashETHShield48h", keccak256("FLASHETH48-001"), ethFeed, sequencerFeed, 148, finalOwner);
+        // The shield CREATION CODE is passed to the helper (which appends ctor
+        // args + CREATE-s it), so the helper never embeds shield bytecode and
+        // stays under EIP-170. This Script is size-exempt, so embedding the
+        // creation code here is fine.
+        records[0] = _deployPair(deployer, "FlashBTCShield1h", keccak256("FLASHBTC1H-001"), type(FlashBTCShield1h).creationCode, btcFeed, sequencerFeed, finalOwner);
+        records[1] = _deployPair(deployer, "FlashBTCShield24h", keccak256("FLASHBTC24-001"), type(FlashBTCShield24h).creationCode, btcFeed, sequencerFeed, finalOwner);
+        records[2] = _deployPair(deployer, "FlashBTCShield48h", keccak256("FLASHBTC48-001"), type(FlashBTCShield48h).creationCode, btcFeed, sequencerFeed, finalOwner);
+        records[3] = _deployPair(deployer, "FlashETHShield1h", keccak256("FLASHETH1H-001"), type(FlashETHShield1h).creationCode, ethFeed, sequencerFeed, finalOwner);
+        records[4] = _deployPair(deployer, "FlashETHShield24h", keccak256("FLASHETH24-001"), type(FlashETHShield24h).creationCode, ethFeed, sequencerFeed, finalOwner);
+        records[5] = _deployPair(deployer, "FlashETHShield48h", keccak256("FLASHETH48-001"), type(FlashETHShield48h).creationCode, ethFeed, sequencerFeed, finalOwner);
 
         vm.stopBroadcast();
 
@@ -71,15 +75,15 @@ contract DeployFlashShieldsT30c is Script {
         AtomicShieldPairDeployer deployer,
         string memory name,
         bytes32 productId,
+        bytes memory shieldCreationCode,
         address priceFeed,
         address sequencer,
-        uint256 variant,
         address finalOwner
     ) internal returns (ShieldRecord memory rec) {
         // F-05 fix: a single atomic call builds proxy + shield + init + owner
         // transfer. No uninitialized-proxy window exists across transactions.
         (address shieldAddr, address adapterAddr) =
-            deployer.deployPair(variant, priceFeed, sequencer, productId, finalOwner);
+            deployer.deployPair(shieldCreationCode, priceFeed, sequencer, productId, finalOwner);
 
         rec = ShieldRecord({name: name, shield: shieldAddr, adapter: adapterAddr});
     }
