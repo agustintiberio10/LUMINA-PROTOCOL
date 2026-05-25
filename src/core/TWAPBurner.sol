@@ -141,7 +141,8 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
         accumulatedUSDCSinceBurn += amount;
     }
 
-    function receiveMarketplaceFee(uint256 amount) external {
+    // [MR-L05 fix] nonReentrant for parity with sibling receivePremium.
+    function receiveMarketplaceFee(uint256 amount) external nonReentrant {
         require(amount > 0, "Zero amount");
         usdc.safeTransferFrom(msg.sender, address(this), amount);
         totalUSDCReceived += amount;
@@ -264,9 +265,13 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
         }
 
         // [F-19 fix] minOut comes from the oracle price ONLY. If the oracle is
-        // unset or unavailable (it now reverts fail-closed on cross-window
-        // deviation > 5%), we REVERT rather than fall back to the manipulable
-        // pool quote. This preserves the `minOut > 0` invariant by construction.
+        // unset or unavailable, we REVERT rather than fall back to the
+        // manipulable pool quote.
+        // [INFO-5 fix] After the MR-H01 CapacityOracle hardening the oracle now
+        // enforces freshness + cross-window deviation: it REVERTS on a stale,
+        // thin, or diverged feed, so any price it returns here is fresh. We do
+        // NOT claim minOut>0 "by construction" — `minOut>0` still requires
+        // `oraclePrice > 0`, which is asserted explicitly on the next line.
         require(capacityOracle != address(0), "TWAPBurner: oracle unset");
         uint256 oraclePrice = IPriceOracle(capacityOracle).getLuminaPrice();
         require(oraclePrice > 0, "TWAPBurner: oracle price zero");
@@ -350,6 +355,13 @@ contract TWAPBurner is Initializable, UUPSUpgradeable, OwnableUpgradeable, Reent
     ///         reverted alongside the router (audit-pack item BL-USDC).
     function setUsdc(address _usdc) external onlyOwner {
         require(_usdc != address(0), "Zero USDC");
+        // [MR-M07 fix] The new token MUST be 6-decimals: `_swapAndBurn` hardcodes
+        // a `*1e12` conversion (6→18 dec) when deriving minOut, so re-pointing to
+        // a token with different decimals would silently corrupt slippage math.
+        // Ops MUST drain accrual and sweep the balance BEFORE re-pointing,
+        // otherwise stale 6-dec accounting would be attributed to the new token.
+        require(accumulatedUSDCSinceBurn == 0, "TWAPBurner: drain accrual first");
+        require(usdc.balanceOf(address(this)) == 0, "TWAPBurner: sweep balance first");
         address old = address(usdc);
         usdc = IERC20(_usdc);
         emit UsdcUpdated(old, _usdc);

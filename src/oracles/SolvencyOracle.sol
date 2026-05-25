@@ -114,7 +114,10 @@ contract SolvencyOracle is Initializable, UUPSUpgradeable, AccessControlUpgradea
         if (emergencyPaused) return false;
         if (block.timestamp > lastEvaluation + 7 days) return false;
         try ISolvencyCapacityOracle(capacityOracle).getLuminaPrice() returns (uint256 price) {
-            return price > 0;
+            if (price == 0) return false;
+            // [MR-L06 fix] Tighten: healthy requires a live price AND a non-stressed
+            //              solvency ratio (>= SOLVENCY_STRESSED_BPS), not merely price > 0.
+            return _calculateSolvencyRatio() >= SOLVENCY_STRESSED_BPS;
         } catch {
             return false;
         }
@@ -124,9 +127,17 @@ contract SolvencyOracle is Initializable, UUPSUpgradeable, AccessControlUpgradea
         uint256 obligations = bondVault.totalCommittedUSD();
         if (obligations == 0) return type(uint256).max;
         uint256 bal = lumina.balanceOf(address(bondVault));
-        uint256 price = capacityOracle.getLuminaPrice();
-        uint256 valueUSD = (bal * price) / 1e18;
-        return (valueUSD * 10000) / obligations;
+        // [MR-L06 fix] A fail-closed capacity oracle reverting on price deviation must
+        //              NOT brick evaluate(). Treat a revert as the worst-case (stressed)
+        //              reading: solvency = 0 bps, which classifies into the lowest
+        //              quadrant (level 3, below SOLVENCY_STRESSED_BPS) so the daily
+        //              quadrant history keeps advancing during volatility.
+        try capacityOracle.getLuminaPrice() returns (uint256 price) {
+            uint256 valueUSD = (bal * price) / 1e18;
+            return (valueUSD * 10000) / obligations;
+        } catch {
+            return 0; // worst-case / stressed sentinel
+        }
     }
 
     function _classifySolvency(uint256 bps) internal pure returns (uint8) {

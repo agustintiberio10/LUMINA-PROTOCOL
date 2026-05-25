@@ -57,11 +57,19 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
     uint256 public constant VESTING_DURATION = 730 days;
     uint256 public constant STRATEGIC_LOCK = 547 days;
     uint256 public constant MONTHLY_CAP = 1_000_000 * 1e18;
+    /// @notice [MR-M03 fix] Independent reserve-side guardrails on `injectToVault`,
+    ///         enforced regardless of the (upgradeable) BondVault caller.
+    uint256 public constant INJECTION_COOLDOWN = 1 days;
+    uint256 public constant MAX_INJECTION_BPS = 1000; // 10% of balance per window
     uint256 public allocatedFromImmediate;
     uint256 public allocatedFromVesting;
     uint256 public allocatedFromStrategic;
     mapping(uint256 => uint256) public monthlyAllocations;
     Allocation[] public allocationHistory;
+    /// @notice [MR-M03 fix] Timestamp of the last `injectToVault`. Appended storage
+    ///         slot (added AFTER `allocationHistory`, BEFORE `__gap`); `__gap` reduced
+    ///         from 48 to 47 to preserve the upgrade-safe storage layout.
+    uint256 public lastInjectionTimestamp;
 
     event AllocationExecuted(
         uint256 indexed allocationId,
@@ -205,6 +213,15 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
         require(amount > 0, "Zero injection");
         require(lumina.balanceOf(address(this)) >= amount, "Insufficient reserve");
 
+        // [MR-M03 fix] Independent (defense-in-depth) per-window cap + cooldown,
+        // enforced by the reserve itself and NOT relying on the upgradeable caller.
+        require(block.timestamp >= lastInjectionTimestamp + INJECTION_COOLDOWN, "CLR: injection cooldown");
+        require(
+            amount <= (lumina.balanceOf(address(this)) * MAX_INJECTION_BPS) / 10000, "CLR: exceeds per-window cap"
+        );
+        // [MR-M03 fix] CEI: record the window before the external transfer.
+        lastInjectionTimestamp = block.timestamp;
+
         totalInjected += amount;
         lumina.safeTransfer(bondVault, amount);
         emit InjectedToVault(amount, totalInjected);
@@ -231,5 +248,6 @@ contract CEXLiquidityReserve is Initializable, UUPSUpgradeable, AccessControlUpg
 
     // [Sprint Fix Audit Economic — R1] Gap reduced from 50 to 48 to make room
     // for `bondVault` (slot) + `totalInjected` (slot).
-    uint256[48] private __gap;
+    // [MR-M03 fix] Gap reduced from 48 to 47 to make room for `lastInjectionTimestamp` (slot).
+    uint256[47] private __gap;
 }

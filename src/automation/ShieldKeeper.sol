@@ -16,7 +16,8 @@ interface AutomationCompatibleInterface {
 
 interface IShieldSettleable {
     function checkAndSettlePolicy(uint256 policyId) external;
-    function getPolicyStatus(uint256 policyId) external view returns (uint8);
+    // [INFO-2 fix] Removed unused `getPolicyStatus(uint256)` declaration: it was never
+    // called by the keeper and is unrelated to IShield.getPolicyStatus (different return type).
 }
 
 interface IPolicyManagerKeeper {

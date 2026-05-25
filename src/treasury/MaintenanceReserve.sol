@@ -113,12 +113,15 @@ contract MaintenanceReserve is Initializable, UUPSUpgradeable, AccessControlUpgr
         emit MonthlyCapUpdated(oldCap, _cap);
     }
 
-    function _enforceMonthlyCap() internal view returns (uint256) {
+    /// @notice [INFO-1 fix] Renamed from the misnamed `_enforceMonthlyCap()` (capital C),
+    ///         which only returns the current month index and enforces nothing. The real
+    ///         enforcer is `_enforceMonthlycap(uint256)` (lowercase c) below.
+    function _currentMonthIndex() internal view returns (uint256) {
         return block.timestamp / 30 days;
     }
 
     function _enforceMonthlycap(uint256 amount) internal {
-        uint256 month = _enforceMonthlyCap();
+        uint256 month = _currentMonthIndex(); // [INFO-1 fix]
         if (month != currentMonth) {
             currentMonth = month;
             currentMonthSpent = 0;

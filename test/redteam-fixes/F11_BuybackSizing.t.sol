@@ -97,6 +97,8 @@ contract F11BuybackSizingTest is Test {
         oracle.setPrice(1e16);
         uint256 referenceBurn = (FACE_VALUE_USD * 1e18) / 1e16; // 10_000e18
 
+        // [MR-M04] executeOffer is now onlyRole(BUYBACK_OPERATOR_ROLE); OWNER holds it.
+        vm.prank(OWNER);
         engine.executeOffer(1);
 
         uint256 burned = vault.lastBurn();
@@ -125,6 +127,7 @@ contract F11BuybackSizingTest is Test {
     function test_DoubleBurnRevertsOnZeroPrice() external {
         oracle.setPrice(0);
         vm.expectRevert(bytes("BuybackEngine: oracle price zero"));
+        vm.prank(OWNER); // [MR-M04] operator role required
         engine.executeOffer(1);
     }
 
@@ -134,6 +137,7 @@ contract F11BuybackSizingTest is Test {
         oracle.setPrice(1e16);
         oracle.setRevertOnPrice(true);
         vm.expectRevert(bytes("Mock: price revert"));
+        vm.prank(OWNER); // [MR-M04] operator role required
         engine.executeOffer(1);
     }
 }

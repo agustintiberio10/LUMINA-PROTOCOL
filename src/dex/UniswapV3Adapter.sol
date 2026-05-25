@@ -65,9 +65,19 @@ contract UniswapV3Adapter is IDexRouter, Ownable {
         override
         returns (uint256 amountOut)
     {
+        // [MR-M06 fix] This adapter is permissionless (no allowlist, to preserve
+        // composability and the existing TWAPBurner wiring), so `minAmountOut`
+        // MUST be oracle-derived by the caller. Reject a zero floor outright: a
+        // swap with minOut=0 has no slippage protection and is trivially
+        // sandwiched. The live TWAPBurner caller always passes an oracle-derived
+        // minOut>0 (see TWAPBurner._swapAndBurn), so this is non-breaking.
+        require(minAmountOut > 0, "DexAdapter: minOut=0");
+
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(tokenIn).forceApprove(address(router), amountIn);
 
+        // [MR-M06 fix] sqrtPriceLimitX96 stays 0; `amountOutMinimum` (now
+        // required > 0 above) is the sole slippage protection for this swap.
         amountOut = router.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: tokenIn,
