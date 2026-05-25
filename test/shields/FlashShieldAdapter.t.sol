@@ -85,7 +85,7 @@ contract FlashShieldAdapterTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(adapterImpl), "");
         adapter = FlashShieldAdapter(address(proxy));
 
-        shield = new FlashBTCShield1h(address(adapter), address(oracle), address(sequencer));
+        shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (address(adapter), address(oracle), address(sequencer))))));
         adapter.initialize(address(shield), PRODUCT_ID);
     }
 
