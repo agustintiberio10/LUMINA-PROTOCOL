@@ -132,12 +132,35 @@ contract ShieldsE2ETest is Test {
     int256 constant STRIKE = 50_000e8;
     uint256 constant COVERAGE = 10_000e6;
     uint32 constant WINDOW = 3600;
+    // [legacy-migration] BaseFlashShield F-01 multi-block confirmation params.
+    uint256 constant MIN_DWELL = 5 minutes; // MIN_DWELL_PERIOD
+    uint32 constant CONF_INTERVAL = 60; // CONFIRMATION_INTERVAL
 
     function setUp() public {
         vm.warp(T0);
         oracle = new MockChainlinkAggregator(STRIKE, T0);
         sequencer = new MockSequencerFeed();
         shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (router, address(oracle), address(sequencer))))));
+    }
+
+    /// @dev [legacy-migration] F-01 requires THREE spaced sub-barrier observations
+    ///      (distinct blocks, >= CONF_INTERVAL apart, after start + MIN_DWELL) before
+    ///      `verifyAndCalculate` finalizes a trigger. Drives them directly against the
+    ///      slim shield (router-pranked) and returns the final (triggering) result.
+    function _drive3Confirmations(uint256 policyId, int256 dropped)
+        internal
+        returns (bool triggered, uint256 payout, address holder_)
+    {
+        uint256 base = T0 + MIN_DWELL;
+        uint256 baseBlock = block.number; // capture ONCE (via_ir caches block.number mid-loop)
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 ts = base + i * CONF_INTERVAL;
+            vm.warp(ts);
+            vm.roll(baseBlock + 1 + i); // ABSOLUTE, strictly-increasing blocks
+            oracle.setAnswer(dropped, ts); // fresh round (newer updatedAt) each obs
+            vm.prank(router);
+            (triggered, payout, holder_,) = shield.verifyAndCalculate(policyId);
+        }
     }
 
     // ── 1. purchase-through-router happy path (slim shield, no adapter) ──────
@@ -159,17 +182,15 @@ contract ShieldsE2ETest is Test {
         vm.prank(router);
         shield.createPolicy(202, holder, COVERAGE, uint64(T0), uint64(T0 + WINDOW));
 
-        vm.warp(T0 + 300);
+        // [legacy-migration] F-01: a single verifyAndCalculate only ACCRUES one
+        // observation; the trigger needs 3 spaced confirmations after the dwell
+        // period. Drive them, then assert the finalized trigger.
         int256 dropped = (STRIKE * 9700) / 10_000;
-        oracle.setAnswer(dropped, T0 + 300);
-
-        vm.prank(router);
-        (bool triggered, uint256 payout, address h, bytes32 reason) = shield.verifyAndCalculate(202);
+        (bool triggered, uint256 payout, address h) = _drive3Confirmations(202, dropped);
 
         assertTrue(triggered, "must trigger");
         assertEq(payout, (COVERAGE * 8000) / 10_000, "payout = 80%");
         assertEq(h, holder, "holder echoed");
-        assertEq(reason, bytes32("TRIGGER_DROP"), "reason TRIGGER_DROP");
 
         (,,,,, bool finalized) = shield.getPolicyInfo(202);
         assertTrue(finalized, "finalized after verify");
@@ -202,6 +223,11 @@ contract ShieldsE2EFullTest is Test {
     uint256 constant COVERAGE = 10_000e6; // $10k
     uint32 constant WINDOW = 3600; // 1h
     bytes32 constant PRODUCT_ID = keccak256("FLASHBTC1H-001");
+    // [legacy-migration] F-01 multi-block confirmation params.
+    uint256 constant MIN_DWELL = 5 minutes;
+    uint32 constant CONF_INTERVAL = 60;
+    // [legacy-migration] F-01.3: keeper authorised to drive checkAndSettlePolicy.
+    address keeper = makeAddr("keeper");
 
     function setUp() public {
         // Base Sepolia chain id so ChainGuard.requireValidChain() passes.
@@ -238,6 +264,13 @@ contract ShieldsE2EFullTest is Test {
         adapter = FlashShieldAdapter(address(adapterProxy));
         shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (address(adapter), address(oracle), address(sequencer))))));
         adapter.initialize(address(shield), PRODUCT_ID);
+        // [legacy-migration] F-01.3 / F-03: flash-shield triggers now accrue across
+        // blocks and settle through the adapter's keeper-gated checkAndSettlePolicy
+        // (which PERSISTS accrual between calls), not the all-or-nothing
+        // submitTrigger -> triggerPayout path. Wire the PM ref + keeper so the
+        // adapter can route settlePolicy back into PolicyManagerV2.
+        adapter.setPolicyManager(address(pm));
+        adapter.setKeeper(keeper);
 
         // Register product in PM + configure premium params on CoverRouter
         pm.registerProduct(PRODUCT_ID, address(adapter));
@@ -301,27 +334,40 @@ contract ShieldsE2EFullTest is Test {
 
     // ── 2. Full trigger flow emits bond via PolicyManagerV2 (TODO #2 closed) ──
     /// @notice testTrigger_EmitsBond_Full
-    /// @dev    Purchase a policy, drop the oracle 3% (above 2.5% trigger), call
-    ///         CoverRouter.submitTrigger → PM.triggerPayout → adapter →
-    ///         slim shield. Verifies the policy is marked triggered, the
-    ///         reservation is committed, and bondVault.issueBond was fired with
-    ///         the integer-dollar payout for the buyer.
+    /// @dev    [legacy-migration] Purchase a policy, drop the oracle 3% (above the
+    ///         2.5% trigger), then accrue the F-01 multi-block barrier via three
+    ///         keeper-driven adapter.checkAndSettlePolicy calls. The 3rd routes
+    ///         PM.settlePolicy(TRUE) → adapter → slim shield. Verifies the policy
+    ///         is marked triggered, the reservation is committed, and
+    ///         bondVault.issueBond fired with the integer-dollar payout for the
+    ///         buyer. (Pre-F-01 this used the single-shot submitTrigger →
+    ///         triggerPayout path, which can no longer drive a multi-block trigger.)
     function testTrigger_EmitsBond_Full() public {
         vm.prank(buyer);
         uint256 policyId = coverRouter.purchasePolicy(PRODUCT_ID, COVERAGE, bytes32("BTC"));
 
-        // 5 minutes in, BTC drops 3%.
-        vm.warp(T0 + 300);
-        int256 dropped = (STRIKE * 9700) / 10_000;
-        oracle.setAnswer(dropped, T0 + 300);
-
         uint256 reservedBefore = bondVault.totalReserved();
         assertGt(reservedBefore, 0, "reservation in place pre-trigger");
 
-        // Anyone can submit a trigger; use a permissionless caller.
-        address keeper = makeAddr("keeper");
-        vm.prank(keeper);
-        coverRouter.submitTrigger(PRODUCT_ID, policyId, "");
+        // [legacy-migration] F-01: BTC drops 3% (>= 2.5% barrier), but the trigger
+        // now requires 3 spaced sub-barrier confirmations across distinct blocks
+        // after start + MIN_DWELL. Each confirmation is one keeper-driven
+        // checkAndSettlePolicy call; the 3rd finalizes and routes settlePolicy
+        // (TRUE) into PolicyManagerV2, issuing the bond. The submitTrigger ->
+        // triggerPayout path can no longer be used here: it reverts ("Trigger
+        // not met") on the first two non-triggering reads, rolling back the
+        // accrual SSTORE.
+        int256 dropped = (STRIKE * 9700) / 10_000;
+        uint256 base = T0 + MIN_DWELL;
+        uint256 baseBlock = block.number; // capture ONCE (via_ir block.number caching)
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 ts = base + i * CONF_INTERVAL;
+            vm.warp(ts);
+            vm.roll(baseBlock + 1 + i);
+            oracle.setAnswer(dropped, ts); // fresh round each observation
+            vm.prank(keeper);
+            adapter.checkAndSettlePolicy(policyId);
+        }
 
         // PolicyManagerV2 marked triggered + decremented active count.
         PolicyManagerV2.PolicyRecord memory rec = pm.getPolicy(PRODUCT_ID, policyId);

@@ -116,6 +116,12 @@ contract BuybackEngineTest is Test {
         engine.setDailyBuyback(10000e6, 60, 1);
         // Warp past validUntil
         vm.warp(block.timestamp + 2 hours);
+        // [legacy-migration] pattern #8 (MR-M04): executeOffer is now
+        // onlyRole(BUYBACK_OPERATOR_ROLE) and the role check runs BEFORE the
+        // validUntil check. Prank as the operator (multisig holds the role at
+        // init) so we hit the intended "Daily offer expired" revert instead of
+        // AccessControlUnauthorizedAccount.
+        vm.prank(multisig);
         vm.expectRevert("Daily offer expired");
         engine.executeOffer(0);
     }
@@ -155,6 +161,10 @@ contract BuybackEngineTest is Test {
         engine.setDailyBuyback(10000e6, 60, 24);
 
         // listingId 999 was never set on the mock → returns all zeros + active=false.
+        // [legacy-migration] pattern #8 (MR-M04): prank as the BUYBACK_OPERATOR_ROLE
+        // holder so we reach the "Listing not active" existence check rather than
+        // reverting on the onlyRole gate.
+        vm.prank(multisig);
         vm.expectRevert(bytes("Listing not active"));
         engine.executeOffer(999);
     }
@@ -167,6 +177,9 @@ contract BuybackEngineTest is Test {
         // Set listing with active=false explicitly.
         marketplace.setListing(7, makeAddr("seller"), 202804, 100, 50e6, false);
 
+        // [legacy-migration] pattern #8 (MR-M04): prank as the BUYBACK_OPERATOR_ROLE
+        // holder so the onlyRole gate passes and we hit the inactive-listing check.
+        vm.prank(multisig);
         vm.expectRevert(bytes("Listing not active"));
         engine.executeOffer(7);
     }

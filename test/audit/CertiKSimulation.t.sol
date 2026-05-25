@@ -342,6 +342,10 @@ contract CertiKSimulation is Test {
         claimBond.setBondVault(address(bondVault));
         policyManager.setRouter(address(coverRouter));
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
+        // [legacy-migration] pattern #3 (F-19): wire a capacity oracle so
+        // TWAPBurner.executeBurn can derive minOut; otherwise it reverts
+        // "TWAPBurner: oracle unset". MockOracle2 exposes getLuminaPrice.
+        twapBurner.setCapacityOracle(address(oracle));
 
         shield = new MockShield2(PID, address(policyManager));
         policyManager.registerProduct(PID, address(shield));
@@ -442,33 +446,24 @@ contract CertiKSimulation is Test {
     /// @notice Oracle returns extremely low price — attempt to drain vault
     ///         by redeeming at deflated price (getting more LUMINA per dollar)
     function test_ATTACK_oracle_deflate_for_drain() public {
-        // [Sprint T-30a CI fix] Bond size $800 → $500 to fit the throttle cap
-        // at $0.001 with 70M LUMINA in the vault: cap = 70M * 0.001 * 108/10000
-        // = $756. The original $800 redemption now goes through the FIFO queue
-        // (covered separately in test/BondVault.throttle.t.sol); this test
-        // continues to validate the "low-price expands LUMINA payout" attack
-        // surface within the throttle envelope.
+        // [legacy-migration] F-02 fail-closed redemption: settlement now uses
+        // _redeemPrice(), which REVERTS ORACLE_UNAVAILABLE when the oracle
+        // reading is <= MIN_REDEEM_PRICE (0.005e18). A deflated price of
+        // $0.001 is below the floor, so the drain attack is now PREVENTED:
+        // the redeem reverts instead of minting an inflated LUMINA payout.
+        // The floor is display-only (_getSafePrice); it is no longer used to
+        // settle redemptions.
         _issueBondAsPM(victim, 500);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        // Oracle reports $0.001 (floor price)
+        // Oracle reports $0.001 — below MIN_REDEEM_PRICE (0.005e18)
         oracle.setPrice(0.001e18);
 
-        // Victim redeems — gets 500,000 LUMINA ($500 / $0.001)
+        // Redeem must fail closed: ORACLE_UNAVAILABLE (attack prevented).
         vm.prank(victim);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
         bondVault.redeemBond(epoch, 500);
-
-        uint256 received = token.balanceOf(victim);
-        uint256 priceLow = 0.001e18;
-        uint256 expected = (uint256(500) * 1e36) / priceLow; // 500,000 LUMINA
-        assertEq(received, expected);
-
-        // This IS a lot of LUMINA, but it's the correct behavior:
-        // The bond is worth $500. At $0.001/LUMINA, that IS 500K LUMINA.
-        // The vault has 70M, so it can handle this.
-        // The risk if MANY bonds redeem at $0.001 simultaneously is now
-        // mitigated by the per-epoch throttle (Sprint T-30a Phase D).
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -689,27 +684,22 @@ contract CertiKSimulation is Test {
 
     /// @notice Redeem at extremely low price to get absurd LUMINA amount
     function test_ATTACK_redeem_at_dust_price() public {
-        // [Sprint T-30a CI fix] Bond size $800 → $500 to fit the per-epoch
-        // throttle cap at MIN_REDEEM_PRICE: cap = 70M * 0.001 * 108/10000
-        // = $756. Over-cap redemptions now enter the FIFO queue (covered by
-        // test/BondVault.throttle.t.sol). This test still verifies that the
-        // immediate-redeem path mints `usdAmount / price` LUMINA at the floor
-        // price, the original "dust price" attack surface.
+        // [legacy-migration] F-02 fail-closed redemption: a dust price of
+        // $0.001 is at/below MIN_REDEEM_PRICE (0.005e18), so settlement via
+        // _redeemPrice() now REVERTS ORACLE_UNAVAILABLE rather than minting an
+        // absurd LUMINA payout. The "redeem at dust price" attack surface is
+        // closed — assert the revert.
         _issueBondAsPM(attacker, 500);
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        // Set price to minimum
-        oracle.setPrice(0.001e18); // MIN_REDEEM_PRICE
+        // Set price to a dust level below the floor
+        oracle.setPrice(0.001e18); // below MIN_REDEEM_PRICE (0.005e18)
 
-        // luminaAmount = 500 * 1e36 / 0.001e18 = 500 * 1e36 / 1e15 = 500e21 = 500,000e18
-        // = 500,000 LUMINA. Vault has 70M, so this is fine.
+        // Redeem must fail closed: ORACLE_UNAVAILABLE.
         vm.prank(attacker);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
         bondVault.redeemBond(epoch, 500);
-
-        uint256 received = token.balanceOf(attacker);
-        assertEq(received, 500_000 * 1e18); // 500K LUMINA
-        // Vault still has 70M - 500K = 69.5M. Solvent.
     }
 
     /// @notice What if price is below MIN_REDEEM_PRICE?
@@ -718,12 +708,15 @@ contract CertiKSimulation is Test {
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        oracle.setPrice(0.0005e18); // below $0.001 floor
+        oracle.setPrice(0.0005e18); // below MIN_REDEEM_PRICE (0.005e18)
 
-        // _getSafePrice returns the oracle price if > 0.
-        // redeemBond then requires currentPrice >= MIN_REDEEM_PRICE → revert.
+        // [legacy-migration] F-02 fail-closed redemption: a below-floor oracle
+        // reading now reverts ORACLE_UNAVAILABLE inside _redeemPrice() (the
+        // floor is display-only and no longer settles redemptions). Old
+        // expectation was "Price too low"; the fail-closed selector now fires
+        // first.
         vm.prank(attacker);
-        vm.expectRevert("Price too low");
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
         bondVault.redeemBond(epoch, 800);
     }
 
@@ -734,8 +727,12 @@ contract CertiKSimulation is Test {
     /// @notice Muchos bonds emitidos a precio alto, precio cae,
     ///         todos redimen y el vault no tiene suficiente
     function test_SCENARIO_mass_redemption_after_crash() public {
+        // [legacy-migration] F-02 fail-closed redemption: when the price
+        // crashes below MIN_REDEEM_PRICE (0.005e18), settlement reverts
+        // ORACLE_UNAVAILABLE. A mass-drain after a crash-to-$0.001 is now
+        // PREVENTED at the settlement boundary — no holder can redeem at the
+        // crashed price. Assert the first redeem fails closed.
         // Issue 80 bonds at $0.036 (normal price)
-        // 80 × $800 = $64K committed. Under capacity.
         for (uint256 i = 0; i < 80; i++) {
             _issueBondAsPM(makeAddr(string(abi.encodePacked("user", i))), 800);
         }
@@ -743,20 +740,14 @@ contract CertiKSimulation is Test {
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        // Price crashes to $0.001
+        // Price crashes to $0.001 — below the redemption floor
         oracle.setPrice(0.001e18);
 
-        // Each $800 bond now needs 800,000 LUMINA
-        // 80 bonds × 800,000 = 64M LUMINA needed
-        // Vault has 70M — enough for 80 bonds at crash price
-        for (uint256 i = 0; i < 80; i++) {
-            address user = makeAddr(string(abi.encodePacked("user", i)));
-            vm.prank(user);
-            bondVault.redeemBond(epoch, 800);
-        }
-
-        // Vault remaining: 70M - 64M = 6M LUMINA
-        assertGt(token.balanceOf(address(bondVault)), 0);
+        // Redemption at the crashed price must fail closed (drain prevented).
+        address user0 = makeAddr(string(abi.encodePacked("user", uint256(0))));
+        vm.prank(user0);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
+        bondVault.redeemBond(epoch, 800);
     }
 
     // ═══════════════════════════════════════════════════════════

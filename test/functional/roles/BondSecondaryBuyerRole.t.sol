@@ -165,6 +165,10 @@ contract BondSecondaryBuyerAudit is Test {
 
         // Buyer has the bonds now
         assertEq(claimBond.balanceOf(secondaryBuyer, epochId), amount);
+        // [legacy-migration] F-14 pull-payment: seller proceeds are booked to
+        // pendingWithdrawals; the seller must withdraw() before they hold USDC.
+        vm.prank(originalHolder);
+        marketplace.withdraw();
         // Seller received price minus seller fee
         assertEq(usdc.balanceOf(originalHolder), sellerReceives);
         // TwapBurner received both fees

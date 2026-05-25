@@ -512,6 +512,11 @@ contract DeployV5Test is Test {
 
     function test_FullDeploy_SetPolicyManagerOneShot() public {
         // Already set during setUp. Trying again must revert.
+        // [legacy-migration] F-16: setPolicyManager is now gated on DEFAULT_ADMIN_ROLE.
+        // setUp transferred that role to multisig and revoked it from the deployer, so
+        // prank as multisig to pass the role gate and reach the one-shot guard (the
+        // intent of this test: setting twice fails with "PolicyManager already set").
+        vm.prank(multisig);
         vm.expectRevert("PolicyManager already set");
         bondVault.setPolicyManager(makeAddr("anotherPM"));
     }

@@ -798,7 +798,8 @@ contract MigrationPath is Test {
         // V1 methods still usable; V1 state intact.
         (,,,,, bool active) = r.products(keccak256("A"));
         assertTrue(active);
-        r.configureProduct(keccak256("B"), 7000, 100, 1000, 3600, true);
+        // [legacy-migration] pattern #6: payoutRatioBps must be 8000 (MR-M01).
+        r.configureProduct(keccak256("B"), 8000, 100, 1000, 3600, true);
         (,,,,, bool aB) = r.products(keccak256("B"));
         assertTrue(aB);
 

@@ -84,6 +84,17 @@ contract MockShieldV2 {
 
     mapping(uint256 => PolicyData) public policyData;
 
+    // [legacy-migration] F-03: PolicyManagerV2.markExpired now calls the shield's
+    // verifyAndCalculate and reverts PolicyTriggerable when the shield reports a
+    // trigger. To exercise the expire-without-trigger path we need the mock to be
+    // able to report "no trigger". Defaults to true to preserve the trigger-path
+    // tests (test 3 / test 4) that expect verifyAndCalculate to fire a payout.
+    bool public shouldTrigger = true;
+
+    function setShouldTrigger(bool v) external {
+        shouldTrigger = v;
+    }
+
     constructor(bytes32 _productId) {
         productId = _productId;
     }
@@ -122,6 +133,14 @@ contract MockShieldV2 {
 
     function verifyAndCalculate(uint256 policyId, bytes calldata) external returns (PayoutResult memory result) {
         PolicyData storage pd = policyData[policyId];
+        // [legacy-migration] Honor the shouldTrigger toggle so markExpired's fresh
+        // evaluation can report "no trigger" (settles false) instead of always
+        // forcing a PolicyTriggerable revert.
+        if (!shouldTrigger) {
+            pd.status = 2; // expired/finalized, no payout
+            result = PayoutResult({triggered: false, payoutAmount: 0, recipient: pd.buyer, reason: "WINDOW_EXPIRED"});
+            return result;
+        }
         pd.status = 1;
         result =
             PayoutResult({triggered: true, payoutAmount: pd.maxPayout, recipient: pd.buyer, reason: "MOCK_TRIGGER"});
@@ -265,6 +284,11 @@ contract FullPolicyLifecycleTest is Test {
 
         // 5. Deploy TWAPBurner
         twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
+        // [legacy-migration] F-19: _swapAndBurn now derives its protective minOut
+        // from an independent capacity oracle and REVERTS ("TWAPBurner: oracle
+        // unset") if none is wired. Reuse the MockPriceOracle ($0.036) — it
+        // exposes getLuminaPrice() — so executeBurn can compute a non-zero floor.
+        twapBurner.setCapacityOracle(address(priceOracle));
 
         // 6. Deploy PolicyManagerV2 with predicted bondVault
         policyManager = ProxyDeployer.deployPolicyManagerV2(predictedBondVault);
@@ -438,6 +462,12 @@ contract FullPolicyLifecycleTest is Test {
 
         // Warp past expiry (duration = 3600s = 1 hour)
         vm.warp(block.timestamp + 3601);
+
+        // [legacy-migration] F-03: markExpired now gates on a FRESH shield
+        // evaluation and reverts PolicyTriggerable if the shield reports a
+        // trigger. This scenario is "expire WITHOUT trigger", so the shield must
+        // report no trigger for the window — flip the mock to non-triggering.
+        mockShield.setShouldTrigger(false);
 
         // Mark as expired
         policyManager.markExpired(PRODUCT_ID, 1);

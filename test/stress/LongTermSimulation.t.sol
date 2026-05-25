@@ -120,9 +120,17 @@ contract LongTermSimulation is Test {
 
         uint256 userBondBalance = claimBond.balanceOf(user, epochId);
         if (userBondBalance > 0 && claimBond.isMatured(epochId)) {
+            // [legacy-migration] F-10 per-user throttle: a single account may
+            // redeem at most MAX_USER_REDEEM_BPS (10%) of the per-epoch cap per
+            // 7-day throttle-epoch. With a 70M-LUMINA reserve at $0.05 the
+            // per-user cap is ~$3,780; this epoch holds 50×$500 = $25,000 of
+            // bonds, so redeeming the whole balance reverts. Redeem a chunk well
+            // under the per-user cap (2,000 tokens = $2,000) — still proves the
+            // redemption path drains the vault and pays the user.
+            uint256 redeemChunk = userBondBalance < 2_000 ? userBondBalance : 2_000;
             uint256 balanceBefore = token.balanceOf(address(vault));
             vm.prank(user);
-            vault.redeemBond(epochId, userBondBalance);
+            vault.redeemBond(epochId, redeemChunk);
 
             uint256 balanceAfter = token.balanceOf(address(vault));
             assertLt(balanceAfter, balanceBefore, "Vault balance should decrease after redemption");

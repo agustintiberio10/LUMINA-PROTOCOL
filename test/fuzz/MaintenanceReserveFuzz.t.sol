@@ -73,8 +73,13 @@ contract MaintenanceReserveFuzz is Test {
 
     /// @notice Fuzz: totalSpent tracking is correct after successful spends.
     function testFuzz_Spend_TrackingCorrect(uint256 amount, uint8 categoryRaw) public {
+        // [legacy-migration] F-15 seeded a DEFAULT_MONTHLY_CAP on the reserve;
+        // spend() reverts ("Monthly cap exceeded") above it. Bound the fuzzed
+        // amount to the per-month cap (<= balance here) so inputs stay valid.
+        uint256 cap = reserve.monthlyCap();
         uint256 balance = usdc.balanceOf(address(reserve));
-        amount = bound(amount, 1, balance);
+        uint256 upper = cap < balance ? cap : balance;
+        amount = bound(amount, 1, upper);
         uint256 catIdx = bound(categoryRaw, 0, 5);
         MaintenanceReserve.SpendCategory category = MaintenanceReserve.SpendCategory(catIdx);
 

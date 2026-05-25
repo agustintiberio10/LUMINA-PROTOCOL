@@ -79,7 +79,11 @@ contract BondVaultFuzz is Test {
     /// @notice Fuzz: issue then redeem at random price, verify LUMINA received.
     function testFuzz_issueAndRedeem(uint256 amount, uint256 priceWad) public {
         amount = bound(amount, 1, 100_000);
-        priceWad = bound(priceWad, 0.001e18, 100e18);
+        // [legacy-migration] F-02: MIN_REDEEM_PRICE is now 0.005e18 and redemption
+        // is fail-closed at/below it. Bound the price strictly above the floor so
+        // we exercise the settlement path (the at/below-floor revert is covered by
+        // testFuzz_redeemAtFloorPrice).
+        priceWad = bound(priceWad, 0.006e18, 100e18);
 
         // Limit to capacity
         uint256 cap = vault.availableCapacityUSD();
@@ -97,10 +101,14 @@ contract BondVaultFuzz is Test {
         // the assertion in that case — the queue path is covered exhaustively
         // by test/BondVault.throttle.t.sol. The throttle cap is
         // (vaultBalance * price / 1e18) * 108/10000, in 18-dec USD-wei.
+        // [legacy-migration] F-10: enforce the PER-USER throttle (10% of the epoch
+        // cap) — a single user redeeming above it is queued / "User epoch limit",
+        // not paid immediately. Skip those (queue path covered elsewhere).
         uint256 vaultBalance = token.balanceOf(address(vault));
         uint256 throttleCapUSD18 = ((vaultBalance * priceWad) / 1e18) * 108 / 10_000;
+        uint256 perUserCapUSD18 = (throttleCapUSD18 * 1000) / 10_000; // MAX_USER_REDEEM_BPS
         uint256 requestedUSD18 = amount * 1e18;
-        if (requestedUSD18 > throttleCapUSD18) return; // over throttle → queued path
+        if (requestedUSD18 > perUserCapUSD18) return; // over per-user throttle → queued path
 
         // Check if vault has enough LUMINA for this redemption at this price.
         // At very low prices + large bonds, the required LUMINA can exceed vault balance.
@@ -125,7 +133,8 @@ contract BondVaultFuzz is Test {
     /// @notice Fuzz: issue, partial redeem at random amount, verify remainder.
     function testFuzz_partialRedeem(uint256 totalBond, uint256 redeemPart, uint256 priceWad) public {
         totalBond = bound(totalBond, 2, 50_000);
-        priceWad = bound(priceWad, 0.001e18, 100e18);
+        // [legacy-migration] F-02: bound price strictly above the 0.005e18 floor.
+        priceWad = bound(priceWad, 0.006e18, 100e18);
 
         uint256 cap = vault.availableCapacityUSD();
         if (totalBond > cap) return;
@@ -138,6 +147,12 @@ contract BondVaultFuzz is Test {
 
         redeemPart = bound(redeemPart, 1, totalBond);
 
+        // [legacy-migration] F-10: skip redeems above the per-user throttle (10% of
+        // epoch cap) — those are queued/limited rather than paid immediately.
+        uint256 vaultBalance = token.balanceOf(address(vault));
+        uint256 perUserCapUSD18 = (((vaultBalance * priceWad) / 1e18) * 108 / 10_000) * 1000 / 10_000;
+        if (redeemPart * 1e18 > perUserCapUSD18) return;
+
         vm.prank(user);
         vault.redeemBond(epoch, redeemPart);
 
@@ -145,14 +160,12 @@ contract BondVaultFuzz is Test {
         assertEq(claimBond.balanceOf(user, epoch), remainder, "Bond remainder should match");
     }
 
-    /// @notice Fuzz: redemption at MIN_REDEEM_PRICE boundary.
+    /// @notice Fuzz: redemption AT/below the floor price now FAILS CLOSED.
+    /// [legacy-migration] F-02: `_redeemPrice()` reverts ORACLE_UNAVAILABLE when the
+    /// price is <= MIN_REDEEM_PRICE (0.005e18). The old behavior (settle at the
+    /// floor, paying amount*1000 LUMINA) was removed — redeeming at the floor is no
+    /// longer a settleable path. Assert the fail-closed revert instead.
     function testFuzz_redeemAtFloorPrice(uint256 amount) public {
-        // [Sprint T-30a CI fix] Upper bound 1000 → 800 to stay inside the
-        // per-epoch redemption throttle cap at MIN_REDEEM_PRICE:
-        //   cap = 82M * 0.001 * 108/10000 ≈ $885.
-        // Amounts in (885, 1000] were silently enqueued (LUMINA paid 0) and
-        // broke the immediate-payout assertion. The queue path is covered
-        // separately in test/BondVault.throttle.t.sol.
         amount = bound(amount, 1, 800);
 
         uint256 cap = vault.availableCapacityUSD();
@@ -162,15 +175,11 @@ contract BondVaultFuzz is Test {
         uint256 epoch = _getEpoch();
         vm.warp(claimBond.maturityDate(epoch) + 1);
 
-        // Set to exactly MIN_REDEEM_PRICE ($0.001)
-        oracle.setPrice(0.001e18);
+        // Price at the floor (<= MIN_REDEEM_PRICE 0.005e18) → fail-closed.
+        oracle.setPrice(0.005e18);
 
-        uint256 balBefore = token.balanceOf(user);
         vm.prank(user);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
         vault.redeemBond(epoch, amount);
-        uint256 received = token.balanceOf(user) - balBefore;
-
-        // amount * 1e36 / 0.001e18 = amount * 1e36 / 1e15 = amount * 1e21
-        assertEq(received, amount * 1e21, "Floor redemption should give amount * 1000 LUMINA");
     }
 }

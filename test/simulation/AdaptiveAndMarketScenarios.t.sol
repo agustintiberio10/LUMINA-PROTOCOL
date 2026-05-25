@@ -169,6 +169,13 @@ contract SimMockClaimBond {
     uint256 public constant FACE_VALUE = 1e18; // $1 in 18 dec
     mapping(address => mapping(uint256 => uint256)) public balances;
     uint256 public totalMinted;
+    // [legacy-migration] F-18: burnByHolder now self-decrements the vault's
+    // obligations (the BuybackEngine no longer does it directly). Mirror that here.
+    SimMockBondVault public bondVault;
+
+    function setBondVault(address v) external {
+        bondVault = SimMockBondVault(v);
+    }
 
     function mint(address to, uint256 epochId, uint256 amount) external {
         balances[to][epochId] += amount;
@@ -178,6 +185,10 @@ contract SimMockClaimBond {
     function burnByHolder(address account, uint256 epochId, uint256 amount) external {
         require(balances[account][epochId] >= amount, "Insufficient balance");
         balances[account][epochId] -= amount;
+        // [legacy-migration] F-18 obligation sync.
+        if (address(bondVault) != address(0)) {
+            bondVault.decreaseObligations(amount * FACE_VALUE);
+        }
     }
 
     function getFaceValue(uint256) external pure returns (uint256) {
@@ -303,6 +314,7 @@ contract AdaptiveAndMarketScenariosTest is Test {
         capacityOracle = new SimMockCapacityOracle();
         bondVault = new SimMockBondVault(address(lumina));
         claimBond = new SimMockClaimBond();
+        claimBond.setBondVault(address(bondVault)); // [legacy-migration] F-18 obligation sync
         marketplace = new SimMockMarketplace();
         dexRouter = new SimMockDexRouter(address(lumina));
 
@@ -650,6 +662,9 @@ contract AdaptiveAndMarketScenariosTest is Test {
         uint256 obligationsBefore = bondVault.totalCommittedUSD();
         uint256 luminaReservesBefore = bondVault.luminaBalanceStored();
 
+        // [legacy-migration] MR-M04: executeOffer now onlyRole(BUYBACK_OPERATOR_ROLE);
+        // operator is multisig (granted the role at init via _multisigOwner).
+        vm.prank(multisig);
         buybackEngine.executeOffer(0);
 
         // Verify: obligations reduced by face value
@@ -686,13 +701,17 @@ contract AdaptiveAndMarketScenariosTest is Test {
             marketplace.setListing(i, user, epochId, 1000, 500e6, true);
         }
 
+        // [legacy-migration] MR-M04: each executeOffer must come from the operator (multisig).
         // First buy: $500 spent, $500 remaining
+        vm.prank(multisig);
         buybackEngine.executeOffer(0);
 
         // Second buy: $500 spent, $0 remaining
+        vm.prank(multisig);
         buybackEngine.executeOffer(1);
 
         // Third buy: should revert - budget exhausted
+        vm.prank(multisig);
         vm.expectRevert("Daily budget exceeded");
         buybackEngine.executeOffer(2);
 
@@ -721,7 +740,9 @@ contract AdaptiveAndMarketScenariosTest is Test {
         claimBond.mint(address(buybackEngine), epochId, 1);
         marketplace.setListing(0, user, epochId, 1, 700_000, true); // $0.70 > $0.50 max
 
-        // Should revert: price exceeds max
+        // [legacy-migration] MR-M04: prank operator (multisig) so the call passes the
+        // role gate and reaches the "Price exceeds max" check.
+        vm.prank(multisig);
         vm.expectRevert("Price exceeds max");
         buybackEngine.executeOffer(0);
 

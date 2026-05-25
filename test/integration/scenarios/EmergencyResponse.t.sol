@@ -222,6 +222,11 @@ contract EmergencyResponseTest is Test {
         // 6. TWAPBurner
         twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
+        // [legacy-migration] F-19: _swapAndBurn derives its protective minOut from
+        // an independent capacity oracle and reverts ("TWAPBurner: oracle unset")
+        // if none is wired. The fallback distribution (85% burn) still swaps, so
+        // wire the MockCapacityOracle ($0.036, exposes getLuminaPrice()).
+        twapBurner.setCapacityOracle(address(capacityOracle));
 
         // 7. SolvencyOracle
         solvencyOracle = ProxyDeployer.deploySolvencyOracle(bondVaultAddr, address(capacityOracle), admin);
@@ -336,6 +341,13 @@ contract EmergencyResponseTest is Test {
 
         // Authorize BuybackEngine on BondVault (requires policyManager = address(this))
         bondVault.setAuthorizedCaller(address(engine), true);
+        // [legacy-migration] F-18 obligation sync: the double-burn calls
+        // ClaimBond.burnByHolder, which now calls BondVault.decreaseObligations
+        // (gated by onlyAuthorized) to keep totalCommittedUSD in sync. Authorize
+        // ClaimBond on the vault so the obligation decrement actually applies;
+        // otherwise burnByHolder's try/catch swallows the revert and obligations
+        // stay at 500e18 (the assertion this test checks at the end).
+        bondVault.setAuthorizedCaller(address(claimBond), true);
 
         // Configure daily buyback
         engine.setDailyBuyback(100_000e6, 80, 24);

@@ -154,11 +154,14 @@ contract TWAPBurnerMinOutGuard is Test {
     function test_FixM02_Guard_AllQuotesZero_NoOracle_Reverts() public {
         _fund(10e6);
         router1.setRevertOnQuote(true); // quote = 0 via try/catch
-        // capacityOracle not set → minOut stays 0
+        // capacityOracle not set
         deal(address(lumina), address(router1), 100e18);
         router1.setSwapOutput(100e18);
 
-        vm.expectRevert(bytes("TWAPBurner: minOut must be > 0"));
+        // [legacy-migration] pattern #3: post-F-19, minOut is derived ONLY from
+        // the oracle, so an unset oracle now fails-closed at the explicit
+        // `capacityOracle != address(0)` guard BEFORE the `minOut > 0` check.
+        vm.expectRevert(bytes("TWAPBurner: oracle unset"));
         burner.executeBurn();
     }
 
@@ -173,7 +176,11 @@ contract TWAPBurnerMinOutGuard is Test {
         deal(address(lumina), address(router1), 100e18);
         router1.setSwapOutput(100e18);
 
-        vm.expectRevert(bytes("TWAPBurner: minOut must be > 0"));
+        // [legacy-migration] pattern #3/#4: the oracle price read is NOT wrapped
+        // in try/catch, so a reverting oracle fails the burn closed with the
+        // oracle's own revert reason (previously this fell through to the
+        // `minOut > 0` guard).
+        vm.expectRevert(bytes("oracle down"));
         burner.executeBurn();
     }
 
@@ -185,6 +192,11 @@ contract TWAPBurnerMinOutGuard is Test {
         router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         deal(address(lumina), address(router1), 100e18);
+        // [legacy-migration] pattern #3: post-F-19 a nonzero quote no longer
+        // suffices on its own — the oracle is mandatory for the protective
+        // minOut. Wire one at $0.10/LUMINA so minOut (95e18) <= swapOutput.
+        capOracle.setPrice(0.1e18);
+        burner.setCapacityOracle(address(capOracle));
         burner.executeBurn();
         assertEq(router1.callCount(), 1);
     }
@@ -222,6 +234,12 @@ contract TWAPBurnerMinOutGuard is Test {
         rs[1] = address(router2);
         burner.setDexRouters(rs);
 
+        // [legacy-migration] pattern #3: oracle mandatory for minOut. Router
+        // selection still keys off the best quote (router2), independent of the
+        // oracle; minOut (95e18 @ $0.10) is well below router2's 1200e18 output.
+        capOracle.setPrice(0.1e18);
+        burner.setCapacityOracle(address(capOracle));
+
         burner.executeBurn();
         assertEq(router2.callCount(), 1);
         assertEq(router1.callCount(), 0);
@@ -238,6 +256,9 @@ contract TWAPBurnerMinOutGuard is Test {
         router1.setQuote(100e18);
         router1.setSwapOutput(100e18);
         deal(address(lumina), address(router1), 100e18);
+        // [legacy-migration] pattern #3: oracle mandatory post-F-19.
+        capOracle.setPrice(0.1e18);
+        burner.setCapacityOracle(address(capOracle));
         burner.executeBurn();
         assertEq(burner.totalLUMINABurned(), 100e18);
     }

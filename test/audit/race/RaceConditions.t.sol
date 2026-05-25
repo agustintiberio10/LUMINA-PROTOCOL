@@ -274,6 +274,10 @@ contract RaceConditionsTest is Test {
         // 13. Deploy CoverRouter
         coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
         coverRouter.setCapacityOracle(address(priceOracle));
+        // [legacy-migration] pattern #3 (F-19): TWAPBurner.executeBurn (Category 6
+        // race tests) derives minOut from a capacity oracle and reverts
+        // "oracle unset" otherwise. Reuse the existing MockPriceOracle_RC.
+        twapBurner.setCapacityOracle(address(priceOracle));
 
         // 14. Wire PolicyManager -> CoverRouter
         policyManager.setRouter(address(coverRouter));
@@ -357,20 +361,45 @@ contract RaceConditionsTest is Test {
     ///      is rejected immediately (InsufficientCapacity), preventing the old
     ///      race where both purchases passed but the 2nd trigger reverted.
     function test_Race_ConcurrentPurchases_2ndRevertsCapacityExhausted() public {
-        // Capacity at $0.036: 70M * 0.036 * 50% = ~$1.26M. Payout = coverage * 80%.
-        // Use big coverage: $1.5M => payout = $1.2M. Two of these exceed $1.26M.
-        uint256 bigCoverage = 1_500_000e6; // $1.5M
+        // [legacy-migration] F-23 max coverage: coverage is now capped at
+        // MAX_COVERAGE_PER_POLICY ($10,000), so the old single $1.5M purchase
+        // reverts InvalidCoverage before ever reaching the capacity path. To
+        // still exercise the capacity-exhaustion guard, buy many MAX-coverage
+        // policies (each reserves $8,000 = $10k * 80%) until reservations have
+        // consumed the BondVault capacity, then assert the next purchase
+        // reverts (InsufficientCapacity) at purchase time.
+        //
+        // Capacity at $0.036: 70M * 0.036 * 50% = ~$1,260,000. Each MAX policy
+        // reserves $8,000, so ~157 policies fit; the next one must fail.
+        uint256 maxCoverage = 10_000e6; // $10,000 — the per-policy ceiling
 
-        // First purchase succeeds and RESERVES $1.2M capacity
-        uint256 id1 = _buyPolicy(buyer1, PRODUCT_ID, bigCoverage);
-        assertGt(id1, 0);
+        uint256 firstId;
+        uint256 purchased;
+        // Buy until BondVault no longer has room for another $8,000 reservation.
+        for (uint256 i = 0; i < 200; i++) {
+            // Each MAX policy reserves coverage*80% = $8,000.
+            if (bondVault.availableCapacityUSD() < 8_000) break;
+            address b = makeAddr(string(abi.encodePacked("capBuyer", i)));
+            usdc.mint(b, 1_000_000e6);
+            vm.prank(b);
+            usdc.approve(address(coverRouter), type(uint256).max);
+            uint256 id = _buyPolicy(b, PRODUCT_ID, maxCoverage);
+            if (i == 0) firstId = id;
+            purchased++;
+        }
+        assertGt(purchased, 0, "Should have made at least one purchase");
 
-        // Second purchase FAILS at purchase time — capacity already reserved
+        // Capacity is now exhausted: the next MAX-coverage purchase must revert
+        // (InsufficientCapacity bubbles up from PolicyManager.recordPolicy).
+        address late = makeAddr("lateCapBuyer");
+        usdc.mint(late, 1_000_000e6);
+        vm.prank(late);
+        usdc.approve(address(coverRouter), type(uint256).max);
         vm.expectRevert();
-        _buyPolicy(buyer2, PRODUCT_ID, bigCoverage);
+        _buyPolicy(late, PRODUCT_ID, maxCoverage);
 
-        // First trigger succeeds since capacity was reserved
-        coverRouter.submitTrigger(PRODUCT_ID, id1, "");
+        // The first trigger still succeeds since its capacity was reserved.
+        coverRouter.submitTrigger(PRODUCT_ID, firstId, "");
     }
 
     /// @notice 10 buyers in same block, all get unique policy IDs.

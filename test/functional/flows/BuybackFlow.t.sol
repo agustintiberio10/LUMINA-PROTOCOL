@@ -175,12 +175,18 @@ contract BuybackFlowTest is Test {
         usdc.mint(address(engine), 200e6);
 
         // First buy succeeds (spentToday: 0 + 40e6 = 40e6 <= 100e6)
+        // [legacy-migration] pattern #8: executeOffer is now onlyRole(BUYBACK_OPERATOR_ROLE),
+        // granted to `multisig` at init. Prank as the operator.
+        vm.prank(multisig);
         engine.executeOffer(0);
 
         // Create second listing that would exceed budget (40e6 + 70e6 = 110e6 > 100e6)
         marketplace.setListing(1, makeAddr("seller"), 202804, 100, 70e6, true);
 
         // Second buy reverts (spentToday: 40e6 + 70e6 = 110e6 > 100e6)
+        // [legacy-migration] pattern #8: must pass the role gate before hitting the
+        // budget check, so prank as operator here too.
+        vm.prank(multisig);
         vm.expectRevert("Daily budget exceeded");
         engine.executeOffer(1);
     }
@@ -198,6 +204,9 @@ contract BuybackFlowTest is Test {
         marketplace.setListing(0, makeAddr("seller"), 202804, 10, 5e6, true);
         usdc.mint(address(engine), 10e6);
 
+        // [legacy-migration] pattern #8: executeOffer is now onlyRole(BUYBACK_OPERATOR_ROLE);
+        // prank as operator so the call reaches the expiry check (which reverts).
+        vm.prank(multisig);
         vm.expectRevert("Daily offer expired");
         engine.executeOffer(0);
     }

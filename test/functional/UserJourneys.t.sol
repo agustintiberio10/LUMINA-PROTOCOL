@@ -231,6 +231,11 @@ contract UserJourneysTest is Test {
         // Buyer now holds the bonds
         assertEq(claimBond.balanceOf(buyer, epochId), 500);
 
+        // [legacy-migration] F-14 pull-payment: seller proceeds are booked to
+        // pendingWithdrawals; the agent must withdraw() before holding USDC.
+        vm.prank(agent);
+        marketplace.withdraw();
+
         // Seller received price minus seller fee
         uint256 sellerFee = (400e6 * 150) / 10000;
         assertEq(usdc.balanceOf(agent), 400e6 - sellerFee);
@@ -255,7 +260,12 @@ contract UserJourneysTest is Test {
         assertEq(token.balanceOf(cexPartner), 500_000e18);
 
         // Step 2: Multisig pays for an audit
+        // [legacy-migration] F-15 seeded a DEFAULT_MONTHLY_CAP (10_000e6) on the
+        // MaintenanceReserve; the $50K audit spend exceeds it. Raise the cap as
+        // admin (multisig) to preserve the realistic audit-payment intent.
         address auditor = makeAddr("auditor");
+        vm.prank(multisig);
+        maintenanceReserve.setMonthlyCap(100_000e6);
         vm.prank(multisig);
         maintenanceReserve.spend(
             auditor, 50_000e6, MaintenanceReserve.SpendCategory.Audit, "Trail of Bits audit Phase 7"
@@ -378,6 +388,13 @@ contract UserJourneysTest is Test {
 
         // Buyer now holds 500 bonds total (100 from each seller)
         assertEq(claimBond.balanceOf(buyer, epochId), 500);
+
+        // [legacy-migration] F-14 pull-payment: each seller's proceeds are booked
+        // to pendingWithdrawals; they must withdraw() before holding USDC.
+        for (uint256 i = 0; i < 5; i++) {
+            vm.prank(sellers[i]);
+            marketplace.withdraw();
+        }
 
         // Each seller received price minus 1.5% seller fee
         for (uint256 i = 0; i < 5; i++) {

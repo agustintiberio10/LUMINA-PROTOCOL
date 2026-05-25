@@ -107,8 +107,10 @@ contract RoundingErrors is Test {
         vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("P");
-        // Tiny bps so premium floor = 0 — the `if premium == 0` branch forces it to 1.
-        r.configureProduct(pid, 100, 1, 1, 3600, true);
+        // [legacy-migration] pattern #6: payoutRatioBps must be 8000 (MR-M01).
+        // With cov=1e6 and triggerProb=margin=1, premium = 1e6*8000*1*1/1e12 = 0
+        // (floors), so the `if premium == 0` branch still forces it to 1.
+        r.configureProduct(pid, 8000, 1, 1, 3600, true);
         (uint256 premium,) = r.quotePremium(pid, 1e6);
         assertEq(premium, 1, "min 1 unit USDC floor");
     }
@@ -117,10 +119,14 @@ contract RoundingErrors is Test {
         vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("P");
-        r.configureProduct(pid, 8001, 201, 1999, 3600, true);
+        // [legacy-migration] pattern #6: configureProduct now enforces
+        // payoutRatioBps == 8000 (MR-M01). The floor-of-formula property under
+        // test is independent of the exact ratio; 201/1999 still leave a
+        // remainder, so the floor assertion remains meaningful at 8000.
+        r.configureProduct(pid, 8000, 201, 1999, 3600, true);
         uint256 cov = 111e6;
         (uint256 premium,) = r.quotePremium(pid, cov);
-        uint256 numerator = cov * uint256(8001) * 201 * 1999;
+        uint256 numerator = cov * uint256(8000) * 201 * 1999;
         uint256 denom = uint256(10000) * 10000 * 10000;
         assertEq(premium, numerator / denom);
     }
@@ -132,10 +138,11 @@ contract RoundingErrors is Test {
         vm.chainId(8453);
         CoverRouterV2 r = _router();
         bytes32 pid = keccak256("PAY");
-        // payoutRatio = 8001 → 80.01% of coverage.
-        r.configureProduct(pid, 8001, 200, 2000, 3600, true);
+        // [legacy-migration] pattern #6: payoutRatioBps must be 8000 (MR-M01).
+        // payoutRatio = 8000 → 80% of coverage; payout floors against holder.
+        r.configureProduct(pid, 8000, 200, 2000, 3600, true);
         (, uint256 payout) = r.quotePremium(pid, 333e6);
-        uint256 expected = (uint256(333e6) * 8001) / 10000;
+        uint256 expected = (uint256(333e6) * 8000) / 10000;
         assertEq(payout, expected);
     }
 

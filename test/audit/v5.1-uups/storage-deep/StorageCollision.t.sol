@@ -406,9 +406,10 @@ contract StorageCollision is Test {
         CoverRouterV2 r = _deployRouter();
         r.configureProduct(keccak256("A"), 8000, 100, 1000, 3600, true);
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
-        r.configureProduct(keccak256("B"), 7000, 200, 1500, 7200, true);
+        // [legacy-migration] pattern #6: payoutRatioBps must be 8000 (MR-M01).
+        r.configureProduct(keccak256("B"), 8000, 200, 1500, 7200, true);
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
-        r.configureProduct(keccak256("C"), 6000, 300, 2000, 86400, true);
+        r.configureProduct(keccak256("C"), 8000, 300, 2000, 86400, true);
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
 
         (,,,,, bool aAct) = r.products(keccak256("A"));

@@ -243,10 +243,22 @@ contract E2EIntegrationTest is Test {
         assertGt(bondAmount, 0, "agent holds bond NFT");
 
         // Warp past maturity and redeem.
+        // [legacy-migration] F-10 per-user throttle: a single account may redeem
+        // at most MAX_USER_REDEEM_BPS (10%) of the per-epoch cap per 7-day
+        // throttle-epoch. With a 70M-LUMINA reserve at the mock's $0.01 price the
+        // per-user cap is ~$756, below the $800 bond. Split the full redemption
+        // across two consecutive throttle-epochs to keep the "fully redeemed"
+        // intent while respecting the throttle.
         vm.warp(cb.maturityDate(epochId) + 1);
         uint256 luminaBefore = token.balanceOf(aiAgent);
+        uint256 firstChunk = bondAmount / 2; // <= per-user cap
         vm.prank(aiAgent);
-        vault.redeemBond(epochId, bondAmount);
+        vault.redeemBond(epochId, firstChunk);
+
+        // Advance one throttle-epoch (7 days) so the per-user counter resets.
+        vm.warp(block.timestamp + 7 days);
+        vm.prank(aiAgent);
+        vault.redeemBond(epochId, bondAmount - firstChunk);
         uint256 luminaAfter = token.balanceOf(aiAgent);
 
         assertGt(luminaAfter, luminaBefore, "agent received LUMINA at redemption");
@@ -306,6 +318,11 @@ contract E2EIntegrationTest is Test {
         usdc.approve(address(marketplace), type(uint256).max);
         marketplace.executeBuy(listingId);
         vm.stopPrank();
+
+        // [legacy-migration] F-14 pull-payment: the sale credits the agent's
+        // proceeds to pendingWithdrawals (balance unchanged until withdraw()).
+        vm.prank(aiAgent);
+        marketplace.withdraw();
 
         // Agent received USDC (price minus fees), buyer holds the NFT.
         assertGt(usdc.balanceOf(aiAgent), agentUsdcBefore, "agent received USDC from sale");

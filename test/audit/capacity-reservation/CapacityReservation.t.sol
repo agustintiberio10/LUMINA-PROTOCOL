@@ -181,6 +181,13 @@ contract CapacityReservationTest is Test {
         uint256 reservedBefore = vault.totalReservedUSD();
         assertEq(reservedBefore, 800 * 1e18);
 
+        // [legacy-migration] F-03: markExpired now does a FRESH shield
+        // evaluation and reverts PolicyTriggerable if the shield reports a
+        // trigger (a genuine trigger must never be buried under an expiry).
+        // The mock defaults to triggerResult=true, so flip it to false to
+        // exercise the legitimate expiry path (window closed, no trigger).
+        shield.setTriggerResult(false);
+
         // Warp past expiry
         vm.warp(block.timestamp + 3601);
 
@@ -197,6 +204,11 @@ contract CapacityReservationTest is Test {
         uint256 capBefore = vault.availableCapacityUSD();
         pm.recordPolicy(PRODUCT_ID, buyer1, 1000e6, 2e6, 3600, "BTC");
         uint256 capDuring = vault.availableCapacityUSD();
+
+        // [legacy-migration] F-03: markExpired reverts PolicyTriggerable if the
+        // shield reports a trigger on a fresh evaluation. The mock defaults to
+        // triggerResult=true; flip to false for the legitimate expiry path.
+        shield.setTriggerResult(false);
 
         // Expire the policy
         vm.warp(block.timestamp + 3601);
