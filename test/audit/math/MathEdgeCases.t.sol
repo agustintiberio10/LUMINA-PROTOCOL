@@ -71,10 +71,8 @@ contract MockFeeDistributorMath {
     }
 }
 
-contract MockUSDC {
-    // Minimal ERC20 for testing — we use forge deal() for balances
-
-    }
+// Minimal ERC20 for testing — we use forge deal() for balances
+contract MockUSDC {}
 
 // ═══════════════════════════════════════════════════════════
 // MATH EDGE CASES AUDIT — 8 Categories, ~40 Tests
