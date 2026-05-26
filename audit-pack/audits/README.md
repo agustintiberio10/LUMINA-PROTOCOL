@@ -21,6 +21,7 @@ and recommendations.
 | 2026-05-26 | Integral Revision V5.4 (spec vs landing/docs/SDK/API) | [2026-05-26-integral-revision-v54.md](./2026-05-26-integral-revision-v54.md) |
 | 2026-05-26 | Agent Autonomy Test V5.4 (zero-knowledge journey) | [2026-05-26-agent-autonomy-test.md](./2026-05-26-agent-autonomy-test.md) |
 | 2026-05-26 | E2E Complete Test — Shield Mock + Full Flow | [2026-05-26-e2e-test-full-flow.md](./2026-05-26-e2e-test-full-flow.md) |
+| 2026-05-26 | Distribution Strategy — Fase 5 (skills + frameworks + venues) | [2026-05-26-distribution-strategy-fase5.md](./2026-05-26-distribution-strategy-fase5.md) |
 
 ## Convention
 
