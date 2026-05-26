@@ -2,7 +2,23 @@
 
 ## About this changelog
 
-Entries are listed newest first. Older entries reference previous architecture versions (V1/V2/V4) for historical accuracy. **Current architecture is V5.1** — see [`SECURITY.md`](./SECURITY.md) and [`docs/architecture/AAVE-INTEGRATION.md`](./docs/architecture/AAVE-INTEGRATION.md) for the in-force model.
+Entries are listed newest first. Older entries reference previous architecture versions (V1/V2/V4) for historical accuracy. **Current architecture is V5.4** — see [`SECURITY.md`](./SECURITY.md) and [`docs/architecture/AAVE-INTEGRATION.md`](./docs/architecture/AAVE-INTEGRATION.md) for the in-force model.
+
+
+## [5.4] - May 2026 — V5.3/V5.4 hardening & testnet maturation
+### Added
+- Base Sepolia redeploy of 6 flash shields + 6 UUPS adapters (Sprint T-30c); F-01 multi-block barrier-confirmation trigger live on-chain (Sprint Shields-UUPS).
+- BuybackEngine deployed (`0x56B5a1115B0d9781E7358521204d927d2F80d8B4`); AdaptiveFeeDistributor 85/8/2/5 split (burn/buyback/ops/maintenance); marketplace 3% fee (1.5% seller + 1.5% buyer).
+- BondVault solvency floor + per-epoch redemption throttle/queue; FounderVestingV2 override; CEX-injection + LUMINA price-floor pause + hysteresis (Economic V2).
+- Migrated payment token to mock USDC (`0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`); permissionless faucet (mint, 10k mUSDC + 0.05 ETH/claim).
+- E2E mock-oracle harness validating full purchase→trigger→bond→mature→redeem on-chain (`audit-pack/audits/2026-05-26-e2e-test-full-flow.md`).
+
+### Audits (internal / AI-assisted; no external audit yet)
+- Red-Team V2 (8.6/10), Manual Review V2 (9.3/10), Functional, Operational (NEEDS-HARDENING), Economic V2 (8.4/10 SOUND), Tier-1 readiness (~4.5/10, honest). See `audit-pack/audits/`.
+
+### Notes
+- Genesis split: BondVault 70M / CEX-DEX 14M / Founder 8M / LBP 5M / Treasury 3M = 100M fixed supply.
+- Mainnet gated on external audit + multisig + live bug bounty (see Tier-1 assessment).
 
 
 ## [2.0.0] - April 2026 — ClaimBond Pivot

@@ -1,9 +1,9 @@
-# LUMINA Protocol V5.1
+# LUMINA Protocol V5.4
 
 Parametric insurance protocol on Base L2 for AI agents and humans.
 
 ## Status
-- **V5.1**: Live on Base Sepolia testnet (this branch); mainnet launch pending
+- **V5.4**: Live on Base Sepolia testnet (this branch); mainnet launch pending
 - **V1**: Deprecated, archived in branch `legacy/v1-archive`
 
 ## Architecture
@@ -72,10 +72,10 @@ In CI / deploy scripts, always pass the alias rather than the raw URL — that l
 - [V1 Deprecated Contracts](docs/V1-DEPRECATED-CONTRACTS.md)
 
 ## Legacy V1
-The previous version is preserved in branch `legacy/v1-archive` for historical reference. V1 contracts on Base mainnet are deprecated and will be paused after the V5.1 mainnet launch.
+The previous version is preserved in branch `legacy/v1-archive` for historical reference. V1 contracts on Base mainnet are deprecated and will be paused after the V5.4 mainnet launch.
 
 ## Chain
-- **Current** (testnet): Base Sepolia, Chain ID `84532` — V5.1 deployed and live
+- **Current** (testnet): Base Sepolia, Chain ID `84532` — V5.4 deployed and live
 - **Planned** (mainnet): Base, Chain ID `8453` — pending launch
 
 ### Marketplace contract sync (M-3)
