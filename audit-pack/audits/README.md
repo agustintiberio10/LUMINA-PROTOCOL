@@ -24,6 +24,7 @@ and recommendations.
 | 2026-05-26 | UX/DevEx Final — Agent (7.4 → 9.5 proj.) | [2026-05-26-ux-devex-final-agent.md](./2026-05-26-ux-devex-final-agent.md) |
 | 2026-05-26 | UX/DevEx Final — Human (5.1 → 7.75 proj.) | [2026-05-26-ux-devex-final-human.md](./2026-05-26-ux-devex-final-human.md) |
 | 2026-05-26 | UX/DevEx Final — Fixes Applied | [2026-05-26-ux-devex-final-fixes.md](./2026-05-26-ux-devex-final-fixes.md) |
+| 2026-05-26 | MCP Discoverability (skills/docs/tutorial/llms.txt) | [2026-05-26-mcp-discoverability.md](./2026-05-26-mcp-discoverability.md) |
 
 ## Convention
 
