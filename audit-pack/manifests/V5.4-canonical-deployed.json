@@ -1,0 +1,45 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "derivedAt": "2026-05-25",
+  "method": "on-chain derivation from root contracts (cast call getters + ERC1967 impl slot) — NOT from repo manifests",
+  "owner": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+  "relayer": "0x168dC7105e907294f9d066cee24f30caa5A17E4a",
+  "core": {
+    "BondVault":              { "proxy": "0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC", "impl": "0x6bbde25a235dc07c0145a8a1a1d570e4f7abdfaa", "type": "UUPS", "deployed": true },
+    "CoverRouterV2":          { "proxy": "0xcdB70B40e6a3DEac3189185d947A0e458518F566", "impl": "0xef3f18057f0787602997279e3f3c1d2145e0f9da", "type": "UUPS", "deployed": true },
+    "PolicyManagerV2":        { "proxy": "0x546C07e07DeBCdbf7a2A7Ef12C38c8c8fcAFcDd8", "impl": "0xde41d414ed191a1090546078df8e120c196be22f", "type": "UUPS", "deployed": true },
+    "ClaimBond":              { "proxy": "0xaa57Ab52Eb00f296Ad4CFA9E9c201f3737271FB4", "impl": "0x3bfb73b36709c6e6684116bf84ea3b571b302482", "type": "UUPS", "deployed": true },
+    "TWAPBurner":             { "proxy": "0x242d76082856901b4ba1E7c50C022D46a6941bC0", "impl": "0xb0a36ce3527f3142af82adfae8f8dd6de8b869dc", "type": "UUPS", "deployed": true },
+    "AdaptiveFeeDistributor": { "proxy": "0xeC7841A4a9ecfb8cA58391E233A645B021c59D54", "impl": "0xebe558a80dd449216c3e50268d23522abe59dd2f", "type": "UUPS", "deployed": true },
+    "BuybackEngine":          { "proxy": "0x56B5a1115B0d9781E7358521204d927d2F80d8B4", "impl": "0x27b77929967301a5c5364ebb4964f899412311de", "type": "UUPS", "deployed": true },
+    "LuminaBondMarketplace":  { "proxy": "0x0938205f4cBe5F572656533FC930FFce6F5F4345", "impl": "0x8b650b5159a9bbb96233de7f5de99aed6fe01b53", "type": "UUPS", "deployed": true },
+    "CapacityOracle":         { "proxy": "0xd52aef11ff411E9e54F7a1bB680065F158cF6545", "impl": "0x68e19e0a59dac6af64087cd14d7e5b66e0bc0aba", "type": "UUPS", "deployed": true, "note": "LIVE — repo manifests had stale V5.0 0xAf99...14ec" },
+    "SolvencyOracle":         { "proxy": "0x23f77D17A1c94c31cde3e73f032D6706B43bB7fe", "impl": "0x7121f6a7ae3b73dbea57da0db2a94ed4cde63fbe", "type": "UUPS", "deployed": true, "note": "LIVE — repo had stale 0x429b..." },
+    "MaintenanceReserve":     { "proxy": "0xD78A72e9F326620162043Ff6cBC4ae03d0e82A48", "impl": "0xa6376d178ca99648f395c270d97c23f0750d9308", "type": "UUPS", "deployed": true, "note": "LIVE — repo had stale 0x3bC9..." }
+  },
+  "nonUpgradeable": {
+    "LuminaTokenV2":  { "address": "0x62C0b58bB30CA857674ec593F1e23B3F15266680", "type": "ERC20", "deployed": true },
+    "LuminaOracleV2": { "address": "0x9bfa2f7A5098C89b8740D1694d1f716A0Bd871dD", "type": "Ownable (non-upgradeable)", "deployed": true },
+    "FounderVesting": { "address": "0xfF4Db529bBCd4E3CC091E07b7845241EB4762832", "type": "immutable", "deployed": true },
+    "mUSDC":          { "address": "0xD944d8e5D8329994D83950872Ec210891d3Ab6AE", "type": "MockUSDC", "deployed": true }
+  },
+  "shieldsV54": {
+    "FlashBTCShield1h":  { "shield": "0x7d1615C90d01712a3b86Df26312aC6D8EFa0d0b3", "adapter": "0x5d50310B9166184e822cD5368F51C1409713054f", "type": "UUPS", "deployed": true },
+    "FlashBTCShield24h": { "shield": "0x18e2D3b8Ff4D194CDB9862f8e6239E5e1145961d", "adapter": "0x475b3F712707F61824122a94fE78b106260F8882", "type": "UUPS", "deployed": true },
+    "FlashBTCShield48h": { "shield": "0xe206dd8fb02b1C2A0507566c3d03a27554E8CBeB", "adapter": "0xdc6387E86F7D852D1f99F4009cFd8AdC2d500298", "type": "UUPS", "deployed": true },
+    "FlashETHShield1h":  { "shield": "0xfF1a1B20153019C22f97278204Ccfc1b1409a518", "adapter": "0x57869AD3E7C56B0c96F357179DD231b407C88338", "type": "UUPS", "deployed": true },
+    "FlashETHShield24h": { "shield": "0x2832b5543f6F2a055312654739F0ae03F5b0b582", "adapter": "0x4fD09cF98F6814Cc8b33C2E491429f59d0bCf089", "type": "UUPS", "deployed": true },
+    "FlashETHShield48h": { "shield": "0x60dFC6610c64aC84e12afA943737Cf7733215B75", "adapter": "0x9696CFFD7dE8B1e16F83Dcc798c5CE69a61C884C", "type": "UUPS", "deployed": true }
+  },
+  "gaps": {
+    "ShieldKeeper":      { "address": "0x0000000000000000000000000000000000000000", "deployed": false, "note": "adapter.keeper() == 0x0 on all 6 V5.4 adapters; settlement currently via relayer only. Repo's 0xb77F...c7DB is a stale V5.0 contract (impl slot 0x0), not wired." },
+    "CEXLiquidityReserve": { "address": "0x0000000000000000000000000000000000000000", "deployed": false, "note": "BondVault.cexReserve() == 0x0 (dormant). MR-M03 reserve-side cap cannot go on-chain until deployed + wired." }
+  },
+  "feeRouting": {
+    "feeDistributor": "0xeC7841A4a9ecfb8cA58391E233A645B021c59D54",
+    "buybackReserve": "0x56B5a1115B0d9781E7358521204d927d2F80d8B4",
+    "opsReserve": "0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8",
+    "maintenanceReserve": "0xD78A72e9F326620162043Ff6cBC4ae03d0e82A48"
+  }
+}
