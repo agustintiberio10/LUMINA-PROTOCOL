@@ -282,7 +282,8 @@ contract UpgradePathE2E is Test {
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
 
         assertTrue(r.authorizedRelayers(makeAddr("relayer")));
-        r.configureProduct(keccak256("B"), 7000, 300, 1500, 7200, true);
+        // [legacy-migration] pattern #6: payoutRatioBps must be 8000 (MR-M01).
+        r.configureProduct(keccak256("B"), 8000, 300, 1500, 7200, true);
         (,,,,, bool active) = r.products(keccak256("B"));
         assertTrue(active);
     }
@@ -292,9 +293,10 @@ contract UpgradePathE2E is Test {
         CoverRouterV2 r = ProxyDeployer.deployCoverRouterV2(makeAddr("u"), makeAddr("p"), makeAddr("b"));
         r.configureProduct(keccak256("A"), 8000, 100, 1000, 3600, true);
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
-        r.configureProduct(keccak256("B"), 7000, 200, 1500, 7200, true);
+        // [legacy-migration] pattern #6: payoutRatioBps must be 8000 (MR-M01).
+        r.configureProduct(keccak256("B"), 8000, 200, 1500, 7200, true);
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
-        r.configureProduct(keccak256("C"), 6000, 300, 2000, 86400, true);
+        r.configureProduct(keccak256("C"), 8000, 300, 2000, 86400, true);
         r.upgradeToAndCall(address(new CoverRouterV2()), "");
         (,,,,, bool a) = r.products(keccak256("A"));
         (,,,,, bool b) = r.products(keccak256("B"));

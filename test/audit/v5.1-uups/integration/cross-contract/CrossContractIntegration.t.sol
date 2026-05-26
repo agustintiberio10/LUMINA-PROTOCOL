@@ -243,11 +243,22 @@ contract CrossContractIntegrationTest is Test {
             address(s.cb), address(s.vault), address(s.sol), address(s.oracle), address(s.mp), address(s.usdc), admin
         );
         s.vault.setAuthorizedCaller(address(s.buyback), true);
+        // [legacy-migration] F-18 obligation sync: ClaimBond.burnByHolder now
+        // calls BondVault.decreaseObligations (gated by onlyAuthorized) to keep
+        // totalCommittedUSD in sync on holder/buyback burns. Authorize ClaimBond
+        // on the vault so the double-burn's obligation decrement reaches it; the
+        // production deploy/runbook wires this same caller.
+        s.vault.setAuthorizedCaller(address(s.cb), true);
 
         s.mr = ProxyDeployer.deployMaintenanceReserve(address(s.usdc), admin);
 
         s.burner.setFeeDistributor(address(s.adp));
         s.burner.setReserves(address(s.buyback), makeAddr("ops"), address(s.mr));
+        // [legacy-migration] pattern #3: post-F-19 TWAPBurner derives minOut
+        // exclusively from the capacity oracle and reverts ("TWAPBurner: oracle
+        // unset") in _swapAndBurn without one. Wire the same oracle the router
+        // uses so the full-stack burn paths are operational.
+        s.burner.setCapacityOracle(address(s.oracle));
 
         // Register a product in PM + shield.
         s.productId = keccak256("FLASH_BTC_1H");
@@ -438,6 +449,11 @@ contract CrossContractIntegrationTest is Test {
         uint256 burnerBefore = s.usdc.balanceOf(address(s.burner));
         s.mp.executeBuy(listingId);
         vm.stopPrank();
+
+        // [legacy-migration] F-14 pull-payment: the seller's proceeds are booked
+        // to pendingWithdrawals on executeBuy; withdraw() before asserting balance.
+        vm.prank(agent);
+        s.mp.withdraw();
 
         // Verify net deltas: seller received (price - sellerFee).
         assertEq(s.usdc.balanceOf(agent) - agentBefore, 300e6 - sellerFee);

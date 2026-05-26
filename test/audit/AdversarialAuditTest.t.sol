@@ -216,6 +216,11 @@ contract AdversarialAuditTest is Test {
         claimBond.setBondVault(address(bondVault));
         policyManager.setRouter(address(coverRouter));
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
+        // [legacy-migration] pattern #3 (F-19): TWAPBurner.executeBurn now derives
+        // its protective minOut from a capacity oracle and REVERTS ("oracle unset")
+        // if none is wired. Reuse the existing MockPriceOracle (getLuminaPrice) so
+        // burn math stays consistent with the price the tests set.
+        twapBurner.setCapacityOracle(address(oracle));
 
         // 9. Setup shield
         shield = new MockShield(PRODUCT_ID, address(policyManager));
@@ -373,12 +378,15 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_large_coverage() public {
+        // [legacy-migration] F-23 max coverage: coverage > MAX_COVERAGE_PER_POLICY
+        // ($10,000) now reverts InvalidCoverage. $1M coverage is far above the
+        // cap, so this large-coverage boundary now fails closed. Preserve the
+        // boundary intent by asserting the revert with the exact amount.
         vm.startPrank(user1);
         usdc.approve(address(coverRouter), 10_000_000e6);
-        uint256 pid = coverRouter.purchasePolicy(PRODUCT_ID, 1_000_000e6, "BTC");
+        vm.expectRevert(abi.encodeWithSelector(CoverRouterV2.InvalidCoverage.selector, uint256(1_000_000e6)));
+        coverRouter.purchasePolicy(PRODUCT_ID, 1_000_000e6, "BTC");
         vm.stopPrank();
-        assertGt(pid, 0);
-        assertEq(usdc.balanceOf(address(twapBurner)), 2_400_000_000);
     }
 
     function test_zero_coverage_reverts() public {
@@ -732,6 +740,10 @@ contract AdversarialAuditTest is Test {
     }
 
     function test_redeem_floor_price() public {
+        // [legacy-migration] F-02 fail-closed redemption: $0.001 is below
+        // MIN_REDEEM_PRICE (0.005e18). _redeemPrice() reverts ORACLE_UNAVAILABLE
+        // instead of settling at the floor (the floor is display-only). The
+        // redeem at the floor/below-floor price now fails closed.
         _issueBondAsPM(user1, 100);
         uint256 epochId = _epochOfCurrentPlus24();
 
@@ -739,19 +751,15 @@ contract AdversarialAuditTest is Test {
         oracle.setPrice(0.001e18);
 
         vm.prank(user1);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
         bondVault.redeemBond(epochId, 100);
-
-        uint256 expected = (100 * 1e36) / 0.001e18;
-        assertEq(token.balanceOf(user1), expected);
     }
 
     function test_oracle_zero_uses_floor() public {
-        // [Sprint T-30a CI fix] Bond size reduced from $800 to $500 to stay
-        // inside the per-epoch redemption throttle cap at MIN_REDEEM_PRICE
-        // ($0.001). With 70M LUMINA in the vault, the cap is
-        // (70M * 0.001 * 108/10000) = $756. The original $800 over-cap path
-        // is now exercised by the queue tests in test/BondVault.throttle.t.sol;
-        // this test focuses on the floor-pricing branch.
+        // [legacy-migration] F-02 fail-closed redemption: an oracle reading of
+        // 0 is <= MIN_REDEEM_PRICE, so _redeemPrice() reverts ORACLE_UNAVAILABLE
+        // rather than flooring the settlement. The "uses floor" intent is
+        // replaced by "fails closed" — redemption at oracle=0 must revert.
         _issueBondAsPM(user1, 500);
         uint256 epochId = _epochOfCurrentPlus24();
 
@@ -759,10 +767,8 @@ contract AdversarialAuditTest is Test {
         oracle.setPrice(0);
 
         vm.prank(user1);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
         bondVault.redeemBond(epochId, 500);
-
-        uint256 expected = (500 * 1e36) / 0.001e18;
-        assertEq(token.balanceOf(user1), expected);
     }
 
     // ═══════════════════════════════════════════════════════════

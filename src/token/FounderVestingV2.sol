@@ -134,7 +134,9 @@ contract FounderVestingV2 is Ownable {
         if (_alreadyTriggered) {
             require(_triggerTimestamp != 0, "Triggered w/o ts");
         } else {
-            require(_triggerTimestamp == 0 && _initialTranchesReleased == 0 && _initialTotalReleased == 0, "Stale carry");
+            require(
+                _triggerTimestamp == 0 && _initialTranchesReleased == 0 && _initialTotalReleased == 0, "Stale carry"
+            );
         }
 
         oracle = ILuminaOracleReader(_oracle);

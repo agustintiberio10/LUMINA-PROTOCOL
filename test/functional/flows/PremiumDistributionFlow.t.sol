@@ -108,6 +108,22 @@ contract MockFeeDistributor_PDF {
     }
 }
 
+/// @dev [legacy-migration] pattern #3: TWAPBurner._swapAndBurn now REVERTS with
+///      "TWAPBurner: oracle unset" unless a capacity oracle is wired, since minOut
+///      is derived exclusively from the oracle price (F-19). This minimal mock
+///      returns a fresh price so executeBurn's burn portion can settle.
+contract MockCapacityOracle_PDF {
+    uint256 public price = 0.036e18; // $0.036; aligns with the 27 LUMINA/USDC router rate
+
+    function setPrice(uint256 _price) external {
+        price = _price;
+    }
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
+}
+
 /// @title PremiumDistributionFlowTest
 /// @notice Phase 7.4 functional flow tests for premium distribution through TWAPBurner.
 ///         Tests legacy mode (100% burn) and adaptive mode (4-bucket distribution).
@@ -120,6 +136,7 @@ contract PremiumDistributionFlowTest is Test {
     MockUSDC_PDF usdc;
     MockSwapRouter_PDF swapRouter;
     MockFeeDistributor_PDF feeDistributor;
+    MockCapacityOracle_PDF capacityOracle; // [legacy-migration] pattern #3
 
     // ═══════ ADDRESSES ═══════
     address bondVaultAddr = makeAddr("bondVault");
@@ -156,6 +173,12 @@ contract PremiumDistributionFlowTest is Test {
 
         // 5. Grant BURNER_ROLE to TWAPBurner
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
+
+        // [legacy-migration] pattern #3: wire a capacity oracle so the burn
+        // portion of executeBurn can derive minOut (otherwise _swapAndBurn reverts
+        // "TWAPBurner: oracle unset"). Applies to both legacy and adaptive paths.
+        capacityOracle = new MockCapacityOracle_PDF();
+        twapBurner.setCapacityOracle(address(capacityOracle));
 
         // 6. Deploy fee distributor mock (Healthy/Stable quadrant: 8500/800/200/500)
         feeDistributor = new MockFeeDistributor_PDF(8500, 800, 200, 500);

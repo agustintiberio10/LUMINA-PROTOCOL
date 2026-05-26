@@ -36,7 +36,27 @@ contract MockUniswapPool {
     }
 
     function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
-        return (0, mockTick, 0, 0, 0, 0, true);
+        // [legacy-migration] MR-H01 pattern #7: report a healthy observation
+        // cardinality (>= DEFAULT_MIN_CARDINALITY=10) so the freshness gate in
+        // getLuminaPrice/_requireFreshPool passes instead of reverting
+        // OracleInsufficientCardinality.
+        return (0, mockTick, 0, 100, 100, 0, true);
+    }
+
+    // [legacy-migration] MR-H01 pattern #7: fresh latest observation so the
+    // staleness gate (_requireFreshPool) passes; these tests target price/TWAP
+    // math, not freshness.
+    function observations(uint256)
+        external
+        view
+        returns (
+            uint32 blockTimestamp,
+            int56 tickCumulative,
+            uint160 secondsPerLiquidityCumulativeX128,
+            bool initialized
+        )
+    {
+        return (uint32(block.timestamp), 0, 0, true);
     }
 
     function setTick(int24 t) external {

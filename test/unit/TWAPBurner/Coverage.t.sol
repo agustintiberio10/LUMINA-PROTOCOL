@@ -7,6 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
 import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
+import {MockCapacityOracleV5} from "../../mocks/MockCapacityOracleV5.sol";
 
 // ═══════ Mocks ═══════
 
@@ -69,6 +70,16 @@ contract TWAPBurnerCoverage is Test {
         lumina = new TBCovLumina();
         dex = new TBCovDex(address(usdc), address(lumina));
         burner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(dex));
+
+        // [legacy-migration] F-19 pattern #3: the swap path now derives minOut from
+        // a capacity oracle and reverts "TWAPBurner: oracle unset" without one. Wire
+        // a mock. This crude dex returns `amountIn * 30` (no 6→18 decimal lift), so a
+        // realistic ~$0.04 price would make the oracle-derived minOut exceed the
+        // delivered amount; we pick a high price (1e30) that keeps minOut > 0 yet far
+        // below the mock's delivered output, preserving the legacy burn assertion.
+        MockCapacityOracleV5 capOracle = new MockCapacityOracleV5();
+        capOracle.setPrice(1e30);
+        burner.setCapacityOracle(address(capOracle));
     }
 
     // ─────────────── setMaintenanceReserve (covers L353-356) ───────────────

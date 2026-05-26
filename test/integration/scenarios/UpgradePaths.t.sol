@@ -115,6 +115,11 @@ contract UpgradePathsTest is Test {
         // TWAPBurner
         twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(token), address(swapRouter));
         token.grantRole(token.BURNER_ROLE(), address(twapBurner));
+        // [legacy-migration] F-19: _swapAndBurn now requires an independent capacity
+        // oracle for its protective minOut and reverts ("TWAPBurner: oracle unset")
+        // otherwise. Both fee-distributor configs in test 1 burn (>0 burnBps), so
+        // wire the MockCapacityOracleUpgrade ($0.036, exposes getLuminaPrice()).
+        twapBurner.setCapacityOracle(address(capacityOracle));
 
         // Two fee distributors
         feeDistributorA = new MockFeeDistributor();

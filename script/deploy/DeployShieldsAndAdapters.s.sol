@@ -95,12 +95,44 @@ contract DeployShieldsAndAdapters is Script {
         vm.startBroadcast(pk);
         ShieldAdapterFactory factory = new ShieldAdapterFactory();
 
-        recs[0] = _pair(factory, "FlashBTCShield1h", keccak256("FLASHBTC1H-001"), address(new FlashBTCShield1h()), BTC_FEED, founder);
-        recs[1] = _pair(factory, "FlashBTCShield24h", keccak256("FLASHBTC24-001"), address(new FlashBTCShield24h()), BTC_FEED, founder);
-        recs[2] = _pair(factory, "FlashBTCShield48h", keccak256("FLASHBTC48-001"), address(new FlashBTCShield48h()), BTC_FEED, founder);
-        recs[3] = _pair(factory, "FlashETHShield1h", keccak256("FLASHETH1H-001"), address(new FlashETHShield1h()), ETH_FEED, founder);
-        recs[4] = _pair(factory, "FlashETHShield24h", keccak256("FLASHETH24-001"), address(new FlashETHShield24h()), ETH_FEED, founder);
-        recs[5] = _pair(factory, "FlashETHShield48h", keccak256("FLASHETH48-001"), address(new FlashETHShield48h()), ETH_FEED, founder);
+        recs[0] = _pair(
+            factory, "FlashBTCShield1h", keccak256("FLASHBTC1H-001"), address(new FlashBTCShield1h()), BTC_FEED, founder
+        );
+        recs[1] = _pair(
+            factory,
+            "FlashBTCShield24h",
+            keccak256("FLASHBTC24-001"),
+            address(new FlashBTCShield24h()),
+            BTC_FEED,
+            founder
+        );
+        recs[2] = _pair(
+            factory,
+            "FlashBTCShield48h",
+            keccak256("FLASHBTC48-001"),
+            address(new FlashBTCShield48h()),
+            BTC_FEED,
+            founder
+        );
+        recs[3] = _pair(
+            factory, "FlashETHShield1h", keccak256("FLASHETH1H-001"), address(new FlashETHShield1h()), ETH_FEED, founder
+        );
+        recs[4] = _pair(
+            factory,
+            "FlashETHShield24h",
+            keccak256("FLASHETH24-001"),
+            address(new FlashETHShield24h()),
+            ETH_FEED,
+            founder
+        );
+        recs[5] = _pair(
+            factory,
+            "FlashETHShield48h",
+            keccak256("FLASHETH48-001"),
+            address(new FlashETHShield48h()),
+            ETH_FEED,
+            founder
+        );
 
         // Re-point PolicyManager products to the NEW adapters (cutover).
         for (uint256 i = 0; i < 6; i++) {
@@ -123,8 +155,9 @@ contract DeployShieldsAndAdapters is Script {
         address feed,
         address founder
     ) internal returns (Rec memory rec) {
-        (address shieldProxy, address adapterProxy) =
-            factory.deployPair(shieldImpl, feed, SEQUENCER, productId, POLICY_MANAGER, RELAYER, founder);
+        (address shieldProxy, address adapterProxy) = factory.deployPair(
+            shieldImpl, feed, SEQUENCER, productId, POLICY_MANAGER, RELAYER, founder
+        );
         rec = Rec({name: name, productId: productId, shield: shieldProxy, adapter: adapterProxy});
     }
 }

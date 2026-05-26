@@ -91,6 +91,10 @@ contract TimingAttacks is Test {
 
         // Try to executeOffer without configuring daily buyback
         // validUntil defaults to 0, so block.timestamp > 0 => "Daily offer expired"
+        // [legacy-migration] MR-M04: executeOffer is now onlyRole(BUYBACK_OPERATOR_ROLE).
+        // Prank as the operator (admin == _multisigOwner granted the role at init) so
+        // the call passes the role gate and reaches the "Daily offer expired" check.
+        vm.prank(admin);
         vm.expectRevert("Daily offer expired");
         engine.executeOffer(0);
     }
@@ -205,6 +209,10 @@ contract TimingAttacks is Test {
         vm.warp(block.timestamp + 25 hours);
 
         // Try to execute -- should fail due to expiry
+        // [legacy-migration] MR-M04: executeOffer is now onlyRole(BUYBACK_OPERATOR_ROLE).
+        // Prank as admin (the role holder) so the call reaches the expiry check
+        // rather than reverting on AccessControl.
+        vm.prank(admin);
         vm.expectRevert("Daily offer expired");
         engine.executeOffer(0);
     }

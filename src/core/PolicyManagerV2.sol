@@ -278,19 +278,20 @@ contract PolicyManagerV2 is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // Create policy in the shield
         address shield = productShield[productId];
-        policyId = IShieldV2(shield)
-            .createPolicy(
-                IShieldV2.CreatePolicyParams({
-                buyer: buyer,
-                coverageAmount: coverageAmount,
-                premiumAmount: premiumAmount,
-                durationSeconds: durationSeconds,
-                asset: asset,
-                stablecoin: "USDC",
-                protocol: address(0),
-                extraData: ""
-            })
-            );
+        // [fmt] Build the struct in a local first — a flat struct literal formats
+        // identically across forge versions, unlike the deeply-nested
+        // chained-call arg which differed between local 1.5.1 and CI foundry.
+        IShieldV2.CreatePolicyParams memory cpp = IShieldV2.CreatePolicyParams({
+            buyer: buyer,
+            coverageAmount: coverageAmount,
+            premiumAmount: premiumAmount,
+            durationSeconds: durationSeconds,
+            asset: asset,
+            stablecoin: "USDC",
+            protocol: address(0),
+            extraData: ""
+        });
+        policyId = IShieldV2(shield).createPolicy(cpp);
 
         // Record locally (must happen after external call to obtain policyId)
         uint256 expiresAt = block.timestamp + durationSeconds;

@@ -181,6 +181,12 @@ contract MarketplaceAndRedemptionTest is Test {
         marketplace.executeBuy(listingId);
         vm.stopPrank();
 
+        // [legacy-migration] F-14 pull-payment: executeBuy now credits the seller's
+        // net proceeds to pendingWithdrawals instead of transferring. Seller must
+        // withdraw() to receive USDC before the balance assertion below.
+        vm.prank(seller);
+        marketplace.withdraw();
+
         // Buyer has 300 bonds
         assertEq(claimBond.balanceOf(buyer, epochId), 300);
         // Seller still has 700

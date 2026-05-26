@@ -25,12 +25,25 @@ contract MockFreshnessPool {
         cardinality = 50;
     }
 
-    function token0() external view returns (address) { return token0_; }
-    function token1() external view returns (address) { return token1_; }
+    function token0() external view returns (address) {
+        return token0_;
+    }
 
-    function setCardinality(uint16 c) external { cardinality = c; }
-    function setLastObsTs(uint32 t) external { lastObsTs = t; }
-    function setInitialized(bool v) external { obsInitialized = v; }
+    function token1() external view returns (address) {
+        return token1_;
+    }
+
+    function setCardinality(uint16 c) external {
+        cardinality = c;
+    }
+
+    function setLastObsTs(uint32 t) external {
+        lastObsTs = t;
+    }
+
+    function setInitialized(bool v) external {
+        obsInitialized = v;
+    }
 
     function observe(uint32[] calldata secondsAgos)
         external
@@ -52,7 +65,12 @@ contract MockFreshnessPool {
     function observations(uint256)
         external
         view
-        returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized)
+        returns (
+            uint32 blockTimestamp,
+            int56 tickCumulative,
+            uint160 secondsPerLiquidityCumulativeX128,
+            bool initialized
+        )
     {
         return (lastObsTs, 0, 0, obsInitialized);
     }
@@ -97,7 +115,9 @@ contract MRH01_TwapStalenessTest is Test {
         pool.setCardinality(5); // < DEFAULT_MIN_CARDINALITY (10)
         pool.setLastObsTs(uint32(block.timestamp));
         vm.expectRevert(
-            abi.encodeWithSelector(CapacityOracle.OracleInsufficientCardinality.selector, uint256(5), oracle.minCardinality())
+            abi.encodeWithSelector(
+                CapacityOracle.OracleInsufficientCardinality.selector, uint256(5), oracle.minCardinality()
+            )
         );
         oracle.getLuminaPrice();
     }

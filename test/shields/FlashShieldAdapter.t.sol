@@ -67,12 +67,19 @@ contract FlashShieldAdapterTest is Test {
 
     address holder = makeAddr("holder");
     address attacker = makeAddr("attacker");
+    // [legacy-migration] F-08: createPolicy/verifyAndCalculate are now
+    // onlyPolicyManager. Wire a dedicated PM address and prank as it before
+    // every gated call.
+    address pm = makeAddr("pm");
 
     uint256 constant T0 = 1_800_000_000;
     int256 constant STRIKE = 50_000e8; // BTC at $50k
     uint256 constant COVERAGE = 10_000e6; // $10k USDC
     uint32 constant WINDOW = 3600; // 1h
     bytes32 constant PRODUCT_ID = keccak256("FLASHBTC1H-001");
+    // [legacy-migration] F-01 multi-block confirmation params (BaseFlashShield).
+    uint256 constant MIN_DWELL = 5 minutes; // MIN_DWELL_PERIOD
+    uint32 constant CONF_INTERVAL = 60; // CONFIRMATION_INTERVAL
 
     function setUp() public {
         vm.warp(T0);
@@ -85,8 +92,40 @@ contract FlashShieldAdapterTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(adapterImpl), "");
         adapter = FlashShieldAdapter(address(proxy));
 
-        shield = FlashBTCShield1h(address(new ERC1967Proxy(address(new FlashBTCShield1h()), abi.encodeCall(FlashBTCShield1h.initialize, (address(adapter), address(oracle), address(sequencer))))));
+        shield = FlashBTCShield1h(
+            address(
+                new ERC1967Proxy(
+                    address(new FlashBTCShield1h()),
+                    abi.encodeCall(FlashBTCShield1h.initialize, (address(adapter), address(oracle), address(sequencer)))
+                )
+            )
+        );
         adapter.initialize(address(shield), PRODUCT_ID);
+        // [legacy-migration] F-08: wire the PolicyManager so the adapter's
+        // gated lifecycle entrypoints (createPolicy / verifyAndCalculate) are
+        // callable. `pm` is the test's authorized caller (vm.prank(pm)).
+        adapter.setPolicyManager(pm);
+    }
+
+    /// @dev [legacy-migration] F-01: a shield trigger needs THREE spaced
+    ///      sub-barrier observations, each in a distinct block, >= CONF_INTERVAL
+    ///      apart, after start + MIN_DWELL. Drives those 3 confirmations THROUGH
+    ///      the adapter (pranked as the PolicyManager, per F-08) and returns the
+    ///      final result. `dropped` must sit at/below the barrier.
+    function _drive3ConfirmationsViaAdapter(uint256 policyId, int256 dropped)
+        internal
+        returns (FlashShieldAdapter.LegacyPayoutResult memory r)
+    {
+        uint256 base = T0 + MIN_DWELL;
+        uint256 baseBlock = block.number; // capture ONCE (via_ir caching gotcha)
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 ts = base + i * CONF_INTERVAL;
+            vm.warp(ts);
+            vm.roll(baseBlock + 1 + i); // ABSOLUTE, strictly-increasing blocks
+            oracle.setAnswer(dropped, ts); // fresh round each observation
+            vm.prank(pm);
+            r = adapter.verifyAndCalculate(policyId, "");
+        }
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
@@ -133,6 +172,7 @@ contract FlashShieldAdapterTest is Test {
     // ── 4. createPolicy translates struct → slim signature ───────────────────
     function testCreatePolicy_TranslatesCorrectly() public {
         FlashShieldAdapter.LegacyCreatePolicyParams memory p = _legacyParams(holder, COVERAGE, WINDOW);
+        vm.prank(pm); // [legacy-migration] F-08 onlyPolicyManager
         uint256 policyId = adapter.createPolicy(p);
         assertEq(policyId, 1, "first policy id assigned by adapter");
         assertEq(adapter.nextPolicyId(), 2, "counter increments");
@@ -151,6 +191,7 @@ contract FlashShieldAdapterTest is Test {
     // ── 5. createPolicy increments id monotonically ──────────────────────────
     function testCreatePolicy_AssignsMonotonicIds() public {
         for (uint256 i = 0; i < 3; i++) {
+            vm.prank(pm); // [legacy-migration] F-08 onlyPolicyManager
             uint256 id = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
             assertEq(id, i + 1, "monotonic ids starting at 1");
         }
@@ -159,13 +200,13 @@ contract FlashShieldAdapterTest is Test {
 
     // ── 6. verifyAndCalculate returns LegacyPayoutResult on trigger ─────────
     function testVerifyAndCalculate_HandlesTriggered() public {
+        vm.prank(pm); // [legacy-migration] F-08 onlyPolicyManager
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
-        vm.warp(T0 + 60);
-        // Force a drop above the 2.5% trigger.
+        // [legacy-migration] F-01: a single verifyAndCalculate no longer triggers
+        // (pre-dwell + needs 3 spaced sub-barrier confirmations). Drive the 3
+        // confirmations through the adapter (pranked as PM). Drop above 2.5%.
         int256 dropped = (STRIKE * 9700) / 10_000;
-        oracle.setAnswer(dropped, T0 + 60);
-
-        FlashShieldAdapter.LegacyPayoutResult memory r = adapter.verifyAndCalculate(policyId, "");
+        FlashShieldAdapter.LegacyPayoutResult memory r = _drive3ConfirmationsViaAdapter(policyId, dropped);
         assertTrue(r.triggered, "triggered flag set");
         assertEq(r.payoutAmount, (COVERAGE * 8000) / 10_000, "payout = 80% coverage");
         assertEq(r.recipient, holder, "recipient echoed");
@@ -174,40 +215,59 @@ contract FlashShieldAdapterTest is Test {
 
     // ── 7. verifyAndCalculate returns no-trigger result when below threshold ─
     function testVerifyAndCalculate_HandlesNoTrigger() public {
+        vm.prank(pm); // [legacy-migration] F-08 onlyPolicyManager
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
-        vm.warp(T0 + 60);
+        // [legacy-migration] F-01: warp past the dwell gate so we exercise the
+        // price check (not DWELL_NOT_ELAPSED). A below-barrier observation now
+        // RESETs the accrual and returns reason "RESET" (was "NO_TRIGGER").
+        vm.warp(T0 + MIN_DWELL);
         // Drop only 1% (below 2.5%).
         int256 dropped = (STRIKE * 9900) / 10_000;
-        oracle.setAnswer(dropped, T0 + 60);
+        oracle.setAnswer(dropped, T0 + MIN_DWELL);
 
+        vm.prank(pm);
         FlashShieldAdapter.LegacyPayoutResult memory r = adapter.verifyAndCalculate(policyId, "");
         assertFalse(r.triggered, "not triggered");
         assertEq(r.payoutAmount, 0, "no payout");
         assertEq(r.recipient, holder, "recipient echoed even on no-trigger");
-        assertEq(r.reason, bytes32("NO_TRIGGER"), "reason NO_TRIGGER");
+        assertEq(r.reason, bytes32("RESET"), "reason RESET (below-barrier accrual reset)");
     }
 
     // ── 8. verifyAndCalculate ignores oracleProof arg (slim reads Chainlink) ─
     function testVerifyAndCalculate_IgnoresOracleProof() public {
+        vm.prank(pm); // [legacy-migration] F-08 onlyPolicyManager
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
-        vm.warp(T0 + 60);
-        oracle.setAnswer((STRIKE * 9700) / 10_000, T0 + 60);
-
-        // Garbage proof bytes — must not affect outcome (slim reads on-chain).
+        // [legacy-migration] F-01: drive the 3 spaced confirmations; pass garbage
+        // proof bytes on each call — must not affect outcome (slim reads Chainlink).
+        int256 dropped = (STRIKE * 9700) / 10_000;
         bytes memory junk = hex"deadbeefcafebabe";
-        FlashShieldAdapter.LegacyPayoutResult memory r = adapter.verifyAndCalculate(policyId, junk);
+        uint256 base = T0 + MIN_DWELL;
+        uint256 baseBlock = block.number;
+        FlashShieldAdapter.LegacyPayoutResult memory r;
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 ts = base + i * CONF_INTERVAL;
+            vm.warp(ts);
+            vm.roll(baseBlock + 1 + i);
+            oracle.setAnswer(dropped, ts);
+            vm.prank(pm);
+            r = adapter.verifyAndCalculate(policyId, junk);
+        }
         assertTrue(r.triggered, "proof bytes ignored, drop still triggers");
     }
 
     // ── 9. verifyAndCalculate reverts when underlying shield rejects ─────────
     function testVerifyAndCalculate_PropagatesShieldRevert() public {
         // No policy ever created → shield reverts POLICY_NOT_FOUND
+        // [legacy-migration] F-08: prank as PM so the call reaches the shield's
+        // intended POLICY_NOT_FOUND revert (not the ONLY_PM gate).
+        vm.prank(pm);
         vm.expectRevert(bytes("POLICY_NOT_FOUND"));
         adapter.verifyAndCalculate(999, "");
     }
 
     // ── 10. getPolicyInfo translates slim → legacy 6-tuple ───────────────────
     function testGetPolicyInfo_TranslatesFromShield() public {
+        vm.prank(pm); // [legacy-migration] F-08 onlyPolicyManager
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
         (address agent, uint256 cov, uint256 premium, uint256 maxPayout, uint256 expiresAt, uint8 status) =
             adapter.getPolicyInfo(policyId);
@@ -221,10 +281,13 @@ contract FlashShieldAdapterTest is Test {
 
     // ── 11. getPolicyInfo reflects finalized status after verify ─────────────
     function testGetPolicyInfo_StatusFinalizedAfterVerify() public {
+        vm.prank(pm); // [legacy-migration] F-08 onlyPolicyManager
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
-        vm.warp(T0 + 60);
-        oracle.setAnswer((STRIKE * 9700) / 10_000, T0 + 60);
-        adapter.verifyAndCalculate(policyId, "");
+        // [legacy-migration] F-01: finalization (status 2) only occurs once the
+        // 3rd spaced confirmation triggers. Drive the confirmations via adapter.
+        FlashShieldAdapter.LegacyPayoutResult memory r =
+            _drive3ConfirmationsViaAdapter(policyId, (STRIKE * 9700) / 10_000);
+        assertTrue(r.triggered, "policy triggered after 3 confirmations");
 
         (,,,,, uint8 status) = adapter.getPolicyInfo(policyId);
         assertEq(status, 2, "status 2 = finalized");
@@ -253,6 +316,7 @@ contract FlashShieldAdapterTest is Test {
     // ── 14. UUPS upgrade succeeds for owner and storage persists ─────────────
     function testUUPS_UpgradeAuthorization() public {
         // Take an action so storage is non-trivial before upgrade.
+        vm.prank(pm); // [legacy-migration] F-08 onlyPolicyManager
         uint256 policyId = adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
         FlashShieldAdapterV2 v2 = new FlashShieldAdapterV2();
         adapter.upgradeToAndCall(address(v2), "");
@@ -269,6 +333,9 @@ contract FlashShieldAdapterTest is Test {
     // ── 15. Sequencer-down inherited from shield blocks createPolicy ─────────
     function testSequencerCheck_Inherited() public {
         sequencer.setDown(true);
+        // [legacy-migration] F-08: prank as PM so the call reaches the shield's
+        // inherited SEQUENCER_DOWN guard (not the ONLY_PM gate).
+        vm.prank(pm);
         vm.expectRevert(bytes("SEQUENCER_DOWN"));
         adapter.createPolicy(_legacyParams(holder, COVERAGE, WINDOW));
     }

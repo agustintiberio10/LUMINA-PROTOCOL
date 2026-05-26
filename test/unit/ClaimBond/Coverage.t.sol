@@ -6,15 +6,28 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
 import {ProxyDeployer} from "../../helpers/ProxyDeployer.sol";
 
+/// @notice [legacy-migration] F-18 obligation sync: ClaimBond.burnByHolder now
+///         calls bondVault.decreaseObligations(uint256). The old test wired an
+///         EOA (`makeAddr("vault")`) as the vault, so this typed external call
+///         had no contract to land on. This minimal mock provides a
+///         decreaseObligations no-op (and a mint authorizer) so burnByHolder's
+///         sync call succeeds cleanly.
+contract MockBondVaultCB {
+    function decreaseObligations(uint256) external {}
+}
+
 contract ClaimBondCoverage is Test {
     ClaimBond bond;
-    address vault = makeAddr("vault");
+    MockBondVaultCB vaultMock;
+    address vault;
     address user = makeAddr("user");
     uint256 constant EPOCH = 202712; // Dec 2027
 
     function setUp() public {
         vm.chainId(8453);
         bond = ProxyDeployer.deployClaimBond();
+        vaultMock = new MockBondVaultCB();
+        vault = address(vaultMock);
         bond.setBondVault(vault);
     }
 

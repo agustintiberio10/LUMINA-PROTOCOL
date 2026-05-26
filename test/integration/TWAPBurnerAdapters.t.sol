@@ -102,6 +102,12 @@ contract TWAPBurnerAdaptersTest is Test {
     AerodromeAdapter aeroAdapter;
     UniswapV3Adapter uniAdapter;
     TWAPBurner burner;
+    // [legacy-migration] F-19: TWAPBurner now derives its protective minOut
+    // EXCLUSIVELY from an independent capacity oracle and reverts
+    // ("TWAPBurner: oracle unset") if none is wired. The honest pool price is
+    // ~$0.0364/LUMINA (50K USDC / 1.3736M LUMINA), so the oracle is set there.
+    MockPriceOracle priceOracle;
+    uint256 constant ORACLE_PRICE = 36_400_000_000_000_000; // $0.0364 in 1e18
 
     // ─── Test addresses ───
     address admin = makeAddr("admin");
@@ -157,6 +163,14 @@ contract TWAPBurnerAdaptersTest is Test {
         ERC1967Proxy burnerProxy = new ERC1967Proxy(address(burnerImpl), burnerInit);
         burner = TWAPBurner(payable(address(burnerProxy)));
         // Adaptive mode stays off → uses _executeLegacyBurn (simpler test surface)
+        // [legacy-migration] F-19: wire the capacity oracle at the honest pool
+        // price so _swapAndBurn can compute a non-zero protective minOut. Without
+        // it executeBurn reverts "TWAPBurner: oracle unset". Tests that assert the
+        // oracle-backstop REVERT (11/12) override this with a divergent price.
+        priceOracle = new MockPriceOracle();
+        priceOracle.setLumina(address(lumina));
+        priceOracle.setPrice(address(lumina), ORACLE_PRICE);
+        burner.setCapacityOracle(address(priceOracle));
         vm.stopPrank();
 
         // ─── 7. Seed Aerodrome pool LUMINA/USDC ───
@@ -351,11 +365,11 @@ contract TWAPBurnerAdaptersTest is Test {
     }
 
     /// TEST 5 — slippage configuration is bounded (Aerodrome path).
-    /// Note: in same-tx the adapter's getQuote and swap return identical
-    /// amounts, so the runtime `minOut = quote * (10000-bps)/10000` floor
-    /// never bites without an external price oracle. The slippage protection
-    /// surface that's testable end-to-end is the SETTER's bounded range —
-    /// you cannot disable protection by setting bps=0 or above 10%.
+    /// [legacy-migration] F-19: minOut is now derived from the capacity oracle
+    /// (wired in setUp at the honest pool price), not the pool quote. The setter's
+    /// bounded range is the testable surface — you cannot disable protection by
+    /// setting bps=0 or above 10%. The small 100 USDC burn still succeeds at the
+    /// tightest (0.5%) slippage because the oracle price matches the seeded pool.
     function test_slippage_protection_aerodrome() public {
         // Below floor: rejected
         vm.prank(admin);
@@ -424,13 +438,23 @@ contract TWAPBurnerAdaptersTest is Test {
             abi.encodeWithSelector(TWAPBurner.initialize.selector, USDC, address(ghostProxy), address(aeroAdapter))
         );
         TWAPBurner ghostBurner = TWAPBurner(payable(address(ghostBurnerProxy)));
+        // [legacy-migration] F-19: wire an oracle on the ghost burner at the
+        // honest price so minOut comes from the oracle (no longer from the pool
+        // quote). The ghost token has no pool, so the swap itself reverts inside
+        // the adapter — see the generic expectRevert below.
+        MockPriceOracle ghostOracle = new MockPriceOracle();
+        ghostOracle.setLumina(address(ghostProxy));
+        ghostOracle.setPrice(address(ghostProxy), ORACLE_PRICE);
+        ghostBurner.setCapacityOracle(address(ghostOracle));
         vm.stopPrank();
 
         deal(USDC, address(ghostBurner), 100e6);
         vm.warp(block.timestamp + 901);
-        // Aerodrome adapter returns 0 from getQuote when pool doesn't exist
-        // (try/catch in TWAPBurner._swapAndBurn). minOut stays 0 → revert.
-        vm.expectRevert(bytes("TWAPBurner: minOut must be > 0"));
+        // [legacy-migration] F-19: minOut is now oracle-derived (> 0), so the old
+        // "minOut must be > 0" path no longer fires. With no pool for the ghost
+        // token the swap reverts inside the DEX adapter/router instead. Assert a
+        // generic revert — the burn still cannot complete without liquidity.
+        vm.expectRevert();
         ghostBurner.executeBurn();
     }
 
@@ -455,11 +479,19 @@ contract TWAPBurnerAdaptersTest is Test {
             abi.encodeWithSelector(TWAPBurner.initialize.selector, USDC, address(ghostProxy), address(uniAdapter))
         );
         TWAPBurner ghostBurner = TWAPBurner(payable(address(ghostBurnerProxy)));
+        // [legacy-migration] F-19: wire an oracle so minOut is oracle-derived; the
+        // ghost token has no UniV3 pool so the swap reverts inside the adapter.
+        MockPriceOracle ghostOracle = new MockPriceOracle();
+        ghostOracle.setLumina(address(ghostProxy));
+        ghostOracle.setPrice(address(ghostProxy), ORACLE_PRICE);
+        ghostBurner.setCapacityOracle(address(ghostOracle));
         vm.stopPrank();
 
         deal(USDC, address(ghostBurner), 100e6);
         vm.warp(block.timestamp + 901);
-        vm.expectRevert(bytes("TWAPBurner: minOut must be > 0"));
+        // [legacy-migration] F-19: minOut now comes from the oracle (> 0); with no
+        // pool the swap reverts inside the UniV3 adapter. Assert a generic revert.
+        vm.expectRevert();
         ghostBurner.executeBurn();
     }
 

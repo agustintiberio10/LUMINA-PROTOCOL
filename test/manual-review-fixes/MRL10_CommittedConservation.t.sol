@@ -9,7 +9,10 @@ import "../../src/bonds/BondVault.sol";
 
 contract MRL10Oracle {
     uint256 public price = 0.036e18;
-    function getLuminaPrice() external view returns (uint256) { return price; }
+
+    function getLuminaPrice() external view returns (uint256) {
+        return price;
+    }
 }
 
 /// @title MR-L10 fix — processQueue no longer double-decrements totalCommittedUSD.
@@ -38,15 +41,37 @@ contract MRL10_CommittedConservationTest is Test {
         oracle = new MRL10Oracle();
 
         ClaimBond cbImpl = new ClaimBond();
-        claimBond = ClaimBond(address(new ERC1967Proxy(address(cbImpl), abi.encodeWithSelector(ClaimBond.initialize.selector))));
+        claimBond = ClaimBond(
+            address(new ERC1967Proxy(address(cbImpl), abi.encodeWithSelector(ClaimBond.initialize.selector)))
+        );
 
         LuminaTokenV2 tImpl = new LuminaTokenV2();
-        token = LuminaTokenV2(address(new ERC1967Proxy(address(tImpl),
-            abi.encodeWithSelector(LuminaTokenV2.initialize.selector, makeAddr("tv"), makeAddr("cex"), founder, lbp, treasury))));
+        token = LuminaTokenV2(
+            address(
+                new ERC1967Proxy(
+                    address(tImpl),
+                    abi.encodeWithSelector(
+                        LuminaTokenV2.initialize.selector, makeAddr("tv"), makeAddr("cex"), founder, lbp, treasury
+                    )
+                )
+            )
+        );
 
         BondVault vImpl = new BondVault();
-        vault = BondVault(address(new ERC1967Proxy(address(vImpl),
-            abi.encodeWithSelector(BondVault.initialize.selector, address(token), address(claimBond), address(oracle), address(this)))));
+        vault = BondVault(
+            address(
+                new ERC1967Proxy(
+                    address(vImpl),
+                    abi.encodeWithSelector(
+                        BondVault.initialize.selector,
+                        address(token),
+                        address(claimBond),
+                        address(oracle),
+                        address(this)
+                    )
+                )
+            )
+        );
 
         claimBond.setBondVault(address(vault));
         deal(address(token), address(vault), 70_000_000 * 1e18);

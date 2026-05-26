@@ -61,12 +61,42 @@ contract FlashETHShield48hTest is Test {
 
     uint16 constant TRIGGER_DROP_BPS = 1400; // 14%
     uint32 constant WINDOW = 172_800; // 48h
+    // [legacy-migration] BaseFlashShield F-01 multi-block confirmation params.
+    uint256 constant MIN_DWELL = 5 minutes; // MIN_DWELL_PERIOD
+    uint32 constant CONF_INTERVAL = 60; // CONFIRMATION_INTERVAL
 
     function setUp() public {
         vm.warp(T0);
         oracle = new MockChainlinkAggregator(STRIKE, T0);
         sequencer = new MockSequencerFeed();
-        shield = FlashETHShield48h(address(new ERC1967Proxy(address(new FlashETHShield48h()), abi.encodeCall(FlashETHShield48h.initialize, (router, address(oracle), address(sequencer))))));
+        shield = FlashETHShield48h(
+            address(
+                new ERC1967Proxy(
+                    address(new FlashETHShield48h()),
+                    abi.encodeCall(FlashETHShield48h.initialize, (router, address(oracle), address(sequencer)))
+                )
+            )
+        );
+    }
+
+    /// @dev [legacy-migration] F-01 requires THREE sub-barrier observations,
+    ///      each in a distinct block, >= CONF_INTERVAL apart, after the dwell
+    ///      period (start + MIN_DWELL). Drives those 3 confirmations and returns
+    ///      the final (triggering) result. `dropped` must be at/below the barrier.
+    function _drive3Confirmations(uint256 policyId, int256 dropped)
+        internal
+        returns (bool triggered, uint256 payout, address holder_)
+    {
+        uint256 base = T0 + MIN_DWELL;
+        uint256 baseBlock = block.number;
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 ts = base + i * CONF_INTERVAL;
+            vm.warp(ts);
+            vm.roll(baseBlock + 1 + i);
+            oracle.setAnswer(dropped, ts); // fresh round (newer updatedAt) each obs
+            vm.prank(router);
+            (triggered, payout, holder_,) = shield.verifyAndCalculate(policyId);
+        }
     }
 
     function testCreatePolicy_SnapshotsStrikePrice() public {
@@ -86,11 +116,8 @@ contract FlashETHShield48hTest is Test {
     function testVerify_TriggersAtExactThreshold() public {
         vm.prank(router);
         shield.createPolicy(3, holder, COVERAGE, uint64(T0), uint64(T0 + WINDOW));
-        vm.warp(T0 + 60);
         int256 dropped = (STRIKE * int256(uint256(10_000 - TRIGGER_DROP_BPS))) / 10_000;
-        oracle.setAnswer(dropped, T0 + 60);
-        vm.prank(router);
-        (bool triggered, uint256 payout,,) = shield.verifyAndCalculate(3);
+        (bool triggered, uint256 payout,) = _drive3Confirmations(3, dropped);
         assertTrue(triggered);
         assertGt(payout, 0);
     }
@@ -98,9 +125,9 @@ contract FlashETHShield48hTest is Test {
     function testVerify_NoTriggerBelowThreshold() public {
         vm.prank(router);
         shield.createPolicy(4, holder, COVERAGE, uint64(T0), uint64(T0 + WINDOW));
-        vm.warp(T0 + 60);
+        vm.warp(T0 + MIN_DWELL);
         int256 dropped = (STRIKE * int256(uint256(10_000 - (TRIGGER_DROP_BPS - 1)))) / 10_000;
-        oracle.setAnswer(dropped, T0 + 60);
+        oracle.setAnswer(dropped, T0 + MIN_DWELL);
         vm.prank(router);
         (bool triggered, uint256 payout,,) = shield.verifyAndCalculate(4);
         assertFalse(triggered);
@@ -117,18 +144,15 @@ contract FlashETHShield48hTest is Test {
         vm.warp(T0 + WINDOW + 1);
         oracle.setAnswer(STRIKE, T0 + WINDOW + 1);
         vm.prank(router);
-        vm.expectRevert(bytes("WINDOW_EXPIRED"));
-        shield.verifyAndCalculate(5);
+        (bool triggered,,, bytes32 reason) = shield.verifyAndCalculate(5);
+        assertFalse(triggered, "expired window must not trigger");
+        assertEq(reason, bytes32("WINDOW_EXPIRED"), "expired window settles false with WINDOW_EXPIRED");
     }
 
     function testVerify_3ConfirmationsRequired() public {
         vm.prank(router);
         shield.createPolicy(6, holder, COVERAGE, uint64(T0), uint64(T0 + WINDOW));
-        vm.warp(T0 + 60);
-        int256 dropped = (STRIKE * 8500) / 10_000; // 15% drop, above 14%
-        oracle.setAnswer(dropped, T0 + 60);
-        vm.prank(router);
-        (bool triggered,,,) = shield.verifyAndCalculate(6);
+        (bool triggered,,) = _drive3Confirmations(6, STRIKE / 2);
         assertTrue(triggered);
         (,,,,, bool finalized) = shield.getPolicyInfo(6);
         assertTrue(finalized);
@@ -137,10 +161,7 @@ contract FlashETHShield48hTest is Test {
     function testPayout_Is80PercentOfCoverage() public {
         vm.prank(router);
         shield.createPolicy(7, holder, COVERAGE, uint64(T0), uint64(T0 + WINDOW));
-        vm.warp(T0 + 60);
-        oracle.setAnswer(STRIKE / 2, T0 + 60);
-        vm.prank(router);
-        (bool triggered, uint256 payout, address h,) = shield.verifyAndCalculate(7);
+        (bool triggered, uint256 payout, address h) = _drive3Confirmations(7, STRIKE / 2);
         assertTrue(triggered);
         assertEq(payout, (COVERAGE * 8000) / 10_000);
         assertEq(h, holder);

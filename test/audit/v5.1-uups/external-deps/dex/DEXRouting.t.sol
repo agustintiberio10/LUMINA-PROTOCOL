@@ -159,6 +159,14 @@ contract DEXRouting is Test {
         burner.setMaxSlippageBps(500);
         burner.setMinBurnAmount(1e6);
         burner.setMaxBurnAmount(100_000e6);
+        // [legacy-migration] pattern #3: post-F-19 `_swapAndBurn` derives minOut
+        // EXCLUSIVELY from the capacity oracle and reverts ("TWAPBurner: oracle
+        // unset") if it is not wired. Wire a default oracle so the happy-path
+        // burns work; tests that assert oracle-specific behaviour override the
+        // price/wiring locally. Price 0.1e18 ($0.10/LUMINA) makes the canonical
+        // 10e6-USDC→100e18-LUMINA burns clear their oracle-derived minOut (95e18).
+        capOracle.setPrice(0.1e18);
+        burner.setCapacityOracle(address(capOracle));
         // Initial warp past cooldown so the first executeBurn isn't blocked
         // by `block.timestamp >= 0 + 900`.
         vm.warp(block.timestamp + 901);
@@ -287,17 +295,21 @@ contract DEXRouting is Test {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 7. Oracle reverts — continues, falls back to quote-only slippage
+    // 7. Oracle reverts — burn fails closed (no quote fallback).
+    // [legacy-migration] pattern #3/#4: post-F-19 minOut is derived ONLY from
+    // the oracle and the `getLuminaPrice()` call is NOT wrapped in try/catch, so
+    // an oracle that reverts now propagates and the burn reverts. The previous
+    // "fall back to quote-only slippage" path was removed (manipulable floor).
     // ─────────────────────────────────────────────────────────────
-    function test_DEX_OracleReverts_ContinuesWithQuoteMinOut() public {
+    function test_DEX_OracleReverts_BurnFailsClosed() public {
         _fundBurner(10e6);
         capOracle.setShouldRevert(true);
         burner.setCapacityOracle(address(capOracle));
         router1.setQuote(100e18);
-        router1.setSwapOutput(95e18); // 5% slippage — passes
+        router1.setSwapOutput(95e18);
         deal(address(lumina), address(router1), 100e18);
+        vm.expectRevert(bytes("oracle down"));
         burner.executeBurn();
-        assertEq(router1.callCount(), 1);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -320,9 +332,12 @@ contract DEXRouting is Test {
     function test_DEX_AboveMaxBurnAmount_UsesMaxCap() public {
         // Max cap is 100_000e6 per setUp.
         _fundBurner(1_000_000e6); // $1M → cap to 100k
-        deal(address(lumina), address(router1), 100_000_000e18);
-        router1.setQuote(100_000e18);
-        router1.setSwapOutput(100_000e18); // 100k LUMINA for 100k USDC
+        // [legacy-migration] pattern #3: oracle-derived minOut for the capped
+        // 100k-USDC burn at the setUp price (0.1e18) is ~950_000e18, so the
+        // router output (and its LUMINA balance) must clear that floor.
+        deal(address(lumina), address(router1), 1_000_000e18);
+        router1.setQuote(1_000_000e18);
+        router1.setSwapOutput(1_000_000e18); // >= minOut (950_000e18) for 100k USDC
         burner.executeBurn();
         // Only 100k USDC consumed.
         assertEq(usdc.balance(address(burner)), 900_000e6);

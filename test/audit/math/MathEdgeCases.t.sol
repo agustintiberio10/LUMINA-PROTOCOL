@@ -71,9 +71,8 @@ contract MockFeeDistributorMath {
     }
 }
 
-contract MockUSDC {
-    // Minimal ERC20 for testing — we use forge deal() for balances
-}
+// Minimal ERC20 for testing — we use forge deal() for balances
+contract MockUSDC {}
 
 // ═══════════════════════════════════════════════════════════
 // MATH EDGE CASES AUDIT — 8 Categories, ~40 Tests
@@ -190,6 +189,12 @@ contract MathEdgeCases is Test {
 
         // Set capacity oracle on router
         router.setCapacityOracle(address(capacityOracle));
+
+        // [legacy-migration] pattern #3 (F-19): TWAPBurner.executeBurn (incl. the
+        // adaptive-mode burn slice) derives minOut from a capacity oracle and
+        // reverts "oracle unset" otherwise. Wire the same CapacityOracle
+        // (emergency price = LUMINA_PRICE) so the precision/dust burn tests run.
+        twapBurner.setCapacityOracle(address(capacityOracle));
 
         // Fund dexRouter with LUMINA for swap simulation
         deal(address(token), address(dexRouter), 10_000_000e18);
@@ -341,21 +346,21 @@ contract MathEdgeCases is Test {
         assertEq(ratio, type(uint256).max, "Solvency ratio should be max when no obligations");
     }
 
-    /// @notice LUMINA conversion when oracle price = 0 must use emergency fallback
+    /// @notice [legacy-migration] F-02 fail-closed redemption: oracle price = 0
+    ///         must REVERT ORACLE_UNAVAILABLE at settlement (no emergency floor
+    ///         fallback for redemption — the floor is display-only).
     function test_divZero_luminaPrice_zero_fallback() public {
         // Issue bonds while price is normal (capacity check needs non-zero price)
         vault.issueBond(user, 100);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
-        // Now set price to 0 — redemption uses _getSafePrice which falls back to MIN_REDEEM_PRICE
+        // Now set price to 0 — _redeemPrice() reverts ORACLE_UNAVAILABLE.
         oracle.setPrice(0);
 
         vm.prank(user);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
         vault.redeemBond(epochId, 1);
-        // If no revert, fallback worked. Verify non-zero LUMINA received.
-        uint256 luminaBal = token.balanceOf(user);
-        assertGt(luminaBal, 0, "User should receive LUMINA even when oracle returns 0");
     }
 
     /// @notice Premium calc with triggerProbBps = 0 yields premium = 1 (minimum)
@@ -720,34 +725,41 @@ contract MathEdgeCases is Test {
     // CATEGORY 8: CHAINLINK / ORACLE EDGE CASES (3 tests)
     // ═══════════════════════════════════════════════════════
 
-    /// @notice Oracle returns 0 → _getSafePrice fallback to MIN_REDEEM_PRICE
+    /// @notice [legacy-migration] F-02 fail-closed redemption: when the oracle
+    ///         returns 0, SETTLEMENT must REVERT ORACLE_UNAVAILABLE. The floor
+    ///         (MIN_REDEEM_PRICE) is now display-only (_getSafePrice) and is no
+    ///         longer used to settle a redemption, so we assert the redeem
+    ///         reverts rather than asserting a floored preview value.
     function test_oracle_returnsZero_fallback() public {
-        oracle.setPrice(0);
-        // _getSafePrice: price > 0 ? price : MIN_REDEEM_PRICE
-        // MIN_REDEEM_PRICE = 0.001e18
+        // Issue at a healthy price first (capacity check needs non-zero price).
+        vault.issueBond(user, 100);
+        uint256 epochId = _currentEpochPlus24();
+        vm.warp(block.timestamp + 731 days);
 
-        // Verify via previewRedemption which uses _getSafePrice
-        uint256 preview = vault.previewRedemption(100);
-        // 100 * 1e36 / 0.001e18 = 100e36 / 1e15 = 1e23
-        uint256 expected = (100 * 1e36) / 0.001e18;
-        assertEq(preview, expected, "Should use MIN_REDEEM_PRICE when oracle returns 0");
+        oracle.setPrice(0);
+
+        vm.prank(user);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
+        vault.redeemBond(epochId, 100);
     }
 
-    /// @notice Oracle returns very small value (near floor)
+    /// @notice [legacy-migration] F-02 fail-closed redemption: a very small
+    ///         oracle price ($0.001) is at/below MIN_REDEEM_PRICE (0.005e18), so
+    ///         settlement REVERTS ORACLE_UNAVAILABLE rather than minting an
+    ///         inflated LUMINA payout. Issue at a healthy price, drop below the
+    ///         floor, then assert the redeem fails closed.
     function test_oracle_verySmallPrice() public {
-        oracle.setPrice(0.001e18); // $0.001 — at MIN_REDEEM_PRICE
+        oracle.setPrice(0.036e18); // healthy price for issuance
 
         vault.issueBond(user, 10);
         uint256 epochId = _currentEpochPlus24();
         vm.warp(block.timestamp + 731 days);
 
-        // At $0.001, $10 of bonds = 10 * 1e36 / 1e15 = 1e22 LUMINA wei = 10,000 LUMINA
-        vm.prank(user);
-        vault.redeemBond(epochId, 10);
+        oracle.setPrice(0.001e18); // $0.001 — at/below the floor (0.005e18)
 
-        uint256 received = token.balanceOf(user);
-        uint256 expected = (10 * 1e36) / 0.001e18;
-        assertEq(received, expected, "Redemption at floor price must be exact");
+        vm.prank(user);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
+        vault.redeemBond(epochId, 10);
     }
 
     /// @notice Oracle returns very large value ($1000 per LUMINA)

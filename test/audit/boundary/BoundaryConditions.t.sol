@@ -199,6 +199,10 @@ contract BoundaryConditions is Test {
 
         // Deploy TWAPBurner
         twapBurner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(dexRouter));
+        // [legacy-migration] pattern #3 (F-19): executeBurn derives minOut from a
+        // capacity oracle and reverts "oracle unset" otherwise. Wire the same
+        // MockCapacityOracleV5 (getLuminaPrice) used elsewhere in this suite.
+        twapBurner.setCapacityOracle(address(capacityOracle));
 
         // Deploy CoverRouterV2
         coverRouter = ProxyDeployer.deployCoverRouterV2(address(usdc), address(policyManager), address(twapBurner));
@@ -795,8 +799,12 @@ contract BoundaryConditions is Test {
     // ═══════════════════════════════════════════════════════════════
 
     function test_BondVault_MinRedeemPrice_Exact() public {
-        // Set price to exactly MIN_REDEEM_PRICE
-        capacityOracle.setPrice(0.001e18);
+        // [legacy-migration] F-02 fail-closed redemption. _redeemPrice() reverts
+        // ORACLE_UNAVAILABLE when the reading is <= MIN_REDEEM_PRICE (0.005e18).
+        // A price of 0.001e18 is at/below the floor, so the at-floor redeem now
+        // FAILS CLOSED rather than settling. Issue at a healthy price, then
+        // drop to the floor before redeeming and assert the revert.
+        capacityOracle.setPrice(36e15); // healthy price for issuance
         uint256 issueTime = block.timestamp;
         uint256 maturityTime = issueTime + 730 days;
         uint256 epochId = _computeEpochId(maturityTime);
@@ -807,32 +815,36 @@ contract BoundaryConditions is Test {
         claimBondForVault.setMatured(epochId, true);
         claimBondForVault.setBalance(alice, epochId, 10);
 
+        capacityOracle.setPrice(0.001e18); // at/below MIN_REDEEM_PRICE (0.005e18)
         vm.warp(maturityTime);
         vm.prank(alice);
-        bondVault.redeemBond(epochId, 10); // Should succeed at MIN_REDEEM_PRICE
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
+        bondVault.redeemBond(epochId, 10); // fails closed at/below the floor
     }
 
-    function test_BondVault_BelowMinRedeemPrice_UsesFloor() public {
-        // _getSafePrice returns MIN_REDEEM_PRICE when oracle returns 0
-        capacityOracle.setPrice(0);
+    function test_BondVault_BelowMinRedeemPrice_FailsClosed() public {
+        // [legacy-migration] F-02 fail-closed redemption (was "_UsesFloor").
+        // Settlement uses _redeemPrice(), which REVERTS ORACLE_UNAVAILABLE on a
+        // zero/below-floor oracle reading instead of flooring to MIN_REDEEM_PRICE.
+        // The floor is now display-only (_getSafePrice); it no longer settles a
+        // redemption. So a below-floor price (here oracle=0) FAILS CLOSED.
         uint256 issueTime = block.timestamp;
         uint256 maturityTime = issueTime + 730 days;
         uint256 epochId = _computeEpochId(maturityTime);
 
-        // Need to set price high for issuance, then drop it
+        // Set price high for issuance, then drop it below the floor.
         capacityOracle.setPrice(36e15);
         vm.prank(address(policyManager));
         bondVault.issueBond(alice, 10);
 
         claimBondForVault.setMatured(epochId, true);
         claimBondForVault.setBalance(alice, epochId, 10);
-        capacityOracle.setPrice(0); // force _getSafePrice to return MIN_REDEEM_PRICE
+        capacityOracle.setPrice(0); // oracle unavailable / below floor
 
         vm.warp(maturityTime);
-        // _getSafePrice returns MIN_REDEEM_PRICE (0.001e18) when oracle returns 0
-        // This is >= MIN_REDEEM_PRICE so redeem proceeds at the floor price
         vm.prank(alice);
-        bondVault.redeemBond(epochId, 10);
+        vm.expectRevert(BondVault.ORACLE_UNAVAILABLE.selector);
+        bondVault.redeemBond(epochId, 10); // fails closed, does not use floor
     }
 
     // ═══════════════════════════════════════════════════════════════

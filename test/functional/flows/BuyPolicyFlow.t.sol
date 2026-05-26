@@ -90,9 +90,17 @@ contract MockShieldV2_BPF {
     }
 
     mapping(uint256 => address) public policyBuyer;
+    // [legacy-migration] F-03: markExpired now does a fresh shield evaluation and
+    // reverts PolicyTriggerable if the shield reports a trigger. Default true keeps
+    // the trigger-path tests working; the expiry test sets it false.
+    bool public shouldTrigger = true;
 
     constructor(bytes32 _productId) {
         productId = _productId;
+    }
+
+    function setShouldTrigger(bool v) external {
+        shouldTrigger = v;
     }
 
     function createPolicy(CreatePolicyParams calldata params) external returns (uint256 policyId) {
@@ -103,7 +111,10 @@ contract MockShieldV2_BPF {
 
     function verifyAndCalculate(uint256 policyId, bytes calldata) external view returns (PayoutResult memory result) {
         result = PayoutResult({
-            triggered: true, payoutAmount: 800e6, recipient: policyBuyer[policyId], reason: "MOCK_TRIGGER"
+            triggered: shouldTrigger,
+            payoutAmount: shouldTrigger ? 800e6 : 0,
+            recipient: policyBuyer[policyId],
+            reason: shouldTrigger ? bytes32("MOCK_TRIGGER") : bytes32("WINDOW_EXPIRED")
         });
     }
 
@@ -321,6 +332,11 @@ contract BuyPolicyFlowTest is Test {
 
         // Warp past policy expiry (duration = 3600s)
         vm.warp(block.timestamp + 3601);
+
+        // [legacy-migration] F-03: markExpired re-evaluates the shield and reverts
+        // PolicyTriggerable if it still reports a trigger. This policy genuinely
+        // expired without a barrier breach → the shield reports not-triggered.
+        mockShield.setShouldTrigger(false);
 
         // Mark expired
         policyManager.markExpired(PRODUCT_ID, policyId);

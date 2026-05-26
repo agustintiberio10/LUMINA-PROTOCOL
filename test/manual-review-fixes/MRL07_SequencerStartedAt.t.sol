@@ -42,55 +42,57 @@ contract MockAggregator is IAggregatorV3 {
     }
 }
 
-/// @title MRL07_SequencerStartedAt
-/// @notice [MR-L07 fix] `_checkSequencer` now reverts when the sequencer uptime
-///         feed reports an uninitialized round (startedAt == 0) BEFORE the grace
-///         comparison. Without the guard, `block.timestamp - 0` is huge and
-///         silently passes the grace window even though the round is invalid.
-contract MRL07_SequencerStartedAtTest is Test {
-    LuminaOracleV2 oracle;
-    MockAggregator sequencer;
-    MockAggregator priceFeed;
+    /// @title MRL07_SequencerStartedAt
+    /// @notice [MR-L07 fix] `_checkSequencer` now reverts when the sequencer uptime
+    ///         feed reports an uninitialized round (startedAt == 0) BEFORE the grace
+    ///         comparison. Without the guard, `block.timestamp - 0` is huge and
+    ///         silently passes the grace window even though the round is invalid.
+    contract MRL07_SequencerStartedAtTest is Test {
+        LuminaOracleV2 oracle;
+        MockAggregator sequencer;
+        MockAggregator priceFeed;
 
-    address deployer = address(this);
-    address oracleKey = address(0xBEEF);
-    bytes32 constant ASSET = bytes32("BTC");
+        address deployer = address(this);
+        address oracleKey = address(0xBEEF);
+        bytes32 constant ASSET = bytes32("BTC");
 
-    function setUp() public {
-        vm.chainId(8453);
-        vm.warp(1767225600 + 30 days);
+        function setUp() public {
+            vm.chainId(8453);
+            vm.warp(1767225600 + 30 days);
 
-        // Sequencer feed: status=0 (UP) but startedAt==0 (uninitialized round).
-        sequencer = new MockAggregator(0); // answer == status field for the uptime feed
-        sequencer.setRound({_roundId: 1, _answer: 0, _startedAt: 0, _updatedAt: block.timestamp, _answeredInRound: 1});
+            // Sequencer feed: status=0 (UP) but startedAt==0 (uninitialized round).
+            sequencer = new MockAggregator(0); // answer == status field for the uptime feed
+            sequencer.setRound({
+                _roundId: 1, _answer: 0, _startedAt: 0, _updatedAt: block.timestamp, _answeredInRound: 1
+            });
 
-        oracle = new LuminaOracleV2(deployer, oracleKey, address(sequencer));
+            oracle = new LuminaOracleV2(deployer, oracleKey, address(sequencer));
 
-        // Register a healthy price feed so the only failure path is the sequencer guard.
-        priceFeed = new MockAggregator(65000e8);
-        oracle.registerFeed(ASSET, address(priceFeed), 1 hours);
+            // Register a healthy price feed so the only failure path is the sequencer guard.
+            priceFeed = new MockAggregator(65000e8);
+            oracle.registerFeed(ASSET, address(priceFeed), 1 hours);
+        }
+
+        function test_getLatestPrice_revertsWhenSequencerStartedAtZero() public {
+            vm.expectRevert(LuminaOracleV2.SequencerGracePeriodNotOver.selector);
+            oracle.getLatestPrice(ASSET);
+        }
+
+        function test_getLatestRoundData_revertsWhenSequencerStartedAtZero() public {
+            vm.expectRevert(LuminaOracleV2.SequencerGracePeriodNotOver.selector);
+            oracle.getLatestRoundData(ASSET);
+        }
+
+        function test_getLatestPrice_succeedsOnceSequencerInitializedAndPastGrace() public {
+            // A real (initialized) round whose startedAt is older than the grace period.
+            sequencer.setRound({
+                _roundId: 2,
+                _answer: 0,
+                _startedAt: block.timestamp - oracle.SEQUENCER_GRACE_PERIOD() - 1,
+                _updatedAt: block.timestamp,
+                _answeredInRound: 2
+            });
+            int256 p = oracle.getLatestPrice(ASSET);
+            assertEq(p, 65000e8, "price read after sequencer healthy");
+        }
     }
-
-    function test_getLatestPrice_revertsWhenSequencerStartedAtZero() public {
-        vm.expectRevert(LuminaOracleV2.SequencerGracePeriodNotOver.selector);
-        oracle.getLatestPrice(ASSET);
-    }
-
-    function test_getLatestRoundData_revertsWhenSequencerStartedAtZero() public {
-        vm.expectRevert(LuminaOracleV2.SequencerGracePeriodNotOver.selector);
-        oracle.getLatestRoundData(ASSET);
-    }
-
-    function test_getLatestPrice_succeedsOnceSequencerInitializedAndPastGrace() public {
-        // A real (initialized) round whose startedAt is older than the grace period.
-        sequencer.setRound({
-            _roundId: 2,
-            _answer: 0,
-            _startedAt: block.timestamp - oracle.SEQUENCER_GRACE_PERIOD() - 1,
-            _updatedAt: block.timestamp,
-            _answeredInRound: 2
-        });
-        int256 p = oracle.getLatestPrice(ASSET);
-        assertEq(p, 65000e8, "price read after sequencer healthy");
-    }
-}

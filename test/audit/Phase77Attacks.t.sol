@@ -495,10 +495,20 @@ contract Phase77Attacks is Test {
 
         TWAPBurner burner = ProxyDeployer.deployTWAPBurner(address(usdc), address(lumina), address(maliciousRouter));
 
+        // [legacy-migration] pattern #3 (F-19): minOut is now derived from the
+        // capacity oracle, NOT the executing router's (inflated) quote. Wire an
+        // oracle priced at $0.01 so for a 1000 USDC burn the oracle-implied
+        // expectedOut is 1000e6*1e12*1e18/1e16 = 100_000e18 and minOut (95%) =
+        // 95_000e18 — far above the malicious router's 100e18 delivery, so the
+        // swap still reverts on slippage (the original assertion holds).
+        MockPriceOracle77 minOutOracle = new MockPriceOracle77();
+        minOutOracle.setPrice(10e15); // $0.010
+        burner.setCapacityOracle(address(minOutOracle));
+
         // Fund burner
         usdc.mint(address(burner), 1000e6);
 
-        // executeBurn should revert because actual output (100) < minOut (9500)
+        // executeBurn should revert because actual output (100) < oracle-derived minOut
         vm.expectRevert("Slippage exceeded");
         burner.executeBurn();
     }
@@ -577,6 +587,16 @@ contract Phase77Attacks is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(reentrantRouter);
         burner.setDexRouters(routers);
+
+        // [legacy-migration] pattern #3 (F-19): wire a capacity oracle so
+        // executeBurn can derive minOut. The reentrant router delivers a fixed
+        // 1000e18 LUMINA for the capped 10_000e6 burn, so price the oracle at
+        // $10 => oracle expectedOut = 10_000e6*1e12*1e18/10e18 = 1000e18 and
+        // minOut (95%) = 950e18 <= 1000e18 delivered: the outer burn succeeds
+        // exactly once (totalUSDCBurned == 10_000e6), preserving the assertion.
+        MockPriceOracle77 minOutOracle = new MockPriceOracle77();
+        minOutOracle.setPrice(10e18); // $10 per LUMINA
+        burner.setCapacityOracle(address(minOutOracle));
 
         // Fund burner with enough for 2 burns (to test the reentrancy attempt)
         usdc.mint(address(burner), 20_000e6);

@@ -309,6 +309,12 @@ contract EconomicAttacks is Test {
 
         uint256 balanceBefore = usdc.balanceOf(attacker);
         mp.executeBuy(listingId);
+        // [legacy-migration] F-14: the seller's net proceeds are no longer
+        // push-transferred back on the fill; they are booked to the pull-payment
+        // ledger (pendingWithdrawals[seller]). For a wash trade (seller == buyer)
+        // the attacker must withdraw() to reclaim those proceeds, after which the
+        // only standing loss is the 3% in fees that went to the twapBurner.
+        mp.withdraw();
         uint256 balanceAfter = usdc.balanceOf(attacker);
         vm.stopPrank();
 

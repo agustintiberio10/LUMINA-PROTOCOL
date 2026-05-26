@@ -124,13 +124,10 @@ contract MockAerodromeRouter {
         address factory;
     }
 
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256,
-        Route[] calldata routes,
-        address,
-        uint256
-    ) external returns (uint256[] memory amounts) {
+    function swapExactTokensForTokens(uint256 amountIn, uint256, Route[] calldata routes, address, uint256)
+        external
+        returns (uint256[] memory amounts)
+    {
         ERC20(routes[0].from).transferFrom(msg.sender, address(this), amountIn);
         amounts = new uint256[](2);
         amounts[0] = amountIn;

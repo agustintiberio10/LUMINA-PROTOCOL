@@ -179,6 +179,9 @@ contract FixM03BuybackApproval is Test {
         uint256 listingId = _list(50, 20e6);
 
         // Previously reverted with insufficient allowance. Now succeeds.
+        // [legacy-migration] pattern #8: executeOffer is onlyRole(BUYBACK_OPERATOR_ROLE);
+        // multisig holds the role (granted at init).
+        vm.prank(multisig);
         buybackEngine.executeOffer(listingId);
     }
 
@@ -189,6 +192,8 @@ contract FixM03BuybackApproval is Test {
         uint256 listingId = _list(50, price);
 
         uint256 before_ = usdc.balanceOf(address(buybackEngine));
+        // [legacy-migration] pattern #8
+        vm.prank(multisig);
         buybackEngine.executeOffer(listingId);
         uint256 after_ = usdc.balanceOf(address(buybackEngine));
 
@@ -203,6 +208,8 @@ contract FixM03BuybackApproval is Test {
         uint256 listingId = _list(50, 20e6);
 
         uint256 supplyBefore = claimBond.totalSupply(epoch);
+        // [legacy-migration] pattern #8
+        vm.prank(multisig);
         buybackEngine.executeOffer(listingId);
         uint256 supplyAfter = claimBond.totalSupply(epoch);
 
@@ -221,6 +228,8 @@ contract FixM03BuybackApproval is Test {
         uint256 fee = (price * BUYER_FEE_BPS) / BPS_DEN;
 
         uint256 listingId = _list(200, price);
+        // [legacy-migration] pattern #8
+        vm.prank(multisig);
         buybackEngine.executeOffer(listingId);
 
         // dailyConfig.spentToday is not public struct-field access; use the
@@ -236,6 +245,8 @@ contract FixM03BuybackApproval is Test {
         _activateBuyback(price + fee, 95);
         _fundBuyback(price + fee);
         uint256 listingId = _list(200, price);
+        // [legacy-migration] pattern #8
+        vm.prank(multisig);
         buybackEngine.executeOffer(listingId);
     }
 
@@ -245,7 +256,10 @@ contract FixM03BuybackApproval is Test {
         _activateBuyback(price, 95);
         _fundBuyback(price + 5e6);
         uint256 listingId = _list(200, price);
+        // [legacy-migration] pattern #8: prank as operator so the revert is the
+        // documented "Daily budget exceeded", not an AccessControl error.
         vm.expectRevert(bytes("Daily budget exceeded"));
+        vm.prank(multisig);
         buybackEngine.executeOffer(listingId);
     }
 
@@ -258,12 +272,15 @@ contract FixM03BuybackApproval is Test {
 
         // Offer 1: $200 price → 200 + 3 = $203 spent.
         uint256 id1 = _list(2000, 200e6);
+        // [legacy-migration] pattern #8
+        vm.prank(multisig);
         buybackEngine.executeOffer(id1);
         (,,, uint256 spent1) = buybackEngine.dailyConfig();
         assertEq(spent1, 203_000_000);
 
         // Offer 2: $300 price → 300 + 4.50 = $304.50. Total spent = $507.50.
         uint256 id2 = _list(2000, 300e6);
+        vm.prank(multisig);
         buybackEngine.executeOffer(id2);
         (,,, uint256 spent2) = buybackEngine.dailyConfig();
         assertEq(spent2, 203_000_000 + 304_500_000);
@@ -271,6 +288,7 @@ contract FixM03BuybackApproval is Test {
         // Offer 3: $500 price → 500 + 7.50 = $507.50. Total = $1015 > $1000.
         uint256 id3 = _list(2000, 500e6);
         vm.expectRevert(bytes("Daily budget exceeded"));
+        vm.prank(multisig);
         buybackEngine.executeOffer(id3);
     }
 
@@ -282,6 +300,8 @@ contract FixM03BuybackApproval is Test {
         _activateBuyback(100e6, 95);
         _fundBuyback(100e6);
         uint256 listingId = _list(50, 20e6);
+        // [legacy-migration] pattern #8
+        vm.prank(multisig);
         buybackEngine.executeOffer(listingId);
         assertEq(usdc.allowance(address(buybackEngine), address(marketplace)), 0, "approval must reset to 0");
     }
@@ -291,7 +311,10 @@ contract FixM03BuybackApproval is Test {
         _fundBuyback(10e6); // way below 20e6 + fee
         uint256 listingId = _list(50, 20e6);
 
+        // [legacy-migration] pattern #8: prank as operator so the revert is the
+        // balance/transfer failure under test, not an AccessControl error.
         vm.expectRevert();
+        vm.prank(multisig);
         buybackEngine.executeOffer(listingId);
 
         // No dangling approval — the revert is atomic.
@@ -313,6 +336,8 @@ contract FixM03BuybackApproval is Test {
         uint256 fee = (price * BUYER_FEE_BPS) / BPS_DEN;
         // 200 bonds so maxAllowedPriceUSDC = $190 — above the $100 price.
         uint256 id = _list(200, price);
+        // [legacy-migration] pattern #8
+        vm.prank(multisig);
         buybackEngine.executeOffer(id);
 
         (,,, uint256 spentToday) = buybackEngine.dailyConfig();

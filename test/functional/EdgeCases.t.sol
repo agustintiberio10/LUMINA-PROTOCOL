@@ -179,6 +179,12 @@ contract EdgeCasesTest is Test {
         uint256 exactBalance = 250_000e6;
         usdc.mint(address(maintenanceReserve), exactBalance);
 
+        // [legacy-migration] F-15 seeded a DEFAULT_MONTHLY_CAP (10_000e6) on the
+        // MaintenanceReserve; spending the entire $250K balance exceeds it. Raise
+        // the cap as admin (multisig) to preserve the "spend exact balance" intent.
+        vm.prank(multisig);
+        maintenanceReserve.setMonthlyCap(exactBalance);
+
         address vendor = makeAddr("vendor");
         vm.prank(multisig);
         maintenanceReserve.spend(
