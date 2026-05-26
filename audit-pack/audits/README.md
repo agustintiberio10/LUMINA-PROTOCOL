@@ -16,6 +16,8 @@ and recommendations.
 | 2026-05-24 | Red Team Adversarial V5.3 V2 (post-fix, Sprint Fix 7.2) | [2026-05-24-red-team-audit-v53-v2.md](./2026-05-24-red-team-audit-v53-v2.md) |
 | 2026-05-25 | Manual Review V5.3 V1 (CertiK line-by-line) | (PR #157 — `2026-05-25-manual-review-v53.md`) |
 | 2026-05-25 | Manual Review V5.3 V2 (post-fix, Sprint Fix 7.3) | [2026-05-25-manual-review-v53-v2.md](./2026-05-25-manual-review-v53-v2.md) |
+| 2026-05-26 | Operational Security V5.3 (Sprint 7.6) | (PR #162 — `2026-05-26-operational-audit-v53.md`) |
+| 2026-05-26 | Tier‑1 Readiness Assessment (internal) | [2026-05-26-tier1-assessment.md](./2026-05-26-tier1-assessment.md) |
 
 ## Convention
 

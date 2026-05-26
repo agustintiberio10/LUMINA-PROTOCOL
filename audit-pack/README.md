@@ -16,6 +16,11 @@ El audit-pack es la "fuente de verdad" del estado de aseguramiento del protocolo
 
 | Path | Contenido | Actualización |
 |---|---|---|
+| [`EXECUTIVE-REPORT-V54.md`](./EXECUTIVE-REPORT-V54.md) | **Reporte ejecutivo público** (inversores/auditores): historial de audits, findings, Tier‑1 readiness honesto, roadmap a mainnet, limitaciones del audit AI | Por release / pre‑external‑audit |
+| [`audits/2026-05-26-tier1-assessment.md`](./audits/2026-05-26-tier1-assessment.md) | **Tier‑1 assessment interno** (gaps + roadmap con costo/timeline; secciones de honestidad) | Por release |
+| [`manifests/`](./manifests/) | Direcciones canónicas live derivadas on-chain (single source of truth) | Cada deploy/upgrade |
+| [`runbooks/`](./runbooks/) | Índice de runbooks operativos (viven en `docs/runbooks/`) + notas del op-audit | Por cambio operativo |
+| [`adrs/`](./adrs/) | Índice de ADRs (inline en sprints/architecture docs) | Por decisión arquitectónica |
 | [`what-we-tested.md`](./what-we-tested.md) | Todo lo auditado al día de hoy (9 categorías + secciones por sprint con cambios on-chain materiales) | Cada sprint que agregue tests o suba números |
 | [`what-is-pending.md`](./what-is-pending.md) | Lo que NO está cubierto y por qué (items abiertos) | Cada sprint que cierre o agregue gaps |
 | [`audits/`](./audits/) | Reportes completos de cada audit ejecutado (findings, severity, scores, recomendaciones, veredicto). 1 archivo `.md` por audit. | Cada audit nuevo agrega un archivo + entry en `audits/README.md` |
