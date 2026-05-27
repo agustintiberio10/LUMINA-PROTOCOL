@@ -83,6 +83,8 @@ contract LuminaBondMarketplace is
         uint256 buyerFee
     );
     event TwapBurnerUpdated(address indexed newTwapBurner);
+    /// @notice [C-1 fix] Emitted when the settlement/payment USDC token is repointed.
+    event UsdcUpdated(address indexed oldUsdc, address indexed newUsdc);
     /// @notice [F-14] Emitted when a seller's proceeds are credited to the pull-payment ledger.
     event WithdrawalCredited(address indexed seller, uint256 amount);
     /// @notice [F-14] Emitted when a seller pulls their accrued proceeds.
@@ -237,6 +239,22 @@ contract LuminaBondMarketplace is
         require(_new != address(0), "Zero");
         twapBurner = _new;
         emit TwapBurnerUpdated(_new);
+    }
+
+    /// @notice [C-1 fix] Repoint the settlement/payment USDC token. Required after the
+    ///         protocol-wide migration from the deprecated Circle Base Sepolia USDC to
+    ///         mUSDC: the marketplace was initialized with the old token, leaving
+    ///         `executeBuy` un-fillable for any mUSDC-funded buyer. Admin-gated; never
+    ///         touches escrowed bonds. New listings/fills settle in the new token; any
+    ///         pre-existing `pendingWithdrawals` denominated in the old token are
+    ///         unaffected by this pointer change (none exist on this deployment).
+    /// @dev    No storage layout change — this is an appended function on the same
+    ///         `usdc` slot, applied via UUPS upgrade.
+    function setUsdc(address _new) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_new != address(0), "Zero");
+        address old = address(usdc);
+        usdc = IERC20(_new);
+        emit UsdcUpdated(old, _new);
     }
 
     /// @notice [M-3] Update the anti-spam minimum price floor for new listings.
