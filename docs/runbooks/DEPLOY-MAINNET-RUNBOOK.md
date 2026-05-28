@@ -60,6 +60,37 @@ This runbook covers the full deployment lifecycle for LUMINA Protocol V5.0 to Et
 
 ### Hour 0: Deploy Initiation
 
+#### STEP 0 — MANDATORY PRE-FLIGHT CHECK
+
+> **Hard gate. The deploy command in the next step MUST NOT run if this fails.**
+> Verifies the three CRITICAL findings from Phase 5.5 audits (FN-C1, FN-H1, RM-C1)
+> plus chainId + deployer hygiene. Read-only — no broadcast, no tx.
+
+```bash
+# Required env (all must be set to the post-Phase-6-hardening addresses):
+export LUMINA_TOKEN=<token-proxy>
+export BOND_VAULT=<bondvault-proxy>
+export CAPACITY_ORACLE=<capacityoracle-proxy>     # MUST have pool() != 0
+export COVER_ROUTER=<coverrouter-proxy>           # usdc() MUST == Circle Base USDC
+export GNOSIS_SAFE=<safe-multisig>                # MUST hold DEFAULT_ADMIN_ROLE on token + vault
+export DEPLOYER=<NEW hardware wallet>             # MUST NOT be 0xe585…fDa8 (burned Sepolia EOA)
+
+forge script script/PreFlightCheck.s.sol:PreFlightCheck \
+  --rpc-url $BASE_MAINNET_RPC
+```
+
+Expected last line on success:
+```
+ALL PRE-FLIGHT CHECKS PASSED - safe to deploy
+```
+
+On failure the script reverts with one of:
+`FN-C1: pool not set` · `FN-H1: USDC not mainnet` · `RM-C1: {EOA has|Safe missing} {token|vault} admin` · `BONUS: wrong chainId` · `BONUS: deployer is burned EOA`.
+
+**Do not proceed to the deploy command below until this script succeeds.** Each of the 9 failure paths is unit-tested in `test/PreFlightCheck.t.sol`.
+
+#### STEP 1 — Deploy
+
 ```bash
 # Set environment
 export DEPLOYER_PRIVATE_KEY=<secure-key>
