@@ -208,3 +208,97 @@ Si valores no matchean wiring tests W7, **DETENER deploy**.
 ### Status
 
 ACEPTADO — código + tests + runbook listos. Deploy real en Sprint Deploy posterior (redeploy completo 27 contratos V5.1 con set final 7 shields).
+
+---
+
+## ADR-027 — Post-dry-run deploy fixes: wrapper, Phase C order, revoke ordering
+
+**Fecha**: 2026-05-28
+**Estado**: APROBADO — implementado en branch `fix/post-dryrun-deploy-fixes`
+**PR asociada**: `fix/post-dryrun-deploy-fixes` en `LUMINA-PROTOCOL`
+**Origen**: hallazgos del fork dry-run del 2026-05-28 (`/c/tmp/dry-run-mainnet/REPORT-FINAL.md`)
+
+### Contexto
+
+El primer fork dry-run end-to-end del deploy V5.1 (Base mainnet fork @ block 46,604,199, anvil 1.5.1) destapó **tres problemas estructurales** que NO eran detectables con la batería de tests existente (los tests cubrían el flujo `Complete.run()` y `PhaseC.run()` por separado, nunca el wrapper ni la composición).
+
+### Decisión
+
+#### Decisión 1 — Wrapper inherits Complete + `super.run()` (en lugar de `new Complete()`)
+
+**Antes**:
+```solidity
+DeployLuminaV5Complete completeRunner = new DeployLuminaV5Complete();
+completeRunner.run();  // ← msg.sender dentro = wrapper instance, no la EOA
+```
+
+**Ahora**:
+```solidity
+contract DeployLuminaV5Mainnet is DeployLuminaV5Complete {
+    function run() public override {
+        vm.setEnv(...);     // 6 env vars + DEFER_PM_CR_OWNERSHIP
+        super.run();        // dispatch interno → msg.sender == broadcaster EOA
+        _runPhaseCInline(...);
+        _finalizeOwnership(...);
+    }
+}
+```
+
+`Complete.run()` cambió de `external` a `public virtual` (super solo funciona con visibilidad ≥ internal). Backward compatible: forge script CLI sigue invocando `run()` externamente como antes.
+
+#### Decisión 2 — `DEFER_PM_CR_OWNERSHIP` env flag en Complete
+
+Complete ahora wrappea las transferOwnership de PolicyManagerV2 + CoverRouterV2 con:
+```solidity
+bool deferPmCr = vm.envOr("DEFER_PM_CR_OWNERSHIP", false);
+if (!deferPmCr) {
+    coverRouter.transferOwnership(cfg.multisig);
+    policyManager.transferOwnership(cfg.multisig);
+}
+```
+
+- Default = `false` → comportamiento idéntico al pre-fix, todos los tests existentes (`DeployV5Test.t.sol` asserta `policyManager.owner() == multisig`) siguen verde.
+- Wrapper Mainnet setea `true` → el deployer mantiene PM/CR ownership lo suficiente para que Phase C registre productos + configure pricing; el wrapper hace el transfer al final.
+
+Además Complete exporta las direcciones deployed via `vm.setEnv("DEPLOY_OUT_*", …)` para que el wrapper (y cualquier script downstream) pueda leerlas sin depender de parsear `broadcast/*.json`.
+
+#### Decisión 3 — Revoke order canónico de BondVault admin handoff
+
+El bug: AccessControl exige que el caller tenga `DEFAULT_ADMIN_ROLE` para revocar **cualquier** rol cuyo `getRoleAdmin(role) == DEFAULT_ADMIN_ROLE`. Por defecto, `AUTHORIZED_CALLER_ADMIN_ROLE` cae en esta categoría. Si el deployer se auto-revoca `DEFAULT_ADMIN_ROLE` **primero**, pierde la capacidad de revocar `AUTHORIZED_CALLER_ADMIN_ROLE` después → revert con `AccessControlUnauthorizedAccount`, deployer queda como rol-fantasma.
+
+**Orden canónico** (documentado en `docs/runbooks/DEPLOY-MAINNET-RUNBOOK.md` ADR-027 sub-sección):
+
+```
+# Grants (cualquier orden)
+1. BondVault.grantRole(DEFAULT_ADMIN_ROLE, multisig)
+2. BondVault.grantRole(AUTHORIZED_CALLER_ADMIN_ROLE, multisig)
+3. LuminaTokenV2.grantRole(DEFAULT_ADMIN_ROLE, multisig)
+
+# Revokes — DEFAULT_ADMIN_ROLE va ÚLTIMO en cada contrato
+4. BondVault.revokeRole(AUTHORIZED_CALLER_ADMIN_ROLE, deployer)   # ← antes de DEFAULT
+5. BondVault.revokeRole(DEFAULT_ADMIN_ROLE,           deployer)   # ← último en BondVault
+6. LuminaTokenV2.revokeRole(DEFAULT_ADMIN_ROLE,       deployer)
+```
+
+Test de regresión: `test/deploy/RevokeOrder.t.sol` (1 happy path + 1 wrong-order revert).
+
+### Razones
+
+1. **No introducir nuevos riesgos al deploy de mainnet**. Las tres fixes se aplican a flujos que solo se ejercitan en mainnet (wrapper inherit + DEFER flag + revoke order). Los tests y deploys testnet preexistentes no se ven afectados (default behavior unchanged).
+2. **Detectabilidad por dry-run**. Los tres bugs son `--broadcast`-only — no aparecen en `forge test` porque ese path no broadcastea. La única forma de capturarlos era ejecutar un fork dry-run del deploy completo. Por eso este ADR adopta también el orquestador `script/dry-run/run.sh` como **paso obligatorio T-1 day** del runbook.
+3. **Backward compatibility**. Cambios diseñados para preservar tests existentes:
+   - `Complete.run()` de `external` a `public` — same external ABI.
+   - `DEFER_PM_CR_OWNERSHIP` default `false` — same behavior cuando no se setea.
+   - Wrapper rewriting — el wrapper anterior nunca había sido ejercitado on-chain (los tests solo validaban constantes), así que no hay regresión real.
+
+### Tests
+
+| Test | Path |
+|---|---|
+| Revoke order — orden correcto succeeds | `test/deploy/RevokeOrder.t.sol::test_correctOrder_succeeds` |
+| Revoke order — orden incorrecto reverts | `test/deploy/RevokeOrder.t.sol::test_wrongOrder_reverts` |
+| Fork dry-run completo (orquestador shell) | `script/dry-run/run.sh` — 6/6 validaciones |
+
+### Status
+
+ACEPTADO — código + tests + runbook + orquestador commiteados. PR draft `fix/post-dryrun-deploy-fixes`.

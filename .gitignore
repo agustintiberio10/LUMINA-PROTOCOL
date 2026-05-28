@@ -11,3 +11,6 @@ coverage/
 lcov.info
 *.env*
 !.env.example
+
+# dry-run orchestrator outputs (ADR-027) — ephemeral, anvil-only
+dry-run-out/
