@@ -16,7 +16,7 @@ import {DeployLuminaV5Complete} from "./DeployLuminaV5Complete.s.sol";
 ///
 /// @dev Run with:
 ///        forge script script/deploy/DeployLuminaV5Mainnet.s.sol:DeployLuminaV5Mainnet \
-///          --rpc-url $BASE_RPC_URL --private-key $DEPLOYER_PK --broadcast --verify
+///          --rpc-url $BASE_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify
 ///
 ///      The fork-rehearsal test in
 ///      `test/audit/v5.1-uups/integration/mainnet-fork/MainnetForkDeploy.t.sol`

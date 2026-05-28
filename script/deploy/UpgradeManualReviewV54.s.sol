@@ -47,7 +47,7 @@ contract UpgradeManualReviewV54 is Script {
     address constant ADAPTIVE_FEE_DISTRIBUTOR = 0xeC7841A4a9ecfb8cA58391E233A645B021c59D54;
 
     function run() external {
-        uint256 pk = vm.envUint("FOUNDER_PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(pk);
 
         _upgrade(CAPACITY_ORACLE, address(new CapacityOracle()), "CapacityOracle");

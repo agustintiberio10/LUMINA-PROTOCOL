@@ -166,7 +166,7 @@ contract DeployLuminaV5Sepolia is Script {
     uint256 constant TEST_USDC_AMOUNT = 1_000_000e6; // 1M USDC for testing
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
         console.log("=== LUMINA V5.0 Sepolia Deployment ===");

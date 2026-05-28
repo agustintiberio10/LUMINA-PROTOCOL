@@ -21,10 +21,10 @@ contract AuthorizeRelayer is Script {
     function run() external {
         require(block.chainid == 84532, "wrong chain (Base Sepolia only)");
 
-        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
+        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address sender = vm.addr(deployerKey);
         address routerOwner = ICoverRouterV2(ROUTER).owner();
-        require(sender == routerOwner, "PRIVATE_KEY is not router owner");
+        require(sender == routerOwner, "DEPLOYER_PRIVATE_KEY is not router owner");
 
         bool already = ICoverRouterV2(ROUTER).authorizedRelayers(RELAYER);
         console.log("Router owner:        ", routerOwner);

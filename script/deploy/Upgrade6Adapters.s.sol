@@ -44,7 +44,7 @@ contract Upgrade6Adapters is Script {
     ];
 
     function run() external returns (address newImpl) {
-        uint256 pk = vm.envUint("PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
         vm.startBroadcast(pk);
 

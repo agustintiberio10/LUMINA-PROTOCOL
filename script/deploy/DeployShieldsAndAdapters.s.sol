@@ -89,7 +89,7 @@ contract DeployShieldsAndAdapters is Script {
     }
 
     function run() external returns (Rec[6] memory recs) {
-        uint256 pk = vm.envUint("FOUNDER_PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address founder = vm.addr(pk);
 
         vm.startBroadcast(pk);
