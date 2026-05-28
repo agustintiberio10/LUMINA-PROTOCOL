@@ -100,7 +100,15 @@ contract DeployLuminaV5Complete is Script {
         address uniswapV3Adapter;
     }
 
-    function run() external {
+    /// @dev `external virtual` so subclasses (e.g. `DeployLuminaV5Mainnet`) can
+    ///      override `run()` and chain into this base via `super.run()`. The
+    ///      pre-fix wrapper used `new Complete() + completeRunner.run()` which
+    ///      made `msg.sender` inside `Complete.run()` equal the wrapper instance
+    ///      (not the broadcaster EOA), breaking the nonce-based LUMINA proxy
+    ///      precompute at STEP 8. Fork dry-run 2026-05-28 surfaced this. The
+    ///      inheritance pattern fixes it because `super.run()` is an internal
+    ///      dispatch — `msg.sender` propagates unchanged from the caller.
+    function run() public virtual {
         // ───── Load config from env ─────
         DeploymentConfig memory cfg = DeploymentConfig({
             usdc: vm.envAddress("USDC_ADDRESS"),
@@ -468,11 +476,24 @@ contract DeployLuminaV5Complete is Script {
         // ═══════════════════════════════════════════════════════
         // OWNERSHIP TRANSFER to multisig
         // ═══════════════════════════════════════════════════════
-        console.log("--- OWNERSHIP TRANSFER ---");
+        // [Post-dryrun 2026-05-28, ADR-027] PolicyManagerV2 + CoverRouterV2
+        //   transfers can be DEFERRED via the `DEFER_PM_CR_OWNERSHIP` env flag,
+        //   so the deployer remains owner long enough to register Phase C
+        //   shields/products (which require onlyOwner). The mainnet wrapper
+        //   `DeployLuminaV5Mainnet` sets the flag, runs Phase C, then performs
+        //   the deferred transfer itself. Default behavior unchanged (flag
+        //   defaults to false) → existing tests continue to assert
+        //   `policyManager.owner() == multisig` post-deploy.
+        bool deferPmCr = vm.envOr("DEFER_PM_CR_OWNERSHIP", false);
+        console.log("--- OWNERSHIP TRANSFER --- (deferPmCr =", deferPmCr ? "true)" : "false)");
 
         twapBurner.transferOwnership(cfg.multisig);
-        coverRouter.transferOwnership(cfg.multisig);
-        policyManager.transferOwnership(cfg.multisig);
+        if (!deferPmCr) {
+            coverRouter.transferOwnership(cfg.multisig);
+            policyManager.transferOwnership(cfg.multisig);
+        } else {
+            console.log("  [DEFERRED] CoverRouter + PolicyManager ownership stays with deployer for Phase C");
+        }
         capacityOracle.transferOwnership(cfg.multisig);
         founderVesting.transferOwnership(cfg.multisig);
         treasuryVesting.transferOwnership(cfg.multisig);
@@ -525,6 +546,21 @@ contract DeployLuminaV5Complete is Script {
         );
 
         vm.stopBroadcast();
+
+        // [Post-dryrun 2026-05-28, ADR-027] Export the addresses subclass scripts
+        //   (e.g. `DeployLuminaV5Mainnet`) need to chain into Phase C + the
+        //   deferred PM/CR ownership handoff. Keys are prefixed `DEPLOY_OUT_*`
+        //   to make their downstream-only role obvious in shell history.
+        vm.setEnv("DEPLOY_OUT_LUMINA_TOKEN",    vm.toString(res.luminaToken));
+        vm.setEnv("DEPLOY_OUT_BOND_VAULT",      vm.toString(res.bondVault));
+        vm.setEnv("DEPLOY_OUT_CLAIM_BOND",      vm.toString(res.claimBond));
+        vm.setEnv("DEPLOY_OUT_CAPACITY_ORACLE", vm.toString(res.capacityOracle));
+        vm.setEnv("DEPLOY_OUT_POLICY_MANAGER",  vm.toString(res.policyManager));
+        vm.setEnv("DEPLOY_OUT_COVER_ROUTER",    vm.toString(res.coverRouter));
+        vm.setEnv("DEPLOY_OUT_TWAP_BURNER",     vm.toString(res.twapBurner));
+        vm.setEnv("DEPLOY_OUT_SOLVENCY_ORACLE", vm.toString(res.solvencyOracle));
+        vm.setEnv("DEPLOY_OUT_LUMINA_ORACLE_V2",vm.toString(res.luminaOracleV2));
+        vm.setEnv("DEPLOY_OUT_SHIELD_KEEPER",   vm.toString(res.shieldKeeper));
 
         // ═══════════════════════════════════════════════════════
         // FINAL LOG: All deployed addresses

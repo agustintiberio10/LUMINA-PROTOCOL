@@ -53,6 +53,17 @@ This runbook covers the full deployment lifecycle for LUMINA Protocol V5.0 to Et
 - [ ] Verify deployer wallet nonce and balance
 - [ ] Confirm all signers available during deploy window
 - [ ] Set up monitoring dashboards (blank, ready to receive data)
+- [ ] **MANDATORY — run the fork dry-run orchestrator (ADR-027). All 6
+  validations MUST pass before greenlight. If the orchestrator exits
+  non-zero, STOP and triage before broadcasting anything.**
+
+  ```bash
+  BASE_MAINNET_RPC=<your-mainnet-rpc> bash script/dry-run/run.sh \
+    || { echo "DRY-RUN FAILED — DO NOT BROADCAST"; exit 1; }
+  ```
+
+  Expected: `FAIL_COUNT_TOTAL=0`. See `script/dry-run/README.md` for what is
+  validated and why this is non-optional.
 
 ---
 
@@ -117,26 +128,98 @@ On failure the script reverts with one of:
 
 **Operator must see the success line** before calling `coverRouter.setPaused(false)` to activate the protocol.
 
-#### STEP 1 — Deploy
+#### STEP 1 — Deploy (chained: Complete + Phase C + handoff)
+
+> **ADR-027 update**: the mainnet wrapper `DeployLuminaV5Mainnet` now chains
+> Complete → Phase C (shields + product registration) → deferred PolicyManagerV2
+> + CoverRouterV2 handoff to MULTISIG in a single `forge script` run. This
+> is the ONLY supported deploy path for mainnet. The previous wrapper had a
+> `msg.sender` bug (revert at STEP 8 "LUMINA proxy address mismatch - nonce
+> drift") detected by the fork dry-run on 2026-05-28; the fix is the
+> inheritance pattern with `super.run()`. See ADR-027 for full rationale.
 
 ```bash
-# Set environment
+# Set environment (DEPLOYER_PRIVATE_KEY is the canonical name — PR #186)
 export DEPLOYER_PRIVATE_KEY=<secure-key>
-export ETH_RPC_URL=<mainnet-rpc>
+export BASE_MAINNET_RPC=<mainnet-rpc>
 export ETHERSCAN_API_KEY=<key>
 
-# Execute deployment
-forge script script/DeployLuminaV5Complete.s.sol:DeployLuminaV5Complete \
-  --rpc-url $ETH_RPC_URL \
+# Operator-supplied addresses
+export MULTISIG=<Gnosis Safe>
+export RELAYER=<relayer EOA>
+export ORACLE_KEY=<EIP-712 oracle signer EOA>
+export SEQUENCER_UPTIME_FEED=0xBCF85224fc0756B9Fa45aA7892530B47e10b6433
+export LBP_DEPOSIT=<LBP recipient>
+export OPS_WALLET=<ops fee collector>
+export FOUNDER_RECIPIENT=<founder vesting recipient>
+
+# Execute chained deployment (Complete → PhaseC → handoff)
+forge script script/deploy/DeployLuminaV5Mainnet.s.sol:DeployLuminaV5Mainnet \
+  --rpc-url $BASE_MAINNET_RPC \
+  --private-key $DEPLOYER_PRIVATE_KEY \
   --broadcast \
   --verify \
   --slow \
   -vvv
 ```
 
+Wrapper end-state when this exits cleanly:
+- 19 core contracts deployed (Complete)
+- 6 shields + 6 adapters deployed, registered on PolicyManagerV2,
+  configured on CoverRouterV2 (Phase C)
+- `coverRouter.setPaused(true)` already done
+- PolicyManagerV2 + CoverRouterV2 ownership transferred to MULTISIG
+- BondVault + LuminaTokenV2 DEFAULT_ADMIN_ROLE STILL held by deployer
+  (handed off in STEP 2 below, per ADR-012)
+
 - [ ] Record all deployed contract addresses immediately
 - [ ] Verify each contract on Etherscan
 - [ ] Confirm proxy admin ownership set correctly
+
+#### STEP 2 — BondVault + LuminaTokenV2 admin handoff (ADR-012 + ADR-027 order)
+
+> **ADR-027 — revoke order is NOT cosmetic.** AccessControl's `revokeRole`
+> is itself gated by the role admin chain. On BondVault, both
+> `DEFAULT_ADMIN_ROLE` and `AUTHORIZED_CALLER_ADMIN_ROLE` have
+> `getRoleAdmin == DEFAULT_ADMIN_ROLE`. **If the deployer self-revokes
+> `DEFAULT_ADMIN_ROLE` first, the subsequent revoke of
+> `AUTHORIZED_CALLER_ADMIN_ROLE` reverts** with
+> `AccessControlUnauthorizedAccount` and the deployer remains a permanent
+> phantom admin. Always revoke `DEFAULT_ADMIN_ROLE` LAST. Regression test:
+> `test/deploy/RevokeOrder.t.sol`.
+
+Canonical order (deployer signs all 6 calls):
+
+```bash
+# Grants (any order)
+cast send $BOND_VAULT  "grantRole(bytes32,address)" 0x00 $MULTISIG \
+  --rpc-url $BASE_MAINNET_RPC --private-key $DEPLOYER_PRIVATE_KEY
+cast send $BOND_VAULT  "grantRole(bytes32,address)" $AUTH_ROLE $MULTISIG \
+  --rpc-url $BASE_MAINNET_RPC --private-key $DEPLOYER_PRIVATE_KEY
+cast send $LUMINA_TOKEN "grantRole(bytes32,address)" 0x00 $MULTISIG \
+  --rpc-url $BASE_MAINNET_RPC --private-key $DEPLOYER_PRIVATE_KEY
+
+# Verify multisig holds all 3 BEFORE any revoke (off-chain via cast call)
+
+# Revokes — AUTHORIZED_CALLER_ADMIN_ROLE FIRST, DEFAULT_ADMIN_ROLE LAST on BondVault
+cast send $BOND_VAULT  "revokeRole(bytes32,address)" $AUTH_ROLE $DEPLOYER \
+  --rpc-url $BASE_MAINNET_RPC --private-key $DEPLOYER_PRIVATE_KEY
+cast send $BOND_VAULT  "revokeRole(bytes32,address)" 0x00 $DEPLOYER \
+  --rpc-url $BASE_MAINNET_RPC --private-key $DEPLOYER_PRIVATE_KEY
+cast send $LUMINA_TOKEN "revokeRole(bytes32,address)" 0x00 $DEPLOYER \
+  --rpc-url $BASE_MAINNET_RPC --private-key $DEPLOYER_PRIVATE_KEY
+```
+
+where `$AUTH_ROLE = cast call $BOND_VAULT "AUTHORIZED_CALLER_ADMIN_ROLE()(bytes32)"`.
+
+**Safer alternative**: have the MULTISIG itself revoke the deployer (via a
+Safe transaction). The multisig already holds `DEFAULT_ADMIN_ROLE` after the
+grants, so it can revoke in any order without the ordering trap. Use this
+path if any signer is uncomfortable with the manual deployer-self-revoke
+sequence above.
+
+- [ ] Verify post-handoff: deployer holds NO admin role on BondVault or LuminaTokenV2
+- [ ] Verify post-handoff: multisig holds DEFAULT_ADMIN_ROLE + AUTHORIZED_CALLER_ADMIN_ROLE on BondVault, DEFAULT_ADMIN_ROLE on LuminaTokenV2
 
 ### Hour 1: Verification
 
