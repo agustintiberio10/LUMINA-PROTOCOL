@@ -60,21 +60,49 @@ This runbook covers the full deployment lifecycle for LUMINA Protocol V5.0 to Et
 
 ### Hour 0: Deploy Initiation
 
-#### STEP 0 — MANDATORY PRE-FLIGHT CHECK
+#### PRE-FLIGHT CHECKS — TWO CHECKPOINTS
 
-> **Hard gate. The deploy command in the next step MUST NOT run if this fails.**
-> Verifies the three CRITICAL findings from Phase 5.5 audits (FN-C1, FN-H1, RM-C1)
-> plus chainId + deployer hygiene. Read-only — no broadcast, no tx.
+> The pre-flight runs **twice** in the mainnet lifecycle. They are separate scripts because the LUMINA/USDC pool only exists after the LBP, so the full FN-C1 check (`pool != 0`) cannot pass at deploy time. See [`MAINNET-DEPLOY-STAGED-PLAN.md`](MAINNET-DEPLOY-STAGED-PLAN.md) for the full staged flow.
+
+| When | Script | What it allows / requires that's different |
+|------|--------|---------------------------------------------|
+| **Checkpoint A — BOOTSTRAP** (after deploy + pause + admin handoff, **before LBP**) | `script/PreFlightCheckBootstrap.s.sol` | Allows `pool == 0` (LBP hasn't happened). **Requires `coverRouter.paused() == true`** — the safety net that compensates for pool==0. |
+| **Checkpoint B — FULL** (after LBP + `setPool`, **before unpause**) | `script/PreFlightCheck.s.sol` | Requires `pool != 0` (FN-C1 full). Run this gate BEFORE `coverRouter.setPaused(false)`. |
+
+Both checks share the rest: FN-H1 (USDC=Circle), RM-C1 (admin=Safe, not EOA), chainId==8453, deployer != burned EOA.
+
+##### Checkpoint A — BOOTSTRAP pre-flight (pre-LBP)
+
+> **Hard gate before LBP.** With the protocol still paused and pool=0, this verifies everything else is correct so the LBP can run safely.
 
 ```bash
-# Required env (all must be set to the post-Phase-6-hardening addresses):
+# Required env (deployed addresses from Hour 0 STEP 1 below):
 export LUMINA_TOKEN=<token-proxy>
 export BOND_VAULT=<bondvault-proxy>
-export CAPACITY_ORACLE=<capacityoracle-proxy>     # MUST have pool() != 0
-export COVER_ROUTER=<coverrouter-proxy>           # usdc() MUST == Circle Base USDC
+export CAPACITY_ORACLE=<capacityoracle-proxy>     # pool() may be 0 here — OK at this stage
+export COVER_ROUTER=<coverrouter-proxy>           # paused() MUST == true (safety net)
 export GNOSIS_SAFE=<safe-multisig>                # MUST hold DEFAULT_ADMIN_ROLE on token + vault
 export DEPLOYER=<NEW hardware wallet>             # MUST NOT be 0xe585…fDa8 (burned Sepolia EOA)
 
+forge script script/PreFlightCheckBootstrap.s.sol:PreFlightCheckBootstrap \
+  --rpc-url $BASE_MAINNET_RPC
+```
+
+Expected last line:
+```
+BOOTSTRAP PRE-FLIGHT PASSED - safe to proceed to LBP
+REMEMBER: after setPool, run script/PreFlightCheck.s.sol (full) before unpausing.
+```
+
+On failure the script reverts with one of:
+`BOOTSTRAP: coverRouter must be paused` · `FN-H1: USDC not mainnet` · `RM-C1: {EOA has|Safe missing} {token|vault} admin` · `BONUS: wrong chainId` · `BONUS: deployer is burned EOA`. **9 failure paths unit-tested** in `test/PreFlightCheckBootstrap.t.sol`.
+
+##### Checkpoint B — FULL pre-flight (pre-unpause, post-LBP)
+
+> **Hard gate before `setPaused(false)`.** Run AFTER the Safe has called `capacityOracle.setPool(realPool)` and the long TWAP window has filled (≥2h of swap activity).
+
+```bash
+# Same env vars as Checkpoint A — but now CAPACITY_ORACLE.pool() MUST != 0.
 forge script script/PreFlightCheck.s.sol:PreFlightCheck \
   --rpc-url $BASE_MAINNET_RPC
 ```
@@ -85,9 +113,9 @@ ALL PRE-FLIGHT CHECKS PASSED - safe to deploy
 ```
 
 On failure the script reverts with one of:
-`FN-C1: pool not set` · `FN-H1: USDC not mainnet` · `RM-C1: {EOA has|Safe missing} {token|vault} admin` · `BONUS: wrong chainId` · `BONUS: deployer is burned EOA`.
+`FN-C1: pool not set` · `FN-H1: USDC not mainnet` · `RM-C1: {EOA has|Safe missing} {token|vault} admin` · `BONUS: wrong chainId` · `BONUS: deployer is burned EOA`. **9 failure paths unit-tested** in `test/PreFlightCheck.t.sol`.
 
-**Do not proceed to the deploy command below until this script succeeds.** Each of the 9 failure paths is unit-tested in `test/PreFlightCheck.t.sol`.
+**Operator must see the success line** before calling `coverRouter.setPaused(false)` to activate the protocol.
 
 #### STEP 1 — Deploy
 
