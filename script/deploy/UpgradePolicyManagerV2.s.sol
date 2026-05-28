@@ -19,7 +19,7 @@ contract UpgradePolicyManagerV2 is Script {
     address constant PROXY = 0x546C07e07DeBCdbf7a2A7Ef12C38c8c8fcAFcDd8;
 
     function run() external returns (address newImpl) {
-        uint256 pk = vm.envUint("PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
         vm.startBroadcast(pk);
         PolicyManagerV2 impl = new PolicyManagerV2();

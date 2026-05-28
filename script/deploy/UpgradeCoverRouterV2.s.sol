@@ -18,7 +18,7 @@ contract UpgradeCoverRouterV2 is Script {
     address constant PROXY = 0xcdB70B40e6a3DEac3189185d947A0e458518F566;
 
     function run() external returns (address newImpl) {
-        uint256 pk = vm.envUint("PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
         vm.startBroadcast(pk);
         CoverRouterV2 impl = new CoverRouterV2();

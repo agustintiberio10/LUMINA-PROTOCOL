@@ -20,7 +20,7 @@ contract UpgradeBondVault is Script {
     address constant PROXY = 0x193acBc1EdC5E565a4aBE96941C7E7AeF637B6EC;
 
     function run() external returns (address newImpl) {
-        uint256 pk = vm.envUint("PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
         vm.startBroadcast(pk);
         BondVault impl = new BondVault();

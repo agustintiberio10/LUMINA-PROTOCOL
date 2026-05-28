@@ -6,7 +6,7 @@ import {LuminaOracleV2} from "../src/oracles/LuminaOracleV2.sol";
 
 contract DeployOracleV2Sepolia is Script {
     function run() external {
-        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
+        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address signer = vm.envAddress("ORACLE_SIGNER_ADDRESS");
         address owner = vm.addr(deployerKey);
 

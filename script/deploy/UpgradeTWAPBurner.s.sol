@@ -16,7 +16,7 @@ contract UpgradeTWAPBurner is Script {
     address constant PROXY = 0x242d76082856901b4ba1E7c50C022D46a6941bC0;
 
     function run() external returns (address newImpl) {
-        uint256 pk = vm.envUint("PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
         vm.startBroadcast(pk);
         TWAPBurner impl = new TWAPBurner();

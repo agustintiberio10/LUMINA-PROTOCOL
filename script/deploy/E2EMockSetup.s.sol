@@ -37,7 +37,7 @@ contract E2EMockSetup is Script {
     int256 constant INITIAL_PRICE = 60_000 * 1e8; // $60k, 8-dec
 
     function run() external {
-        uint256 pk = vm.envUint("FOUNDER_PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address founder = vm.addr(pk);
         vm.startBroadcast(pk);
 

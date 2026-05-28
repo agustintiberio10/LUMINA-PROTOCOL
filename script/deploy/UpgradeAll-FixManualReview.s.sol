@@ -24,7 +24,7 @@ import {FlashShieldAdapter} from "../../src/shields/FlashShieldAdapter.sol";
 /// ⚠️ NOT auto-broadcast in the audit environment. Standing rule: NO broadcast
 ///    until a 100%-clean production-profile dry-run. The Windows audit host OOMs
 ///    on the `via_ir`+`runs=200` build, so the dry-run + broadcast run from the
-///    founder runbook with FOUNDER_PRIVATE_KEY set.
+///    founder runbook with DEPLOYER_PRIVATE_KEY set.
 ///
 /// Contracts upgraded here (UUPS): CapacityOracle (MR-H01), CoverRouterV2 (MR-M01),
 ///   PolicyManagerV2 (MR-L01/L03), BondVault (MR-M02/M03/L04/L10), BuybackEngine
@@ -43,13 +43,13 @@ import {FlashShieldAdapter} from "../../src/shields/FlashShieldAdapter.sol";
 ///   DEFAULT_* fallback when the appended slots initialize to zero.
 ///
 /// Required env (each the PROXY address of the live contract):
-///   FOUNDER_PRIVATE_KEY
+///   DEPLOYER_PRIVATE_KEY
 ///   CAPACITYORACLE_PROXY, COVERROUTER_PROXY, POLICYMANAGER_PROXY, BONDVAULT_PROXY,
 ///   BUYBACKENGINE_PROXY, CEXRESERVE_PROXY, TWAPBURNER_PROXY, SOLVENCYORACLE_PROXY,
 ///   MAINTENANCERESERVE_PROXY, SHIELDKEEPER_PROXY, ADAPTER_PROXIES (comma-separated, 6)
 contract UpgradeAllFixManualReview is Script {
     function run() external {
-        uint256 pk = vm.envUint("FOUNDER_PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
         vm.startBroadcast(pk);
 

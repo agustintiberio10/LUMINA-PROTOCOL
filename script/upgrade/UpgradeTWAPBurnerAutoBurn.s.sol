@@ -19,7 +19,7 @@ contract UpgradeTWAPBurnerAutoBurn is Script {
     uint256 constant GAS_REFUND_CAP = 0.001 ether;
 
     function run() external {
-        uint256 pk = vm.envUint("PRIVATE_KEY");
+        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address sender = vm.addr(pk);
 
         address owner = TWAPBurner(payable(PROXY)).owner();
