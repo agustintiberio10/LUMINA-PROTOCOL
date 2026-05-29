@@ -1,26 +1,31 @@
 // SPDX-License-Identifier: MIT
+// ARCHIVED: Sepolia testnet only. Deploys a full V5.4 stack to Base Sepolia with
+// MockUSDC / MockOracles / MockDexRouter. Use `script/deploy/DeployLuminaV5Mainnet.s.sol`
+// for mainnet (PR #187 / ADR-027 — wrapper inherits Complete + chains Phase C +
+// handoff atomically; runs against real Circle USDC + Chainlink + Aerodrome + Uniswap).
+// Kept for historical reference and for re-running the Sepolia sandbox if needed.
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // ─── Core contracts ───
-import {LuminaTokenV2} from "../../src/token/LuminaTokenV2.sol";
-import {TreasuryVesting} from "../../src/token/TreasuryVesting.sol";
-import {ClaimBond} from "../../src/bonds/ClaimBond.sol";
-import {BondVault} from "../../src/bonds/BondVault.sol";
-import {CapacityOracle} from "../../src/oracles/CapacityOracle.sol";
-import {SolvencyOracle} from "../../src/oracles/SolvencyOracle.sol";
-import {AdaptiveFeeDistributor} from "../../src/core/AdaptiveFeeDistributor.sol";
-import {TWAPBurner} from "../../src/core/TWAPBurner.sol";
-import {PolicyManagerV2} from "../../src/core/PolicyManagerV2.sol";
-import {CoverRouterV2} from "../../src/core/CoverRouterV2.sol";
-import {CEXLiquidityReserve} from "../../src/treasury/CEXLiquidityReserve.sol";
-import {MaintenanceReserve} from "../../src/treasury/MaintenanceReserve.sol";
-import {LuminaBondMarketplace} from "../../src/marketplace/LuminaBondMarketplace.sol";
-import {BuybackEngine} from "../../src/marketplace/BuybackEngine.sol";
-import {ShieldKeeper} from "../../src/automation/ShieldKeeper.sol";
-import {IDexRouter} from "../../src/interfaces/IDexRouter.sol";
+import {LuminaTokenV2} from "../../../src/token/LuminaTokenV2.sol";
+import {TreasuryVesting} from "../../../src/token/TreasuryVesting.sol";
+import {ClaimBond} from "../../../src/bonds/ClaimBond.sol";
+import {BondVault} from "../../../src/bonds/BondVault.sol";
+import {CapacityOracle} from "../../../src/oracles/CapacityOracle.sol";
+import {SolvencyOracle} from "../../../src/oracles/SolvencyOracle.sol";
+import {AdaptiveFeeDistributor} from "../../../src/core/AdaptiveFeeDistributor.sol";
+import {TWAPBurner} from "../../../src/core/TWAPBurner.sol";
+import {PolicyManagerV2} from "../../../src/core/PolicyManagerV2.sol";
+import {CoverRouterV2} from "../../../src/core/CoverRouterV2.sol";
+import {CEXLiquidityReserve} from "../../../src/treasury/CEXLiquidityReserve.sol";
+import {MaintenanceReserve} from "../../../src/treasury/MaintenanceReserve.sol";
+import {LuminaBondMarketplace} from "../../../src/marketplace/LuminaBondMarketplace.sol";
+import {BuybackEngine} from "../../../src/marketplace/BuybackEngine.sol";
+import {ShieldKeeper} from "../../../src/automation/ShieldKeeper.sol";
+import {IDexRouter} from "../../../src/interfaces/IDexRouter.sol";
 
 // ─── Shields ───
 // [Sprint T-30a Phase B] V5.2 shield set (FlashBTC/FlashETH 1h/24h/48h + RateShock)

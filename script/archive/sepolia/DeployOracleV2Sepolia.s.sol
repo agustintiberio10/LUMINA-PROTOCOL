@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
+// ARCHIVED: Sepolia testnet only. Hard-coded to chainId 84532 (require at runtime).
+// Use `script/deploy/DeployLuminaV5Mainnet.s.sol` for mainnet deploys (PR #187 /
+// ADR-027 — wrapper inherits Complete + chains Phase C + handoff atomically).
+// Kept for historical reference and for re-running the Sepolia sandbox if needed.
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {LuminaOracleV2} from "../src/oracles/LuminaOracleV2.sol";
+import {LuminaOracleV2} from "../../../src/oracles/LuminaOracleV2.sol";
 
 contract DeployOracleV2Sepolia is Script {
     function run() external {
