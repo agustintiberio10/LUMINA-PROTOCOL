@@ -22,7 +22,7 @@ path used by V5.1 shields.
 DOMAIN = {
   name: "LuminaOracle",   // literal in the contract — NOT "LuminaOracleV2"
   version: "2",
-  chainId: block.chainid, // captured in constructor — Base Sepolia: 84532
+  chainId: block.chainid, // captured in constructor — Base mainnet: 8453 (Sepolia sandbox: 84532)
   verifyingContract: address(this),
 }
 ```
@@ -66,24 +66,42 @@ matching the destructuring inside `BaseShield._doVerifyAndCalculate`.
 
 ## Deployments
 
-### Base Sepolia (84532)
+### Base mainnet (8453) — LIVE
 
-> ⚠️ OBSOLETO — La dirección Oracle SET A citada abajo fue invalidada por el bug L476-477
-> (multisig grant+revoke) que bricked LuminaTokenV2 0x7D3E…Aff02. Direcciones se reemplazarán
-> en el redeploy post-Sprint Z.2. Sección conservada como registro histórico.
+> 🟢 Production. Deployed 2026-05-28 via `script/deploy/DeployLuminaV5Mainnet.s.sol`
+> (PR #187 / ADR-027). All 6 Phase C Flash shields are bound to this oracle via
+> the FlashShieldAdapter UUPS proxies registered on PolicyManagerV2. The
+> DOMAIN_SEPARATOR is pinned to chainId 8453 + this oracle address, so a Sepolia
+> proof can never be replayed against mainnet.
 
-- Oracle: `0x0000000000000000000000000000000000000000` <!-- SPRINT_Z2: was 0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194 (Oracle SET A) -->
-- Signer (off-chain key): `0x0622340c847bBd8028700b3345021DbD1849a885` — the
-  address whose private key sits in `lumina-api`'s `ORACLE_PRIVATE_KEY` env.
+- **Oracle (LuminaOracleV2)**: `0x191Be3f976CC7471aE2cc4001e92611BA0De1bef`
+- **Signer (off-chain key, EOA)**: `0xA0963323D6FA2b721E4D5bf7001C82B460f41456` — the
+  address whose private key sits in `lumina-api`'s `ORACLE_PRIVATE_KEY` env (Railway
+  service). Rotation requires `setOracleKey(newKey)` from the MULTISIG (Safe).
+- **Sequencer uptime feed (Chainlink Base mainnet)**:
+  `0xBCF85224fc0756B9Fa45aA7892530B47e10b6433` — passed to the oracle constructor;
+  shields read it to fail-silent during L2 sequencer outages.
+- **Owner**: MULTISIG `0xa9aE612fD97f5e33B5829d16B6408ebD8422C783` (Gnosis Safe).
+- **Chainlink data feeds** wired into each shield at Phase C deploy:
+  - BTC/USD: `0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F`
+  - ETH/USD: `0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70`
+- **Mainnet runbook**: `docs/runbooks/DEPLOY-MAINNET-RUNBOOK.md`. The full deploy +
+  Phase C + handoff lives in the audited atomic wrapper; see ADR-027 for the
+  inheritance pattern that prevented the original `new Complete() + .run()` bug.
+
+### Base Sepolia (84532) — Legacy testnet (for reference)
+
+> ⚠️ Sepolia is the **sandbox** for `lumina-api`'s `/sandbox/*` endpoints. The
+> protocol's production state lives on Base mainnet (above). Addresses below are
+> historical / informational only; do NOT integrate against them for production
+> flows.
+
+- Oracle: `0x0000000000000000000000000000000000000000` <!-- SPRINT_Z2: was 0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194 (Oracle SET A), retired Sprint Z.2 cleanup -->
+- Signer (off-chain key): `0x0622340c847bBd8028700b3345021DbD1849a885` — sandbox-only.
 - Sequencer uptime feed: `address(0)` — Base Sepolia has no sequencer feed.
-- Owner: `0x0000000000000000000000000000000000000000` <!-- SPRINT_Z2: cleared pre-redeploy -->
-- All 9 V5.1 shields rebound on the same deploy; manifest file
-  `deployments/sepolia/shields-upgrade-2026-05-05.json` is no longer authoritative
-  (Sprint Z.2 cleanup).
-
-### Base mainnet (8453)
-
-Not deployed yet. See "Mainnet roadmap" below.
+- Owner: `0x0000000000000000000000000000000000000000`.
+- Historical context: Sprint T-30c V5.3 deploy bound 9 shields on Sepolia; later
+  retired down to 6 (Flash BTC/ETH × 1h/24h/48h) before mainnet launch.
 
 ## Security implications
 
@@ -111,20 +129,26 @@ Not deployed yet. See "Mainnet roadmap" below.
 - Tracked in `ops/oracle-v2-and-shield-rebind` (LUMINA-PROTOCOL) and
   `feat/oracle-signer-service` (lumina-api).
 
-## Mainnet roadmap
+## Mainnet roadmap — DONE (2026-05-28)
 
-- [ ] Rotate the deployer key (the current one is tainted from this session
-      because it was passed to a non-ops process).
-- [ ] Generate fresh `ORACLE_PRIVATE_KEY` from an HSM. Its address feeds the
-      `oracleKey_` constructor argument of the mainnet oracle.
-- [ ] Re-deploy `LuminaOracleV2` on Base mainnet (chainId 8453) with the
-      fresh keys. The DOMAIN_SEPARATOR will be different from Sepolia's by
-      construction, so no cross-network replay risk.
-- [ ] Repoint `BTC_PRICE_FEED` / `ETH_PRICE_FEED` to real Chainlink Base
-      mainnet feeds. Validate `latestRoundData()` returns sensible answers
-      and `decimals()` matches the price unit shields expect.
-- [ ] If a sequencer-uptime feed is required for sequencer-aware shields
-      on Base mainnet, pass its address to the constructor; on Base Sepolia
-      we deploy with `address(0)` because no such feed exists on testnet.
-- [ ] Run UUPS upgrade + `setOracle(mainnetOracle)` against the 9 mainnet
-      shields once they exist.
+All checklist items below were completed in the mainnet deploy. Kept for
+historical reference of what each step required.
+
+- [x] Rotate the deployer key. Done — production deployer is
+      `0x130377f9dE9f0134Fa82e24273C0225fB23B9040`, the pre-mainnet keys
+      were burned.
+- [x] Generate fresh `ORACLE_PRIVATE_KEY` whose address became `oracleKey_`
+      at constructor — current mainnet signer EOA:
+      `0xA0963323D6FA2b721E4D5bf7001C82B460f41456`.
+- [x] Deploy `LuminaOracleV2` on Base mainnet (chainId 8453): live at
+      `0x191Be3f976CC7471aE2cc4001e92611BA0De1bef`. DOMAIN_SEPARATOR is
+      distinct from any Sepolia oracle's by construction (different
+      chainId + verifyingContract).
+- [x] Repoint `BTC_PRICE_FEED` / `ETH_PRICE_FEED` to real Chainlink Base
+      mainnet feeds — see "Base mainnet (8453) — LIVE" above for the
+      exact addresses.
+- [x] Sequencer-uptime feed: passed Chainlink Base mainnet feed
+      `0xBCF85224fc0756B9Fa45aA7892530B47e10b6433` to the constructor.
+- [x] Bind shields: 6 FlashShieldAdapter UUPS proxies register the oracle
+      via Phase C in the wrapper. See `script/deploy/DeployPhaseC.s.sol`
+      and ADR-027.
